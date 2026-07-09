@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Dumbbell, Plus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw } from "lucide-react";
+import { Dumbbell, Plus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw, Link2, Link2Off, Heading } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getExercises, getPrograms, saveWorkoutToHistory, getLastExerciseStats, getActiveProgram, saveActiveProgram } from "@/lib/store";
 import { getEmbedUrl } from "@/lib/utils";
@@ -43,7 +43,7 @@ const REWARD_ITEMS = [
 
 const Workouts = () => {
   const [workoutName, setWorkoutName] = useState("");
-  const [exercises, setExercises] = useState<any[]>([{ id: 1, blockType: "Strength", name: "", sets: 3, reps: 10, weight: 0 }]);
+  const [exercises, setExercises] = useState<any[]>([{ id: 1, blockType: "Strength", name: "", sets: 3, reps: 10, weight: 0, linkedToNext: false, eachSide: false }]);
   const [exerciseLibrary, setExerciseLibrary] = useState<any[]>([]);
   const [workoutTemplates, setWorkoutTemplates] = useState<any[]>([]);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -109,7 +109,7 @@ const Workouts = () => {
   };
 
   const addExercise = () => {
-    setExercises([...exercises, { id: Date.now(), blockType: "Strength", name: "", sets: 3, reps: 10, weight: 0 }]);
+    setExercises([...exercises, { id: Date.now(), blockType: "Strength", name: "", sets: 3, reps: 10, weight: 0, linkedToNext: false, eachSide: false }]);
   };
 
   const removeExercise = (id: number) => {
@@ -151,7 +151,7 @@ const Workouts = () => {
       return;
     }
     
-    const totalVolume = exercises.reduce((acc, ex) => acc + ((ex.sets || 0) * (ex.reps || 0) * (ex.weight || 0)), 0);
+    const totalVolume = exercises.reduce((acc, ex) => acc + ((ex.sets || 0) * (ex.reps || 0) * (ex.eachSide ? 2 : 1) * (ex.weight || 0)), 0);
     
     const possibleRewards = REWARD_ITEMS.filter(item => totalVolume >= item.weight);
     let earnedReward = null;
@@ -200,7 +200,7 @@ const Workouts = () => {
     }
     
     setWorkoutName("");
-    setExercises([{ id: Date.now(), name: "", sets: 3, reps: 10, weight: 0 }]);
+    setExercises([{ id: Date.now(), name: "", sets: 3, reps: 10, weight: 0, linkedToNext: false, eachSide: false }]);
   };
 
   return (
@@ -262,9 +262,14 @@ const Workouts = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium">Exercises</h3>
-              <Button onClick={addExercise} variant="outline" size="sm" className="gap-2">
-                <Plus className="h-4 w-4" /> Add Exercise
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={() => setExercises([...exercises, { id: Date.now(), isSection: true, name: "New Section", description: "" }])} variant="outline" size="sm" className="gap-2">
+                  <Heading className="h-4 w-4" /> Add Section
+                </Button>
+                <Button onClick={addExercise} variant="outline" size="sm" className="gap-2">
+                  <Plus className="h-4 w-4" /> Add Exercise
+                </Button>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 p-3 bg-muted/50 rounded-lg border border-border">
@@ -277,13 +282,30 @@ const Workouts = () => {
               <Button variant="outline" size="sm" onClick={() => startTimer(180)}>3m</Button>
             </div>
 
-            {exercises.map((exercise) => {
+            {exercises.map((exercise, index) => {
+              if (exercise.isSection) {
+                return (
+                  <div key={exercise.id} className="mt-8 mb-4 border-b border-border pb-2">
+                    <h4 className="text-xl font-heading tracking-wider text-primary">{exercise.name}</h4>
+                    {exercise.description && <p className="text-sm text-muted-foreground mt-1">{exercise.description}</p>}
+                  </div>
+                );
+              }
+              
               const libraryExercise = exerciseLibrary.find(e => e.id === exercise.name);
               const lastStats = exercise.name ? getLastExerciseStats(exercise.name) : null;
               
+              const isLinkedToNext = exercise.linkedToNext;
+              const isLinkedToPrev = index > 0 && exercises[index - 1].linkedToNext;
+              
               return (
-              <Card key={exercise.id} className="bg-muted/50 border-border">
-                <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-end">
+              <Card key={exercise.id} className={`bg-muted/50 border relative ${isLinkedToNext ? 'border-b-0 rounded-b-none border-primary/50' : 'border-border'} ${isLinkedToPrev ? 'border-t-0 rounded-t-none border-primary/50 bg-primary/5 -mt-4' : ''}`}>
+                {isLinkedToPrev && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex items-center gap-1 z-20 shadow-sm border border-primary-foreground/20">
+                    <Link2 className="h-3 w-3" /> Superset
+                  </div>
+                )}
+                <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-end relative">
                   <div className="space-y-2 flex-1 w-full">
                     <div className="flex justify-between items-center mb-1">
                       <div className="flex items-center gap-2">
@@ -368,7 +390,18 @@ const Workouts = () => {
                     />
                   </div>
                   <div className="space-y-2 w-full md:w-24">
-                    <Label>Reps</Label>
+                    <Label className="flex justify-between items-center">
+                      Reps 
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] uppercase text-muted-foreground">E/Side</span>
+                        <input 
+                          type="checkbox" 
+                          checked={exercise.eachSide || false}
+                          onChange={(e) => updateExercise(exercise.id, "eachSide", e.target.checked)}
+                          className="h-3 w-3 accent-primary"
+                        />
+                      </div>
+                    </Label>
                     <Input 
                       type="number" 
                       value={exercise.reps} 
@@ -383,14 +416,25 @@ const Workouts = () => {
                       onChange={(e) => updateExercise(exercise.id, "weight", parseInt(e.target.value) || 0)}
                     />
                   </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => removeExercise(exercise.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-1 shrink-0 self-end pb-1">
+                    <Button 
+                      variant={exercise.linkedToNext ? "default" : "outline"} 
+                      size="icon" 
+                      className={`h-10 w-10 ${exercise.linkedToNext ? "bg-primary text-primary-foreground" : ""}`}
+                      onClick={() => updateExercise(exercise.id, "linkedToNext", !exercise.linkedToNext)}
+                      title={exercise.linkedToNext ? "Unlink from next" : "Link to next as superset"}
+                    >
+                      {exercise.linkedToNext ? <Link2Off className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10 h-10 w-10 shrink-0"
+                      onClick={() => removeExercise(exercise.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
               );

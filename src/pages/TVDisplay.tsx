@@ -39,24 +39,6 @@ const TVDisplay = () => {
     );
   }
 
-  // Group exercises by blockType
-  const groupedExercises: Record<string, any[]> = {};
-  workout.exercises.forEach((ex: any) => {
-    const block = ex.blockType || "Strength";
-    if (!groupedExercises[block]) groupedExercises[block] = [];
-    groupedExercises[block].push(ex);
-  });
-
-  const blockOrder = ["Warm Up", "Mobility", "Activation", "Strength", "Cardio", "Cool Down"];
-  const sortedBlocks = Object.keys(groupedExercises).sort((a, b) => {
-    const indexA = blockOrder.indexOf(a);
-    const indexB = blockOrder.indexOf(b);
-    if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-    if (indexA === -1) return 1;
-    if (indexB === -1) return -1;
-    return indexA - indexB;
-  });
-
   return (
     <div className="min-h-screen bg-background text-foreground p-8 flex flex-col">
       <div className="flex items-center justify-between mb-8 pb-6 border-b-2 border-border">
@@ -72,46 +54,61 @@ const TVDisplay = () => {
         </Button>
       </div>
 
-      <div className="flex-1 grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))' }}>
-        {sortedBlocks.map(blockType => (
-          <Card key={blockType} className="bg-card border-2 border-border overflow-hidden flex flex-col">
-            <div className="bg-primary/10 border-b-2 border-border p-4">
-              <h3 className="text-2xl font-heading font-bold uppercase tracking-widest text-primary">{blockType}</h3>
-            </div>
-            <CardContent className="p-0 flex-1">
-              <div className="divide-y-2 divide-border/50">
-                {groupedExercises[blockType].map((ex: any, idx: number) => {
-                  const libEx = exercises.find(e => e.id === ex.name);
-                  const exName = libEx ? libEx.name : ex.name;
-                  const movement = libEx?.movementType;
-                  
-                  return (
-                    <div key={idx} className="p-6 flex items-center justify-between bg-muted/20">
-                      <div className="space-y-1">
-                        <h4 className="text-2xl font-bold">{exName}</h4>
-                        {movement && (
-                          <span className="inline-block px-3 py-1 bg-muted rounded-md text-sm font-medium border border-border/50">
-                            {movement}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <div className="text-4xl font-heading font-bold text-primary tabular-nums">
-                          {ex.sets} <span className="text-2xl text-muted-foreground">×</span> {ex.reps}
-                        </div>
-                        {ex.weight > 0 && (
-                          <div className="text-xl text-muted-foreground font-medium mt-1">
-                            @ {ex.weight}kg
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+      <div className="flex-1 max-w-5xl mx-auto w-full space-y-6">
+        {workout.exercises.map((ex: any, idx: number) => {
+          if (ex.isSection) {
+            return (
+              <div key={idx} className="mt-12 mb-6 border-b-4 border-primary pb-4">
+                <h3 className="text-4xl font-heading font-bold uppercase tracking-widest text-primary">{ex.name}</h3>
+                {ex.description && <p className="text-xl text-muted-foreground mt-2">{ex.description}</p>}
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            );
+          }
+
+          const libEx = exercises.find(e => e.id === ex.name);
+          const exName = libEx ? libEx.name : ex.name;
+          const movement = libEx?.movementType;
+          
+          const isLinkedToNext = ex.linkedToNext;
+          const isLinkedToPrev = idx > 0 && workout.exercises[idx - 1].linkedToNext;
+
+          return (
+            <Card key={idx} className={`bg-card border-2 overflow-hidden flex flex-col ${isLinkedToNext ? 'border-b-0 rounded-b-none border-primary/50 relative z-10' : 'border-border'} ${isLinkedToPrev ? 'border-t-0 rounded-t-none border-primary/50 bg-primary/5 -mt-6' : ''}`}>
+              <div className="p-6 flex items-center justify-between">
+                <div className="space-y-2">
+                  {isLinkedToPrev && (
+                    <div className="text-primary text-sm uppercase font-bold tracking-widest mb-2 flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-primary" /> Superset
+                    </div>
+                  )}
+                  <h4 className="text-3xl font-bold">{exName}</h4>
+                  <div className="flex gap-2">
+                    {ex.blockType && (
+                      <span className="inline-block px-3 py-1 bg-primary/20 text-primary rounded-md text-sm font-bold uppercase tracking-wider">
+                        {ex.blockType}
+                      </span>
+                    )}
+                    {movement && (
+                      <span className="inline-block px-3 py-1 bg-muted rounded-md text-sm font-medium border border-border/50">
+                        {Array.isArray(movement) ? movement.join(", ") : movement}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-5xl font-heading font-bold text-primary tabular-nums">
+                    {ex.sets} <span className="text-3xl text-muted-foreground">×</span> {ex.reps} {ex.eachSide && <span className="text-xl text-secondary-foreground bg-secondary px-2 py-1 rounded-md align-middle ml-2">E/Side</span>}
+                  </div>
+                  {ex.weight > 0 && (
+                    <div className="text-2xl text-muted-foreground font-medium mt-2">
+                      @ {ex.weight}kg
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

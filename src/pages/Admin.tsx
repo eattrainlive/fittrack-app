@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification } from "@/lib/store";
-import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar, Bell, Send, Download } from "lucide-react";
+import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar, Bell, Send, Download, Link2, Link2Off, Heading } from "lucide-react";
 import JSZip from "jszip";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
@@ -311,7 +311,13 @@ const Admin = () => {
 
   const handleAddProgExercise = () => {
     const updatedWorkouts = [...progWorkouts];
-    updatedWorkouts[selectedWorkoutIndex].exercises.push({ id: Date.now(), blockType: "Strength", name: "", sets: 3, reps: 10, weight: 0 });
+    updatedWorkouts[selectedWorkoutIndex].exercises.push({ id: Date.now(), blockType: "Strength", name: "", sets: 3, reps: 10, weight: 0, linkedToNext: false, eachSide: false });
+    setProgWorkouts(updatedWorkouts);
+  };
+
+  const handleAddProgSection = () => {
+    const updatedWorkouts = [...progWorkouts];
+    updatedWorkouts[selectedWorkoutIndex].exercises.push({ id: Date.now(), isSection: true, name: "New Section", description: "" });
     setProgWorkouts(updatedWorkouts);
   };
 
@@ -363,7 +369,7 @@ const Admin = () => {
       daysPerWeek: newProgDays,
       workouts: progWorkouts.map(w => ({
         name: w.name,
-        exercises: w.exercises.map((e: any) => ({ blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight }))
+        exercises: w.exercises.map((e: any) => ({ isSection: e.isSection, description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, linkedToNext: e.linkedToNext, eachSide: e.eachSide }))
       }))
     };
     
@@ -397,11 +403,15 @@ const Admin = () => {
       name: w.name,
       exercises: w.exercises.map((e: any, eIdx: number) => ({
         id: Date.now() + eIdx + Math.random(),
+        isSection: e.isSection,
+        description: e.description,
         blockType: e.blockType || "Strength",
         name: e.name,
         sets: e.sets,
         reps: e.reps,
-        weight: e.weight || 0
+        weight: e.weight || 0,
+        linkedToNext: e.linkedToNext || false,
+        eachSide: e.eachSide || false
       }))
     })) : [];
     
@@ -870,9 +880,6 @@ const Admin = () => {
                               <Copy className="h-4 w-4" /> Copy Previous
                             </Button>
                           )}
-                          <Button variant="outline" size="sm" onClick={handleAddProgExercise} className="gap-2">
-                            <Plus className="h-4 w-4" /> Add Exercise
-                          </Button>
                         </div>
                       </div>
 
@@ -883,71 +890,113 @@ const Admin = () => {
                               {progWorkouts[selectedWorkoutIndex].exercises.map((pe: any, index: number) => (
                                 <Draggable key={pe.id.toString()} draggableId={pe.id.toString()} index={index}>
                                   {(provided) => (
-                                    <div
-                                      ref={provided.innerRef}
-                                      {...provided.draggableProps}
-                                      className="flex gap-4 items-end bg-background p-4 rounded-md border border-border"
-                                    >
-                                      <div {...provided.dragHandleProps} className="pb-2 cursor-grab text-muted-foreground hover:text-foreground">
-                                        <GripVertical className="h-5 w-5" />
-                                      </div>
-                                      <div className="space-y-2 w-32 shrink-0">
-                                        <Label>Block Type</Label>
-                                        <Select value={pe.blockType || "Strength"} onValueChange={(v) => {
-                                          const updatedWorkouts = [...progWorkouts];
-                                          const ex = updatedWorkouts[selectedWorkoutIndex].exercises.find((e: any) => e.id === pe.id);
-                                          if(ex) { ex.blockType = v; ex.name = ""; }
-                                          setProgWorkouts(updatedWorkouts);
-                                        }}>
-                                          <SelectTrigger><SelectValue /></SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="Strength">Strength</SelectItem>
-                                            <SelectItem value="Cardio">Cardio</SelectItem>
-                                            <SelectItem value="Mobility">Mobility</SelectItem>
-                                            <SelectItem value="Activation">Activation</SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-                                      <div className="space-y-2 flex-1">
-                                        <Label>Exercise</Label>
-                                        <Select value={pe.name} onValueChange={(v) => updateProgExercise(pe.id, "name", v)}>
-                                          <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                                          <SelectContent>
-                                            <div className="p-2">
-                                              <Input 
-                                                placeholder="Search exercises..." 
-                                                value={exerciseSearch} 
-                                                onChange={e => setExerciseSearch(e.target.value)}
-                                                className="mb-2 h-8"
-                                                onKeyDown={e => e.stopPropagation()}
+                                      <div
+                                        ref={provided.innerRef}
+                                        {...provided.draggableProps}
+                                        className={`flex gap-4 items-center bg-background p-4 rounded-md border relative ${pe.linkedToNext ? 'border-b-0 rounded-b-none border-primary/50' : 'border-border'} ${index > 0 && progWorkouts[selectedWorkoutIndex].exercises[index - 1].linkedToNext ? 'border-t-0 rounded-t-none border-primary/50 bg-primary/5' : ''}`}
+                                      >
+                                        {(index > 0 && progWorkouts[selectedWorkoutIndex].exercises[index - 1].linkedToNext) && (
+                                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex items-center gap-1 z-20 shadow-sm border border-primary-foreground/20">
+                                            <Link2 className="h-3 w-3" /> Superset
+                                          </div>
+                                        )}
+                                        <div {...provided.dragHandleProps} className="cursor-grab text-muted-foreground hover:text-foreground">
+                                          <GripVertical className="h-5 w-5" />
+                                        </div>
+                                        
+                                        {pe.isSection ? (
+                                          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                              <Label>Section Title</Label>
+                                              <Input value={pe.name} onChange={(e) => updateProgExercise(pe.id, "name", e.target.value)} placeholder="e.g. Warm Up" className="font-bold bg-muted/50" />
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label>Description (Optional)</Label>
+                                              <Input value={pe.description || ""} onChange={(e) => updateProgExercise(pe.id, "description", e.target.value)} placeholder="e.g. Complete 3 rounds..." />
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <>
+                                            <div className="space-y-2 w-32 shrink-0">
+                                              <Label>Block Type</Label>
+                                              <Select value={pe.blockType || "Strength"} onValueChange={(v) => {
+                                                const updatedWorkouts = [...progWorkouts];
+                                                const ex = updatedWorkouts[selectedWorkoutIndex].exercises.find((e: any) => e.id === pe.id);
+                                                if(ex) { ex.blockType = v; ex.name = ""; }
+                                                setProgWorkouts(updatedWorkouts);
+                                              }}>
+                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                  <SelectItem value="Strength">Strength</SelectItem>
+                                                  <SelectItem value="Cardio">Cardio</SelectItem>
+                                                  <SelectItem value="Mobility">Mobility</SelectItem>
+                                                  <SelectItem value="Activation">Activation</SelectItem>
+                                                </SelectContent>
+                                              </Select>
+                                            </div>
+                                            <div className="space-y-2 flex-1">
+                                              <Label>Exercise</Label>
+                                              <Select value={pe.name} onValueChange={(v) => updateProgExercise(pe.id, "name", v)}>
+                                                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                                                <SelectContent>
+                                                  <div className="p-2">
+                                                    <Input 
+                                                      placeholder="Search exercises..." 
+                                                      value={exerciseSearch} 
+                                                      onChange={e => setExerciseSearch(e.target.value)}
+                                                      className="mb-2 h-8"
+                                                      onKeyDown={e => e.stopPropagation()}
+                                                    />
+                                                  </div>
+                                                  {exercises
+                                                    .filter(ex => {
+                                                      if (!pe.blockType) return true;
+                                                      const cats = Array.isArray(ex.category) ? ex.category : [ex.category || "Strength"];
+                                                      return cats.includes(pe.blockType);
+                                                    })
+                                                    .filter(ex => ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()))
+                                                    .sort((a, b) => a.name.localeCompare(b.name))
+                                                    .map(ex => (
+                                                      <SelectItem key={ex.id} value={ex.id}>{ex.name} {ex.movementType ? `(${Array.isArray(ex.movementType) ? ex.movementType.join(", ") : ex.movementType})` : ""}</SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                            </div>
+                                            <div className="space-y-2 w-16">
+                                              <Label>Sets</Label>
+                                              <Input type="number" value={pe.sets} onChange={(e) => updateProgExercise(pe.id, "sets", parseInt(e.target.value) || 0)} />
+                                            </div>
+                                            <div className="space-y-2 w-16">
+                                              <Label>Reps</Label>
+                                              <Input type="number" value={pe.reps} onChange={(e) => updateProgExercise(pe.id, "reps", parseInt(e.target.value) || 0)} />
+                                            </div>
+                                            <div className="space-y-2 w-14 flex flex-col items-center">
+                                              <Label className="text-[10px] uppercase text-center w-full">E/Side</Label>
+                                              <Checkbox 
+                                                checked={pe.eachSide} 
+                                                onCheckedChange={(c) => updateProgExercise(pe.id, "eachSide", !!c)} 
+                                                className="mt-2"
                                               />
                                             </div>
-                                            {exercises
-                                              .filter(ex => {
-                                                if (!pe.blockType) return true;
-                                                const cats = Array.isArray(ex.category) ? ex.category : [ex.category || "Strength"];
-                                                return cats.includes(pe.blockType);
-                                              })
-                                              .filter(ex => ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()))
-                                              .sort((a, b) => a.name.localeCompare(b.name))
-                                              .map(ex => (
-                                                <SelectItem key={ex.id} value={ex.id}>{ex.name} {ex.movementType ? `(${Array.isArray(ex.movementType) ? ex.movementType.join(", ") : ex.movementType})` : ""}</SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
+                                            <div className="space-y-2 w-16 flex flex-col items-center">
+                                              <Label className="text-center w-full">Superset</Label>
+                                              <Button 
+                                                variant={pe.linkedToNext ? "default" : "outline"} 
+                                                size="icon" 
+                                                className={`h-9 w-9 ${pe.linkedToNext ? "bg-primary text-primary-foreground" : ""}`}
+                                                onClick={() => updateProgExercise(pe.id, "linkedToNext", !pe.linkedToNext)}
+                                                title={pe.linkedToNext ? "Unlink from next" : "Link to next as superset"}
+                                              >
+                                                {pe.linkedToNext ? <Link2Off className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+                                              </Button>
+                                            </div>
+                                          </>
+                                        )}
+                                        
+                                        <Button variant="ghost" size="icon" className={`text-destructive shrink-0 self-center ${pe.isSection ? 'mt-6' : ''}`} onClick={() => handleRemoveProgExercise(pe.id)}>
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
                                       </div>
-                                      <div className="space-y-2 w-20">
-                                        <Label>Sets</Label>
-                                        <Input type="number" value={pe.sets} onChange={(e) => updateProgExercise(pe.id, "sets", parseInt(e.target.value) || 0)} />
-                                      </div>
-                                      <div className="space-y-2 w-20">
-                                        <Label>Reps</Label>
-                                        <Input type="number" value={pe.reps} onChange={(e) => updateProgExercise(pe.id, "reps", parseInt(e.target.value) || 0)} />
-                                      </div>
-                                      <Button variant="ghost" size="icon" className="text-destructive shrink-0" onClick={() => handleRemoveProgExercise(pe.id)}>
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
                                   )}
                                 </Draggable>
                               ))}
@@ -956,6 +1005,15 @@ const Admin = () => {
                           )}
                         </Droppable>
                       </DragDropContext>
+                      
+                      <div className="flex gap-2 justify-center pt-4 border-t border-border mt-4">
+                        <Button variant="outline" size="sm" onClick={handleAddProgSection} className="gap-2">
+                          <Heading className="h-4 w-4" /> Add Section
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={handleAddProgExercise} className="gap-2">
+                          <Plus className="h-4 w-4" /> Add Exercise
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1034,6 +1092,7 @@ const Admin = () => {
                     ) : (
                       <ul className="list-disc list-inside">
                         {p.exercises?.map((ex: any, i: number) => {
+                          if (ex.isSection) return <li key={i} className="font-bold mt-2 list-none">{ex.name}</li>;
                           const exerciseName = exercises.find(e => e.id === ex.name)?.name || ex.name;
                           return <li key={i}>{exerciseName} - {ex.sets}x{ex.reps}</li>;
                         })}
