@@ -1,0 +1,448 @@
+import { useState, useEffect } from "react";
+import { supabase } from "./supabase";
+export const defaultExercises = [
+  { id: "bench", name: "Bench Press", muscle: "Chest", equipment: "Barbell", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661" },
+  { id: "squat", name: "Squat", muscle: "Legs", equipment: "Barbell", difficulty: "Advanced", videoUrl: "https://player.vimeo.com/video/147173661" },
+  { id: "deadlift", name: "Deadlift", muscle: "Back", equipment: "Barbell", difficulty: "Advanced", videoUrl: "https://player.vimeo.com/video/147173661" },
+  { id: "pullup", name: "Pull-up", muscle: "Back", equipment: "Bodyweight", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661" },
+  { id: "pushup", name: "Push-up", muscle: "Chest", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661" },
+  { id: "curl", name: "Dumbbell Curl", muscle: "Biceps", equipment: "Dumbbell", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661" },
+  { id: "legpress", name: "Leg Press", muscle: "Legs", equipment: "Machine", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661" },
+  { id: "ohp", name: "Overhead Press", muscle: "Shoulders", equipment: "Barbell", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661" },
+];
+
+export const defaultPrograms = [
+  {
+    id: "t1",
+    name: "Full Body Basics",
+    description: "Perfect starting point for beginners focusing on compound movements.",
+    exercises: [
+      { name: "squat", sets: 3, reps: 10, weight: 0 },
+      { name: "bench", sets: 3, reps: 10, weight: 0 },
+      { name: "deadlift", sets: 1, reps: 5, weight: 0 },
+    ]
+  },
+  {
+    id: "t2",
+    name: "Upper Body Power",
+    description: "Focus on chest, back, and arms for upper body strength.",
+    exercises: [
+      { name: "bench", sets: 4, reps: 8, weight: 0 },
+      { name: "pullup", sets: 3, reps: 8, weight: 0 },
+    ]
+  },
+  {
+    id: "t3",
+    name: "Leg Day Crusher",
+    description: "High volume lower body workout.",
+    exercises: [
+      { name: "squat", sets: 4, reps: 8, weight: 0 },
+      { name: "deadlift", sets: 3, reps: 8, weight: 0 },
+    ]
+  }
+];
+
+export const getExercises = () => {
+  const stored = localStorage.getItem('fittrack_exercises');
+  return stored ? JSON.parse(stored) : defaultExercises;
+};
+
+export const saveExercises = (exercises: any[]) => {
+  localStorage.setItem('fittrack_exercises', JSON.stringify(exercises));
+  // Background sync
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      supabase.from('exercises').delete().eq('user_id', user.id).then(() => {
+        supabase.from('exercises').insert(exercises.map(e => ({ ...e, user_id: user.id }))).then();
+      });
+    }
+  });
+};
+
+export const getPrograms = () => {
+  const stored = localStorage.getItem('fittrack_programs');
+  return stored ? JSON.parse(stored) : defaultPrograms;
+};
+
+export const savePrograms = (programs: any[]) => {
+  localStorage.setItem('fittrack_programs', JSON.stringify(programs));
+  // Background sync
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      supabase.from('programs').delete().eq('user_id', user.id).then(() => {
+        supabase.from('programs').insert(programs.map(p => ({ ...p, user_id: user.id }))).then();
+      });
+    }
+  });
+};
+
+export const getWorkoutHistory = () => {
+  const stored = localStorage.getItem('fittrack_history');
+  return stored ? JSON.parse(stored) : [];
+};
+
+export const saveWorkoutToHistory = (workout: any) => {
+  const history = getWorkoutHistory();
+  const newWorkout = { ...workout, date: new Date().toISOString() };
+  history.unshift(newWorkout);
+  localStorage.setItem('fittrack_history', JSON.stringify(history));
+  
+  // Background sync
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      supabase.from('workout_history').insert({ ...newWorkout, user_id: user.id }).then();
+    }
+  });
+};
+
+export const getLastExerciseStats = (exerciseId: string) => {
+  const history = getWorkoutHistory();
+  for (const workout of history) {
+    const exercise = workout.exercises?.find((e: any) => e.name === exerciseId);
+    if (exercise && exercise.weight > 0) {
+      return { weight: exercise.weight, reps: exercise.reps, sets: exercise.sets, date: workout.date };
+    }
+  }
+  return null;
+};
+
+export const getPersonalRecords = () => {
+  const stored = localStorage.getItem('fittrack_prs');
+  return stored ? JSON.parse(stored) : [];
+};
+
+export const savePersonalRecord = (exerciseId: string, weight: number) => {
+  const prs = getPersonalRecords();
+  const date = new Date().toISOString().split('T')[0];
+  const newPr = { id: Date.now().toString(), exerciseId, weight, date };
+  prs.push(newPr);
+  localStorage.setItem('fittrack_prs', JSON.stringify(prs));
+  
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      supabase.from('personal_records').insert({ ...newPr, user_id: user.id }).then();
+    }
+  });
+  
+  return prs;
+};
+
+export const deletePersonalRecord = (id: string) => {
+  let prs = getPersonalRecords();
+  prs = prs.filter((pr: any) => pr.id !== id);
+  localStorage.setItem('fittrack_prs', JSON.stringify(prs));
+  
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      supabase.from('personal_records').delete().eq('id', id).eq('user_id', user.id).then();
+    }
+  });
+  
+  return prs;
+};
+
+export const getBodyweightHistory = () => {
+  const stored = localStorage.getItem('fittrack_bodyweight');
+  return stored ? JSON.parse(stored) : [
+    { date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], weight: 80 },
+    { date: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], weight: 79.5 },
+    { date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], weight: 79 },
+    { date: new Date().toISOString().split('T')[0], weight: 78.5 },
+  ];
+};
+
+export const saveBodyweight = (weight: number) => {
+  const history = getBodyweightHistory();
+  const date = new Date().toISOString().split('T')[0];
+  
+  const existingIndex = history.findIndex((entry: any) => entry.date === date);
+  if (existingIndex >= 0) {
+    history[existingIndex].weight = weight;
+  } else {
+    history.push({ date, weight });
+  }
+  
+  history.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  localStorage.setItem('fittrack_bodyweight', JSON.stringify(history));
+  
+  // Background sync
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      supabase.from('bodyweight_history').upsert({ user_id: user.id, date, weight }, { onConflict: 'user_id, date' }).then();
+    }
+  });
+  
+  return history;
+};
+
+export const getEducationFolders = () => {
+  const local = localStorage.getItem('fittrack_education_folders');
+  return local ? JSON.parse(local) : [
+    { id: '1', name: 'Gym Equipment', description: 'Learn how to use the machines safely.' },
+    { id: '2', name: 'Nutrition', description: 'Fuel your workouts and recovery.' }
+  ];
+};
+
+export const saveEducationFolders = (folders: any[]) => {
+  localStorage.setItem('fittrack_education_folders', JSON.stringify(folders));
+  // Background sync
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      supabase.from('education_folders').delete().eq('user_id', user.id).then(() => {
+        supabase.from('education_folders').insert(folders.map(f => ({ ...f, user_id: user.id }))).then();
+      });
+    }
+  });
+};
+
+export const getEducationVideos = () => {
+  const local = localStorage.getItem('fittrack_education_videos');
+  return local ? JSON.parse(local) : [];
+};
+
+export const saveEducationVideos = (videos: any[]) => {
+  localStorage.setItem('fittrack_education_videos', JSON.stringify(videos));
+  // Background sync
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      supabase.from('education_videos').delete().eq('user_id', user.id).then(() => {
+        supabase.from('education_videos').insert(videos.map(v => ({ ...v, user_id: user.id }))).then();
+      });
+    }
+  });
+};
+
+export const getVimeoToken = () => {
+  return localStorage.getItem('fittrack_vimeo_token') || "";
+};
+
+export const saveVimeoToken = (token: string) => {
+  localStorage.setItem('fittrack_vimeo_token', token);
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      supabase.from('user_settings').upsert({ user_id: user.id, key: 'vimeo_token', value: token }, { onConflict: 'user_id, key' }).then();
+    }
+  });
+};
+
+export const getCommunityFeed = () => {
+  const history = getWorkoutHistory();
+  const mockFeed = [
+    {
+      id: "mock1",
+      user: { name: "Sarah Connor", avatar: "SC" },
+      date: new Date(Date.now() - 3600000).toISOString(),
+      workoutName: "Leg Day Crusher",
+      exercises: [
+        { name: "squat", sets: 4, reps: 8, weight: 100 },
+        { name: "deadlift", sets: 3, reps: 8, weight: 120 }
+      ],
+      likes: 12,
+      comments: 3
+    },
+    {
+      id: "mock2",
+      user: { name: "John Smith", avatar: "JS" },
+      date: new Date(Date.now() - 86400000).toISOString(),
+      workoutName: "Upper Body Power",
+      exercises: [
+        { name: "bench", sets: 4, reps: 8, weight: 85 },
+        { name: "pullup", sets: 3, reps: 8, weight: 0 }
+      ],
+      likes: 8,
+      comments: 1
+    }
+  ];
+
+  const userFeed = history.map((w: any, index: number) => ({
+    id: `user-${index}`,
+    user: { name: "You", avatar: "Y" },
+    date: w.date,
+    workoutName: w.name || "Workout",
+    exercises: w.exercises || [],
+    likes: 0,
+    comments: 0
+  }));
+
+  return [...userFeed, ...mockFeed].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+};
+
+export const syncFromSupabase = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  
+  try {
+    const { data: ex } = await supabase.from('exercises').select('*').eq('user_id', user.id);
+    if (ex && ex.length > 0) localStorage.setItem('fittrack_exercises', JSON.stringify(ex));
+    
+    const { data: prog } = await supabase.from('programs').select('*').eq('user_id', user.id);
+    if (prog && prog.length > 0) localStorage.setItem('fittrack_programs', JSON.stringify(prog));
+    
+    const { data: hist } = await supabase.from('workout_history').select('*').eq('user_id', user.id).order('date', { ascending: false });
+    if (hist && hist.length > 0) localStorage.setItem('fittrack_history', JSON.stringify(hist));
+    
+    const { data: bw } = await supabase.from('bodyweight_history').select('*').eq('user_id', user.id).order('date', { ascending: true });
+    if (bw && bw.length > 0) localStorage.setItem('fittrack_bodyweight', JSON.stringify(bw));
+    
+    const { data: prs } = await supabase.from('personal_records').select('*').eq('user_id', user.id).order('date', { ascending: false });
+    if (prs && prs.length > 0) localStorage.setItem('fittrack_prs', JSON.stringify(prs));
+
+    const { data: folders } = await supabase.from('education_folders').select('*').eq('user_id', user.id);
+    if (folders && folders.length > 0) localStorage.setItem('fittrack_education_folders', JSON.stringify(folders));
+
+    const { data: videos } = await supabase.from('education_videos').select('*').eq('user_id', user.id);
+    if (videos && videos.length > 0) localStorage.setItem('fittrack_education_videos', JSON.stringify(videos));
+
+    const { data: settings } = await supabase.from('user_settings').select('*').eq('user_id', user.id);
+    if (settings) {
+      const vimeo = settings.find(s => s.key === 'vimeo_token');
+      if (vimeo) localStorage.setItem('fittrack_vimeo_token', vimeo.value);
+    }
+    
+    // Check for workout reminders
+    const lastWorkout = hist?.[0];
+    if (lastWorkout) {
+      const daysSince = Math.floor((Date.now() - new Date(lastWorkout.date).getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSince >= 3) {
+        const { data: existing } = await supabase.from('notifications')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('type', 'workout_reminder')
+          .gt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+        
+        if (!existing || existing.length === 0) {
+          await supabase.from('notifications').insert({
+            user_id: user.id,
+            title: "Time to hit the gym!",
+            message: `It's been ${daysSince} days since your last workout. Ready for a session?`,
+            type: 'workout_reminder'
+          });
+        }
+      }
+    }
+
+    // Dispatch custom event so components can re-render if needed
+    window.dispatchEvent(new Event('fittrack_synced'));
+    return true;
+  } catch (e) {
+    console.error(e);
+    return false;
+  }
+};
+
+export const getNotifications = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data } = await supabase.from('notifications')
+    .select('*')
+    .or(`user_id.eq.${user.id},user_id.is.null`)
+    .order('created_at', { ascending: false });
+  return data || [];
+};
+
+export const markNotificationRead = async (id: string) => {
+  await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+};
+
+export const sendNotification = async (title: string, message: string, userId?: string) => {
+  await supabase.from('notifications').insert({
+    title,
+    message,
+    user_id: userId || null,
+    type: 'general'
+  });
+};
+
+export const syncProfile = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const profile = {
+    id: user.id,
+    email: user.email,
+    full_name: user.user_metadata?.full_name || user.email?.split('@')[0],
+    updated_at: new Date().toISOString(),
+  };
+
+  await supabase.from('profiles').upsert(profile);
+};
+
+export const getMembers = async () => {
+  const { data: profiles, error } = await supabase.from('profiles').select('*');
+  if (error) return [];
+  return profiles;
+};
+
+export const getMemberActivity = async (userId: string) => {
+  const { data: history } = await supabase.from('workout_history')
+    .select('*')
+    .eq('user_id', userId)
+    .order('date', { ascending: false });
+  return history || [];
+};
+
+export const migrateLocalToSupabase = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  
+  try {
+    const storedEx = localStorage.getItem('fittrack_exercises');
+    if (storedEx) {
+      const ex = JSON.parse(storedEx);
+      await supabase.from('exercises').delete().eq('user_id', user.id);
+      await supabase.from('exercises').insert(ex.map((e: any) => ({ ...e, user_id: user.id })));
+    }
+    
+    const storedProg = localStorage.getItem('fittrack_programs');
+    if (storedProg) {
+      const prog = JSON.parse(storedProg);
+      await supabase.from('programs').delete().eq('user_id', user.id);
+      await supabase.from('programs').insert(prog.map((p: any) => ({ ...p, user_id: user.id })));
+    }
+    
+    const storedHist = localStorage.getItem('fittrack_history');
+    if (storedHist) {
+      const hist = JSON.parse(storedHist);
+      await supabase.from('workout_history').delete().eq('user_id', user.id);
+      await supabase.from('workout_history').insert(hist.map((h: any) => ({ ...h, user_id: user.id })));
+    }
+    
+    const storedBw = localStorage.getItem('fittrack_bodyweight');
+    if (storedBw) {
+      const bw = JSON.parse(storedBw);
+      await supabase.from('bodyweight_history').delete().eq('user_id', user.id);
+      await supabase.from('bodyweight_history').insert(bw.map((b: any) => ({ ...b, user_id: user.id })));
+    }
+    
+    const storedPrs = localStorage.getItem('fittrack_prs');
+    if (storedPrs) {
+      const prs = JSON.parse(storedPrs);
+      await supabase.from('personal_records').delete().eq('user_id', user.id);
+      await supabase.from('personal_records').insert(prs.map((p: any) => ({ ...p, user_id: user.id })));
+    }
+
+    const storedFolders = localStorage.getItem('fittrack_education_folders');
+    if (storedFolders) {
+      const folders = JSON.parse(storedFolders);
+      await supabase.from('education_folders').delete().eq('user_id', user.id);
+      await supabase.from('education_folders').insert(folders.map((f: any) => ({ ...f, user_id: user.id })));
+    }
+
+    const storedVideos = localStorage.getItem('fittrack_education_videos');
+    if (storedVideos) {
+      const videos = JSON.parse(storedVideos);
+      await supabase.from('education_videos').delete().eq('user_id', user.id);
+      await supabase.from('education_videos').insert(videos.map((v: any) => ({ ...v, user_id: user.id })));
+    }
+
+    const storedToken = localStorage.getItem('fittrack_vimeo_token');
+    if (storedToken) {
+      await supabase.from('user_settings').upsert({ user_id: user.id, key: 'vimeo_token', value: storedToken }, { onConflict: 'user_id, key' });
+    }
+    
+    return true;
+  } catch (e) {
+    console.error(e);
+    return false;
+  }
+};
