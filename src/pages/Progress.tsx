@@ -10,6 +10,11 @@ import { Trophy, Plus, Trash2 } from "lucide-react";
 const Progress = () => {
   const [bodyweightData, setBodyweightData] = useState<any[]>([]);
   const [newWeight, setNewWeight] = useState("");
+  const [newBodyFat, setNewBodyFat] = useState("");
+  const [newWaist, setNewWaist] = useState("");
+  const [newArms, setNewArms] = useState("");
+  const [newChest, setNewChest] = useState("");
+  const [newLegs, setNewLegs] = useState("");
   const [prs, setPrs] = useState<any[]>([]);
   const [exercises, setExercises] = useState<any[]>([]);
   const [newPrExercise, setNewPrExercise] = useState("");
@@ -21,12 +26,24 @@ const Progress = () => {
     setExercises(getExercises());
   }, []);
 
-  const handleSaveWeight = () => {
-    const weight = parseFloat(newWeight);
-    if (!isNaN(weight) && weight > 0) {
-      const updatedHistory = saveBodyweight(weight);
+  const handleSaveMeasurements = () => {
+    const data: any = {};
+    if (newWeight) data.weight = parseFloat(newWeight);
+    if (newBodyFat) data.bodyFat = parseFloat(newBodyFat);
+    if (newWaist) data.waist = parseFloat(newWaist);
+    if (newArms) data.arms = parseFloat(newArms);
+    if (newChest) data.chest = parseFloat(newChest);
+    if (newLegs) data.legs = parseFloat(newLegs);
+
+    if (Object.keys(data).length > 0) {
+      const updatedHistory = saveBodyweight(data);
       setBodyweightData(updatedHistory);
       setNewWeight("");
+      setNewBodyFat("");
+      setNewWaist("");
+      setNewArms("");
+      setNewChest("");
+      setNewLegs("");
     }
   };
 
@@ -144,57 +161,111 @@ const Progress = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border md:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div>
-              <CardTitle className="font-heading text-2xl tracking-wider">Bodyweight</CardTitle>
-              <CardDescription>Track your bodyweight over time</CardDescription>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Input 
-                type="number" 
-                placeholder="Weight (kg)" 
-                value={newWeight}
-                onChange={(e) => setNewWeight(e.target.value)}
-                className="w-24 bg-background"
-                step="0.1"
-              />
-              <Button onClick={handleSaveWeight}>Log</Button>
-            </div>
-          </CardHeader>
-          <CardContent className="pl-2 pt-4">
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={bodyweightData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <XAxis 
-                    dataKey="date" 
-                    stroke="hsl(var(--muted-foreground))" 
-                    fontSize={12} 
-                    tickLine={false} 
-                    axisLine={false}
-                    tickFormatter={(val) => {
-                      const d = new Date(val);
-                      return `${d.getMonth() + 1}/${d.getDate()}`;
-                    }}
-                  />
-                  <YAxis 
-                    stroke="hsl(var(--muted-foreground))" 
-                    fontSize={12} 
-                    tickLine={false} 
-                    axisLine={false}
-                    domain={['dataMin - 2', 'dataMax + 2']}
-                  />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                    itemStyle={{ color: 'hsl(var(--foreground))' }}
-                    labelFormatter={(label) => new Date(label).toLocaleDateString()}
-                  />
-                  <Line type="monotone" dataKey="weight" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ fill: 'hsl(var(--primary))', r: 4 }} activeDot={{ r: 6 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+          <Card className="bg-card border-border md:col-span-2">
+            <CardHeader className="space-y-4">
+              <div>
+                <CardTitle className="font-heading text-2xl tracking-wider">Body Measurements</CardTitle>
+                <CardDescription>Track your weight and body measurements over time</CardDescription>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                <Input 
+                  type="number" 
+                  placeholder="Weight (kg)" 
+                  value={newWeight}
+                  onChange={(e) => setNewWeight(e.target.value)}
+                  className="bg-background"
+                  step="0.1"
+                />
+                <Input 
+                  type="number" 
+                  placeholder="Body Fat %" 
+                  value={newBodyFat}
+                  onChange={(e) => setNewBodyFat(e.target.value)}
+                  className="bg-background"
+                  step="0.1"
+                />
+                <Input 
+                  type="number" 
+                  placeholder="Waist (cm)" 
+                  value={newWaist}
+                  onChange={(e) => setNewWaist(e.target.value)}
+                  className="bg-background"
+                  step="0.1"
+                />
+                <Input 
+                  type="number" 
+                  placeholder="Arms (cm)" 
+                  value={newArms}
+                  onChange={(e) => setNewArms(e.target.value)}
+                  className="bg-background"
+                  step="0.1"
+                />
+                <Input 
+                  type="number" 
+                  placeholder="Chest (cm)" 
+                  value={newChest}
+                  onChange={(e) => setNewChest(e.target.value)}
+                  className="bg-background"
+                  step="0.1"
+                />
+                <Input 
+                  type="number" 
+                  placeholder="Legs (cm)" 
+                  value={newLegs}
+                  onChange={(e) => setNewLegs(e.target.value)}
+                  className="bg-background"
+                  step="0.1"
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handleSaveMeasurements}>Log Measurements</Button>
+              </div>
+            </CardHeader>
+            <CardContent className="pl-2 pt-4">
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={bodyweightData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="hsl(var(--muted-foreground))" 
+                      fontSize={12} 
+                      tickLine={false} 
+                      axisLine={false}
+                      tickFormatter={(val) => {
+                        const d = new Date(val);
+                        return `${d.getMonth() + 1}/${d.getDate()}`;
+                      }}
+                    />
+                    <YAxis 
+                      yAxisId="left"
+                      stroke="hsl(var(--muted-foreground))" 
+                      fontSize={12} 
+                      tickLine={false} 
+                      axisLine={false}
+                      domain={['dataMin - 2', 'dataMax + 2']}
+                    />
+                    <YAxis 
+                      yAxisId="right"
+                      orientation="right"
+                      stroke="hsl(var(--muted-foreground))" 
+                      fontSize={12} 
+                      tickLine={false} 
+                      axisLine={false}
+                      domain={['dataMin - 2', 'dataMax + 2']}
+                    />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                      itemStyle={{ color: 'hsl(var(--foreground))' }}
+                      labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                    />
+                    <Line yAxisId="left" type="monotone" name="Weight (kg)" dataKey="weight" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ fill: 'hsl(var(--primary))', r: 4 }} activeDot={{ r: 6 }} />
+                    <Line yAxisId="right" type="monotone" name="Body Fat %" dataKey="bodyFat" stroke="hsl(var(--destructive))" strokeWidth={2} dot={{ fill: 'hsl(var(--destructive))', r: 3 }} />
+                    <Line yAxisId="right" type="monotone" name="Waist (cm)" dataKey="waist" stroke="hsl(var(--foreground))" strokeWidth={2} dot={{ fill: 'hsl(var(--foreground))', r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
           </div>
         </TabsContent>
 

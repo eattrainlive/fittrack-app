@@ -76,6 +76,29 @@ export const savePrograms = (programs: any[]) => {
   });
 };
 
+export const getActiveProgram = () => {
+  const stored = localStorage.getItem('fittrack_active_program');
+  return stored ? JSON.parse(stored) : null;
+};
+
+export const saveActiveProgram = (activeProgram: any) => {
+  if (activeProgram) {
+    localStorage.setItem('fittrack_active_program', JSON.stringify(activeProgram));
+  } else {
+    localStorage.removeItem('fittrack_active_program');
+  }
+  
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      if (activeProgram) {
+        supabase.from('user_settings').upsert({ user_id: user.id, key: 'active_program', value: JSON.stringify(activeProgram) }, { onConflict: 'user_id, key' }).then();
+      } else {
+        supabase.from('user_settings').delete().eq('user_id', user.id).eq('key', 'active_program').then();
+      }
+    }
+  });
+};
+
 export const getWorkoutHistory = () => {
   const stored = localStorage.getItem('fittrack_history');
   return stored ? JSON.parse(stored) : [];
@@ -151,15 +174,15 @@ export const getBodyweightHistory = () => {
   ];
 };
 
-export const saveBodyweight = (weight: number) => {
+export const saveBodyweight = (data: { weight?: number, bodyFat?: number, waist?: number, arms?: number, chest?: number, legs?: number }) => {
   const history = getBodyweightHistory();
   const date = new Date().toISOString().split('T')[0];
   
   const existingIndex = history.findIndex((entry: any) => entry.date === date);
   if (existingIndex >= 0) {
-    history[existingIndex].weight = weight;
+    history[existingIndex] = { ...history[existingIndex], ...data };
   } else {
-    history.push({ date, weight });
+    history.push({ date, ...data });
   }
   
   history.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -168,7 +191,7 @@ export const saveBodyweight = (weight: number) => {
   // Background sync
   supabase.auth.getUser().then(({ data: { user } }) => {
     if (user) {
-      supabase.from('bodyweight_history').upsert({ user_id: user.id, date, weight }, { onConflict: 'user_id, date' }).then();
+      supabase.from('bodyweight_history').upsert({ user_id: user.id, date, ...data }, { onConflict: 'user_id, date' }).then();
     }
   });
   
@@ -225,8 +248,35 @@ export const saveVimeoToken = (token: string) => {
   });
 };
 
+export const getCommunityPosts = () => {
+  const local = localStorage.getItem('fittrack_community_posts');
+  return local ? JSON.parse(local) : [];
+};
+
+export const saveCommunityPost = (post: any) => {
+  const posts = getCommunityPosts();
+  posts.unshift(post);
+  localStorage.setItem('fittrack_community_posts', JSON.stringify(posts));
+  return posts;
+};
+
+export const getCommunityComments = () => {
+  const local = localStorage.getItem('fittrack_community_comments');
+  return local ? JSON.parse(local) : [];
+};
+
+export const saveCommunityComment = (comment: any) => {
+  const comments = getCommunityComments();
+  comments.push(comment);
+  localStorage.setItem('fittrack_community_comments', JSON.stringify(comments));
+  return comments;
+};
+
 export const getCommunityFeed = () => {
   const history = getWorkoutHistory();
+  const customPosts = getCommunityPosts();
+  const allComments = getCommunityComments();
+  
   const mockFeed = [
     {
       id: "mock1",
@@ -237,6 +287,8 @@ export const getCommunityFeed = () => {
         { name: "squat", sets: 4, reps: 8, weight: 100 },
         { name: "deadlift", sets: 3, reps: 8, weight: 120 }
       ],
+      volume: 6080,
+      reward: { name: "Ambulance", emoji: "🚑", count: 1, displayName: "Ambulance" },
       likes: 12,
       comments: 3
     },
@@ -249,8 +301,25 @@ export const getCommunityFeed = () => {
         { name: "bench", sets: 4, reps: 8, weight: 85 },
         { name: "pullup", sets: 3, reps: 8, weight: 0 }
       ],
+      volume: 2720,
+      reward: { name: "Grizzly Bear", emoji: "🐻", count: 10, displayName: "Grizzly Bears" },
       likes: 8,
       comments: 1
+    },
+    {
+      id: "mock3",
+      user: { name: "Mike Tyson", avatar: "MT" },
+      date: new Date(Date.now() - 172800000).toISOString(),
+      workoutName: "Full Body Basics",
+      exercises: [
+        { name: "squat", sets: 5, reps: 10, weight: 150 },
+        { name: "bench", sets: 5, reps: 10, weight: 100 },
+        { name: "deadlift", sets: 3, reps: 5, weight: 180 }
+      ],
+      volume: 15200,
+      reward: { name: "Chicken", emoji: "🐔", count: 15200, displayName: "Chickens" },
+      likes: 45,
+      comments: 12
     }
   ];
 
@@ -260,11 +329,22 @@ export const getCommunityFeed = () => {
     date: w.date,
     workoutName: w.name || "Workout",
     exercises: w.exercises || [],
+    volume: w.volume,
+    reward: w.reward,
     likes: 0,
     comments: 0
   }));
 
-  return [...userFeed, ...mockFeed].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const allFeed = [...customPosts, ...userFeed, ...mockFeed].map(post => {
+    const postComments = allComments.filter((c: any) => c.postId === post.id);
+    return {
+      ...post,
+      commentsCount: (post.comments || 0) + postComments.length,
+      postComments
+    };
+  });
+
+  return allFeed.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
 export const syncFromSupabase = async () => {
@@ -297,6 +377,13 @@ export const syncFromSupabase = async () => {
     if (settings) {
       const vimeo = settings.find(s => s.key === 'vimeo_token');
       if (vimeo) localStorage.setItem('fittrack_vimeo_token', vimeo.value);
+      
+      const activeProg = settings.find(s => s.key === 'active_program');
+      if (activeProg) {
+        localStorage.setItem('fittrack_active_program', activeProg.value);
+      } else {
+        localStorage.removeItem('fittrack_active_program');
+      }
     }
     
     // Check for workout reminders
@@ -438,6 +525,11 @@ export const migrateLocalToSupabase = async () => {
     const storedToken = localStorage.getItem('fittrack_vimeo_token');
     if (storedToken) {
       await supabase.from('user_settings').upsert({ user_id: user.id, key: 'vimeo_token', value: storedToken }, { onConflict: 'user_id, key' });
+    }
+    
+    const storedActiveProg = localStorage.getItem('fittrack_active_program');
+    if (storedActiveProg) {
+      await supabase.from('user_settings').upsert({ user_id: user.id, key: 'active_program', value: storedActiveProg }, { onConflict: 'user_id, key' });
     }
     
     return true;

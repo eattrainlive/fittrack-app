@@ -33,7 +33,10 @@ const Admin = () => {
   // New Program State
   const [newProgName, setNewProgName] = useState("");
   const [newProgDesc, setNewProgDesc] = useState("");
-  const [progExercises, setProgExercises] = useState<any[]>([]);
+  const [newProgWeeks, setNewProgWeeks] = useState(4);
+  const [newProgDays, setNewProgDays] = useState(3);
+  const [progWorkouts, setProgWorkouts] = useState<any[]>([]);
+  const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(0);
 
   // Vimeo Integration
   const [vimeoToken, setVimeoToken] = useState(() => localStorage.getItem("fittrack_vimeo_token") || "");
@@ -182,24 +185,59 @@ const Admin = () => {
     toast.success("Exercise updated!");
   };
 
+  const handleGenerateWorkoutSlots = () => {
+    const totalWorkouts = newProgWeeks * newProgDays;
+    const newWorkouts = [];
+    for (let i = 0; i < totalWorkouts; i++) {
+      const week = Math.floor(i / newProgDays) + 1;
+      const day = (i % newProgDays) + 1;
+      newWorkouts.push({
+        id: `w_${Date.now()}_${i}`,
+        name: `Week ${week}, Day ${day}`,
+        exercises: []
+      });
+    }
+    setProgWorkouts(newWorkouts);
+    setSelectedWorkoutIndex(0);
+  };
+
   const handleAddProgExercise = () => {
-    setProgExercises([...progExercises, { id: Date.now(), name: exercises[0]?.id || "", sets: 3, reps: 10, weight: 0 }]);
+    const updatedWorkouts = [...progWorkouts];
+    updatedWorkouts[selectedWorkoutIndex].exercises.push({ id: Date.now(), name: exercises[0]?.id || "", sets: 3, reps: 10, weight: 0 });
+    setProgWorkouts(updatedWorkouts);
   };
 
   const handleRemoveProgExercise = (id: number) => {
-    setProgExercises(progExercises.filter(e => e.id !== id));
+    const updatedWorkouts = [...progWorkouts];
+    updatedWorkouts[selectedWorkoutIndex].exercises = updatedWorkouts[selectedWorkoutIndex].exercises.filter((e: any) => e.id !== id);
+    setProgWorkouts(updatedWorkouts);
   };
 
   const updateProgExercise = (id: number, field: string, val: any) => {
-    setProgExercises(progExercises.map(e => e.id === id ? { ...e, [field]: val } : e));
+    const updatedWorkouts = [...progWorkouts];
+    updatedWorkouts[selectedWorkoutIndex].exercises = updatedWorkouts[selectedWorkoutIndex].exercises.map((e: any) => e.id === id ? { ...e, [field]: val } : e);
+    setProgWorkouts(updatedWorkouts);
   };
 
   const onDragEnd = (result: any) => {
     if (!result.destination) return;
-    const items = Array.from(progExercises);
+    const updatedWorkouts = [...progWorkouts];
+    const items = Array.from(updatedWorkouts[selectedWorkoutIndex].exercises);
     const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
-    setProgExercises(items);
+    updatedWorkouts[selectedWorkoutIndex].exercises = items;
+    setProgWorkouts(updatedWorkouts);
+  };
+
+  const handleCopyFromPrevious = () => {
+    if (selectedWorkoutIndex === 0) return;
+    const updatedWorkouts = [...progWorkouts];
+    const previousExercises = JSON.parse(JSON.stringify(updatedWorkouts[selectedWorkoutIndex - 1].exercises));
+    // Update IDs to be unique
+    const newExercises = previousExercises.map((e: any) => ({ ...e, id: Date.now() + Math.random() }));
+    updatedWorkouts[selectedWorkoutIndex].exercises = newExercises;
+    setProgWorkouts(updatedWorkouts);
+    toast.success("Copied exercises from previous workout!");
   };
 
   const handleAddProgram = () => {
@@ -211,7 +249,12 @@ const Admin = () => {
       id: "p_" + Date.now(),
       name: newProgName,
       description: newProgDesc,
-      exercises: progExercises.map(e => ({ name: e.name, sets: e.sets, reps: e.reps, weight: e.weight }))
+      weeks: newProgWeeks,
+      daysPerWeek: newProgDays,
+      workouts: progWorkouts.map(w => ({
+        name: w.name,
+        exercises: w.exercises.map((e: any) => ({ name: e.name, sets: e.sets, reps: e.reps, weight: e.weight }))
+      }))
     };
     const updated = [...programs, newProg];
     setPrograms(updated);
@@ -219,7 +262,7 @@ const Admin = () => {
     toast.success("Program added!");
     setNewProgName("");
     setNewProgDesc("");
-    setProgExercises([]);
+    setProgWorkouts([]);
   };
 
   const handleDeleteProgram = (id: string) => {
@@ -459,70 +502,106 @@ const Admin = () => {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Program Name</Label>
-                  <Input value={newProgName} onChange={e => setNewProgName(e.target.value)} placeholder="e.g. 5x5 Strength" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Input value={newProgDesc} onChange={e => setNewProgDesc(e.target.value)} placeholder="Short description of the program" />
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label className="text-base">Exercises</Label>
-                  <Button variant="outline" size="sm" onClick={handleAddProgExercise} className="gap-2">
-                    <Plus className="h-4 w-4" /> Add Exercise
-                  </Button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Program Name</Label>
+                    <Input value={newProgName} onChange={e => setNewProgName(e.target.value)} placeholder="e.g. 12-Week Strength" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <Input value={newProgDesc} onChange={e => setNewProgDesc(e.target.value)} placeholder="Short description" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Length (Weeks)</Label>
+                    <Input type="number" min="1" max="52" value={newProgWeeks} onChange={e => setNewProgWeeks(parseInt(e.target.value) || 1)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Days per Week</Label>
+                    <Input type="number" min="1" max="7" value={newProgDays} onChange={e => setNewProgDays(parseInt(e.target.value) || 1)} />
+                  </div>
                 </div>
                 
-                <DragDropContext onDragEnd={onDragEnd}>
-                  <Droppable droppableId="exercises-list">
-                    {(provided) => (
-                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4">
-                        {progExercises.map((pe, index) => (
-                          <Draggable key={pe.id.toString()} draggableId={pe.id.toString()} index={index}>
-                            {(provided) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                className="flex gap-4 items-end bg-muted/50 p-4 rounded-md border border-border"
-                              >
-                                <div {...provided.dragHandleProps} className="pb-2 cursor-grab text-muted-foreground hover:text-foreground">
-                                  <GripVertical className="h-5 w-5" />
-                                </div>
-                                <div className="space-y-2 flex-1">
-                                  <Label>Exercise</Label>
-                                  <Select value={pe.name} onValueChange={(v) => updateProgExercise(pe.id, "name", v)}>
-                                    <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                                    <SelectContent>
-                                      {exercises.map(ex => (
-                                        <SelectItem key={ex.id} value={ex.id}>{ex.name}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-2 w-20">
-                                  <Label>Sets</Label>
-                                  <Input type="number" value={pe.sets} onChange={(e) => updateProgExercise(pe.id, "sets", parseInt(e.target.value) || 0)} />
-                                </div>
-                                <div className="space-y-2 w-20">
-                                  <Label>Reps</Label>
-                                  <Input type="number" value={pe.reps} onChange={(e) => updateProgExercise(pe.id, "reps", parseInt(e.target.value) || 0)} />
-                                </div>
-                                <Button variant="ghost" size="icon" className="text-destructive shrink-0" onClick={() => handleRemoveProgExercise(pe.id)}>
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
-                        {provided.placeholder}
+                {progWorkouts.length === 0 ? (
+                  <Button onClick={handleGenerateWorkoutSlots} className="w-full">Generate Workout Grid</Button>
+                ) : (
+                  <div className="space-y-6 pt-4 border-t border-border">
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {progWorkouts.map((w, idx) => (
+                        <Button 
+                          key={w.id} 
+                          variant={selectedWorkoutIndex === idx ? "default" : "outline"}
+                          onClick={() => setSelectedWorkoutIndex(idx)}
+                          className="whitespace-nowrap"
+                        >
+                          {w.name}
+                        </Button>
+                      ))}
+                    </div>
+
+                    <div className="bg-muted/30 p-4 rounded-lg border border-border space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-heading tracking-wider text-xl">{progWorkouts[selectedWorkoutIndex].name}</h3>
+                        <div className="flex gap-2">
+                          {selectedWorkoutIndex > 0 && (
+                            <Button variant="outline" size="sm" onClick={handleCopyFromPrevious} className="gap-2">
+                              <Copy className="h-4 w-4" /> Copy Previous
+                            </Button>
+                          )}
+                          <Button variant="outline" size="sm" onClick={handleAddProgExercise} className="gap-2">
+                            <Plus className="h-4 w-4" /> Add Exercise
+                          </Button>
+                        </div>
                       </div>
-                    )}
-                  </Droppable>
-                </DragDropContext>
+
+                      <DragDropContext onDragEnd={onDragEnd}>
+                        <Droppable droppableId="exercises-list">
+                          {(provided) => (
+                            <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4">
+                              {progWorkouts[selectedWorkoutIndex].exercises.map((pe: any, index: number) => (
+                                <Draggable key={pe.id.toString()} draggableId={pe.id.toString()} index={index}>
+                                  {(provided) => (
+                                    <div
+                                      ref={provided.innerRef}
+                                      {...provided.draggableProps}
+                                      className="flex gap-4 items-end bg-background p-4 rounded-md border border-border"
+                                    >
+                                      <div {...provided.dragHandleProps} className="pb-2 cursor-grab text-muted-foreground hover:text-foreground">
+                                        <GripVertical className="h-5 w-5" />
+                                      </div>
+                                      <div className="space-y-2 flex-1">
+                                        <Label>Exercise</Label>
+                                        <Select value={pe.name} onValueChange={(v) => updateProgExercise(pe.id, "name", v)}>
+                                          <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                                          <SelectContent>
+                                            {exercises.map(ex => (
+                                              <SelectItem key={ex.id} value={ex.id}>{ex.name}</SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-2 w-20">
+                                        <Label>Sets</Label>
+                                        <Input type="number" value={pe.sets} onChange={(e) => updateProgExercise(pe.id, "sets", parseInt(e.target.value) || 0)} />
+                                      </div>
+                                      <div className="space-y-2 w-20">
+                                        <Label>Reps</Label>
+                                        <Input type="number" value={pe.reps} onChange={(e) => updateProgExercise(pe.id, "reps", parseInt(e.target.value) || 0)} />
+                                      </div>
+                                      <Button variant="ghost" size="icon" className="text-destructive shrink-0" onClick={() => handleRemoveProgExercise(pe.id)}>
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  )}
+                                </Draggable>
+                              ))}
+                              {provided.placeholder}
+                            </div>
+                          )}
+                        </Droppable>
+                      </DragDropContext>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <Button onClick={handleAddProgram} className="w-full gap-2">
@@ -549,12 +628,18 @@ const Admin = () => {
                   <CardDescription>{p.description}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ul className="list-disc list-inside text-sm text-muted-foreground">
-                    {p.exercises.map((ex: any, i: number) => {
-                      const exerciseName = exercises.find(e => e.id === ex.name)?.name || ex.name;
-                      return <li key={i}>{exerciseName} - {ex.sets}x{ex.reps}</li>;
-                    })}
-                  </ul>
+                  <div className="text-sm text-muted-foreground mt-2">
+                    {p.weeks && p.daysPerWeek ? (
+                      <p>{p.weeks} Weeks • {p.daysPerWeek} Days/Week</p>
+                    ) : (
+                      <ul className="list-disc list-inside">
+                        {p.exercises?.map((ex: any, i: number) => {
+                          const exerciseName = exercises.find(e => e.id === ex.name)?.name || ex.name;
+                          return <li key={i}>{exerciseName} - {ex.sets}x{ex.reps}</li>;
+                        })}
+                      </ul>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))}

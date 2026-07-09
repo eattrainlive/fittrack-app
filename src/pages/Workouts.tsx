@@ -6,10 +6,40 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Dumbbell, Plus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw } from "lucide-react";
 import { useState, useEffect } from "react";
-import { getExercises, getPrograms, saveWorkoutToHistory, getLastExerciseStats } from "@/lib/store";
+import { getExercises, getPrograms, saveWorkoutToHistory, getLastExerciseStats, getActiveProgram, saveActiveProgram } from "@/lib/store";
 import { getEmbedUrl } from "@/lib/utils";
 import { toast } from "sonner";
 
+const REWARD_ITEMS = [
+  { weight: 0.2, name: "Apple", plural: "Apples", emoji: "🍎" },
+  { weight: 1, name: "Chicken", plural: "Chickens", emoji: "🐔" },
+  { weight: 2, name: "Brick", plural: "Bricks", emoji: "🧱" },
+  { weight: 5, name: "Cat", plural: "Cats", emoji: "🐈" },
+  { weight: 7, name: "Bowling Ball", plural: "Bowling Balls", emoji: "🎳" },
+  { weight: 10, name: "Watermelon", plural: "Watermelons", emoji: "🍉" },
+  { weight: 15, name: "Car Tire", plural: "Car Tires", emoji: "🛞" },
+  { weight: 20, name: "Microwave", plural: "Microwaves", emoji: "📻" },
+  { weight: 40, name: "Toilet", plural: "Toilets", emoji: "🚽" },
+  { weight: 50, name: "Large Dog", plural: "Large Dogs", emoji: "🐕" },
+  { weight: 100, name: "Baby Elephant", plural: "Baby Elephants", emoji: "🐘" },
+  { weight: 200, name: "Motorcycle", plural: "Motorcycles", emoji: "🏍️" },
+  { weight: 250, name: "Grizzly Bear", plural: "Grizzly Bears", emoji: "🐻" },
+  { weight: 300, name: "Vending Machine", plural: "Vending Machines", emoji: "🥤" },
+  { weight: 500, name: "Horse", plural: "Horses", emoji: "🐎" },
+  { weight: 1000, name: "Great White Shark", plural: "Great White Sharks", emoji: "🦈" },
+  { weight: 1500, name: "Hippopotamus", plural: "Hippopotamuses", emoji: "🦛" },
+  { weight: 2000, name: "Rhinoceros", plural: "Rhinoceroses", emoji: "🦏" },
+  { weight: 3000, name: "Killer Whale", plural: "Killer Whales", emoji: "🐋" },
+  { weight: 4000, name: "Helicopter", plural: "Helicopters", emoji: "🚁" },
+  { weight: 5000, name: "Monster Truck", plural: "Monster Trucks", emoji: "🛻" },
+  { weight: 7500, name: "T-Rex", plural: "T-Rexes", emoji: "🦖" },
+  { weight: 10000, name: "School Bus", plural: "School Buses", emoji: "🚌" },
+  { weight: 15000, name: "Fighter Jet", plural: "Fighter Jets", emoji: "🛩️" },
+  { weight: 25000, name: "Humpback Whale", plural: "Humpback Whales", emoji: "🐳" },
+  { weight: 50000, name: "Space Shuttle", plural: "Space Shuttles", emoji: "🚀" },
+  { weight: 150000, name: "Blue Whale", plural: "Blue Whales", emoji: "🐋" },
+  { weight: 400000, name: "Boeing 747", plural: "Boeing 747s", emoji: "✈️" },
+];
 
 const Workouts = () => {
   const [workoutName, setWorkoutName] = useState("");
@@ -18,10 +48,19 @@ const Workouts = () => {
   const [workoutTemplates, setWorkoutTemplates] = useState<any[]>([]);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [timerActive, setTimerActive] = useState(false);
+  const [activeProgram, setActiveProgram] = useState<any>(null);
+  const [rewardModal, setRewardModal] = useState<{name: string, emoji: string, volume: number, count?: number, displayName?: string} | null>(null);
 
   useEffect(() => {
     setExerciseLibrary(getExercises());
     setWorkoutTemplates(getPrograms());
+    const active = getActiveProgram();
+    setActiveProgram(active);
+    if (active) {
+      const currentWorkout = active.workouts[active.currentIndex];
+      setWorkoutName(`${active.name}: ${currentWorkout.name}`);
+      setExercises(currentWorkout.exercises.map((ex: any, idx: number) => ({ id: Date.now() + idx, ...ex })));
+    }
   }, []);
 
   useEffect(() => {
@@ -69,8 +108,28 @@ const Workouts = () => {
   };
 
   const loadTemplate = (template: typeof workoutTemplates[0]) => {
-    setWorkoutName(template.name);
-    setExercises(template.exercises.map((ex, idx) => ({ id: Date.now() + idx, ...ex })));
+    if (template.workouts && template.workouts.length > 0) {
+      // It's a structured program
+      const newActive = {
+        programId: template.id,
+        name: template.name,
+        weeks: template.weeks,
+        daysPerWeek: template.daysPerWeek,
+        workouts: template.workouts,
+        currentIndex: 0
+      };
+      setActiveProgram(newActive);
+      saveActiveProgram(newActive);
+      
+      const firstWorkout = template.workouts[0];
+      setWorkoutName(`${template.name}: ${firstWorkout.name}`);
+      setExercises(firstWorkout.exercises.map((ex: any, idx: number) => ({ id: Date.now() + idx, ...ex })));
+      toast.success(`Started program: ${template.name}`);
+    } else {
+      // It's a simple program
+      setWorkoutName(template.name);
+      setExercises(template.exercises.map((ex: any, idx: number) => ({ id: Date.now() + idx, ...ex })));
+    }
   };
 
   const handleSaveWorkout = () => {
@@ -79,12 +138,54 @@ const Workouts = () => {
       return;
     }
     
+    const totalVolume = exercises.reduce((acc, ex) => acc + ((ex.sets || 0) * (ex.reps || 0) * (ex.weight || 0)), 0);
+    
+    const possibleRewards = REWARD_ITEMS.filter(item => totalVolume >= item.weight);
+    let earnedReward = null;
+    
+    if (possibleRewards.length > 0) {
+      const randomItem = possibleRewards[Math.floor(Math.random() * possibleRewards.length)];
+      const count = Math.floor(totalVolume / randomItem.weight);
+      earnedReward = {
+        name: randomItem.name,
+        emoji: randomItem.emoji,
+        count: count,
+        displayName: count === 1 ? randomItem.name : (randomItem.plural || randomItem.name + "s")
+      };
+    }
+    
     saveWorkoutToHistory({
       name: workoutName,
-      exercises
+      exercises,
+      volume: totalVolume,
+      reward: earnedReward || null
     });
     
     toast.success("Workout saved successfully!");
+
+    if (earnedReward && totalVolume > 0) {
+      setRewardModal({ ...earnedReward, volume: totalVolume });
+    }
+    
+    if (activeProgram) {
+      const nextIndex = activeProgram.currentIndex + 1;
+      if (nextIndex < activeProgram.workouts.length) {
+        const updatedProgram = { ...activeProgram, currentIndex: nextIndex };
+        setActiveProgram(updatedProgram);
+        saveActiveProgram(updatedProgram);
+        
+        const nextWorkout = activeProgram.workouts[nextIndex];
+        setWorkoutName(`${activeProgram.name}: ${nextWorkout.name}`);
+        setExercises(nextWorkout.exercises.map((ex: any, idx: number) => ({ id: Date.now() + idx, ...ex })));
+        toast.info(`Up next: ${nextWorkout.name}`);
+        return;
+      } else {
+        toast.success(`Congratulations! You completed ${activeProgram.name}!`);
+        setActiveProgram(null);
+        saveActiveProgram(null);
+      }
+    }
+    
     setWorkoutName("");
     setExercises([{ id: Date.now(), name: "", sets: 3, reps: 10, weight: 0 }]);
   };
@@ -94,6 +195,22 @@ const Workouts = () => {
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-4xl font-heading tracking-wider font-bold">Log Workout</h2>
       </div>
+
+      {activeProgram && (
+        <Card className="bg-primary/10 border-primary">
+          <CardHeader>
+            <CardTitle className="font-heading tracking-wider flex justify-between items-center">
+              <span>Active Program: {activeProgram.name}</span>
+              <Button variant="outline" size="sm" onClick={() => { setActiveProgram(null); saveActiveProgram(null); setWorkoutName(""); setExercises([{ id: Date.now(), name: "", sets: 3, reps: 10, weight: 0 }]); }}>
+                Leave Program
+              </Button>
+            </CardTitle>
+            <CardDescription>
+              Progress: Workout {activeProgram.currentIndex + 1} of {activeProgram.workouts.length} ({activeProgram.workouts[activeProgram.currentIndex].name})
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       <div className="space-y-4">
         <h3 className="text-xl font-heading tracking-wider font-semibold">Ready-Made Programs</h3>
@@ -271,6 +388,27 @@ const Workouts = () => {
           </div>
         </div>
       )}
+
+      <Dialog open={!!rewardModal} onOpenChange={(open) => !open && setRewardModal(null)}>
+        <DialogContent className="sm:max-w-md text-center bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-heading tracking-wider text-center">Workout Complete!</DialogTitle>
+          </DialogHeader>
+          {rewardModal && (
+            <div className="py-6 flex flex-col items-center gap-4 animate-in zoom-in duration-500">
+              <div className="text-8xl animate-bounce mt-4">{rewardModal.emoji}</div>
+              <h3 className="text-2xl font-bold text-primary">
+                You lifted {rewardModal.count && rewardModal.count > 1 ? `${rewardModal.count.toLocaleString()} ` : 'a '}{rewardModal.displayName || rewardModal.name}!
+              </h3>
+              <p className="text-muted-foreground text-lg">
+                Your total volume this session was <strong className="text-foreground">{rewardModal.volume.toLocaleString()} kg</strong>.
+                <br/>That's roughly the weight of {rewardModal.count && rewardModal.count > 1 ? `${rewardModal.count.toLocaleString()} ${(rewardModal.displayName || rewardModal.name).toLowerCase()}` : `a ${(rewardModal.name).toLowerCase()}`}!
+              </p>
+              <Button className="mt-4 w-full text-lg h-12 font-bold tracking-wide" onClick={() => setRewardModal(null)}>Awesome!</Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
