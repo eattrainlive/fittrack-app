@@ -14,6 +14,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isStaff, setIsStaff] = useState(() => localStorage.getItem("fittrack_is_staff") === "true");
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isZipping, setIsZipping] = useState(false);
@@ -26,11 +27,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) loadNotifications();
+      setIsAuthLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) loadNotifications();
+      setIsAuthLoading(false);
     });
 
     const handleStorage = () => setIsStaff(localStorage.getItem("fittrack_is_staff") === "true");
@@ -77,6 +80,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const isAuthPage = location.pathname === "/auth";
   const isTVMode = location.pathname.startsWith("/tv/");
+
+  useEffect(() => {
+    if (!isAuthLoading && !user && !isAuthPage && !isTVMode) {
+      navigate("/auth");
+    }
+  }, [user, isAuthLoading, isAuthPage, isTVMode, navigate]);
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (isAuthPage || isTVMode) {
     return <div className="min-h-screen bg-background font-sans">{children}</div>;
