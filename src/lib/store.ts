@@ -90,15 +90,27 @@ export const saveExercises = async (exercises: any[]) => {
 
         if (!error) {
           const currentIds = safeExercises.map(e => e.id);
-          await supabase.from('exercises').delete().eq('user_id', user.id).not('id', 'in', `(${currentIds.join(',')})`);
+          // Soft delete items not in the current list
+          const { error: updateErr } = await supabase.from('exercises')
+            .update({ is_deleted: true })
+            .eq('user_id', user.id)
+            .not('id', 'in', `(${currentIds.join(',')})`);
+            
+          if (updateErr) console.warn("Soft delete failed (column might be missing):", updateErr);
+          
           return { success: true };
         } else {
           console.error("Supabase insert error:", error);
           return { success: false, error };
         }
       } else {
-        const { error } = await supabase.from('exercises').delete().eq('user_id', user.id);
-        return { success: !error, error };
+        // If empty list sent, soft delete all
+        const { error: updateErr } = await supabase.from('exercises')
+          .update({ is_deleted: true })
+          .eq('user_id', user.id);
+        
+        if (updateErr) console.warn("Soft delete failed:", updateErr);
+        return { success: !updateErr, error: updateErr };
       }
     }
     return { success: false, error: new Error("Not logged in") };
@@ -123,10 +135,15 @@ export const savePrograms = (programs: any[]) => {
         const { error } = await supabase.from('programs').upsert(safePrograms);
         if (!error) {
           const currentIds = safePrograms.map(p => p.id);
-          await supabase.from('programs').delete().eq('user_id', user.id).not('id', 'in', `(${currentIds.join(',')})`);
+          await supabase.from('programs')
+            .update({ is_deleted: true })
+            .eq('user_id', user.id)
+            .not('id', 'in', `(${currentIds.join(',')})`);
         }
       } else {
-        await supabase.from('programs').delete().eq('user_id', user.id);
+        await supabase.from('programs')
+          .update({ is_deleted: true })
+          .eq('user_id', user.id);
       }
     }
   });
@@ -424,16 +441,21 @@ export const syncFromSupabase = async () => {
   try {
     const { data: ex } = await supabase.from('exercises').select('*').eq('user_id', user.id);
     if (ex) {
-      const parsedEx = ex.map(e => ({
-        ...e,
-        category: typeof e.category === 'string' ? e.category.split(', ') : e.category,
-        movementType: typeof e.movementType === 'string' ? e.movementType.split(', ') : e.movementType
-      }));
+      const parsedEx = ex
+        .filter(e => e.is_deleted !== true)
+        .map(e => ({
+          ...e,
+          category: typeof e.category === 'string' ? e.category.split(', ') : e.category,
+          movementType: typeof e.movementType === 'string' ? e.movementType.split(', ') : e.movementType
+        }));
       localStorage.setItem('fittrack_exercises', JSON.stringify(parsedEx));
     }
     
     const { data: prog } = await supabase.from('programs').select('*').eq('user_id', user.id);
-    if (prog) localStorage.setItem('fittrack_programs', JSON.stringify(prog));
+    if (prog) {
+      const activeProg = prog.filter(p => p.is_deleted !== true);
+      localStorage.setItem('fittrack_programs', JSON.stringify(activeProg));
+    }
     
     const { data: hist } = await supabase.from('workout_history').select('*').eq('user_id', user.id).order('date', { ascending: false });
     if (hist) localStorage.setItem('fittrack_history', JSON.stringify(hist));

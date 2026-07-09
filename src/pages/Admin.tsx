@@ -647,19 +647,28 @@ const Admin = () => {
                         }
                         cols.push(curr.trim().replace(/^"|"$/g, ''));
                         
+                        const name = cols[1] || "";
                         return {
-                          id: cols[0],
-                          name: cols[1],
-                          category: cols[2] ? cols[2].split(';').map(s => s.trim()) : ["Strength"],
+                          id: cols[0] || name.toLowerCase().replace(/\s+/g, '-') || `ex_${Date.now()}_${Math.random()}`,
+                          name: name,
+                          category: cols[2] ? cols[2].split(';').map(s => s.trim()).filter(Boolean) : ["Strength"],
                           muscle: cols[3],
                           equipment: cols[4],
                           difficulty: cols[5],
-                          movementType: cols[6] ? cols[6].split(';').map(s => s.trim()) : ["Push"],
+                          movementType: cols[6] ? cols[6].split(';').map(s => s.trim()).filter(Boolean) : ["Push"],
                           videoUrl: cols[7] || ""
                         };
                       });
                       
-                      const validExercises = newExercises.filter(ex => ex.id && ex.name);
+                      let validExercises = newExercises.filter(ex => ex.name);
+                      
+                      // Deduplicate by ID to prevent Supabase UPSERT errors
+                      const uniqueMap = new Map();
+                      validExercises.forEach(ex => {
+                        uniqueMap.set(ex.id, ex);
+                      });
+                      validExercises = Array.from(uniqueMap.values());
+
                       setExercises(validExercises);
                       toast.info("Saving and syncing to cloud...");
                       saveExercises(validExercises).then((res: any) => {
