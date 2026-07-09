@@ -50,30 +50,62 @@ export const getExercises = () => {
   return stored ? JSON.parse(stored) : defaultExercises;
 };
 
-export const saveExercises = (exercises: any[]) => {
+export const saveExercises = async (exercises: any[]) => {
   localStorage.setItem('fittrack_exercises', JSON.stringify(exercises));
   // Background sync
-  supabase.auth.getUser().then(({ data: { user } }) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       // Create a safe payload for the database
       const safeExercises = exercises.map(e => {
+        let movType = e.movementType;
+        if (typeof movType === 'string') {
+          movType = [movType];
+        } else if (!movType) {
+          movType = [];
+        }
+
         return {
           ...e,
           user_id: user.id,
           // Convert array to string for the database text column
-          category: Array.isArray(e.category) ? e.category.join(', ') : e.category
+          category: Array.isArray(e.category) ? e.category.join(', ') : e.category,
+          movementType: movType
         };
       });
 
-      supabase.from('exercises').delete().eq('user_id', user.id).then(() => {
-        if (safeExercises.length > 0) {
-          supabase.from('exercises').insert(safeExercises).then(({ error }) => {
-            if (error) console.error("Supabase insert error:", error);
-          });
+      if (safeExercises.length > 0) {
+        let { error } = await supabase.from('exercises').upsert(safeExercises);
+        
+        // Fallback for schema mismatch (if movementType is still a text column)
+        if (error && error.message && error.message.toLowerCase().includes('array')) {
+          console.warn("Array insert failed, falling back to stringified movementType...");
+          const fallbackExercises = safeExercises.map(e => ({
+            ...e,
+            movementType: Array.isArray(e.movementType) ? e.movementType.join(', ') : e.movementType
+          }));
+          const fallbackRes = await supabase.from('exercises').upsert(fallbackExercises);
+          error = fallbackRes.error;
         }
-      });
+
+        if (!error) {
+          const currentIds = safeExercises.map(e => e.id);
+          await supabase.from('exercises').delete().eq('user_id', user.id).not('id', 'in', `(${currentIds.join(',')})`);
+          return { success: true };
+        } else {
+          console.error("Supabase insert error:", error);
+          return { success: false, error };
+        }
+      } else {
+        const { error } = await supabase.from('exercises').delete().eq('user_id', user.id);
+        return { success: !error, error };
+      }
     }
-  });
+    return { success: false, error: new Error("Not logged in") };
+  } catch (err) {
+    console.error(err);
+    return { success: false, error: err };
+  }
 };
 
 export const getPrograms = () => {
@@ -84,13 +116,18 @@ export const getPrograms = () => {
 export const savePrograms = (programs: any[]) => {
   localStorage.setItem('fittrack_programs', JSON.stringify(programs));
   // Background sync
-  supabase.auth.getUser().then(({ data: { user } }) => {
+  supabase.auth.getUser().then(async ({ data: { user } }) => {
     if (user) {
-      supabase.from('programs').delete().eq('user_id', user.id).then(() => {
-        if (programs.length > 0) {
-          supabase.from('programs').insert(programs.map(p => ({ ...p, user_id: user.id }))).then();
+      if (programs.length > 0) {
+        const safePrograms = programs.map(p => ({ ...p, user_id: user.id }));
+        const { error } = await supabase.from('programs').upsert(safePrograms);
+        if (!error) {
+          const currentIds = safePrograms.map(p => p.id);
+          await supabase.from('programs').delete().eq('user_id', user.id).not('id', 'in', `(${currentIds.join(',')})`);
         }
-      });
+      } else {
+        await supabase.from('programs').delete().eq('user_id', user.id);
+      }
     }
   });
 };
@@ -228,13 +265,18 @@ export const getEducationFolders = () => {
 export const saveEducationFolders = (folders: any[]) => {
   localStorage.setItem('fittrack_education_folders', JSON.stringify(folders));
   // Background sync
-  supabase.auth.getUser().then(({ data: { user } }) => {
+  supabase.auth.getUser().then(async ({ data: { user } }) => {
     if (user) {
-      supabase.from('education_folders').delete().eq('user_id', user.id).then(() => {
-        if (folders.length > 0) {
-          supabase.from('education_folders').insert(folders.map(f => ({ ...f, user_id: user.id }))).then();
+      if (folders.length > 0) {
+        const safeFolders = folders.map(f => ({ ...f, user_id: user.id }));
+        const { error } = await supabase.from('education_folders').upsert(safeFolders);
+        if (!error) {
+          const currentIds = safeFolders.map(f => f.id);
+          await supabase.from('education_folders').delete().eq('user_id', user.id).not('id', 'in', `(${currentIds.join(',')})`);
         }
-      });
+      } else {
+        await supabase.from('education_folders').delete().eq('user_id', user.id);
+      }
     }
   });
 };
@@ -247,13 +289,18 @@ export const getEducationVideos = () => {
 export const saveEducationVideos = (videos: any[]) => {
   localStorage.setItem('fittrack_education_videos', JSON.stringify(videos));
   // Background sync
-  supabase.auth.getUser().then(({ data: { user } }) => {
+  supabase.auth.getUser().then(async ({ data: { user } }) => {
     if (user) {
-      supabase.from('education_videos').delete().eq('user_id', user.id).then(() => {
-        if (videos.length > 0) {
-          supabase.from('education_videos').insert(videos.map(v => ({ ...v, user_id: user.id }))).then();
+      if (videos.length > 0) {
+        const safeVideos = videos.map(v => ({ ...v, user_id: user.id }));
+        const { error } = await supabase.from('education_videos').upsert(safeVideos);
+        if (!error) {
+          const currentIds = safeVideos.map(v => v.id);
+          await supabase.from('education_videos').delete().eq('user_id', user.id).not('id', 'in', `(${currentIds.join(',')})`);
         }
-      });
+      } else {
+        await supabase.from('education_videos').delete().eq('user_id', user.id);
+      }
     }
   });
 };
@@ -379,7 +426,8 @@ export const syncFromSupabase = async () => {
     if (ex) {
       const parsedEx = ex.map(e => ({
         ...e,
-        category: typeof e.category === 'string' ? e.category.split(', ') : e.category
+        category: typeof e.category === 'string' ? e.category.split(', ') : e.category,
+        movementType: typeof e.movementType === 'string' ? e.movementType.split(', ') : e.movementType
       }));
       localStorage.setItem('fittrack_exercises', JSON.stringify(parsedEx));
     }
@@ -505,11 +553,18 @@ export const migrateLocalToSupabase = async () => {
     const storedEx = localStorage.getItem('fittrack_exercises');
     if (storedEx) {
       const ex = JSON.parse(storedEx);
-      const safeEx = ex.map((e: any) => ({
-        ...e,
-        user_id: user.id,
-        category: Array.isArray(e.category) ? e.category.join(', ') : e.category
-      }));
+      const safeEx = ex.map((e: any) => {
+        let movType = e.movementType;
+        if (typeof movType === 'string') movType = [movType];
+        else if (!movType) movType = [];
+        
+        return {
+          ...e,
+          user_id: user.id,
+          category: Array.isArray(e.category) ? e.category.join(', ') : e.category,
+          movementType: movType
+        };
+      });
       await supabase.from('exercises').delete().eq('user_id', user.id);
       await supabase.from('exercises').insert(safeEx);
     }

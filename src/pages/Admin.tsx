@@ -69,9 +69,16 @@ const Admin = () => {
   const [isZipping, setIsZipping] = useState(false);
 
   useEffect(() => {
-    setExercises(getExercises());
-    setPrograms(getPrograms());
+    const handleSync = () => {
+      setExercises(getExercises());
+      setPrograms(getPrograms());
+    };
+    
+    handleSync();
     loadMembers();
+
+    window.addEventListener('fittrack_synced', handleSync);
+    return () => window.removeEventListener('fittrack_synced', handleSync);
   }, []);
 
   const loadMembers = async () => {
@@ -236,17 +243,22 @@ const Admin = () => {
       });
       
       const csvString = csvRows.join("\n");
+      
+      // Fallback: copy to clipboard
+      navigator.clipboard.writeText(csvString).catch(() => {});
+
       const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = "fittrack_exercises_backup.csv";
+      a.target = "_blank";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      toast.success("Exercises backed up to CSV successfully!");
+      toast.success("Exercises backed up! (Also copied to clipboard just in case)");
     } catch (error) {
       toast.error("Failed to export backup.");
     }
@@ -260,17 +272,22 @@ const Admin = () => {
       }
       
       const jsonString = JSON.stringify(programs, null, 2);
+      
+      // Fallback: copy to clipboard
+      navigator.clipboard.writeText(jsonString).catch(() => {});
+
       const blob = new Blob([jsonString], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = "fittrack_programs_backup.json";
+      a.target = "_blank";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      toast.success("Programs backed up to JSON successfully!");
+      toast.success("Programs backed up! (Also copied to clipboard just in case)");
     } catch (error) {
       toast.error("Failed to export programs backup.");
     }
@@ -599,9 +616,73 @@ const Admin = () => {
                 Delete All Showing ({exercises.filter(ex => ex.name.toLowerCase().includes(librarySearch.toLowerCase())).length})
               </Button>
             )}
-            <Button variant="outline" className="gap-2 ml-auto" onClick={handleExportData}>
-              <Download className="h-4 w-4" /> Backup to CSV
-            </Button>
+            <div className="flex gap-2 ml-auto">
+              <Button variant="outline" className="gap-2" onClick={() => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.csv';
+                input.onchange = (e: any) => {
+                  const file = e.target.files[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = (event) => {
+                    try {
+                      const text = event.target?.result as string;
+                      const rows = text.split('\n').filter(row => row.trim());
+                      if (rows.length <= 1) return;
+                      
+                      const newExercises = rows.slice(1).map(row => {
+                        // Robust CSV parsing to handle Excel exports
+                        const cols = [];
+                        let curr = '';
+                        let inQuotes = false;
+                        for (let i = 0; i < row.length; i++) {
+                          if (row[i] === '"') inQuotes = !inQuotes;
+                          else if (row[i] === ',' && !inQuotes) {
+                            cols.push(curr.trim().replace(/^"|"$/g, ''));
+                            curr = '';
+                          } else {
+                            curr += row[i];
+                          }
+                        }
+                        cols.push(curr.trim().replace(/^"|"$/g, ''));
+                        
+                        return {
+                          id: cols[0],
+                          name: cols[1],
+                          category: cols[2] ? cols[2].split(';').map(s => s.trim()) : ["Strength"],
+                          muscle: cols[3],
+                          equipment: cols[4],
+                          difficulty: cols[5],
+                          movementType: cols[6] ? cols[6].split(';').map(s => s.trim()) : ["Push"],
+                          videoUrl: cols[7] || ""
+                        };
+                      });
+                      
+                      const validExercises = newExercises.filter(ex => ex.id && ex.name);
+                      setExercises(validExercises);
+                      toast.info("Saving and syncing to cloud...");
+                      saveExercises(validExercises).then((res: any) => {
+                        if (res && res.error) {
+                          toast.error("Cloud sync failed: " + res.error.message, { duration: 10000 });
+                        } else {
+                          toast.success(`Imported ${validExercises.length} exercises!`);
+                        }
+                      });
+                    } catch (err) {
+                      toast.error("Failed to parse CSV.");
+                    }
+                  };
+                  reader.readAsText(file);
+                };
+                input.click();
+              }}>
+                <Download className="h-4 w-4 rotate-180" /> Import CSV
+              </Button>
+              <Button variant="outline" className="gap-2" onClick={handleExportData}>
+                <Download className="h-4 w-4" /> Backup to CSV
+              </Button>
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -1102,6 +1183,26 @@ const Admin = () => {
               >
                 {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
                 {isSyncing ? "Syncing..." : "Sync Videos"}
+              </Button>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-card border-border mt-6">
+            <CardHeader>
+              <CardTitle>Force Cloud Sync</CardTitle>
+              <CardDescription>If your exercises aren't showing up on the live site, click this to force push your local data to the database.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={async () => {
+                toast.info("Syncing to cloud...");
+                const res = await saveExercises(exercises);
+                if (res && res.error) {
+                  toast.error("Sync failed: " + res.error.message, { duration: 10000 });
+                } else {
+                  toast.success("Successfully synced to cloud!");
+                }
+              }} className="gap-2">
+                <History className="h-4 w-4" /> Force Push to Cloud
               </Button>
             </CardContent>
           </Card>
