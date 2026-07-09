@@ -1199,16 +1199,30 @@ const Admin = () => {
           <Card className="bg-card border-border mt-6">
             <CardHeader>
               <CardTitle>Force Cloud Sync</CardTitle>
-              <CardDescription>If your exercises aren't showing up on the live site, click this to force push your local data to the database.</CardDescription>
+              <CardDescription>If your exercises or programs aren't showing up on the live site, click this to force push your local data to the database.</CardDescription>
             </CardHeader>
             <CardContent>
               <Button onClick={async () => {
+                if (exercises.length === 0 && programs.length === 0) {
+                  toast.error("Both exercises and programs are empty locally. Aborting to prevent accidental deletion.");
+                  return;
+                }
+                
                 toast.info("Syncing to cloud...");
-                const res = await saveExercises(exercises);
-                if (res && res.error) {
-                  toast.error("Sync failed: " + res.error.message, { duration: 10000 });
+                let exRes = null;
+                let progRes = null;
+                
+                if (exercises.length > 0) {
+                  exRes = await saveExercises(exercises);
+                }
+                if (programs.length > 0) {
+                  progRes = await savePrograms(programs);
+                }
+                
+                if ((exRes && exRes.error) || (progRes && progRes.error)) {
+                  toast.error("Sync failed: " + (exRes?.error?.message || progRes?.error?.message), { duration: 10000 });
                 } else {
-                  toast.success("Successfully synced to cloud!");
+                  toast.success("Successfully synced exercises and programs to cloud!");
                 }
               }} className="gap-2">
                 <History className="h-4 w-4" /> Force Push to Cloud

@@ -125,10 +125,11 @@ export const getPrograms = () => {
   return stored ? JSON.parse(stored) : defaultPrograms;
 };
 
-export const savePrograms = (programs: any[]) => {
+export const savePrograms = async (programs: any[]) => {
   localStorage.setItem('fittrack_programs', JSON.stringify(programs));
   // Background sync
-  supabase.auth.getUser().then(async ({ data: { user } }) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       if (programs.length > 0) {
         const safePrograms = programs.map(p => ({ ...p, user_id: user.id }));
@@ -139,14 +140,21 @@ export const savePrograms = (programs: any[]) => {
             .update({ is_deleted: true })
             .eq('user_id', user.id)
             .not('id', 'in', `(${currentIds.join(',')})`);
+          return { success: true };
         }
+        return { success: false, error };
       } else {
-        await supabase.from('programs')
+        const { error: updateErr } = await supabase.from('programs')
           .update({ is_deleted: true })
           .eq('user_id', user.id);
+        return { success: !updateErr, error: updateErr };
       }
     }
-  });
+    return { success: false, error: new Error("Not logged in") };
+  } catch (err) {
+    console.error(err);
+    return { success: false, error: err };
+  }
 };
 
 export const getActiveProgram = () => {
