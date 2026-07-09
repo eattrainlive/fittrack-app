@@ -76,8 +76,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   ];
 
   const isAuthPage = location.pathname === "/auth";
+  const isTVMode = location.pathname.startsWith("/tv/");
 
-  if (isAuthPage) {
+  if (isAuthPage || isTVMode) {
     return <div className="min-h-screen bg-background font-sans">{children}</div>;
   }
 

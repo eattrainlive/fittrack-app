@@ -43,11 +43,12 @@ const REWARD_ITEMS = [
 
 const Workouts = () => {
   const [workoutName, setWorkoutName] = useState("");
-  const [exercises, setExercises] = useState([{ id: 1, name: "", sets: 3, reps: 10, weight: 0 }]);
+  const [exercises, setExercises] = useState<any[]>([{ id: 1, blockType: "Strength", name: "", sets: 3, reps: 10, weight: 0 }]);
   const [exerciseLibrary, setExerciseLibrary] = useState<any[]>([]);
   const [workoutTemplates, setWorkoutTemplates] = useState<any[]>([]);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [timerActive, setTimerActive] = useState(false);
+  const [exerciseSearch, setExerciseSearch] = useState("");
   const [activeProgram, setActiveProgram] = useState<any>(null);
   const [rewardModal, setRewardModal] = useState<{name: string, emoji: string, volume: number, count?: number, displayName?: string} | null>(null);
 
@@ -59,7 +60,11 @@ const Workouts = () => {
     if (active) {
       const currentWorkout = active.workouts[active.currentIndex];
       setWorkoutName(`${active.name}: ${currentWorkout.name}`);
-      setExercises(currentWorkout.exercises.map((ex: any, idx: number) => ({ id: Date.now() + idx, ...ex })));
+      setExercises(currentWorkout.exercises.map((ex: any, idx: number) => ({ 
+        id: Date.now() + idx, 
+        blockType: ex.blockType || "Strength",
+        ...ex 
+      })));
     }
   }, []);
 
@@ -96,7 +101,7 @@ const Workouts = () => {
   };
 
   const addExercise = () => {
-    setExercises([...exercises, { id: Date.now(), name: "", sets: 3, reps: 10, weight: 0 }]);
+    setExercises([...exercises, { id: Date.now(), blockType: "Strength", name: "", sets: 3, reps: 10, weight: 0 }]);
   };
 
   const removeExercise = (id: number) => {
@@ -272,8 +277,15 @@ const Workouts = () => {
               <Card key={exercise.id} className="bg-muted/50 border-border">
                 <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-end">
                   <div className="space-y-2 flex-1 w-full">
-                    <div className="flex justify-between items-center">
-                      <Label>Exercise</Label>
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="flex items-center gap-2">
+                        <Label>Exercise</Label>
+                        {(exercise as any).blockType && (
+                          <span className="text-[10px] uppercase bg-primary/20 text-primary px-2 py-0.5 rounded-full font-bold">
+                            {(exercise as any).blockType}
+                          </span>
+                        )}
+                      </div>
                       {lastStats && (
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
                           <History className="h-3 w-3" /> 
@@ -290,8 +302,27 @@ const Workouts = () => {
                           <SelectValue placeholder="Select exercise" />
                         </SelectTrigger>
                         <SelectContent>
-                          {exerciseLibrary.map(ex => (
-                            <SelectItem key={ex.id} value={ex.id}>{ex.name}</SelectItem>
+                          <div className="p-2">
+                            <Input 
+                              placeholder="Search exercises..." 
+                              value={exerciseSearch} 
+                              onChange={e => setExerciseSearch(e.target.value)}
+                              className="mb-2 h-8"
+                              onKeyDown={e => e.stopPropagation()}
+                            />
+                          </div>
+                          {exerciseLibrary
+                            .filter(ex => {
+                              if (!(exercise as any).blockType) return true;
+                              const cats = Array.isArray(ex.category) ? ex.category : [ex.category || "Strength"];
+                              return cats.includes((exercise as any).blockType);
+                            })
+                            .filter(ex => ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()))
+                            .sort((a, b) => a.name.localeCompare(b.name))
+                            .map(ex => (
+                              <SelectItem key={ex.id} value={ex.id}>
+                                {ex.name} {ex.movementType ? `(${ex.movementType})` : ""}
+                              </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

@@ -14,6 +14,7 @@ import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
 import Feed from "./pages/Feed";
 import Education from "./pages/Education";
+import TVDisplay from "./pages/TVDisplay";
 
 import { useEffect } from "react";
 import { syncFromSupabase, syncProfile } from "./lib/store";
@@ -48,6 +49,7 @@ const AppContent = () => {
             <Route path="/education" element={<Education />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/tv/:programId/:workoutIndex" element={<TVDisplay />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AppLayout>

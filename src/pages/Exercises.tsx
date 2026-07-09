@@ -14,6 +14,9 @@ const Exercises = () => {
   const [search, setSearch] = useState("");
   const [muscleFilter, setMuscleFilter] = useState("All");
   const [equipmentFilter, setEquipmentFilter] = useState("All");
+  const [movementFilter, setMovementFilter] = useState("All");
+
+  const MOVEMENT_TYPES = ["Warm Up", "Knee", "Hip", "Push", "Pull", "Conditioning", "Core", "Carries", "Fire Up", "Accessory"];
 
   useEffect(() => {
     setExerciseLibrary(getExercises());
@@ -26,7 +29,8 @@ const Exercises = () => {
     const matchesSearch = ex.name.toLowerCase().includes(search.toLowerCase());
     const matchesMuscle = muscleFilter === "All" || ex.muscle === muscleFilter;
     const matchesEquipment = equipmentFilter === "All" || ex.equipment === equipmentFilter;
-    return matchesSearch && matchesMuscle && matchesEquipment;
+    const matchesMovement = movementFilter === "All" || ex.movementType === movementFilter;
+    return matchesSearch && matchesMuscle && matchesEquipment && matchesMovement;
   });
 
   return (
@@ -68,6 +72,18 @@ const Exercises = () => {
             ))}
           </SelectContent>
         </Select>
+
+        <Select value={movementFilter} onValueChange={setMovementFilter}>
+          <SelectTrigger className="w-full sm:w-[180px] bg-card border-border">
+            <SelectValue placeholder="Movement Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All Movements</SelectItem>
+            {MOVEMENT_TYPES.map(m => (
+              <SelectItem key={m} value={m}>{m}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -78,9 +94,11 @@ const Exercises = () => {
               <CardDescription>{exercise.muscle}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex gap-2 text-xs">
+              <div className="flex flex-wrap gap-2 text-xs">
+                {exercise.category && <span className="px-2 py-1 bg-primary/20 text-primary rounded-md font-medium">{Array.isArray(exercise.category) ? exercise.category[0] : exercise.category}</span>}
                 <span className="px-2 py-1 bg-muted rounded-md">{exercise.equipment}</span>
                 <span className="px-2 py-1 bg-muted rounded-md">{exercise.difficulty}</span>
+                {exercise.movementType && <span className="px-2 py-1 bg-muted rounded-md border border-border">{exercise.movementType}</span>}
               </div>
               
               {exercise.videoUrl && (

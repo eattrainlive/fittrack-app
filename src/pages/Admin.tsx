@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification } from "@/lib/store";
 import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar, Bell, Send, Download } from "lucide-react";
 import JSZip from "jszip";
@@ -25,10 +26,17 @@ const Admin = () => {
 
   // New Exercise State
   const [newExName, setNewExName] = useState("");
+  const [newExCategory, setNewExCategory] = useState<string[]>(["Strength"]);
   const [newExMuscle, setNewExMuscle] = useState("");
   const [newExEq, setNewExEq] = useState("Barbell");
   const [newExDiff, setNewExDiff] = useState("Beginner");
   const [newExVid, setNewExVid] = useState("");
+  const [newExMovement, setNewExMovement] = useState("Push");
+
+  const MOVEMENT_TYPES = ["Warm Up", "Knee", "Hip", "Push", "Pull", "Conditioning", "Core", "Carries", "Fire Up", "Accessory"];
+
+  // Search State for Program Builder
+  const [exerciseSearch, setExerciseSearch] = useState("");
 
   // New Program State
   const [newProgName, setNewProgName] = useState("");
@@ -117,10 +125,12 @@ const Admin = () => {
             currentExercises.push({
               id,
               name,
+              category: ["Strength"],
               muscle: "Uncategorized",
               equipment: "Bodyweight",
               difficulty: "Beginner",
-              videoUrl: link
+              videoUrl: link,
+              movementType: "Push"
             });
             addedCount++;
           }
@@ -153,8 +163,9 @@ const Admin = () => {
       return;
     }
     const newEx = {
-      id: newExName.toLowerCase().replace(/\\s+/g, '-'),
+      id: newExName.toLowerCase().replace(/\s+/g, '-'),
       name: newExName,
+      category: newExCategory,
       muscle: newExMuscle,
       equipment: newExEq,
       difficulty: newExDiff,
@@ -203,7 +214,7 @@ const Admin = () => {
 
   const handleAddProgExercise = () => {
     const updatedWorkouts = [...progWorkouts];
-    updatedWorkouts[selectedWorkoutIndex].exercises.push({ id: Date.now(), name: exercises[0]?.id || "", sets: 3, reps: 10, weight: 0 });
+    updatedWorkouts[selectedWorkoutIndex].exercises.push({ id: Date.now(), blockType: "Strength", name: "", sets: 3, reps: 10, weight: 0 });
     setProgWorkouts(updatedWorkouts);
   };
 
@@ -240,29 +251,66 @@ const Admin = () => {
     toast.success("Copied exercises from previous workout!");
   };
 
+  const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
+
   const handleAddProgram = () => {
     if (!newProgName) {
       toast.error("Please provide a program name.");
       return;
     }
     const newProg = {
-      id: "p_" + Date.now(),
+      id: editingProgramId || "p_" + Date.now(),
       name: newProgName,
       description: newProgDesc,
       weeks: newProgWeeks,
       daysPerWeek: newProgDays,
       workouts: progWorkouts.map(w => ({
         name: w.name,
-        exercises: w.exercises.map((e: any) => ({ name: e.name, sets: e.sets, reps: e.reps, weight: e.weight }))
+        exercises: w.exercises.map((e: any) => ({ blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight }))
       }))
     };
-    const updated = [...programs, newProg];
+    
+    let updated;
+    if (editingProgramId) {
+      updated = programs.map(p => p.id === editingProgramId ? newProg : p);
+      toast.success("Program updated!");
+    } else {
+      updated = [...programs, newProg];
+      toast.success("Program added!");
+    }
+    
     setPrograms(updated);
     savePrograms(updated);
-    toast.success("Program added!");
+    
     setNewProgName("");
     setNewProgDesc("");
     setProgWorkouts([]);
+    setEditingProgramId(null);
+  };
+
+  const handleEditProgram = (prog: any) => {
+    setEditingProgramId(prog.id);
+    setNewProgName(prog.name);
+    setNewProgDesc(prog.description || "");
+    setNewProgWeeks(prog.weeks || 4);
+    setNewProgDays(prog.daysPerWeek || 3);
+    
+    const workouts = prog.workouts?.length ? prog.workouts.map((w: any, idx: number) => ({
+      id: `w_${Date.now()}_${idx}`,
+      name: w.name,
+      exercises: w.exercises.map((e: any, eIdx: number) => ({
+        id: Date.now() + eIdx + Math.random(),
+        blockType: e.blockType || "Strength",
+        name: e.name,
+        sets: e.sets,
+        reps: e.reps,
+        weight: e.weight || 0
+      }))
+    })) : [];
+    
+    setProgWorkouts(workouts);
+    setSelectedWorkoutIndex(0);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDeleteProgram = (id: string) => {
@@ -382,8 +430,35 @@ const Admin = () => {
                   <Input value={newExName} onChange={e => setNewExName(e.target.value)} placeholder="e.g. Incline Press" />
                 </div>
                 <div className="space-y-2">
+                  <Label>Categories (Block Types)</Label>
+                  <div className="flex flex-wrap gap-4 pt-2">
+                    {["Strength", "Cardio", "Mobility", "Activation"].map(cat => (
+                      <div key={cat} className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`new-cat-${cat}`} 
+                          checked={newExCategory.includes(cat)}
+                          onCheckedChange={(checked) => {
+                            if (checked) setNewExCategory([...newExCategory, cat]);
+                            else setNewExCategory(newExCategory.filter(c => c !== cat));
+                          }}
+                        />
+                        <label htmlFor={`new-cat-${cat}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{cat}</label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
                   <Label>Muscle Group</Label>
                   <Input value={newExMuscle} onChange={e => setNewExMuscle(e.target.value)} placeholder="e.g. Chest" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Movement Type</Label>
+                  <Select value={newExMovement} onValueChange={setNewExMovement}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {MOVEMENT_TYPES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Equipment</Label>
@@ -435,7 +510,7 @@ const Admin = () => {
                       </Button>
                     </div>
                   </CardTitle>
-                  <CardDescription>{ex.muscle} • {ex.equipment}</CardDescription>
+                  <CardDescription>{Array.isArray(ex.category) ? ex.category.join(", ") : ex.category} • {ex.muscle} • {ex.equipment}{ex.movementType ? ` • ${ex.movementType}` : ""}</CardDescription>
                 </CardHeader>
               </Card>
             ))}
@@ -453,8 +528,40 @@ const Admin = () => {
                     <Input value={editingExercise.name} onChange={e => setEditingExercise({...editingExercise, name: e.target.value})} />
                   </div>
                   <div className="space-y-2">
+                    <Label>Categories (Block Types)</Label>
+                    <div className="flex flex-wrap gap-4 pt-2">
+                      {["Strength", "Cardio", "Mobility", "Activation"].map(cat => {
+                        const currentCats = Array.isArray(editingExercise.category) ? editingExercise.category : [editingExercise.category || "Strength"];
+                        return (
+                          <div key={cat} className="flex items-center space-x-2">
+                            <Checkbox 
+                              id={`edit-cat-${cat}`} 
+                              checked={currentCats.includes(cat)}
+                              onCheckedChange={(checked) => {
+                                let newCats = [...currentCats];
+                                if (checked && !newCats.includes(cat)) newCats.push(cat);
+                                else if (!checked) newCats = newCats.filter(c => c !== cat);
+                                setEditingExercise({...editingExercise, category: newCats});
+                              }}
+                            />
+                            <label htmlFor={`edit-cat-${cat}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{cat}</label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
                     <Label>Muscle Group</Label>
                     <Input value={editingExercise.muscle} onChange={e => setEditingExercise({...editingExercise, muscle: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Movement Type</Label>
+                    <Select value={editingExercise.movementType || "Push"} onValueChange={v => setEditingExercise({...editingExercise, movementType: v})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {MOVEMENT_TYPES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Equipment</Label>
@@ -568,13 +675,47 @@ const Admin = () => {
                                       <div {...provided.dragHandleProps} className="pb-2 cursor-grab text-muted-foreground hover:text-foreground">
                                         <GripVertical className="h-5 w-5" />
                                       </div>
+                                      <div className="space-y-2 w-32 shrink-0">
+                                        <Label>Block Type</Label>
+                                        <Select value={pe.blockType || "Strength"} onValueChange={(v) => {
+                                          const updatedWorkouts = [...progWorkouts];
+                                          const ex = updatedWorkouts[selectedWorkoutIndex].exercises.find((e: any) => e.id === pe.id);
+                                          if(ex) { ex.blockType = v; ex.name = ""; }
+                                          setProgWorkouts(updatedWorkouts);
+                                        }}>
+                                          <SelectTrigger><SelectValue /></SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="Strength">Strength</SelectItem>
+                                            <SelectItem value="Cardio">Cardio</SelectItem>
+                                            <SelectItem value="Mobility">Mobility</SelectItem>
+                                            <SelectItem value="Activation">Activation</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
                                       <div className="space-y-2 flex-1">
                                         <Label>Exercise</Label>
                                         <Select value={pe.name} onValueChange={(v) => updateProgExercise(pe.id, "name", v)}>
                                           <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                                           <SelectContent>
-                                            {exercises.map(ex => (
-                                              <SelectItem key={ex.id} value={ex.id}>{ex.name}</SelectItem>
+                                            <div className="p-2">
+                                              <Input 
+                                                placeholder="Search exercises..." 
+                                                value={exerciseSearch} 
+                                                onChange={e => setExerciseSearch(e.target.value)}
+                                                className="mb-2 h-8"
+                                                onKeyDown={e => e.stopPropagation()}
+                                              />
+                                            </div>
+                                            {exercises
+                                              .filter(ex => {
+                                                if (!pe.blockType) return true;
+                                                const cats = Array.isArray(ex.category) ? ex.category : [ex.category || "Strength"];
+                                                return cats.includes(pe.blockType);
+                                              })
+                                              .filter(ex => ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()))
+                                              .sort((a, b) => a.name.localeCompare(b.name))
+                                              .map(ex => (
+                                                <SelectItem key={ex.id} value={ex.id}>{ex.name} {ex.movementType ? `(${ex.movementType})` : ""}</SelectItem>
                                             ))}
                                           </SelectContent>
                                         </Select>
@@ -604,9 +745,21 @@ const Admin = () => {
                 )}
               </div>
 
-              <Button onClick={handleAddProgram} className="w-full gap-2">
-                <Dumbbell className="h-4 w-4" /> Save Program
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={handleAddProgram} className="flex-1 gap-2">
+                  <Dumbbell className="h-4 w-4" /> {editingProgramId ? "Update Program" : "Save Program"}
+                </Button>
+                {editingProgramId && (
+                  <Button variant="outline" onClick={() => {
+                    setEditingProgramId(null);
+                    setNewProgName("");
+                    setNewProgDesc("");
+                    setProgWorkouts([]);
+                  }}>
+                    Cancel
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -617,6 +770,9 @@ const Admin = () => {
                   <CardTitle className="flex justify-between items-start">
                     <span>{p.name}</span>
                     <div className="flex gap-1 -mt-2">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => handleEditProgram(p)} title="Edit Program">
+                        <Edit className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => handleDuplicateProgram(p.id)} title="Duplicate Program">
                         <Copy className="h-4 w-4" />
                       </Button>
@@ -630,7 +786,28 @@ const Admin = () => {
                 <CardContent>
                   <div className="text-sm text-muted-foreground mt-2">
                     {p.weeks && p.daysPerWeek ? (
-                      <p>{p.weeks} Weeks • {p.daysPerWeek} Days/Week</p>
+                      <div className="space-y-4">
+                        <p>{p.weeks} Weeks • {p.daysPerWeek} Days/Week</p>
+                        {p.workouts && p.workouts.length > 0 && (
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase text-muted-foreground">Workouts (TV Display)</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {p.workouts.map((w: any, wIdx: number) => (
+                                <Button 
+                                  key={wIdx} 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="justify-start gap-2 h-auto py-2"
+                                  onClick={() => window.open(`/tv/${p.id}/${wIdx}`, '_blank')}
+                                >
+                                  <PlayCircle className="h-4 w-4 shrink-0 text-primary" />
+                                  <span className="truncate">{w.name}</span>
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <ul className="list-disc list-inside">
                         {p.exercises?.map((ex: any, i: number) => {
