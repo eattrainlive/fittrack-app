@@ -19,7 +19,10 @@ const Exercises = () => {
   const MOVEMENT_TYPES = ["Warm Up", "Knee", "Hip", "Push", "Pull", "Conditioning", "Core", "Carries", "Fire Up", "Accessory"];
 
   useEffect(() => {
-    setExerciseLibrary(getExercises());
+    const loadExercises = () => setExerciseLibrary(getExercises());
+    loadExercises();
+    window.addEventListener('fittrack_synced', loadExercises);
+    return () => window.removeEventListener('fittrack_synced', loadExercises);
   }, []);
 
   const uniqueMuscles = ["All", ...Array.from(new Set(exerciseLibrary.map(ex => ex.muscle))).filter(Boolean)];
@@ -29,7 +32,7 @@ const Exercises = () => {
     const matchesSearch = ex.name.toLowerCase().includes(search.toLowerCase());
     const matchesMuscle = muscleFilter === "All" || ex.muscle === muscleFilter;
     const matchesEquipment = equipmentFilter === "All" || ex.equipment === equipmentFilter;
-    const matchesMovement = movementFilter === "All" || ex.movementType === movementFilter;
+    const matchesMovement = movementFilter === "All" || (Array.isArray(ex.movementType) ? ex.movementType.includes(movementFilter) : ex.movementType === movementFilter);
     return matchesSearch && matchesMuscle && matchesEquipment && matchesMovement;
   });
 
@@ -98,7 +101,7 @@ const Exercises = () => {
                 {exercise.category && <span className="px-2 py-1 bg-primary/20 text-primary rounded-md font-medium">{Array.isArray(exercise.category) ? exercise.category[0] : exercise.category}</span>}
                 <span className="px-2 py-1 bg-muted rounded-md">{exercise.equipment}</span>
                 <span className="px-2 py-1 bg-muted rounded-md">{exercise.difficulty}</span>
-                {exercise.movementType && <span className="px-2 py-1 bg-muted rounded-md border border-border">{exercise.movementType}</span>}
+                {exercise.movementType && <span className="px-2 py-1 bg-muted rounded-md border border-border">{Array.isArray(exercise.movementType) ? exercise.movementType.join(", ") : exercise.movementType}</span>}
               </div>
               
               {exercise.videoUrl && (

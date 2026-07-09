@@ -53,19 +53,27 @@ const Workouts = () => {
   const [rewardModal, setRewardModal] = useState<{name: string, emoji: string, volume: number, count?: number, displayName?: string} | null>(null);
 
   useEffect(() => {
-    setExerciseLibrary(getExercises());
-    setWorkoutTemplates(getPrograms());
-    const active = getActiveProgram();
-    setActiveProgram(active);
-    if (active) {
-      const currentWorkout = active.workouts[active.currentIndex];
-      setWorkoutName(`${active.name}: ${currentWorkout.name}`);
-      setExercises(currentWorkout.exercises.map((ex: any, idx: number) => ({ 
-        id: Date.now() + idx, 
-        blockType: ex.blockType || "Strength",
-        ...ex 
-      })));
-    }
+    const loadData = () => {
+      setExerciseLibrary(getExercises());
+      setWorkoutTemplates(getPrograms());
+      const active = getActiveProgram();
+      setActiveProgram(active);
+      if (active && active.workouts) {
+        const currentWorkout = active.workouts[active.currentIndex];
+        if (currentWorkout && currentWorkout.exercises) {
+          setWorkoutName(`${active.name}: ${currentWorkout.name}`);
+          setExercises(currentWorkout.exercises.map((ex: any, idx: number) => ({ 
+            id: Date.now() + idx, 
+            blockType: ex.blockType || "Strength",
+            ...ex 
+          })));
+        }
+      }
+    };
+    
+    loadData();
+    window.addEventListener('fittrack_synced', loadData);
+    return () => window.removeEventListener('fittrack_synced', loadData);
   }, []);
 
   useEffect(() => {
@@ -321,7 +329,7 @@ const Workouts = () => {
                             .sort((a, b) => a.name.localeCompare(b.name))
                             .map(ex => (
                               <SelectItem key={ex.id} value={ex.id}>
-                                {ex.name} {ex.movementType ? `(${ex.movementType})` : ""}
+                                {ex.name} {ex.movementType ? `(${Array.isArray(ex.movementType) ? ex.movementType.join(", ") : ex.movementType})` : ""}
                               </SelectItem>
                           ))}
                         </SelectContent>

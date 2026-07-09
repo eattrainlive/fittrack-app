@@ -21,9 +21,14 @@ const Progress = () => {
   const [newPrWeight, setNewPrWeight] = useState("");
 
   useEffect(() => {
-    setBodyweightData(getBodyweightHistory());
-    setPrs(getPersonalRecords());
-    setExercises(getExercises());
+    const loadData = () => {
+      setBodyweightData(getBodyweightHistory());
+      setPrs(getPersonalRecords());
+      setExercises(getExercises());
+    };
+    loadData();
+    window.addEventListener('fittrack_synced', loadData);
+    return () => window.removeEventListener('fittrack_synced', loadData);
   }, []);
 
   const handleSaveMeasurements = () => {

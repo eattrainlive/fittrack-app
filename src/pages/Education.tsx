@@ -24,9 +24,14 @@ const Education = () => {
   const [isAddVideoOpen, setIsAddVideoOpen] = useState(false);
 
   useEffect(() => {
-    setFolders(getEducationFolders());
-    setVideos(getEducationVideos());
-    setIsStaff(localStorage.getItem("fittrack_is_staff") === "true");
+    const loadData = () => {
+      setFolders(getEducationFolders());
+      setVideos(getEducationVideos());
+      setIsStaff(localStorage.getItem("fittrack_is_staff") === "true");
+    };
+    loadData();
+    window.addEventListener('fittrack_synced', loadData);
+    return () => window.removeEventListener('fittrack_synced', loadData);
   }, []);
 
   const handleAddFolder = () => {

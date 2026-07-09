@@ -55,8 +55,22 @@ export const saveExercises = (exercises: any[]) => {
   // Background sync
   supabase.auth.getUser().then(({ data: { user } }) => {
     if (user) {
+      // Create a safe payload for the database
+      const safeExercises = exercises.map(e => {
+        return {
+          ...e,
+          user_id: user.id,
+          // Convert array to string for the database text column
+          category: Array.isArray(e.category) ? e.category.join(', ') : e.category
+        };
+      });
+
       supabase.from('exercises').delete().eq('user_id', user.id).then(() => {
-        supabase.from('exercises').insert(exercises.map(e => ({ ...e, user_id: user.id }))).then();
+        if (safeExercises.length > 0) {
+          supabase.from('exercises').insert(safeExercises).then(({ error }) => {
+            if (error) console.error("Supabase insert error:", error);
+          });
+        }
       });
     }
   });
@@ -73,7 +87,9 @@ export const savePrograms = (programs: any[]) => {
   supabase.auth.getUser().then(({ data: { user } }) => {
     if (user) {
       supabase.from('programs').delete().eq('user_id', user.id).then(() => {
-        supabase.from('programs').insert(programs.map(p => ({ ...p, user_id: user.id }))).then();
+        if (programs.length > 0) {
+          supabase.from('programs').insert(programs.map(p => ({ ...p, user_id: user.id }))).then();
+        }
       });
     }
   });
@@ -215,7 +231,9 @@ export const saveEducationFolders = (folders: any[]) => {
   supabase.auth.getUser().then(({ data: { user } }) => {
     if (user) {
       supabase.from('education_folders').delete().eq('user_id', user.id).then(() => {
-        supabase.from('education_folders').insert(folders.map(f => ({ ...f, user_id: user.id }))).then();
+        if (folders.length > 0) {
+          supabase.from('education_folders').insert(folders.map(f => ({ ...f, user_id: user.id }))).then();
+        }
       });
     }
   });
@@ -232,7 +250,9 @@ export const saveEducationVideos = (videos: any[]) => {
   supabase.auth.getUser().then(({ data: { user } }) => {
     if (user) {
       supabase.from('education_videos').delete().eq('user_id', user.id).then(() => {
-        supabase.from('education_videos').insert(videos.map(v => ({ ...v, user_id: user.id }))).then();
+        if (videos.length > 0) {
+          supabase.from('education_videos').insert(videos.map(v => ({ ...v, user_id: user.id }))).then();
+        }
       });
     }
   });
@@ -356,25 +376,31 @@ export const syncFromSupabase = async () => {
   
   try {
     const { data: ex } = await supabase.from('exercises').select('*').eq('user_id', user.id);
-    if (ex && ex.length > 0) localStorage.setItem('fittrack_exercises', JSON.stringify(ex));
+    if (ex) {
+      const parsedEx = ex.map(e => ({
+        ...e,
+        category: typeof e.category === 'string' ? e.category.split(', ') : e.category
+      }));
+      localStorage.setItem('fittrack_exercises', JSON.stringify(parsedEx));
+    }
     
     const { data: prog } = await supabase.from('programs').select('*').eq('user_id', user.id);
-    if (prog && prog.length > 0) localStorage.setItem('fittrack_programs', JSON.stringify(prog));
+    if (prog) localStorage.setItem('fittrack_programs', JSON.stringify(prog));
     
     const { data: hist } = await supabase.from('workout_history').select('*').eq('user_id', user.id).order('date', { ascending: false });
-    if (hist && hist.length > 0) localStorage.setItem('fittrack_history', JSON.stringify(hist));
+    if (hist) localStorage.setItem('fittrack_history', JSON.stringify(hist));
     
     const { data: bw } = await supabase.from('bodyweight_history').select('*').eq('user_id', user.id).order('date', { ascending: true });
-    if (bw && bw.length > 0) localStorage.setItem('fittrack_bodyweight', JSON.stringify(bw));
+    if (bw) localStorage.setItem('fittrack_bodyweight', JSON.stringify(bw));
     
     const { data: prs } = await supabase.from('personal_records').select('*').eq('user_id', user.id).order('date', { ascending: false });
-    if (prs && prs.length > 0) localStorage.setItem('fittrack_prs', JSON.stringify(prs));
+    if (prs) localStorage.setItem('fittrack_prs', JSON.stringify(prs));
 
     const { data: folders } = await supabase.from('education_folders').select('*').eq('user_id', user.id);
-    if (folders && folders.length > 0) localStorage.setItem('fittrack_education_folders', JSON.stringify(folders));
+    if (folders) localStorage.setItem('fittrack_education_folders', JSON.stringify(folders));
 
     const { data: videos } = await supabase.from('education_videos').select('*').eq('user_id', user.id);
-    if (videos && videos.length > 0) localStorage.setItem('fittrack_education_videos', JSON.stringify(videos));
+    if (videos) localStorage.setItem('fittrack_education_videos', JSON.stringify(videos));
 
     const { data: settings } = await supabase.from('user_settings').select('*').eq('user_id', user.id);
     if (settings) {
@@ -479,8 +505,13 @@ export const migrateLocalToSupabase = async () => {
     const storedEx = localStorage.getItem('fittrack_exercises');
     if (storedEx) {
       const ex = JSON.parse(storedEx);
+      const safeEx = ex.map((e: any) => ({
+        ...e,
+        user_id: user.id,
+        category: Array.isArray(e.category) ? e.category.join(', ') : e.category
+      }));
       await supabase.from('exercises').delete().eq('user_id', user.id);
-      await supabase.from('exercises').insert(ex.map((e: any) => ({ ...e, user_id: user.id })));
+      await supabase.from('exercises').insert(safeEx);
     }
     
     const storedProg = localStorage.getItem('fittrack_programs');

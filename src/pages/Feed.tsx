@@ -25,6 +25,8 @@ const Feed = () => {
 
   useEffect(() => {
     loadFeed();
+    window.addEventListener('fittrack_synced', loadFeed);
+    return () => window.removeEventListener('fittrack_synced', loadFeed);
   }, []);
 
   const getExerciseName = (id: string) => {

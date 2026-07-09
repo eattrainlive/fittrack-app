@@ -31,7 +31,7 @@ const Admin = () => {
   const [newExEq, setNewExEq] = useState("Barbell");
   const [newExDiff, setNewExDiff] = useState("Beginner");
   const [newExVid, setNewExVid] = useState("");
-  const [newExMovement, setNewExMovement] = useState("Push");
+  const [newExMovement, setNewExMovement] = useState<string[]>(["Push"]);
 
   const MOVEMENT_TYPES = ["Warm Up", "Knee", "Hip", "Push", "Pull", "Conditioning", "Core", "Carries", "Fire Up", "Accessory"];
 
@@ -52,6 +52,7 @@ const Admin = () => {
 
   // Edit Exercise State
   const [editingExercise, setEditingExercise] = useState<any | null>(null);
+  const [librarySearch, setLibrarySearch] = useState("");
 
   // Members State
   const [members, setMembers] = useState<any[]>([]);
@@ -130,7 +131,7 @@ const Admin = () => {
               equipment: "Bodyweight",
               difficulty: "Beginner",
               videoUrl: link,
-              movementType: "Push"
+              movementType: ["Push"]
             });
             addedCount++;
           }
@@ -170,6 +171,7 @@ const Admin = () => {
       equipment: newExEq,
       difficulty: newExDiff,
       videoUrl: newExVid,
+      movementType: newExMovement,
     };
     const updated = [...exercises, newEx];
     setExercises(updated);
@@ -194,6 +196,84 @@ const Admin = () => {
     saveExercises(updated);
     setEditingExercise(null);
     toast.success("Exercise updated!");
+  };
+
+  const handleBulkDelete = () => {
+    if (!librarySearch) return;
+    const filtered = exercises.filter(ex => ex.name.toLowerCase().includes(librarySearch.toLowerCase()));
+    if (filtered.length === 0) return;
+    
+    const idsToDelete = filtered.map(e => e.id);
+    const updated = exercises.filter(e => !idsToDelete.includes(e.id));
+    setExercises(updated);
+    saveExercises(updated);
+    toast.success(`Deleted ${filtered.length} exercises!`);
+    setLibrarySearch("");
+  };
+
+  const handleExportData = () => {
+    try {
+      if (exercises.length === 0) {
+        toast.error("No exercises to export.");
+        return;
+      }
+      
+      const headers = ["ID", "Name", "Categories", "Muscle", "Equipment", "Difficulty", "Movement Types", "Video URL"];
+      const csvRows = [headers.join(",")];
+      
+      exercises.forEach(ex => {
+        const row = [
+          `"${ex.id || ""}"`,
+          `"${ex.name || ""}"`,
+          `"${Array.isArray(ex.category) ? ex.category.join("; ") : (ex.category || "")}"`,
+          `"${ex.muscle || ""}"`,
+          `"${ex.equipment || ""}"`,
+          `"${ex.difficulty || ""}"`,
+          `"${Array.isArray(ex.movementType) ? ex.movementType.join("; ") : (ex.movementType || "")}"`,
+          `"${ex.videoUrl || ""}"`
+        ];
+        csvRows.push(row.join(","));
+      });
+      
+      const csvString = csvRows.join("\n");
+      const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "fittrack_exercises_backup.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast.success("Exercises backed up to CSV successfully!");
+    } catch (error) {
+      toast.error("Failed to export backup.");
+    }
+  };
+
+  const handleExportProgramsData = () => {
+    try {
+      if (programs.length === 0) {
+        toast.error("No programs to export.");
+        return;
+      }
+      
+      const jsonString = JSON.stringify(programs, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "fittrack_programs_backup.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast.success("Programs backed up to JSON successfully!");
+    } catch (error) {
+      toast.error("Failed to export programs backup.");
+    }
   };
 
   const handleGenerateWorkoutSlots = () => {
@@ -453,12 +533,21 @@ const Admin = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>Movement Type</Label>
-                  <Select value={newExMovement} onValueChange={setNewExMovement}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {MOVEMENT_TYPES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex flex-wrap gap-4 pt-2">
+                    {MOVEMENT_TYPES.map(m => (
+                      <div key={m} className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`new-mov-${m}`} 
+                          checked={newExMovement.includes(m)}
+                          onCheckedChange={(checked) => {
+                            if (checked) setNewExMovement([...newExMovement, m]);
+                            else setNewExMovement(newExMovement.filter(v => v !== m));
+                          }}
+                        />
+                        <label htmlFor={`new-mov-${m}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{m}</label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Equipment</Label>
@@ -467,9 +556,12 @@ const Admin = () => {
                     <SelectContent>
                       <SelectItem value="Barbell">Barbell</SelectItem>
                       <SelectItem value="Dumbbell">Dumbbell</SelectItem>
+                      <SelectItem value="Kettlebell">Kettlebell</SelectItem>
                       <SelectItem value="Machine">Machine</SelectItem>
                       <SelectItem value="Bodyweight">Bodyweight</SelectItem>
                       <SelectItem value="Cable">Cable</SelectItem>
+                      <SelectItem value="Bands">Bands</SelectItem>
+                      <SelectItem value="Wall Balls">Wall Balls</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -495,8 +587,25 @@ const Admin = () => {
             </CardContent>
           </Card>
 
+          <div className="flex items-center gap-4 mt-6 mb-4 flex-wrap">
+            <Input 
+              placeholder="Search exercises to edit or delete..." 
+              value={librarySearch}
+              onChange={e => setLibrarySearch(e.target.value)}
+              className="max-w-md"
+            />
+            {librarySearch && (
+              <Button variant="destructive" onClick={handleBulkDelete}>
+                Delete All Showing ({exercises.filter(ex => ex.name.toLowerCase().includes(librarySearch.toLowerCase())).length})
+              </Button>
+            )}
+            <Button variant="outline" className="gap-2 ml-auto" onClick={handleExportData}>
+              <Download className="h-4 w-4" /> Backup to CSV
+            </Button>
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {exercises.map((ex) => (
+            {exercises.filter(ex => ex.name.toLowerCase().includes(librarySearch.toLowerCase())).map((ex) => (
               <Card key={ex.id} className="bg-muted/50 border-border flex flex-col">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg flex items-center justify-between">
@@ -510,7 +619,7 @@ const Admin = () => {
                       </Button>
                     </div>
                   </CardTitle>
-                  <CardDescription>{Array.isArray(ex.category) ? ex.category.join(", ") : ex.category} • {ex.muscle} • {ex.equipment}{ex.movementType ? ` • ${ex.movementType}` : ""}</CardDescription>
+                  <CardDescription>{Array.isArray(ex.category) ? ex.category.join(", ") : ex.category} • {ex.muscle} • {ex.equipment}{ex.movementType ? ` • ${Array.isArray(ex.movementType) ? ex.movementType.join(", ") : ex.movementType}` : ""}</CardDescription>
                 </CardHeader>
               </Card>
             ))}
@@ -556,12 +665,26 @@ const Admin = () => {
                   </div>
                   <div className="space-y-2">
                     <Label>Movement Type</Label>
-                    <Select value={editingExercise.movementType || "Push"} onValueChange={v => setEditingExercise({...editingExercise, movementType: v})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {MOVEMENT_TYPES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex flex-wrap gap-4 pt-2">
+                      {MOVEMENT_TYPES.map(m => {
+                        const currentMovs = Array.isArray(editingExercise.movementType) ? editingExercise.movementType : (editingExercise.movementType ? [editingExercise.movementType] : ["Push"]);
+                        return (
+                          <div key={m} className="flex items-center space-x-2">
+                            <Checkbox 
+                              id={`edit-mov-${m}`} 
+                              checked={currentMovs.includes(m)}
+                              onCheckedChange={(checked) => {
+                                let newMovs = [...currentMovs];
+                                if (checked && !newMovs.includes(m)) newMovs.push(m);
+                                else if (!checked) newMovs = newMovs.filter(v => v !== m);
+                                setEditingExercise({...editingExercise, movementType: newMovs});
+                              }}
+                            />
+                            <label htmlFor={`edit-mov-${m}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{m}</label>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Equipment</Label>
@@ -570,9 +693,12 @@ const Admin = () => {
                       <SelectContent>
                         <SelectItem value="Barbell">Barbell</SelectItem>
                         <SelectItem value="Dumbbell">Dumbbell</SelectItem>
+                        <SelectItem value="Kettlebell">Kettlebell</SelectItem>
                         <SelectItem value="Machine">Machine</SelectItem>
                         <SelectItem value="Bodyweight">Bodyweight</SelectItem>
                         <SelectItem value="Cable">Cable</SelectItem>
+                        <SelectItem value="Bands">Bands</SelectItem>
+                        <SelectItem value="Wall Balls">Wall Balls</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -715,7 +841,7 @@ const Admin = () => {
                                               .filter(ex => ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()))
                                               .sort((a, b) => a.name.localeCompare(b.name))
                                               .map(ex => (
-                                                <SelectItem key={ex.id} value={ex.id}>{ex.name} {ex.movementType ? `(${ex.movementType})` : ""}</SelectItem>
+                                                <SelectItem key={ex.id} value={ex.id}>{ex.name} {ex.movementType ? `(${Array.isArray(ex.movementType) ? ex.movementType.join(", ") : ex.movementType})` : ""}</SelectItem>
                                             ))}
                                           </SelectContent>
                                         </Select>
@@ -762,6 +888,13 @@ const Admin = () => {
               </div>
             </CardContent>
           </Card>
+
+          <div className="flex items-center justify-between mt-6 mb-4">
+            <h3 className="text-xl font-heading tracking-wider">Existing Programs</h3>
+            <Button variant="outline" className="gap-2" onClick={handleExportProgramsData}>
+              <Download className="h-4 w-4" /> Backup to JSON
+            </Button>
+          </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             {programs.map((p) => (
