@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification } from "@/lib/store";
-import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar, Bell, Send, Download, Link2, Link2Off, Heading } from "lucide-react";
+import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar, Bell, Send, Download, Link2, Link2Off, Heading, Upload } from "lucide-react";
 import JSZip from "jszip";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
 
 const Admin = () => {
   const isStaff = localStorage.getItem("fittrack_is_staff") === "true";
@@ -32,8 +33,10 @@ const Admin = () => {
   const [newExDiff, setNewExDiff] = useState("Beginner");
   const [newExVid, setNewExVid] = useState("");
   const [newExMovement, setNewExMovement] = useState<string[]>(["Push"]);
+  const [newExTracking, setNewExTracking] = useState("Weight & Reps");
 
   const MOVEMENT_TYPES = ["Warm Up", "Knee", "Hip", "Push", "Pull", "Conditioning", "Core", "Carries", "Fire Up", "Accessory"];
+  const TRACKING_TYPES = ["Weight & Reps", "Time Only", "Distance & Time"];
 
   // Search State for Program Builder
   const [exerciseSearch, setExerciseSearch] = useState("");
@@ -41,10 +44,38 @@ const Admin = () => {
   // New Program State
   const [newProgName, setNewProgName] = useState("");
   const [newProgDesc, setNewProgDesc] = useState("");
+  const [newProgCover, setNewProgCover] = useState("");
   const [newProgWeeks, setNewProgWeeks] = useState(4);
   const [newProgDays, setNewProgDays] = useState(3);
   const [progWorkouts, setProgWorkouts] = useState<any[]>([]);
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(0);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setIsUploadingImage(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('images')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('images').getPublicUrl(fileName);
+      setNewProgCover(data.publicUrl);
+      toast.success("Image uploaded successfully!");
+    } catch (error: any) {
+      toast.error("Upload failed: " + error.message);
+    } finally {
+      setIsUploadingImage(false);
+      e.target.value = '';
+    }
+  };
 
   // Vimeo Integration
   const [vimeoToken, setVimeoToken] = useState(() => localStorage.getItem("fittrack_vimeo_token") || "");
@@ -179,6 +210,7 @@ const Admin = () => {
       difficulty: newExDiff,
       videoUrl: newExVid,
       movementType: newExMovement,
+      trackingType: newExTracking,
     };
     const updated = [...exercises, newEx];
     setExercises(updated);
@@ -187,6 +219,7 @@ const Admin = () => {
     setNewExName("");
     setNewExMuscle("");
     setNewExVid("");
+    setNewExTracking("Weight & Reps");
   };
 
   const handleDeleteExercise = (id: string) => {
@@ -225,7 +258,7 @@ const Admin = () => {
         return;
       }
       
-      const headers = ["ID", "Name", "Categories", "Muscle", "Equipment", "Difficulty", "Movement Types", "Video URL"];
+      const headers = ["ID", "Name", "Categories", "Muscle", "Equipment", "Difficulty", "Movement Types", "Video URL", "Tracking Style"];
       const csvRows = [headers.join(",")];
       
       exercises.forEach(ex => {
@@ -237,7 +270,8 @@ const Admin = () => {
           `"${ex.equipment || ""}"`,
           `"${ex.difficulty || ""}"`,
           `"${Array.isArray(ex.movementType) ? ex.movementType.join("; ") : (ex.movementType || "")}"`,
-          `"${ex.videoUrl || ""}"`
+          `"${ex.videoUrl || ""}"`,
+          `"${ex.trackingType || "Weight & Reps"}"`
         ];
         csvRows.push(row.join(","));
       });
@@ -311,7 +345,7 @@ const Admin = () => {
 
   const handleAddProgExercise = () => {
     const updatedWorkouts = [...progWorkouts];
-    updatedWorkouts[selectedWorkoutIndex].exercises.push({ id: Date.now(), blockType: "Strength", name: "", sets: 3, reps: 10, weight: 0, linkedToNext: false, eachSide: false });
+    updatedWorkouts[selectedWorkoutIndex].exercises.push({ id: Date.now(), blockType: "Strength", name: "", sets: 3, reps: 10, weight: 0, rest: 0, linkedToNext: false, eachSide: false });
     setProgWorkouts(updatedWorkouts);
   };
 
@@ -365,11 +399,12 @@ const Admin = () => {
       id: editingProgramId || "p_" + Date.now(),
       name: newProgName,
       description: newProgDesc,
+      coverImage: newProgCover,
       weeks: newProgWeeks,
       daysPerWeek: newProgDays,
       workouts: progWorkouts.map(w => ({
         name: w.name,
-        exercises: w.exercises.map((e: any) => ({ isSection: e.isSection, description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, linkedToNext: e.linkedToNext, eachSide: e.eachSide }))
+        exercises: w.exercises.map((e: any) => ({ isSection: e.isSection, description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide }))
       }))
     };
     
@@ -387,6 +422,7 @@ const Admin = () => {
     
     setNewProgName("");
     setNewProgDesc("");
+    setNewProgCover("");
     setProgWorkouts([]);
     setEditingProgramId(null);
   };
@@ -395,6 +431,7 @@ const Admin = () => {
     setEditingProgramId(prog.id);
     setNewProgName(prog.name);
     setNewProgDesc(prog.description || "");
+    setNewProgCover(prog.coverImage || "");
     setNewProgWeeks(prog.weeks || 4);
     setNewProgDays(prog.daysPerWeek || 3);
     
@@ -410,6 +447,10 @@ const Admin = () => {
         sets: e.sets,
         reps: e.reps,
         weight: e.weight || 0,
+        distance: e.distance || 0,
+        timeMins: e.timeMins || 0,
+        timeSecs: e.timeSecs || 0,
+        rest: e.rest || 0,
         linkedToNext: e.linkedToNext || false,
         eachSide: e.eachSide || false
       }))
@@ -603,6 +644,17 @@ const Admin = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Tracking Style</Label>
+                  <Select value={newExTracking} onValueChange={setNewExTracking}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {TRACKING_TYPES.map(t => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label>Video URL (Vimeo embedded link)</Label>
                   <Input value={newExVid} onChange={e => setNewExVid(e.target.value)} placeholder="e.g. https://player.vimeo.com/video/147173661" />
@@ -666,7 +718,8 @@ const Admin = () => {
                           equipment: cols[4],
                           difficulty: cols[5],
                           movementType: cols[6] ? cols[6].split(';').map(s => s.trim()).filter(Boolean) : ["Push"],
-                          videoUrl: cols[7] || ""
+                          videoUrl: cols[7] || "",
+                          trackingType: cols[8] || "Weight & Reps"
                         };
                       });
                       
@@ -814,6 +867,17 @@ const Admin = () => {
                     </Select>
                   </div>
                   <div className="space-y-2">
+                    <Label>Tracking Style</Label>
+                    <Select value={editingExercise.trackingType || "Weight & Reps"} onValueChange={v => setEditingExercise({...editingExercise, trackingType: v})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {TRACKING_TYPES.map(t => (
+                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
                     <Label>Video URL</Label>
                     <Input value={editingExercise.videoUrl || ""} onChange={e => setEditingExercise({...editingExercise, videoUrl: e.target.value})} />
                   </div>
@@ -843,6 +907,26 @@ const Admin = () => {
                   <div className="space-y-2">
                     <Label>Description</Label>
                     <Input value={newProgDesc} onChange={e => setNewProgDesc(e.target.value)} placeholder="Short description" />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Cover Image (Optional)</Label>
+                    <div className="flex gap-2">
+                      <Input value={newProgCover} onChange={e => setNewProgCover(e.target.value)} placeholder="e.g. https://example.com/image.jpg" className="flex-1" />
+                      <div className="relative">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          disabled={isUploadingImage}
+                          title="Upload image"
+                        />
+                        <Button type="button" variant="outline" disabled={isUploadingImage} className="gap-2 w-[110px]">
+                          {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                          {isUploadingImage ? "Uploading" : "Upload"}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Length (Weeks)</Label>
@@ -962,13 +1046,49 @@ const Admin = () => {
                                                 </SelectContent>
                                               </Select>
                                             </div>
+                                            {(() => {
+                                              const libEx = exercises.find(e => e.id === pe.name);
+                                              const trackType = libEx?.trackingType || "Weight & Reps";
+                                              return (
+                                                <>
+                                                  <div className="space-y-2 w-16">
+                                                    <Label>Sets</Label>
+                                                    <Input type="number" value={pe.sets} onChange={(e) => updateProgExercise(pe.id, "sets", parseInt(e.target.value) || 0)} />
+                                                  </div>
+                                                  {trackType === 'Distance & Time' ? (
+                                                    <>
+                                                      <div className="space-y-2 w-20">
+                                                        <Label>Metres</Label>
+                                                        <Input type="number" value={pe.distance || 0} onChange={(e) => updateProgExercise(pe.id, "distance", parseInt(e.target.value) || 0)} />
+                                                      </div>
+                                                      <div className="space-y-2 w-16">
+                                                        <Label>Mins</Label>
+                                                        <Input type="number" value={pe.timeMins || 0} onChange={(e) => updateProgExercise(pe.id, "timeMins", parseInt(e.target.value) || 0)} />
+                                                      </div>
+                                                    </>
+                                                  ) : trackType === 'Time Only' ? (
+                                                    <>
+                                                      <div className="space-y-2 w-16">
+                                                        <Label>Mins</Label>
+                                                        <Input type="number" value={pe.timeMins || 0} onChange={(e) => updateProgExercise(pe.id, "timeMins", parseInt(e.target.value) || 0)} />
+                                                      </div>
+                                                      <div className="space-y-2 w-16">
+                                                        <Label>Secs</Label>
+                                                        <Input type="number" value={pe.timeSecs || 0} onChange={(e) => updateProgExercise(pe.id, "timeSecs", parseInt(e.target.value) || 0)} />
+                                                      </div>
+                                                    </>
+                                                  ) : (
+                                                    <div className="space-y-2 w-16">
+                                                      <Label>Reps</Label>
+                                                      <Input type="number" value={pe.reps} onChange={(e) => updateProgExercise(pe.id, "reps", parseInt(e.target.value) || 0)} />
+                                                    </div>
+                                                  )}
+                                                </>
+                                              );
+                                            })()}
                                             <div className="space-y-2 w-16">
-                                              <Label>Sets</Label>
-                                              <Input type="number" value={pe.sets} onChange={(e) => updateProgExercise(pe.id, "sets", parseInt(e.target.value) || 0)} />
-                                            </div>
-                                            <div className="space-y-2 w-16">
-                                              <Label>Reps</Label>
-                                              <Input type="number" value={pe.reps} onChange={(e) => updateProgExercise(pe.id, "reps", parseInt(e.target.value) || 0)} />
+                                              <Label>Rest(s)</Label>
+                                              <Input type="number" value={pe.rest || 0} onChange={(e) => updateProgExercise(pe.id, "rest", parseInt(e.target.value) || 0)} />
                                             </div>
                                             <div className="space-y-2 w-14 flex flex-col items-center">
                                               <Label className="text-[10px] uppercase text-center w-full">E/Side</Label>

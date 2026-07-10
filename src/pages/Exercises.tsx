@@ -44,18 +44,18 @@ const Exercises = () => {
 
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="relative w-full sm:max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
             placeholder="Search exercises..."
-            className="pl-8 bg-card border-border"
+            className="pl-10 h-11 bg-card border-border"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         
         <Select value={muscleFilter} onValueChange={setMuscleFilter}>
-          <SelectTrigger className="w-full sm:w-[180px] bg-card border-border">
+          <SelectTrigger className="w-full sm:w-[180px] h-11 bg-card border-border">
             <SelectValue placeholder="Muscle Group" />
           </SelectTrigger>
           <SelectContent>
@@ -66,7 +66,7 @@ const Exercises = () => {
         </Select>
 
         <Select value={equipmentFilter} onValueChange={setEquipmentFilter}>
-          <SelectTrigger className="w-full sm:w-[180px] bg-card border-border">
+          <SelectTrigger className="w-full sm:w-[180px] h-11 bg-card border-border">
             <SelectValue placeholder="Equipment" />
           </SelectTrigger>
           <SelectContent>
@@ -77,7 +77,7 @@ const Exercises = () => {
         </Select>
 
         <Select value={movementFilter} onValueChange={setMovementFilter}>
-          <SelectTrigger className="w-full sm:w-[180px] bg-card border-border">
+          <SelectTrigger className="w-full sm:w-[180px] h-11 bg-card border-border">
             <SelectValue placeholder="Movement Type" />
           </SelectTrigger>
           <SelectContent>

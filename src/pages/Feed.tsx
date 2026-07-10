@@ -7,12 +7,14 @@ import { Heart, MessageCircle, Share2, Send, Megaphone } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getCommunityFeed, getExercises, saveCommunityPost, saveCommunityComment } from "@/lib/store";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const Feed = () => {
   const [feed, setFeed] = useState<any[]>([]);
   const [exercises, setExercises] = useState<any[]>([]);
   const [activeCommentPost, setActiveCommentPost] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
   
   // Staff Announcement State
   const isStaff = localStorage.getItem("fittrack_is_staff") === "true";
@@ -25,8 +27,18 @@ const Feed = () => {
 
   useEffect(() => {
     loadFeed();
-    window.addEventListener('fittrack_synced', loadFeed);
-    return () => window.removeEventListener('fittrack_synced', loadFeed);
+    const timer = setTimeout(() => setIsLoading(false), 600);
+    
+    const handleSync = () => {
+      loadFeed();
+      setIsLoading(false);
+    };
+
+    window.addEventListener('fittrack_synced', handleSync);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('fittrack_synced', handleSync);
+    };
   }, []);
 
   const getExerciseName = (id: string) => {
@@ -98,7 +110,31 @@ const Feed = () => {
       )}
 
       <div className="space-y-6">
-        {feed.map((post) => (
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i} className="bg-card border-border">
+              <CardHeader className="flex flex-row items-center gap-4 pb-4">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div className="flex flex-col gap-2 w-full">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-6 w-3/4 mb-4" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-5/6" />
+                </div>
+              </CardContent>
+              <CardFooter className="flex gap-4 pt-4 border-t border-border/50">
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-8 w-8 ml-auto" />
+              </CardFooter>
+            </Card>
+          ))
+        ) : feed.map((post) => (
           <Card key={post.id} className={`bg-card border-border ${post.isAnnouncement ? 'border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.1)]' : ''}`}>
             <CardHeader className="flex flex-row items-center gap-4 pb-4">
               <Avatar>

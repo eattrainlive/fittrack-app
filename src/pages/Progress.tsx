@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Trophy, Plus, Trash2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+
 const Progress = () => {
   const [bodyweightData, setBodyweightData] = useState<any[]>([]);
   const [newWeight, setNewWeight] = useState("");
@@ -19,6 +21,7 @@ const Progress = () => {
   const [exercises, setExercises] = useState<any[]>([]);
   const [newPrExercise, setNewPrExercise] = useState("");
   const [newPrWeight, setNewPrWeight] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadData = () => {
@@ -27,8 +30,18 @@ const Progress = () => {
       setExercises(getExercises());
     };
     loadData();
-    window.addEventListener('fittrack_synced', loadData);
-    return () => window.removeEventListener('fittrack_synced', loadData);
+    const timer = setTimeout(() => setIsLoading(false), 600);
+    
+    const handleSync = () => {
+      loadData();
+      setIsLoading(false);
+    };
+
+    window.addEventListener('fittrack_synced', handleSync);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('fittrack_synced', handleSync);
+    };
   }, []);
 
   const handleSaveMeasurements = () => {
@@ -111,19 +124,23 @@ const Progress = () => {
             <CardDescription>Total weight lifted across all exercises</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={volumeData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value/1000}k`} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                    itemStyle={{ color: 'hsl(var(--foreground))' }}
-                    cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }}
-                  />
-                  <Bar dataKey="volume" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="h-[300px] w-full p-4">
+              {isLoading ? (
+                <Skeleton className="w-full h-full rounded-xl" />
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={volumeData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value/1000}k`} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                      itemStyle={{ color: 'hsl(var(--foreground))' }}
+                      cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }}
+                    />
+                    <Bar dataKey="volume" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -134,20 +151,24 @@ const Progress = () => {
             <CardDescription>Estimated one-rep max for main lifts</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={oneRepMaxData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                    itemStyle={{ color: 'hsl(var(--foreground))' }}
-                  />
-                  <Line type="monotone" dataKey="bench" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ fill: 'hsl(var(--primary))' }} />
-                  <Line type="monotone" dataKey="squat" stroke="hsl(var(--muted-foreground))" strokeWidth={2} dot={{ fill: 'hsl(var(--muted-foreground))' }} />
-                  <Line type="monotone" dataKey="deadlift" stroke="hsl(var(--foreground))" strokeWidth={2} dot={{ fill: 'hsl(var(--foreground))' }} />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="h-[300px] w-full p-4">
+              {isLoading ? (
+                <Skeleton className="w-full h-full rounded-xl" />
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={oneRepMaxData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                      itemStyle={{ color: 'hsl(var(--foreground))' }}
+                    />
+                    <Line type="monotone" dataKey="bench" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ fill: 'hsl(var(--primary))' }} />
+                    <Line type="monotone" dataKey="squat" stroke="hsl(var(--muted-foreground))" strokeWidth={2} dot={{ fill: 'hsl(var(--muted-foreground))' }} />
+                    <Line type="monotone" dataKey="deadlift" stroke="hsl(var(--foreground))" strokeWidth={2} dot={{ fill: 'hsl(var(--foreground))' }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
             <div className="flex justify-center gap-4 mt-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
@@ -227,47 +248,51 @@ const Progress = () => {
               </div>
             </CardHeader>
             <CardContent className="pl-2 pt-4">
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={bodyweightData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <XAxis 
-                      dataKey="date" 
-                      stroke="hsl(var(--muted-foreground))" 
-                      fontSize={12} 
-                      tickLine={false} 
-                      axisLine={false}
-                      tickFormatter={(val) => {
-                        const d = new Date(val);
-                        return `${d.getMonth() + 1}/${d.getDate()}`;
-                      }}
-                    />
-                    <YAxis 
-                      yAxisId="left"
-                      stroke="hsl(var(--muted-foreground))" 
-                      fontSize={12} 
-                      tickLine={false} 
-                      axisLine={false}
-                      domain={['dataMin - 2', 'dataMax + 2']}
-                    />
-                    <YAxis 
-                      yAxisId="right"
-                      orientation="right"
-                      stroke="hsl(var(--muted-foreground))" 
-                      fontSize={12} 
-                      tickLine={false} 
-                      axisLine={false}
-                      domain={['dataMin - 2', 'dataMax + 2']}
-                    />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                      itemStyle={{ color: 'hsl(var(--foreground))' }}
-                      labelFormatter={(label) => new Date(label).toLocaleDateString()}
-                    />
-                    <Line yAxisId="left" type="monotone" name="Weight (kg)" dataKey="weight" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ fill: 'hsl(var(--primary))', r: 4 }} activeDot={{ r: 6 }} />
-                    <Line yAxisId="right" type="monotone" name="Body Fat %" dataKey="bodyFat" stroke="hsl(var(--destructive))" strokeWidth={2} dot={{ fill: 'hsl(var(--destructive))', r: 3 }} />
-                    <Line yAxisId="right" type="monotone" name="Waist (cm)" dataKey="waist" stroke="hsl(var(--foreground))" strokeWidth={2} dot={{ fill: 'hsl(var(--foreground))', r: 3 }} />
-                  </LineChart>
-                </ResponsiveContainer>
+              <div className="h-[300px] w-full p-4">
+                {isLoading ? (
+                  <Skeleton className="w-full h-full rounded-xl" />
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={bodyweightData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                      <XAxis 
+                        dataKey="date" 
+                        stroke="hsl(var(--muted-foreground))" 
+                        fontSize={12} 
+                        tickLine={false} 
+                        axisLine={false}
+                        tickFormatter={(val) => {
+                          const d = new Date(val);
+                          return `${d.getMonth() + 1}/${d.getDate()}`;
+                        }}
+                      />
+                      <YAxis 
+                        yAxisId="left"
+                        stroke="hsl(var(--muted-foreground))" 
+                        fontSize={12} 
+                        tickLine={false} 
+                        axisLine={false}
+                        domain={['dataMin - 2', 'dataMax + 2']}
+                      />
+                      <YAxis 
+                        yAxisId="right"
+                        orientation="right"
+                        stroke="hsl(var(--muted-foreground))" 
+                        fontSize={12} 
+                        tickLine={false} 
+                        axisLine={false}
+                        domain={['dataMin - 2', 'dataMax + 2']}
+                      />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                        itemStyle={{ color: 'hsl(var(--foreground))' }}
+                        labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                      />
+                      <Line yAxisId="left" type="monotone" name="Weight (kg)" dataKey="weight" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ fill: 'hsl(var(--primary))', r: 4 }} activeDot={{ r: 6 }} />
+                      <Line yAxisId="right" type="monotone" name="Body Fat %" dataKey="bodyFat" stroke="hsl(var(--destructive))" strokeWidth={2} dot={{ fill: 'hsl(var(--destructive))', r: 3 }} />
+                      <Line yAxisId="right" type="monotone" name="Waist (cm)" dataKey="waist" stroke="hsl(var(--foreground))" strokeWidth={2} dot={{ fill: 'hsl(var(--foreground))', r: 3 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </CardContent>
           </Card>

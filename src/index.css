@@ -89,11 +89,36 @@ All colors MUST be HSL.
 }
 
 @layer base {
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  a, button, [role="button"] {
+    touch-action: manipulation;
+  }
+
   * {
     @apply border-border;
   }
 
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Global pressed state for native app feel */
+  button, a, [role="button"], .tappable {
+    transition: transform 0.1s ease-in-out, opacity 0.1s ease-in-out;
+  }
+  
+  button:active:not(:disabled), 
+  a:active, 
+  [role="button"]:active:not([aria-disabled="true"]), 
+  .tappable:active {
+    transform: scale(0.97);
+    opacity: 0.95;
   }
 }

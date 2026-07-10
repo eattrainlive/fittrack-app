@@ -1,17 +1,17 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 export const defaultExercises = [
-  { id: "bench", name: "Bench Press", category: "Strength", muscle: "Chest", equipment: "Barbell", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push" },
-  { id: "squat", name: "Squat", category: "Strength", muscle: "Legs", equipment: "Barbell", difficulty: "Advanced", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Knee" },
-  { id: "deadlift", name: "Deadlift", category: "Strength", muscle: "Back", equipment: "Barbell", difficulty: "Advanced", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Hip" },
-  { id: "pullup", name: "Pull-up", category: "Strength", muscle: "Back", equipment: "Bodyweight", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Pull" },
-  { id: "pushup", name: "Push-up", category: "Strength", muscle: "Chest", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push" },
-  { id: "curl", name: "Dumbbell Curl", category: "Strength", muscle: "Biceps", equipment: "Dumbbell", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Accessory" },
-  { id: "legpress", name: "Leg Press", category: "Strength", muscle: "Legs", equipment: "Machine", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Knee" },
-  { id: "ohp", name: "Overhead Press", category: "Strength", muscle: "Shoulders", equipment: "Barbell", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push" },
-  { id: "treadmill", name: "Treadmill Run", category: "Cardio", muscle: "Full Body", equipment: "Machine", difficulty: "Beginner", videoUrl: "", movementType: "Conditioning" },
-  { id: "stretching", name: "Dynamic Stretching", category: "Mobility", muscle: "Full Body", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "", movementType: "Warm Up" },
-  { id: "glutebridge", name: "Glute Bridge", category: "Activation", muscle: "Legs", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "", movementType: "Fire Up" },
+  { id: "bench", name: "Bench Press", category: "Strength", muscle: "Chest", equipment: "Barbell", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push", trackingType: "Weight & Reps" },
+  { id: "squat", name: "Squat", category: "Strength", muscle: "Legs", equipment: "Barbell", difficulty: "Advanced", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Knee", trackingType: "Weight & Reps" },
+  { id: "deadlift", name: "Deadlift", category: "Strength", muscle: "Back", equipment: "Barbell", difficulty: "Advanced", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Hip", trackingType: "Weight & Reps" },
+  { id: "pullup", name: "Pull-up", category: "Strength", muscle: "Back", equipment: "Bodyweight", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Pull", trackingType: "Weight & Reps" },
+  { id: "pushup", name: "Push-up", category: "Strength", muscle: "Chest", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push", trackingType: "Weight & Reps" },
+  { id: "curl", name: "Dumbbell Curl", category: "Strength", muscle: "Biceps", equipment: "Dumbbell", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Accessory", trackingType: "Weight & Reps" },
+  { id: "legpress", name: "Leg Press", category: "Strength", muscle: "Legs", equipment: "Machine", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Knee", trackingType: "Weight & Reps" },
+  { id: "ohp", name: "Overhead Press", category: "Strength", muscle: "Shoulders", equipment: "Barbell", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push", trackingType: "Weight & Reps" },
+  { id: "treadmill", name: "Treadmill Run", category: "Cardio", muscle: "Full Body", equipment: "Machine", difficulty: "Beginner", videoUrl: "", movementType: "Conditioning", trackingType: "Distance & Time" },
+  { id: "stretching", name: "Dynamic Stretching", category: "Mobility", muscle: "Full Body", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "", movementType: "Warm Up", trackingType: "Time Only" },
+  { id: "glutebridge", name: "Glute Bridge", category: "Activation", muscle: "Legs", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "", movementType: "Fire Up", trackingType: "Weight & Reps" },
 ];
 
 export const defaultPrograms = [
@@ -70,7 +70,8 @@ export const saveExercises = async (exercises: any[]) => {
           user_id: user.id,
           // Convert array to string for the database text column
           category: Array.isArray(e.category) ? e.category.join(', ') : e.category,
-          movementType: movType
+          movementType: movType,
+          trackingType: e.trackingType || 'Weight & Reps'
         };
       });
 
@@ -133,7 +134,31 @@ export const savePrograms = async (programs: any[]) => {
     if (user) {
       if (programs.length > 0) {
         const safePrograms = programs.map(p => ({ ...p, user_id: user.id }));
-        const { error } = await supabase.from('programs').upsert(safePrograms);
+        let { error } = await supabase.from('programs').upsert(safePrograms);
+        
+        if (error && error.message && error.message.includes('coverImage')) {
+          console.warn("coverImage column missing, falling back to saving without it...");
+          const fallbackPrograms = safePrograms.map(({ coverImage, ...rest }) => rest);
+          const fallbackRes = await supabase.from('programs').upsert(fallbackPrograms);
+          error = fallbackRes.error;
+          
+          if (!error) {
+            for (const p of safePrograms) {
+              if (p.coverImage) {
+                await supabase.from('user_settings').upsert({ 
+                  user_id: user.id, 
+                  key: `cover_${p.id}`, 
+                  value: p.coverImage 
+                }, { onConflict: 'user_id, key' });
+              } else {
+                await supabase.from('user_settings').delete()
+                  .eq('user_id', user.id)
+                  .eq('key', `cover_${p.id}`);
+              }
+            }
+          }
+        }
+
         if (!error) {
           const currentIds = safePrograms.map(p => p.id);
           await supabase.from('programs')
@@ -141,6 +166,8 @@ export const savePrograms = async (programs: any[]) => {
             .eq('user_id', user.id)
             .not('id', 'in', `(${currentIds.join(',')})`);
           return { success: true };
+        } else {
+          console.error("Supabase programs upsert error:", error);
         }
         return { success: false, error };
       } else {
@@ -447,6 +474,8 @@ export const syncFromSupabase = async () => {
   if (!user) return false;
   
   try {
+    const { data: settings } = await supabase.from('user_settings').select('*').eq('user_id', user.id);
+    
     const { data: ex } = await supabase.from('exercises').select('*');
     if (ex) {
       const parsedEx = ex
@@ -461,7 +490,18 @@ export const syncFromSupabase = async () => {
     
     const { data: prog } = await supabase.from('programs').select('*');
     if (prog) {
-      const activeProg = prog.filter(p => p.is_deleted !== true);
+      let activeProg = prog.filter(p => p.is_deleted !== true);
+      
+      if (settings) {
+        activeProg = activeProg.map(p => {
+          const coverSetting = settings.find(s => s.key === `cover_${p.id}`);
+          if (coverSetting && !p.coverImage) {
+            return { ...p, coverImage: coverSetting.value };
+          }
+          return p;
+        });
+      }
+      
       localStorage.setItem('fittrack_programs', JSON.stringify(activeProg));
     }
     
@@ -480,7 +520,6 @@ export const syncFromSupabase = async () => {
     const { data: videos } = await supabase.from('education_videos').select('*');
     if (videos) localStorage.setItem('fittrack_education_videos', JSON.stringify(videos));
 
-    const { data: settings } = await supabase.from('user_settings').select('*').eq('user_id', user.id);
     if (settings) {
       const vimeo = settings.find(s => s.key === 'vimeo_token');
       if (vimeo) localStorage.setItem('fittrack_vimeo_token', vimeo.value);

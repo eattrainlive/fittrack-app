@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Save, LogOut, CloudUpload, CloudDownload } from "lucide-react";
+import { Save, LogOut, CloudUpload, CloudDownload, BookOpen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
@@ -81,9 +81,14 @@ const Profile = () => {
     <div className="flex-1 space-y-6 p-8 pt-6 max-w-4xl mx-auto w-full">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-4xl font-heading tracking-wider font-bold">Profile Settings</h2>
-        <Button variant="destructive" onClick={handleLogout} className="gap-2">
-          <LogOut className="h-4 w-4" /> Sign Out
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate('/education')} className="gap-2">
+            <BookOpen className="h-4 w-4" /> Education
+          </Button>
+          <Button variant="destructive" onClick={handleLogout} className="gap-2">
+            <LogOut className="h-4 w-4" /> Sign Out
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -191,8 +196,11 @@ const Profile = () => {
               {isStaff ? (
                 <div className="space-y-4">
                   <div className="rounded-lg border border-primary/50 bg-primary/10 p-4 text-sm text-primary">
-                    Staff access is currently active. You can access the Staff Hub from the sidebar.
+                    Staff access is currently active.
                   </div>
+                  <Button onClick={() => navigate('/admin')} className="w-full gap-2">
+                    Open Staff Hub
+                  </Button>
                   <Button onClick={handleLockStaff} variant="outline" className="w-full">
                     Lock Staff Access
                   </Button>
