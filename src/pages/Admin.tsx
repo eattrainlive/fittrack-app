@@ -1649,17 +1649,16 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                           )}
                                         </div>
                                       ) : (
-                                        <div className="flex-1 flex flex-col gap-4">
-                                          <div className="flex gap-4 items-end flex-wrap">
-                                            <div className="space-y-2 w-32 shrink-0">
-                                              <Label>Block Type</Label>
+                                        <div className="flex-1 flex flex-col gap-3">
+                                          <div className="flex flex-col md:flex-row gap-2 md:items-center">
+                                            <div className="w-full md:w-40 shrink-0">
                                               <Select value={pe.blockType || "Strength"} onValueChange={(v) => {
                                                 const updatedWorkouts = [...progWorkouts];
                                                 const ex = updatedWorkouts[selectedWorkoutIndex].exercises.find((e: any) => e.id === pe.id);
                                                 if(ex) { ex.blockType = v; ex.name = ""; }
                                                 setProgWorkouts(updatedWorkouts);
                                               }}>
-                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectTrigger className="h-10 bg-muted/20"><SelectValue placeholder="Block Type" /></SelectTrigger>
                                                 <SelectContent>
                                                   <SelectItem value="Strength">Strength</SelectItem>
                                                   <SelectItem value="Cardio">Cardio</SelectItem>
@@ -1668,123 +1667,126 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                 </SelectContent>
                                               </Select>
                                             </div>
-                                            <div className="space-y-2 flex-1 flex gap-2 items-end">
-                                              <div className="flex-1">
-                                                <Label>Exercise</Label>
-                                                <Select value={pe.name} onValueChange={(v) => updateProgExercise(pe.id, "name", v)}>
-                                                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                                                  <SelectContent>
-                                                    <div className="p-2">
-                                                      <Input 
-                                                        placeholder="Search exercises..." 
-                                                        value={exerciseSearch} 
-                                                        onChange={e => setExerciseSearch(e.target.value)}
-                                                        className="mb-2 h-8"
-                                                        onKeyDown={e => e.stopPropagation()}
-                                                      />
-                                                    </div>
-                                                    {exercises
-                                                      .filter(ex => {
-                                                        if (!pe.blockType) return true;
-                                                        const cats = Array.isArray(ex.category) ? ex.category : [ex.category || "Strength"];
-                                                        return cats.includes(pe.blockType);
-                                                      })
-                                                      .filter(ex => ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()))
-                                                      .sort((a, b) => a.name.localeCompare(b.name))
-                                                      .map(ex => (
-                                                        <SelectItem key={ex.id} value={ex.id}>{ex.name} {ex.movementType ? `(${Array.isArray(ex.movementType) ? ex.movementType.join(", ") : ex.movementType})` : ""}</SelectItem>
-                                                    ))}
-                                                  </SelectContent>
-                                                </Select>
-                                              </div>
-                                              <Button variant="outline" size="icon" onClick={() => handleShuffleExercise(pe.id)} title="Shuffle Exercise">
+                                            <div className="flex-1 flex gap-2">
+                                              <Select value={pe.name} onValueChange={(v) => updateProgExercise(pe.id, "name", v)}>
+                                                <SelectTrigger className="h-10 font-medium"><SelectValue placeholder="Select Exercise..." /></SelectTrigger>
+                                                <SelectContent>
+                                                  <div className="p-2">
+                                                    <Input 
+                                                      placeholder="Search exercises..." 
+                                                      value={exerciseSearch} 
+                                                      onChange={e => setExerciseSearch(e.target.value)}
+                                                      className="mb-2 h-8"
+                                                      onKeyDown={e => e.stopPropagation()}
+                                                    />
+                                                  </div>
+                                                  {exercises
+                                                    .filter(ex => {
+                                                      if (!pe.blockType) return true;
+                                                      const cats = Array.isArray(ex.category) ? ex.category : [ex.category || "Strength"];
+                                                      return cats.includes(pe.blockType);
+                                                    })
+                                                    .filter(ex => ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()))
+                                                    .sort((a, b) => a.name.localeCompare(b.name))
+                                                    .map(ex => (
+                                                      <SelectItem key={ex.id} value={ex.id}>{ex.name} {ex.movementType ? `(${Array.isArray(ex.movementType) ? ex.movementType.join(", ") : ex.movementType})` : ""}</SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                              <Button variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={() => handleShuffleExercise(pe.id)} title="Shuffle Exercise">
                                                 <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.84998 7.49998C1.84998 4.66458 4.05979 2.23981 6.89998 1.92253V0.845728C3.47344 1.16915 0.849976 4.0402 0.849976 7.49998C0.849976 10.9598 3.47344 13.8308 6.89998 14.1542V13.0774C4.05979 12.7601 1.84998 10.3354 1.84998 7.49998ZM13.15 7.49998C13.15 10.3354 10.9402 12.7601 8.09998 13.0774V14.1542C11.5265 13.8308 14.15 10.9598 14.15 7.49998C14.15 4.0402 11.5265 1.16915 8.09998 0.845728V1.92253C10.9402 2.23981 13.15 4.66458 13.15 7.49998Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path></svg>
                                               </Button>
                                             </div>
-                                            {(() => {
-                                              const libEx = exercises.find(e => e.id === pe.name);
-                                              const trackType = libEx?.trackingType || ["Weight & Reps"];
-                                              const trackingArray = Array.isArray(trackType) ? trackType : [trackType];
-                                              
-                                              // Deduplicate time inputs if both Distance & Time and Time Only are selected
-                                              const showTimeMins = trackingArray.includes('Distance & Time') || trackingArray.includes('Time Only');
-                                              const showTimeSecs = trackingArray.includes('Time Only');
-                                              
-                                              return (
-                                                <>
-                                                  {trackingArray.includes('Weight & Reps') && (
-                                                    <>
-                                                      <div className="space-y-2 w-16">
-                                                        <Label>Sets</Label>
-                                                        <Input type="number" value={pe.sets} onChange={(e) => updateProgExercise(pe.id, "sets", parseInt(e.target.value) || 0)} />
+                                          </div>
+                                          
+                                          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 bg-muted/20 p-3 rounded-md border border-border/50">
+                                            <div className="flex flex-wrap items-center gap-4">
+                                              {(() => {
+                                                const libEx = exercises.find(e => e.id === pe.name);
+                                                const trackType = libEx?.trackingType || ["Weight & Reps"];
+                                                const trackingArray = Array.isArray(trackType) ? trackType : [trackType];
+                                                
+                                                const showTimeMins = trackingArray.includes('Distance & Time') || trackingArray.includes('Time Only');
+                                                const showTimeSecs = trackingArray.includes('Time Only');
+                                                
+                                                return (
+                                                  <>
+                                                    {trackingArray.includes('Weight & Reps') && (
+                                                      <>
+                                                        <div className="flex flex-col gap-1.5 w-16">
+                                                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Sets</Label>
+                                                          <Input type="number" className="h-8 text-center" value={pe.sets} onChange={(e) => updateProgExercise(pe.id, "sets", parseInt(e.target.value) || 0)} />
+                                                        </div>
+                                                        <div className="flex flex-col gap-1.5 w-16">
+                                                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Reps</Label>
+                                                          <Input type="number" className="h-8 text-center" value={pe.reps} onChange={(e) => updateProgExercise(pe.id, "reps", parseInt(e.target.value) || 0)} />
+                                                        </div>
+                                                      </>
+                                                    )}
+                                                    {trackingArray.includes('Distance & Time') && (
+                                                      <div className="flex flex-col gap-1.5 w-20">
+                                                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Metres</Label>
+                                                        <Input type="number" className="h-8 text-center" value={pe.distance || 0} onChange={(e) => updateProgExercise(pe.id, "distance", parseInt(e.target.value) || 0)} />
                                                       </div>
-                                                      <div className="space-y-2 w-16">
-                                                        <Label>Reps</Label>
-                                                        <Input type="number" value={pe.reps} onChange={(e) => updateProgExercise(pe.id, "reps", parseInt(e.target.value) || 0)} />
+                                                    )}
+                                                    {showTimeMins && (
+                                                      <div className="flex flex-col gap-1.5 w-16">
+                                                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Mins</Label>
+                                                        <Input type="number" className="h-8 text-center" value={pe.timeMins || 0} onChange={(e) => updateProgExercise(pe.id, "timeMins", parseInt(e.target.value) || 0)} />
                                                       </div>
-                                                    </>
-                                                  )}
-                                                  {trackingArray.includes('Distance & Time') && (
-                                                    <div className="space-y-2 w-20">
-                                                      <Label>Metres</Label>
-                                                      <Input type="number" value={pe.distance || 0} onChange={(e) => updateProgExercise(pe.id, "distance", parseInt(e.target.value) || 0)} />
-                                                    </div>
-                                                  )}
-                                                  {showTimeMins && (
-                                                    <div className="space-y-2 w-16">
-                                                      <Label>Mins</Label>
-                                                      <Input type="number" value={pe.timeMins || 0} onChange={(e) => updateProgExercise(pe.id, "timeMins", parseInt(e.target.value) || 0)} />
-                                                    </div>
-                                                  )}
-                                                  {showTimeSecs && (
-                                                    <div className="space-y-2 w-16">
-                                                      <Label>Secs</Label>
-                                                      <Input type="number" value={pe.timeSecs || 0} onChange={(e) => updateProgExercise(pe.id, "timeSecs", parseInt(e.target.value) || 0)} />
-                                                    </div>
-                                                  )}
-                                                  {trackingArray.includes('Calories') && (
-                                                    <div className="space-y-2 w-16">
-                                                      <Label>Cals</Label>
-                                                      <Input type="number" value={pe.calories || 0} onChange={(e) => updateProgExercise(pe.id, "calories", parseInt(e.target.value) || 0)} />
-                                                    </div>
-                                                  )}
-                                                </>
-                                              );
-                                            })()}
-                                            <div className="space-y-2 w-16">
-                                              <Label>Rest(s)</Label>
-                                              <Input type="number" value={pe.rest || 0} onChange={(e) => updateProgExercise(pe.id, "rest", parseInt(e.target.value) || 0)} />
+                                                    )}
+                                                    {showTimeSecs && (
+                                                      <div className="flex flex-col gap-1.5 w-16">
+                                                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Secs</Label>
+                                                        <Input type="number" className="h-8 text-center" value={pe.timeSecs || 0} onChange={(e) => updateProgExercise(pe.id, "timeSecs", parseInt(e.target.value) || 0)} />
+                                                      </div>
+                                                    )}
+                                                    {trackingArray.includes('Calories') && (
+                                                      <div className="flex flex-col gap-1.5 w-16">
+                                                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Cals</Label>
+                                                        <Input type="number" className="h-8 text-center" value={pe.calories || 0} onChange={(e) => updateProgExercise(pe.id, "calories", parseInt(e.target.value) || 0)} />
+                                                      </div>
+                                                    )}
+                                                  </>
+                                                );
+                                              })()}
+                                              <div className="flex flex-col gap-1.5 w-16">
+                                                <Label className="text-[10px] uppercase text-muted-foreground font-bold">Rest(s)</Label>
+                                                <Input type="number" className="h-8 text-center" value={pe.rest || 0} onChange={(e) => updateProgExercise(pe.id, "rest", parseInt(e.target.value) || 0)} />
+                                              </div>
                                             </div>
-                                            <div className="space-y-2 w-14 flex flex-col items-center">
-                                              <Label className="text-[10px] uppercase text-center w-full">E/Side</Label>
-                                              <Checkbox 
-                                                checked={pe.eachSide} 
-                                                onCheckedChange={(c) => updateProgExercise(pe.id, "eachSide", !!c)} 
-                                                className="mt-2"
-                                              />
-                                            </div>
-                                            <div className="space-y-2 w-16 flex flex-col items-center">
-                                              <Label className="text-[10px] uppercase text-center w-full">Superset</Label>
+
+                                            <div className="flex items-center gap-4 ml-auto">
+                                              <div className="flex items-center gap-2">
+                                                <Checkbox 
+                                                  id={`eside-${pe.id}`}
+                                                  checked={pe.eachSide} 
+                                                  onCheckedChange={(c) => updateProgExercise(pe.id, "eachSide", !!c)} 
+                                                />
+                                                <Label htmlFor={`eside-${pe.id}`} className="text-xs font-medium cursor-pointer">Each Side</Label>
+                                              </div>
                                               <Button 
                                                 variant={pe.linkedToNext ? "default" : "outline"} 
-                                                size="icon" 
-                                                className={`h-9 w-9 ${pe.linkedToNext ? "bg-primary text-primary-foreground" : ""}`}
+                                                size="sm" 
+                                                className={`h-8 gap-1.5 ${pe.linkedToNext ? "bg-primary text-primary-foreground" : ""}`}
                                                 onClick={() => updateProgExercise(pe.id, "linkedToNext", !pe.linkedToNext)}
                                                 title={pe.linkedToNext ? "Unlink from next" : "Link to next as superset"}
                                               >
-                                                {pe.linkedToNext ? <Link2Off className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+                                                {pe.linkedToNext ? <Link2Off className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
+                                                <span className="text-xs">Superset</span>
                                               </Button>
                                             </div>
                                           </div>
+
                                           <div className="w-full flex gap-2">
                                             <Input 
                                               placeholder="Staff Notes (e.g. Cues, substitutions) - Not visible to members" 
                                               value={pe.staffNotes || ""}
                                               onChange={(e) => updateProgExercise(pe.id, "staffNotes", e.target.value)}
-                                              className="text-sm bg-muted/30 border-dashed flex-1"
+                                              className="text-sm bg-muted/10 border-dashed h-9 flex-1"
                                             />
                                             {newProgType === "program" && (
-                                              <Button variant="outline" size="sm" onClick={() => handleApplyToWeek(pe.id)}>
+                                              <Button variant="secondary" size="sm" className="h-9 whitespace-nowrap" onClick={() => handleApplyToWeek(pe.id)}>
                                                 Apply to Week
                                               </Button>
                                             )}

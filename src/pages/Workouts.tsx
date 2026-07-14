@@ -95,6 +95,8 @@ const Workouts = () => {
   const [rewardModal, setRewardModal] = useState<{name: string, emoji: string, volume: number, count?: number, displayName?: string} | null>(null);
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [quickOverviewWorkout, setQuickOverviewWorkout] = useState<any>(null);
+  const [showSectionSlide, setShowSectionSlide] = useState(false);
+  const [lastSeenSectionId, setLastSeenSectionId] = useState<number | null>(null);
 
 
   const isActiveWorkout = useMemo(() => {
@@ -180,6 +182,18 @@ const Workouts = () => {
   }, [blocks.length, currentBlockIndex]);
 
   useEffect(() => {
+    if (viewMode === 'active' && blocks.length > 0 && currentBlockIndex < blocks.length) {
+      const currentSection = blocks[currentBlockIndex].section;
+      if (currentSection && currentSection.id !== lastSeenSectionId) {
+        setLastSeenSectionId(currentSection.id);
+        setShowSectionSlide(true);
+      } else if (!currentSection && lastSeenSectionId !== null) {
+        setLastSeenSectionId(null);
+      }
+    }
+  }, [currentBlockIndex, blocks, viewMode, lastSeenSectionId]);
+
+  useEffect(() => {
     let interval: any;
     if (timerActive) {
       interval = setInterval(() => {
@@ -257,6 +271,8 @@ const Workouts = () => {
         }))
       })));
       setCurrentBlockIndex(0);
+      setLastSeenSectionId(null);
+      setShowSectionSlide(false);
       toast.success(`Started program: ${template.name}`);
     } else {
       setWorkoutName(template.name);
@@ -274,6 +290,8 @@ const Workouts = () => {
         }))
       })));
       setCurrentBlockIndex(0);
+      setLastSeenSectionId(null);
+      setShowSectionSlide(false);
     }
     setViewMode('active');
   };
@@ -344,6 +362,8 @@ const Workouts = () => {
           }))
         })));
         setCurrentBlockIndex(0);
+        setLastSeenSectionId(null);
+        setShowSectionSlide(false);
         toast.info(`Up next: ${nextWorkout.name}`);
         return;
       } else {
@@ -356,6 +376,8 @@ const Workouts = () => {
     setWorkoutName("");
     setExercises([{ id: Date.now(), name: "", setsData: [{ id: Date.now().toString(), reps: 10, weight: 0, distance: 0, timeMins: 0, timeSecs: 0, completed: false }], rest: 0, linkedToNext: false, eachSide: false }]);
     setCurrentBlockIndex(0);
+    setLastSeenSectionId(null);
+    setShowSectionSlide(false);
     setViewMode('browse');
   };
 
@@ -667,6 +689,39 @@ const Workouts = () => {
                 {blocks.length > 0 && (() => {
                   const currentBlock = blocks[currentBlockIndex];
                   if (!currentBlock) return null;
+                  
+                  if (showSectionSlide && currentBlock.section) {
+                    return (
+                      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-6 animate-in fade-in zoom-in-95 duration-300">
+                        <div className="space-y-4">
+                          <span className="text-primary font-bold tracking-wider uppercase text-sm">Entering Section</span>
+                          <h2 className="text-4xl font-heading uppercase tracking-wider text-foreground">{currentBlock.section.name}</h2>
+                          {currentBlock.section.description && (
+                            <p className="text-muted-foreground text-lg px-4">{currentBlock.section.description}</p>
+                          )}
+                        </div>
+                        <Button 
+                          size="lg" 
+                          className="w-full max-w-[250px] font-bold tracking-wide text-lg h-14 bg-primary text-primary-foreground"
+                          onClick={() => setShowSectionSlide(false)}
+                        >
+                          Start Section
+                        </Button>
+                        {currentBlockIndex > 0 && (
+                          <Button 
+                            variant="ghost" 
+                            className="text-muted-foreground"
+                            onClick={() => {
+                              setShowSectionSlide(false);
+                              setCurrentBlockIndex(prev => Math.max(0, prev - 1));
+                            }}
+                          >
+                            Go Back
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  }
                   
                   return (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300 pb-20">
