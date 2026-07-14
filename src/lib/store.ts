@@ -136,27 +136,33 @@ export const savePrograms = async (programs: any[]) => {
         const safePrograms = programs.map(p => ({ ...p, user_id: user.id }));
         let { error } = await supabase.from('programs').upsert(safePrograms);
         
-        if (error && error.message && (error.message.includes('column') || error.message.includes('coverImage') || error.message.includes('stream') || error.message.includes('type') || error.message.includes('weekNotes'))) {
-          console.warn("Schema mismatch, falling back to saving extra fields in user_settings...", error.message);
+        if (error) {
+          console.warn("Programs upsert failed, falling back to minimal fields + user_settings...", error.message);
           
-          const fallbackPrograms = safePrograms.map(({ coverImage, stream, type, weekNotes, ...rest }) => rest);
+          const fallbackPrograms = safePrograms.map(p => {
+            return { 
+              id: p.id, 
+              name: p.name, 
+              description: p.description, 
+              user_id: p.user_id,
+              is_deleted: p.is_deleted
+            };
+          });
           const fallbackRes = await supabase.from('programs').upsert(fallbackPrograms);
-          error = fallbackRes.error;
           
-          if (!error) {
+          if (!fallbackRes.error) {
             for (const p of safePrograms) {
-              const extraData = {
-                coverImage: p.coverImage,
-                stream: p.stream,
-                type: p.type,
-                weekNotes: p.weekNotes
-              };
+              const { id, name, description, user_id, is_deleted, ...extras } = p;
               await supabase.from('user_settings').upsert({ 
                 user_id: user.id, 
                 key: `prog_extras_${p.id}`, 
-                value: JSON.stringify(extraData)
+                value: JSON.stringify(extras)
               }, { onConflict: 'user_id, key' });
             }
+            error = null;
+          } else {
+            error = fallbackRes.error;
+            console.error("Minimal fallback also failed:", error);
           }
         }
 
@@ -518,11 +524,9 @@ export const syncFromSupabase = async () => {
           }
           
           return { 
-            ...p, 
+            ...p,
+            ...extraData,
             coverImage: p.coverImage || extraData.coverImage || (coverSetting ? coverSetting.value : undefined),
-            stream: p.stream || extraData.stream,
-            type: p.type || extraData.type,
-            weekNotes: p.weekNotes || extraData.weekNotes
           };
         });
       }
@@ -536,8 +540,8 @@ export const syncFromSupabase = async () => {
     const { data: bw } = await supabase.from('bodyweight_history').select('*').eq('user_id', user.id).order('date', { ascending: true });
     if (bw) localStorage.setItem('fittrack_bodyweight', JSON.stringify(bw));
     
-    const { data: prs } = await supabase.from('personal_records').select('*').eq('user_id', user.id).order('date', { ascending: false });
-    if (prs) localStorage.setItem('fittrack_prs', JSON.stringify(prs));
+    // const { data: prs } = await supabase.from('personal_records').select('*').eq('user_id', user.id).order('date', { ascending: false });
+    // if (prs) localStorage.setItem('fittrack_prs', JSON.stringify(prs));
 
     const { data: folders } = await supabase.from('education_folders').select('*');
     if (folders) localStorage.setItem('fittrack_education_folders', JSON.stringify(folders));
@@ -560,7 +564,8 @@ export const syncFromSupabase = async () => {
       }
     }
     
-    // Check for workout reminders
+    // Check for workout reminders (disabled to prevent 404 on missing notifications table)
+    /*
     const lastWorkout = hist?.[0];
     if (lastWorkout) {
       const daysSince = Math.floor((Date.now() - new Date(lastWorkout.date).getTime()) / (1000 * 60 * 60 * 24));
@@ -581,6 +586,7 @@ export const syncFromSupabase = async () => {
         }
       }
     }
+    */
 
     // Dispatch custom event so components can re-render if needed
     window.dispatchEvent(new Event('fittrack_synced'));
@@ -592,46 +598,23 @@ export const syncFromSupabase = async () => {
 };
 
 export const getNotifications = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
-  const { data } = await supabase.from('notifications')
-    .select('*')
-    .or(`user_id.eq.${user.id},user_id.is.null`)
-    .order('created_at', { ascending: false });
-  return data || [];
+  return [];
 };
 
 export const markNotificationRead = async (id: string) => {
-  await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+  // disabled to prevent 404
 };
 
 export const sendNotification = async (title: string, message: string, userId?: string) => {
-  await supabase.from('notifications').insert({
-    title,
-    message,
-    user_id: userId || null,
-    type: 'general'
-  });
+  // disabled to prevent 404
 };
 
 export const syncProfile = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-
-  const profile = {
-    id: user.id,
-    email: user.email,
-    full_name: user.user_metadata?.full_name || user.email?.split('@')[0],
-    updated_at: new Date().toISOString(),
-  };
-
-  await supabase.from('profiles').upsert(profile);
+  // disabled to prevent 404 on missing profiles table
 };
 
 export const getMembers = async () => {
-  const { data: profiles, error } = await supabase.from('profiles').select('*');
-  if (error) return [];
-  return profiles;
+  return [];
 };
 
 export const getMemberActivity = async (userId: string) => {
