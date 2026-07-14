@@ -691,14 +691,69 @@ const Workouts = () => {
                   if (!currentBlock) return null;
                   
                   if (showSectionSlide && currentBlock.section) {
+                    const sectionIndex = exercises.findIndex(e => e.id === currentBlock.section.id);
+                    const sectionExercises = [];
+                    if (sectionIndex !== -1) {
+                      for (let i = sectionIndex + 1; i < exercises.length; i++) {
+                        const ex = exercises[i];
+                        if (ex.isSection) break;
+                        if (ex.name) {
+                          const libEx = exerciseLibrary.find(le => le.id === ex.name);
+                          const name = libEx ? libEx.name : ex.name;
+                          
+                          const setsCount = ex.setsData?.length || ex.sets || 3;
+                          const firstSet = ex.setsData?.[0] || ex || {};
+                          
+                          const trackingArray = Array.isArray(libEx?.trackingType) ? libEx.trackingType : [libEx?.trackingType || "Weight & Reps"];
+                          
+                          let details = [];
+                          if (trackingArray.includes('Weight & Reps')) {
+                            details.push(`${firstSet.reps || 0} reps`);
+                          }
+                          if (trackingArray.includes('Distance & Time')) {
+                            if (firstSet.distance) details.push(`${firstSet.distance}m`);
+                          }
+                          if (trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) {
+                            const m = firstSet.timeMins || 0;
+                            const s = firstSet.timeSecs || 0;
+                            if (m || s) details.push(`${m ? m + 'm ' : ''}${s ? s + 's' : ''}`.trim());
+                          }
+                          if (trackingArray.includes('Calories')) {
+                            if (firstSet.calories) details.push(`${firstSet.calories} cals`);
+                          }
+                          
+                          const detailStr = details.length > 0 ? details.join(', ') : '';
+                          
+                          sectionExercises.push({
+                            id: ex.id || i,
+                            name,
+                            sets: setsCount,
+                            details: detailStr
+                          });
+                        }
+                      }
+                    }
+
                     return (
                       <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-6 animate-in fade-in zoom-in-95 duration-300">
                         <div className="space-y-4">
                           <span className="text-primary font-bold tracking-wider uppercase text-sm">Entering Section</span>
                           <h2 className="text-4xl font-heading uppercase tracking-wider text-foreground">{currentBlock.section.name}</h2>
-                          {currentBlock.section.description && (
-                            <p className="text-muted-foreground text-lg px-4">{currentBlock.section.description}</p>
-                          )}
+                          {currentBlock.section.description ? (
+                            <p className="text-muted-foreground text-lg px-4 whitespace-pre-wrap">{currentBlock.section.description}</p>
+                          ) : sectionExercises.length > 0 ? (
+                            <div className="text-muted-foreground text-lg px-4 space-y-3">
+                              <p className="font-bold mb-2 uppercase text-sm tracking-wider opacity-80">Up Next:</p>
+                              {sectionExercises.map((item, i) => (
+                                <div key={item.id} className="flex flex-col leading-tight">
+                                  <span className="font-medium text-foreground">{item.name}</span>
+                                  <span className="opacity-70 text-sm">
+                                    {item.sets} sets {item.details ? `× ${item.details}` : ''}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
                         <Button 
                           size="lg" 

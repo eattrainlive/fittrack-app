@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1632,7 +1633,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                           </div>
                                           <div className="space-y-2 md:col-span-2">
                                             <Label>Description / Time (Optional)</Label>
-                                            <Input value={pe.description || ""} onChange={(e) => updateProgExercise(pe.id, "description", e.target.value)} placeholder={pe.sectionType === 'AMRAP' ? "e.g. 15 Minutes" : "e.g. Complete 3 rounds..."} />
+                                            <Textarea value={pe.description || ""} onChange={(e) => updateProgExercise(pe.id, "description", e.target.value)} placeholder={pe.sectionType === 'AMRAP' ? "e.g. 15 Minutes" : "e.g. Complete 3 rounds..."} className="min-h-[80px]" />
                                           </div>
                                           {pe.sectionType === "AI Engine" && (
                                             <div className="md:col-span-2 pt-2">
