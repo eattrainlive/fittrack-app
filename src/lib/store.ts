@@ -136,25 +136,26 @@ export const savePrograms = async (programs: any[]) => {
         const safePrograms = programs.map(p => ({ ...p, user_id: user.id }));
         let { error } = await supabase.from('programs').upsert(safePrograms);
         
-        if (error && error.message && error.message.includes('coverImage')) {
-          console.warn("coverImage column missing, falling back to saving without it...");
-          const fallbackPrograms = safePrograms.map(({ coverImage, ...rest }) => rest);
+        if (error && error.message && (error.message.includes('column') || error.message.includes('coverImage') || error.message.includes('stream') || error.message.includes('type') || error.message.includes('weekNotes'))) {
+          console.warn("Schema mismatch, falling back to saving extra fields in user_settings...", error.message);
+          
+          const fallbackPrograms = safePrograms.map(({ coverImage, stream, type, weekNotes, ...rest }) => rest);
           const fallbackRes = await supabase.from('programs').upsert(fallbackPrograms);
           error = fallbackRes.error;
           
           if (!error) {
             for (const p of safePrograms) {
-              if (p.coverImage) {
-                await supabase.from('user_settings').upsert({ 
-                  user_id: user.id, 
-                  key: `cover_${p.id}`, 
-                  value: p.coverImage 
-                }, { onConflict: 'user_id, key' });
-              } else {
-                await supabase.from('user_settings').delete()
-                  .eq('user_id', user.id)
-                  .eq('key', `cover_${p.id}`);
-              }
+              const extraData = {
+                coverImage: p.coverImage,
+                stream: p.stream,
+                type: p.type,
+                weekNotes: p.weekNotes
+              };
+              await supabase.from('user_settings').upsert({ 
+                user_id: user.id, 
+                key: `prog_extras_${p.id}`, 
+                value: JSON.stringify(extraData)
+              }, { onConflict: 'user_id, key' });
             }
           }
         }
@@ -509,10 +510,20 @@ export const syncFromSupabase = async () => {
       if (settings) {
         activeProg = activeProg.map(p => {
           const coverSetting = settings.find(s => s.key === `cover_${p.id}`);
-          if (coverSetting && !p.coverImage) {
-            return { ...p, coverImage: coverSetting.value };
+          let extraData: any = {};
+          
+          const extraSetting = settings.find(s => s.key === `prog_extras_${p.id}`);
+          if (extraSetting) {
+            try { extraData = JSON.parse(extraSetting.value); } catch(e) {}
           }
-          return p;
+          
+          return { 
+            ...p, 
+            coverImage: p.coverImage || extraData.coverImage || (coverSetting ? coverSetting.value : undefined),
+            stream: p.stream || extraData.stream,
+            type: p.type || extraData.type,
+            weekNotes: p.weekNotes || extraData.weekNotes
+          };
         });
       }
       
