@@ -6,9 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification } from "@/lib/store";
-import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar, Bell, Send, Download, Link2, Link2Off, Heading, Upload } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification, getAnthropicKey, saveAnthropicKey } from "@/lib/store";
+import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar as CalendarIcon, Bell, Send, Download, Link2, Link2Off, Heading, Upload, Sparkles } from "lucide-react";
 import JSZip from "jszip";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
@@ -33,10 +35,10 @@ const Admin = () => {
   const [newExDiff, setNewExDiff] = useState("Beginner");
   const [newExVid, setNewExVid] = useState("");
   const [newExMovement, setNewExMovement] = useState<string[]>(["Push"]);
-  const [newExTracking, setNewExTracking] = useState("Weight & Reps");
+  const [newExTracking, setNewExTracking] = useState<string[]>(["Weight & Reps"]);
 
   const MOVEMENT_TYPES = ["Warm Up", "Knee", "Hip", "Push", "Pull", "Conditioning", "Core", "Carries", "Fire Up", "Accessory"];
-  const TRACKING_TYPES = ["Weight & Reps", "Time Only", "Distance & Time"];
+  const TRACKING_TYPES = ["Weight & Reps", "Time Only", "Distance & Time", "Calories"];
 
   // Search State for Program Builder
   const [exerciseSearch, setExerciseSearch] = useState("");
@@ -44,11 +46,16 @@ const Admin = () => {
   // New Program State
   const [newProgName, setNewProgName] = useState("");
   const [newProgDesc, setNewProgDesc] = useState("");
+  const [newProgStream, setNewProgStream] = useState("Stronger");
   const [newProgCover, setNewProgCover] = useState("");
   const [newProgWeeks, setNewProgWeeks] = useState(4);
-  const [newProgDays, setNewProgDays] = useState(3);
+  const [newProgDays, setNewProgDays] = useState(5);
+  const [newProgType, setNewProgType] = useState<"program" | "session_folder">("program");
   const [progWorkouts, setProgWorkouts] = useState<any[]>([]);
+  const [progWeekNotes, setProgWeekNotes] = useState<Record<number, string>>({});
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(0);
+  const [selectedWeek, setSelectedWeek] = useState(1);
+  const [selectedDay, setSelectedDay] = useState(1);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,9 +84,11 @@ const Admin = () => {
     }
   };
 
-  // Vimeo Integration
+  // Integrations & Settings
   const [vimeoToken, setVimeoToken] = useState(() => localStorage.getItem("fittrack_vimeo_token") || "");
+  const [anthropicKey, setAnthropicKey] = useState(() => getAnthropicKey());
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   // Edit Exercise State
   const [editingExercise, setEditingExercise] = useState<any | null>(null);
@@ -98,6 +107,42 @@ const Admin = () => {
 
   // Export State
   const [isZipping, setIsZipping] = useState(false);
+
+  // Calendar State
+  const [scheduledEvents, setScheduledEvents] = useState<any[]>(() => {
+    const saved = localStorage.getItem('fittrack_scheduled_events');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [scheduleProgramId, setScheduleProgramId] = useState('');
+  const [scheduleWorkoutId, setScheduleWorkoutId] = useState('');
+
+  const saveScheduledEvents = (events: any[]) => {
+    setScheduledEvents(events);
+    localStorage.setItem('fittrack_scheduled_events', JSON.stringify(events));
+  };
+
+  // TV Display State
+  const [displayPresets, setDisplayPresets] = useState<any[]>(() => {
+    const saved = localStorage.getItem('fittrack_display_presets');
+    return saved ? JSON.parse(saved) : [{
+      id: 'default',
+      name: 'Default Preset',
+      layout: { orientation: 'landscape', showRest: true, showHeaders: true, showDuration: true, showWeek: true, showNumbers: true },
+      colors: { background: '#000000', blockBackground: '#1a1a1a', opacity: 100 },
+      typography: { fontSize: 'medium' },
+      media: { url: '', type: 'image' }
+    }];
+  });
+  const [selectedPresetId, setSelectedPresetId] = useState('default');
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
+  const [selectedDisplayProgramId, setSelectedDisplayProgramId] = useState<string>('');
+  const [selectedDisplayWorkoutId, setSelectedDisplayWorkoutId] = useState<string>('');
+
+  const savePresets = (presets: any[]) => {
+    setDisplayPresets(presets);
+    localStorage.setItem('fittrack_display_presets', JSON.stringify(presets));
+  };
 
   useEffect(() => {
     const handleSync = () => {
@@ -219,7 +264,7 @@ const Admin = () => {
     setNewExName("");
     setNewExMuscle("");
     setNewExVid("");
-    setNewExTracking("Weight & Reps");
+    setNewExTracking(["Weight & Reps"]);
   };
 
   const handleDeleteExercise = (id: string) => {
@@ -271,7 +316,7 @@ const Admin = () => {
           `"${ex.difficulty || ""}"`,
           `"${Array.isArray(ex.movementType) ? ex.movementType.join("; ") : (ex.movementType || "")}"`,
           `"${ex.videoUrl || ""}"`,
-          `"${ex.trackingType || "Weight & Reps"}"`
+          `"${Array.isArray(ex.trackingType) ? ex.trackingType.join("; ") : (ex.trackingType || "Weight & Reps")}"`
         ];
         csvRows.push(row.join(","));
       });
@@ -328,19 +373,41 @@ const Admin = () => {
   };
 
   const handleGenerateWorkoutSlots = () => {
-    const totalWorkouts = newProgWeeks * newProgDays;
-    const newWorkouts = [];
-    for (let i = 0; i < totalWorkouts; i++) {
-      const week = Math.floor(i / newProgDays) + 1;
-      const day = (i % newProgDays) + 1;
-      newWorkouts.push({
-        id: `w_${Date.now()}_${i}`,
-        name: `Week ${week}, Day ${day}`,
+    if (newProgType === "session_folder") {
+      setProgWorkouts([{
+        id: `w_${Date.now()}_0`,
+        name: `Session 1`,
         exercises: []
-      });
+      }]);
+    } else {
+      const totalWorkouts = newProgWeeks * newProgDays;
+      const newWorkouts = [];
+      for (let i = 0; i < totalWorkouts; i++) {
+        const week = Math.floor(i / newProgDays) + 1;
+        const day = (i % newProgDays) + 1;
+        newWorkouts.push({
+          id: `w_${Date.now()}_${i}`,
+          name: `Week ${week}, Day ${day}`,
+          week,
+          day,
+          exercises: []
+        });
+      }
+      setProgWorkouts(newWorkouts);
     }
-    setProgWorkouts(newWorkouts);
     setSelectedWorkoutIndex(0);
+    setSelectedWeek(1);
+  };
+
+  const handleAddSession = () => {
+    const updatedWorkouts = [...progWorkouts];
+    updatedWorkouts.push({
+      id: `w_${Date.now()}_${updatedWorkouts.length}`,
+      name: `Session ${updatedWorkouts.length + 1}`,
+      exercises: []
+    });
+    setProgWorkouts(updatedWorkouts);
+    setSelectedWorkoutIndex(updatedWorkouts.length - 1);
   };
 
   const handleAddProgExercise = () => {
@@ -349,9 +416,21 @@ const Admin = () => {
     setProgWorkouts(updatedWorkouts);
   };
 
-  const handleAddProgSection = () => {
+  const handleAddProgSection = (type: string = "Normal") => {
     const updatedWorkouts = [...progWorkouts];
-    updatedWorkouts[selectedWorkoutIndex].exercises.push({ id: Date.now(), isSection: true, name: "New Section", description: "" });
+    let name = type === "Normal" ? "New Section" : `${type} Block`;
+    let description = "";
+    if (type === "AI Engine") {
+      name = "AI Engine Builder";
+      description = "30-60 min scalable cardio focus";
+    }
+    updatedWorkouts[selectedWorkoutIndex].exercises.push({ 
+      id: Date.now(), 
+      isSection: true, 
+      name, 
+      description,
+      sectionType: type
+    });
     setProgWorkouts(updatedWorkouts);
   };
 
@@ -388,6 +467,237 @@ const Admin = () => {
     toast.success("Copied exercises from previous workout!");
   };
 
+  const handleDuplicateDayTo = (targetWeek: number, targetDay: number) => {
+    const updatedWorkouts = [...progWorkouts];
+    const currentExercises = JSON.parse(JSON.stringify(updatedWorkouts[selectedWorkoutIndex].exercises));
+    const newExercises = currentExercises.map((e: any) => ({ ...e, id: Date.now() + Math.random() }));
+    
+    const targetIdx = updatedWorkouts.findIndex(w => w.week === targetWeek && w.day === targetDay);
+    if (targetIdx >= 0) {
+      updatedWorkouts[targetIdx].exercises = newExercises;
+      setProgWorkouts(updatedWorkouts);
+      toast.success(`Copied to Week ${targetWeek}, Day ${targetDay}!`);
+    }
+  };
+
+  const handleCopyWeekFromPrevious = () => {
+    if (selectedWeek <= 1) return;
+    const updatedWorkouts = [...progWorkouts];
+    
+    for (let d = 1; d <= newProgDays; d++) {
+      const sourceIdx = updatedWorkouts.findIndex(w => w.week === selectedWeek - 1 && w.day === d);
+      const targetIdx = updatedWorkouts.findIndex(w => w.week === selectedWeek && w.day === d);
+      
+      if (sourceIdx >= 0 && targetIdx >= 0) {
+        const sourceExercises = JSON.parse(JSON.stringify(updatedWorkouts[sourceIdx].exercises));
+        updatedWorkouts[targetIdx].exercises = sourceExercises.map((e: any) => ({ ...e, id: Date.now() + Math.random() }));
+      }
+    }
+    
+    setProgWorkouts(updatedWorkouts);
+    toast.success(`Copied all days from Week ${selectedWeek - 1}!`);
+  };
+
+  const handleDuplicateWeekTo = (targetWeek: number) => {
+    if (targetWeek === selectedWeek || targetWeek < 1 || targetWeek > newProgWeeks) return;
+    const updatedWorkouts = [...progWorkouts];
+    
+    for (let d = 1; d <= newProgDays; d++) {
+      const sourceIdx = updatedWorkouts.findIndex(w => w.week === selectedWeek && w.day === d);
+      const targetIdx = updatedWorkouts.findIndex(w => w.week === targetWeek && w.day === d);
+      
+      if (sourceIdx >= 0 && targetIdx >= 0) {
+        const sourceExercises = JSON.parse(JSON.stringify(updatedWorkouts[sourceIdx].exercises));
+        updatedWorkouts[targetIdx].exercises = sourceExercises.map((e: any) => ({ ...e, id: Date.now() + Math.random() }));
+      }
+    }
+    
+    setProgWorkouts(updatedWorkouts);
+    toast.success(`Copied Week ${selectedWeek} to Week ${targetWeek}!`);
+  };
+
+  const handleShuffleExercise = (exerciseId: number) => {
+    const updatedWorkouts = [...progWorkouts];
+    const currentEx = updatedWorkouts[selectedWorkoutIndex].exercises.find((e: any) => e.id === exerciseId);
+    if (!currentEx || !currentEx.name) return;
+    
+    const libEx = exercises.find(e => e.id === currentEx.name);
+    if (!libEx) return;
+    
+    const matchingExercises = exercises.filter(e => 
+      e.id !== libEx.id && 
+      (Array.isArray(e.category) ? e.category : [e.category]).some((c: string) => (Array.isArray(libEx.category) ? libEx.category : [libEx.category]).includes(c)) &&
+      (Array.isArray(e.movementType) ? e.movementType : [e.movementType]).some((m: string) => (Array.isArray(libEx.movementType) ? libEx.movementType : [libEx.movementType]).includes(m))
+    );
+    
+    if (matchingExercises.length > 0) {
+      const randomEx = matchingExercises[Math.floor(Math.random() * matchingExercises.length)];
+      currentEx.name = randomEx.id;
+      setProgWorkouts(updatedWorkouts);
+      toast.success(`Swapped for ${randomEx.name}`);
+    } else {
+      toast.error("No matching exercises found to swap with.");
+    }
+  };
+
+  const handleApplyToWeek = (exerciseId: number) => {
+    const currentEx = progWorkouts[selectedWorkoutIndex].exercises.find((e: any) => e.id === exerciseId);
+    if (!currentEx) return;
+
+    const updatedWorkouts = [...progWorkouts];
+    let appliedCount = 0;
+    
+    for (let d = 1; d <= newProgDays; d++) {
+      if (d === selectedDay) continue;
+      const targetIdx = updatedWorkouts.findIndex(w => w.week === selectedWeek && w.day === d);
+      if (targetIdx >= 0) {
+        // Find matching exercise by position or name
+        const exIndex = updatedWorkouts[selectedWorkoutIndex].exercises.findIndex((e: any) => e.id === exerciseId);
+        if (updatedWorkouts[targetIdx].exercises[exIndex]) {
+          const targetEx = updatedWorkouts[targetIdx].exercises[exIndex];
+          if (!targetEx.isSection) {
+            targetEx.sets = currentEx.sets;
+            targetEx.reps = currentEx.reps;
+            targetEx.distance = currentEx.distance;
+            targetEx.timeMins = currentEx.timeMins;
+            targetEx.timeSecs = currentEx.timeSecs;
+            targetEx.rest = currentEx.rest;
+            appliedCount++;
+          }
+        }
+      }
+    }
+    
+    setProgWorkouts(updatedWorkouts);
+    toast.success(`Applied settings to ${appliedCount} other days this week!`);
+  };
+
+  const handleShuffleAll = () => {
+    // ... keep existing code
+    const updatedWorkouts = [...progWorkouts];
+    let shuffledCount = 0;
+    
+    updatedWorkouts[selectedWorkoutIndex].exercises.forEach((currentEx: any) => {
+      if (currentEx.isSection || !currentEx.name) return;
+      
+      const libEx = exercises.find(e => e.id === currentEx.name);
+      if (!libEx) return;
+      
+      const matchingExercises = exercises.filter(e => 
+        e.id !== libEx.id && 
+        (Array.isArray(e.category) ? e.category : [e.category]).some((c: string) => (Array.isArray(libEx.category) ? libEx.category : [libEx.category]).includes(c)) &&
+        (Array.isArray(e.movementType) ? e.movementType : [e.movementType]).some((m: string) => (Array.isArray(libEx.movementType) ? libEx.movementType : [libEx.movementType]).includes(m))
+      );
+      
+      if (matchingExercises.length > 0) {
+        const randomEx = matchingExercises[Math.floor(Math.random() * matchingExercises.length)];
+        currentEx.name = randomEx.id;
+        shuffledCount++;
+      }
+    });
+    
+    setProgWorkouts(updatedWorkouts);
+    if (shuffledCount > 0) {
+      toast.success(`Shuffled ${shuffledCount} exercises!`);
+    } else {
+      toast.error("No exercises could be shuffled.");
+    }
+  };
+
+  const handleGenerateEngineWorkout = async (sectionId: number) => {
+    if (!anthropicKey) {
+      toast.error("Please add your Anthropic API Key in the Settings tab first.");
+      return;
+    }
+
+    const updatedWorkouts = [...progWorkouts];
+    const currentWorkout = updatedWorkouts[selectedWorkoutIndex];
+    const sectionIndex = currentWorkout.exercises.findIndex((e: any) => e.id === sectionId);
+
+    if (sectionIndex === -1) return;
+
+    setIsGeneratingAI(true);
+    const toastId = toast.loading("AI is analyzing your library and building a 40-min engine workout...");
+
+    try {
+      const exList = exercises.map(ex => `- ${ex.name} (ID: ${ex.id}, Category: ${Array.isArray(ex.category) ? ex.category.join(',') : ex.category}, Movement: ${Array.isArray(ex.movementType) ? ex.movementType.join(',') : ex.movementType})`).join('\n');
+
+      const prompt = `You are an expert fitness coach. Create a 40-minute scalable engine (cardio/conditioning) workout using ONLY the following available exercises:
+
+${exList}
+
+The workout must be a 40-minute EMOM (Every Minute on the Minute) or AMRAP style, utilizing 4 to 6 different exercises.
+
+Return ONLY a valid JSON array of exercise objects to be inserted into the workout. Each object must follow this exact structure:
+[
+  {
+    "blockType": "Cardio",
+    "name": "exercise_id_from_list",
+    "sets": 10,
+    "reps": 15,
+    "weight": 0,
+    "distance": 0,
+    "timeMins": 1,
+    "timeSecs": 0,
+    "rest": 0,
+    "linkedToNext": false,
+    "eachSide": false,
+    "staffNotes": "Brief coaching note"
+  }
+]
+Do not include any markdown formatting, backticks, or other text outside the JSON array.`;
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+          "anthropic-dangerous-direct-browser-access": "true"
+        },
+        body: JSON.stringify({
+          model: "claude-3-haiku-20240307",
+          max_tokens: 1500,
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error?.message || "Failed to generate workout");
+      }
+
+      const data = await response.json();
+      let text = data.content[0].text.trim();
+      
+      // Clean up markdown if AI included it
+      if (text.startsWith('```json')) text = text.replace(/```json\n?/, '');
+      if (text.startsWith('```')) text = text.replace(/```\n?/, '');
+      if (text.endsWith('```')) text = text.replace(/```$/, '');
+      
+      const newExercises = JSON.parse(text).map((ex: any, i: number) => ({
+        ...ex,
+        id: Date.now() + i + Math.random(),
+      }));
+
+      // Update the section to represent the generated EMOM
+      currentWorkout.exercises[sectionIndex].name = "AI Engine: 40 Min EMOM";
+      currentWorkout.exercises[sectionIndex].sectionType = "EMOM";
+      currentWorkout.exercises[sectionIndex].description = "AI Generated 40-Min Engine Block";
+
+      // Insert them right after the section
+      currentWorkout.exercises.splice(sectionIndex + 1, 0, ...newExercises);
+
+      setProgWorkouts(updatedWorkouts);
+      toast.success("40-Min Engine Workout generated successfully!", { id: toastId });
+    } catch (error: any) {
+      console.error(error);
+      toast.error("AI Generation failed: " + error.message, { id: toastId });
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
   const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
 
   const handleAddProgram = () => {
@@ -399,12 +709,17 @@ const Admin = () => {
       id: editingProgramId || "p_" + Date.now(),
       name: newProgName,
       description: newProgDesc,
+      stream: newProgStream,
       coverImage: newProgCover,
+      type: newProgType,
       weeks: newProgWeeks,
       daysPerWeek: newProgDays,
+      weekNotes: progWeekNotes,
       workouts: progWorkouts.map(w => ({
         name: w.name,
-        exercises: w.exercises.map((e: any) => ({ isSection: e.isSection, description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide }))
+        week: w.week,
+        day: w.day,
+        exercises: w.exercises.map((e: any) => ({ isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes }))
       }))
     };
     
@@ -422,8 +737,11 @@ const Admin = () => {
     
     setNewProgName("");
     setNewProgDesc("");
+    setNewProgStream("Stronger");
+    setNewProgDays(5);
     setNewProgCover("");
     setProgWorkouts([]);
+    setProgWeekNotes({});
     setEditingProgramId(null);
   };
 
@@ -431,16 +749,22 @@ const Admin = () => {
     setEditingProgramId(prog.id);
     setNewProgName(prog.name);
     setNewProgDesc(prog.description || "");
+    setNewProgStream(prog.stream || "Fusion");
     setNewProgCover(prog.coverImage || "");
+    setNewProgType(prog.type || "program");
     setNewProgWeeks(prog.weeks || 4);
     setNewProgDays(prog.daysPerWeek || 3);
+    setProgWeekNotes(prog.weekNotes || {});
     
     const workouts = prog.workouts?.length ? prog.workouts.map((w: any, idx: number) => ({
       id: `w_${Date.now()}_${idx}`,
       name: w.name,
+      week: w.week,
+      day: w.day,
       exercises: w.exercises.map((e: any, eIdx: number) => ({
         id: Date.now() + eIdx + Math.random(),
         isSection: e.isSection,
+        sectionType: e.sectionType || "Normal",
         description: e.description,
         blockType: e.blockType || "Strength",
         name: e.name,
@@ -452,7 +776,8 @@ const Admin = () => {
         timeSecs: e.timeSecs || 0,
         rest: e.rest || 0,
         linkedToNext: e.linkedToNext || false,
-        eachSide: e.eachSide || false
+        eachSide: e.eachSide || false,
+        staffNotes: e.staffNotes || ""
       }))
     })) : [];
     
@@ -513,7 +838,7 @@ const Admin = () => {
       const publicFiles = import.meta.glob('/public/**/*', { query: '?raw' });
       const rootFiles = import.meta.glob('/*.{html,json,js,ts,md,cjs,mjs}', { query: '?raw' });
       
-      const allFiles = { ...srcFiles, ...publicFiles, ...rootFiles };
+      const allFiles: Record<string, any> = { ...srcFiles, ...publicFiles, ...rootFiles };
       let fileCount = 0;
 
       for (const path in allFiles) {
@@ -550,6 +875,120 @@ const Admin = () => {
     }
   };
 
+  const autoSaveProgram = async (workoutsToSave: any[]) => {
+    const progId = editingProgramId || "p_" + Date.now();
+    if (!editingProgramId) {
+      setEditingProgramId(progId);
+    }
+    const newProg = {
+      id: progId,
+      name: newProgName || "Untitled AI Program",
+      description: newProgDesc,
+      stream: newProgStream,
+      coverImage: newProgCover,
+      type: newProgType,
+      weeks: newProgWeeks,
+      daysPerWeek: newProgDays,
+      weekNotes: progWeekNotes,
+      workouts: workoutsToSave.map(w => ({
+        name: w.name,
+        week: w.week,
+        day: w.day,
+        exercises: w.exercises.map((e: any) => ({ isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes }))
+      }))
+    };
+    
+    let updated;
+    if (editingProgramId) {
+      updated = programs.map(p => p.id === progId ? newProg : p);
+    } else {
+      updated = [...programs, newProg];
+    }
+    setPrograms(updated);
+    savePrograms(updated);
+  };
+
+  const [genWeek, setGenWeek] = useState(0);
+
+  const handleEdgeFunctionAI = async (workoutIndex: number | null, action: "generate" | "regenerate" | "edit" | "full_program") => {
+    setIsGeneratingAI(true);
+    let currentProgWorkouts = [...progWorkouts];
+    
+    try {
+      if (action === "full_program") {
+        let previousWeekWorkouts: any[] = [];
+        
+        for (let w = 1; w <= newProgWeeks; w++) {
+          setGenWeek(w);
+          const { data, error } = await supabase.functions.invoke('generate-workout', {
+            body: {
+              action: "week",
+              week: w,
+              program: {
+                name: newProgName,
+                weeks: newProgWeeks,
+                days: newProgDays,
+                stream: newProgStream
+              },
+              currentWorkouts: currentProgWorkouts,
+              previousWeekWorkouts,
+              exercises: exercises.map(ex => ({
+                id: ex.id,
+                name: ex.name,
+                category: ex.category,
+                movementType: ex.movementType,
+                equipment: ex.equipment
+              }))
+            }
+          });
+          
+          if (error) throw new Error(error.message || `Failed to generate Week ${w}`);
+          if (!data || !data.workouts) throw new Error(`No workouts returned from AI for Week ${w}`);
+          
+          currentProgWorkouts = data.workouts;
+          previousWeekWorkouts = data.workouts.filter((wk: any) => wk.week === w);
+          setProgWorkouts([...currentProgWorkouts]); // live-update the grid each week
+        }
+      } else {
+        const { data, error } = await supabase.functions.invoke('generate-workout', {
+          body: {
+            action: "single",
+            program: {
+              name: newProgName,
+              weeks: newProgWeeks,
+              days: newProgDays,
+              stream: newProgStream
+            },
+            targetWorkoutIndex: workoutIndex,
+            currentWorkouts: progWorkouts,
+            exercises: exercises.map(ex => ({
+              id: ex.id,
+              name: ex.name,
+              category: ex.category,
+              movementType: ex.movementType,
+              equipment: ex.equipment
+            }))
+          }
+        });
+
+        if (error) throw new Error(error.message || "Failed to generate workout");
+        if (!data || !data.workouts) throw new Error("No workouts returned from AI");
+
+        currentProgWorkouts = data.workouts;
+        setProgWorkouts(currentProgWorkouts);
+      }
+      
+      await autoSaveProgram(currentProgWorkouts);
+      toast.success(`AI successfully completed: ${action}!`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(`AI Generation failed: ${err.message}`);
+    } finally {
+      setIsGeneratingAI(false);
+      setGenWeek(0);
+    }
+  };
+
   return (
     <div className="flex-1 space-y-6 p-8 pt-6 max-w-5xl mx-auto w-full">
       <div className="flex items-center justify-between space-y-2">
@@ -557,12 +996,15 @@ const Admin = () => {
       </div>
 
       <Tabs defaultValue="exercises" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 max-w-[900px]">
+        <TabsList className="grid w-full grid-cols-8 max-w-[1200px]">
           <TabsTrigger value="exercises">Manage Exercises</TabsTrigger>
           <TabsTrigger value="programs">Manage Programs</TabsTrigger>
-          <TabsTrigger value="members">Member Management</TabsTrigger>
+          <TabsTrigger value="calendar">Calendar</TabsTrigger>
+          <TabsTrigger value="display">TV Display</TabsTrigger>
+          <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
         
         <TabsContent value="exercises" className="space-y-6 mt-6">
@@ -646,14 +1088,21 @@ const Admin = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>Tracking Style</Label>
-                  <Select value={newExTracking} onValueChange={setNewExTracking}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {TRACKING_TYPES.map(t => (
-                        <SelectItem key={t} value={t}>{t}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex flex-wrap gap-4 pt-2">
+                    {TRACKING_TYPES.map(t => (
+                      <div key={t} className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`new-track-${t}`} 
+                          checked={newExTracking.includes(t)}
+                          onCheckedChange={(checked) => {
+                            if (checked) setNewExTracking([...newExTracking, t]);
+                            else setNewExTracking(newExTracking.filter(v => v !== t));
+                          }}
+                        />
+                        <label htmlFor={`new-track-${t}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{t}</label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label>Video URL (Vimeo embedded link)</Label>
@@ -719,7 +1168,7 @@ const Admin = () => {
                           difficulty: cols[5],
                           movementType: cols[6] ? cols[6].split(';').map(s => s.trim()).filter(Boolean) : ["Push"],
                           videoUrl: cols[7] || "",
-                          trackingType: cols[8] || "Weight & Reps"
+                          trackingType: cols[8] ? cols[8].split(';').map(s => s.trim()).filter(Boolean) : ["Weight & Reps"]
                         };
                       });
                       
@@ -868,14 +1317,26 @@ const Admin = () => {
                   </div>
                   <div className="space-y-2">
                     <Label>Tracking Style</Label>
-                    <Select value={editingExercise.trackingType || "Weight & Reps"} onValueChange={v => setEditingExercise({...editingExercise, trackingType: v})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {TRACKING_TYPES.map(t => (
-                          <SelectItem key={t} value={t}>{t}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex flex-wrap gap-4 pt-2">
+                      {TRACKING_TYPES.map(t => {
+                        const currentTracking = Array.isArray(editingExercise.trackingType) ? editingExercise.trackingType : (editingExercise.trackingType ? [editingExercise.trackingType] : ["Weight & Reps"]);
+                        return (
+                          <div key={t} className="flex items-center space-x-2">
+                            <Checkbox 
+                              id={`edit-track-${t}`} 
+                              checked={currentTracking.includes(t)}
+                              onCheckedChange={(checked) => {
+                                let newTracking = [...currentTracking];
+                                if (checked && !newTracking.includes(t)) newTracking.push(t);
+                                else if (!checked) newTracking = newTracking.filter(v => v !== t);
+                                setEditingExercise({...editingExercise, trackingType: newTracking});
+                              }}
+                            />
+                            <label htmlFor={`edit-track-${t}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{t}</label>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Video URL</Label>
@@ -928,42 +1389,190 @@ const Admin = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Length (Weeks)</Label>
-                    <Input type="number" min="1" max="52" value={newProgWeeks} onChange={e => setNewProgWeeks(parseInt(e.target.value) || 1)} />
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Program Structure</Label>
+                    <Select value={newProgType} onValueChange={(v: "program" | "session_folder") => setNewProgType(v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="program">Structured Program (Weeks/Days)</SelectItem>
+                        <SelectItem value="session_folder">Session Folder (Standalone Sessions)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Days per Week</Label>
-                    <Input type="number" min="1" max="7" value={newProgDays} onChange={e => setNewProgDays(parseInt(e.target.value) || 1)} />
-                  </div>
+                  {newProgType === "program" && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Stream</Label>
+                        <Select value={newProgStream} onValueChange={(val) => {
+                          setNewProgStream(val);
+                          if (val === "Stronger") setNewProgDays(5);
+                          else if (val === "Fusion") setNewProgDays(4);
+                          else if (val === "Performance") setNewProgDays(5);
+                        }}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Stronger">Stronger</SelectItem>
+                            <SelectItem value="Fusion">Fusion</SelectItem>
+                            <SelectItem value="Performance">Performance</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Length (Weeks)</Label>
+                        <Input type="number" min="1" max="52" value={newProgWeeks} onChange={e => setNewProgWeeks(parseInt(e.target.value) || 1)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Days per Week</Label>
+                        <Input type="number" min="1" max="7" value={newProgDays} onChange={e => setNewProgDays(parseInt(e.target.value) || 1)} />
+                      </div>
+                    </>
+                  )}
                 </div>
                 
                 {progWorkouts.length === 0 ? (
-                  <Button onClick={handleGenerateWorkoutSlots} className="w-full">Generate Workout Grid</Button>
+                  <div className="flex flex-col gap-2">
+                    <Button onClick={handleGenerateWorkoutSlots} className="w-full">Generate Workout Grid</Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => handleEdgeFunctionAI(null, "full_program")} 
+                      className="w-full gap-2 border-primary text-primary hover:bg-primary/10"
+                      disabled={isGeneratingAI || !newProgStream}
+                    >
+                      {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      {isGeneratingAI ? `Generating week ${genWeek}/${newProgWeeks}…` : "Generate full programme with AI"}
+                    </Button>
+                  </div>
                 ) : (
                   <div className="space-y-6 pt-4 border-t border-border">
-                    <div className="flex gap-2 overflow-x-auto pb-2">
-                      {progWorkouts.map((w, idx) => (
-                        <Button 
-                          key={w.id} 
-                          variant={selectedWorkoutIndex === idx ? "default" : "outline"}
-                          onClick={() => setSelectedWorkoutIndex(idx)}
-                          className="whitespace-nowrap"
-                        >
-                          {w.name}
+                    {newProgType === "program" ? (
+                      <div className="space-y-4">
+                        <div className="flex gap-2 overflow-x-auto pb-2 border-b border-border">
+                          {Array.from({ length: newProgWeeks }).map((_, i) => (
+                            <Button 
+                              key={`week-${i+1}`} 
+                              variant={selectedWeek === i + 1 ? "default" : "outline"}
+                              onClick={() => {
+                                setSelectedWeek(i + 1);
+                                setSelectedDay(1);
+                                const idx = progWorkouts.findIndex(w => w.week === i + 1 && w.day === 1);
+                                if(idx >= 0) setSelectedWorkoutIndex(idx);
+                              }}
+                              className="whitespace-nowrap"
+                            >
+                              Week {i + 1}
+                            </Button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2 overflow-x-auto pb-2">
+                          {Array.from({ length: newProgDays }).map((_, i) => (
+                            <Button 
+                              key={`day-${i+1}`} 
+                              variant={selectedDay === i + 1 ? "default" : "secondary"}
+                              onClick={() => {
+                                setSelectedDay(i + 1);
+                                const idx = progWorkouts.findIndex(w => w.week === selectedWeek && w.day === i + 1);
+                                if(idx >= 0) setSelectedWorkoutIndex(idx);
+                              }}
+                              className="whitespace-nowrap"
+                            >
+                              Day {i + 1}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 overflow-x-auto pb-2">
+                        {progWorkouts.map((w, idx) => (
+                          <Button 
+                            key={w.id} 
+                            variant={selectedWorkoutIndex === idx ? "default" : "outline"}
+                            onClick={() => setSelectedWorkoutIndex(idx)}
+                            className="whitespace-nowrap"
+                          >
+                            {w.name}
+                          </Button>
+                        ))}
+                        <Button variant="outline" onClick={handleAddSession} className="whitespace-nowrap gap-2">
+                          <Plus className="h-4 w-4" /> Add Session
                         </Button>
-                      ))}
-                    </div>
+                      </div>
+                    )}
 
                     <div className="bg-muted/30 p-4 rounded-lg border border-border space-y-4">
+                      {newProgType === "program" && (
+                        <div className="space-y-4 mb-6 pb-4 border-b border-border">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-heading tracking-wider text-xl">Week {selectedWeek} Settings</h3>
+                            <div className="flex gap-2">
+                              {selectedWeek > 1 && (
+                                <Button variant="outline" size="sm" onClick={handleCopyWeekFromPrevious} className="gap-2">
+                                  <Copy className="h-4 w-4" /> Copy Previous Week
+                                </Button>
+                              )}
+                              <Select onValueChange={(v) => handleDuplicateWeekTo(parseInt(v))}>
+                                <SelectTrigger className="w-[160px] h-9"><SelectValue placeholder="Duplicate To..." /></SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: newProgWeeks }).map((_, i) => (
+                                    i + 1 !== selectedWeek && <SelectItem key={`dup-w-${i+1}`} value={(i + 1).toString()}>Week {i + 1}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Week Notes (Staff Only)</Label>
+                            <Input 
+                              placeholder="e.g. Focus on eccentric control this week..." 
+                              value={progWeekNotes[selectedWeek] || ""}
+                              onChange={e => setProgWeekNotes({...progWeekNotes, [selectedWeek]: e.target.value})}
+                            />
+                          </div>
+                        </div>
+                      )}
+
                       <div className="flex items-center justify-between">
-                        <h3 className="font-heading tracking-wider text-xl">{progWorkouts[selectedWorkoutIndex].name}</h3>
+                        <h3 className="font-heading tracking-wider text-xl">{progWorkouts[selectedWorkoutIndex]?.name}</h3>
                         <div className="flex gap-2">
                           {selectedWorkoutIndex > 0 && (
                             <Button variant="outline" size="sm" onClick={handleCopyFromPrevious} className="gap-2">
-                              <Copy className="h-4 w-4" /> Copy Previous
+                              <Copy className="h-4 w-4" /> Copy Previous Day
                             </Button>
                           )}
+                          {newProgType === "program" && (
+                            <Select onValueChange={(v) => handleDuplicateDayTo(selectedWeek, parseInt(v))}>
+                              <SelectTrigger className="w-[160px] h-9"><SelectValue placeholder="Duplicate To Day..." /></SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: newProgDays }).map((_, i) => (
+                                  i + 1 !== selectedDay && <SelectItem key={`dup-d-${i+1}`} value={(i + 1).toString()}>Day {i + 1}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                          <Button variant="outline" size="sm" onClick={handleShuffleAll}>
+                            Shuffle All
+                          </Button>
+                          <Button 
+                            variant="default" 
+                            size="sm" 
+                            className="gap-2 bg-primary text-primary-foreground"
+                            onClick={() => handleEdgeFunctionAI(selectedWorkoutIndex, "regenerate")}
+                            disabled={isGeneratingAI}
+                          >
+                            {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                            Regenerate
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="gap-2"
+                            onClick={() => handleEdgeFunctionAI(selectedWorkoutIndex, "edit")}
+                            disabled={isGeneratingAI}
+                          >
+                            {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
+                            Edit with AI
+                          </Button>
                         </div>
                       </div>
 
@@ -971,36 +1580,77 @@ const Admin = () => {
                         <Droppable droppableId="exercises-list">
                           {(provided) => (
                             <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4">
-                              {progWorkouts[selectedWorkoutIndex].exercises.map((pe: any, index: number) => (
+                              {(progWorkouts[selectedWorkoutIndex]?.exercises || []).length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-border rounded-lg bg-muted/20">
+                                  <Dumbbell className="h-12 w-12 text-muted-foreground mb-4 opacity-20" />
+                                  <p className="text-muted-foreground mb-4">No exercises added yet.</p>
+                                  <Button 
+                                    onClick={() => handleEdgeFunctionAI(selectedWorkoutIndex, "generate")} 
+                                    className="gap-2 bg-primary text-primary-foreground"
+                                    disabled={isGeneratingAI}
+                                  >
+                                    {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                    Generate Workout with AI
+                                  </Button>
+                                </div>
+                              ) : (
+                                (progWorkouts[selectedWorkoutIndex]?.exercises || []).map((pe: any, index: number) => (
                                 <Draggable key={pe.id.toString()} draggableId={pe.id.toString()} index={index}>
                                   {(provided) => (
-                                      <div
-                                        ref={provided.innerRef}
-                                        {...provided.draggableProps}
-                                        className={`flex gap-4 items-center bg-background p-4 rounded-md border relative ${pe.linkedToNext ? 'border-b-0 rounded-b-none border-primary/50' : 'border-border'} ${index > 0 && progWorkouts[selectedWorkoutIndex].exercises[index - 1].linkedToNext ? 'border-t-0 rounded-t-none border-primary/50 bg-primary/5' : ''}`}
-                                      >
-                                        {(index > 0 && progWorkouts[selectedWorkoutIndex].exercises[index - 1].linkedToNext) && (
-                                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex items-center gap-1 z-20 shadow-sm border border-primary-foreground/20">
-                                            <Link2 className="h-3 w-3" /> Superset
-                                          </div>
-                                        )}
-                                        <div {...provided.dragHandleProps} className="cursor-grab text-muted-foreground hover:text-foreground">
-                                          <GripVertical className="h-5 w-5" />
+                                    <div
+                                      ref={provided.innerRef}
+                                      {...provided.draggableProps}
+                                      className={`flex gap-4 items-center bg-background p-4 rounded-md border relative ${pe.linkedToNext ? 'border-b-0 rounded-b-none border-primary/50' : 'border-border'} ${index > 0 && progWorkouts[selectedWorkoutIndex].exercises[index - 1].linkedToNext ? 'border-t-0 rounded-t-none border-primary/50 bg-primary/5' : ''}`}
+                                    >
+                                      {(index > 0 && progWorkouts[selectedWorkoutIndex].exercises[index - 1].linkedToNext) && (
+                                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex items-center gap-1 z-20 shadow-sm border border-primary-foreground/20">
+                                          <Link2 className="h-3 w-3" /> Superset
                                         </div>
-                                        
-                                        {pe.isSection ? (
-                                          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                              <Label>Section Title</Label>
-                                              <Input value={pe.name} onChange={(e) => updateProgExercise(pe.id, "name", e.target.value)} placeholder="e.g. Warm Up" className="font-bold bg-muted/50" />
-                                            </div>
-                                            <div className="space-y-2">
-                                              <Label>Description (Optional)</Label>
-                                              <Input value={pe.description || ""} onChange={(e) => updateProgExercise(pe.id, "description", e.target.value)} placeholder="e.g. Complete 3 rounds..." />
-                                            </div>
+                                      )}
+                                      <div {...provided.dragHandleProps} className="cursor-grab text-muted-foreground hover:text-foreground">
+                                        <GripVertical className="h-5 w-5" />
+                                      </div>
+                                      
+                                      {pe.isSection ? (
+                                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div className="space-y-2">
+                                            <Label>Section Title</Label>
+                                            <Input value={pe.name} onChange={(e) => updateProgExercise(pe.id, "name", e.target.value)} placeholder="e.g. Warm Up" className="font-bold bg-muted/50" />
                                           </div>
-                                        ) : (
-                                          <>
+                                          <div className="space-y-2">
+                                            <Label>Section Type</Label>
+                                            <Select value={pe.sectionType || "Normal"} onValueChange={(v) => updateProgExercise(pe.id, "sectionType", v)}>
+                                              <SelectTrigger><SelectValue /></SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="Normal">Normal Block</SelectItem>
+                                                <SelectItem value="AMRAP">AMRAP Block</SelectItem>
+                                                <SelectItem value="EMOM">EMOM Block</SelectItem>
+                                                <SelectItem value="Circuit">Circuit Block</SelectItem>
+                                                <SelectItem value="AI Engine">AI Engine Builder</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div className="space-y-2 md:col-span-2">
+                                            <Label>Description / Time (Optional)</Label>
+                                            <Input value={pe.description || ""} onChange={(e) => updateProgExercise(pe.id, "description", e.target.value)} placeholder={pe.sectionType === 'AMRAP' ? "e.g. 15 Minutes" : "e.g. Complete 3 rounds..."} />
+                                          </div>
+                                          {pe.sectionType === "AI Engine" && (
+                                            <div className="md:col-span-2 pt-2">
+                                              <Button 
+                                                variant="default" 
+                                                className="w-full gap-2 bg-primary text-primary-foreground font-bold tracking-wide"
+                                                onClick={() => handleGenerateEngineWorkout(pe.id)}
+                                                disabled={isGeneratingAI}
+                                              >
+                                                {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} 
+                                                {isGeneratingAI ? "Generating..." : "Generate 40-Min Engine Workout"}
+                                              </Button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <div className="flex-1 flex flex-col gap-4">
+                                          <div className="flex gap-4 items-end flex-wrap">
                                             <div className="space-y-2 w-32 shrink-0">
                                               <Label>Block Type</Label>
                                               <Select value={pe.blockType || "Strength"} onValueChange={(v) => {
@@ -1018,69 +1668,84 @@ const Admin = () => {
                                                 </SelectContent>
                                               </Select>
                                             </div>
-                                            <div className="space-y-2 flex-1">
-                                              <Label>Exercise</Label>
-                                              <Select value={pe.name} onValueChange={(v) => updateProgExercise(pe.id, "name", v)}>
-                                                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                                                <SelectContent>
-                                                  <div className="p-2">
-                                                    <Input 
-                                                      placeholder="Search exercises..." 
-                                                      value={exerciseSearch} 
-                                                      onChange={e => setExerciseSearch(e.target.value)}
-                                                      className="mb-2 h-8"
-                                                      onKeyDown={e => e.stopPropagation()}
-                                                    />
-                                                  </div>
-                                                  {exercises
-                                                    .filter(ex => {
-                                                      if (!pe.blockType) return true;
-                                                      const cats = Array.isArray(ex.category) ? ex.category : [ex.category || "Strength"];
-                                                      return cats.includes(pe.blockType);
-                                                    })
-                                                    .filter(ex => ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()))
-                                                    .sort((a, b) => a.name.localeCompare(b.name))
-                                                    .map(ex => (
-                                                      <SelectItem key={ex.id} value={ex.id}>{ex.name} {ex.movementType ? `(${Array.isArray(ex.movementType) ? ex.movementType.join(", ") : ex.movementType})` : ""}</SelectItem>
-                                                  ))}
-                                                </SelectContent>
-                                              </Select>
+                                            <div className="space-y-2 flex-1 flex gap-2 items-end">
+                                              <div className="flex-1">
+                                                <Label>Exercise</Label>
+                                                <Select value={pe.name} onValueChange={(v) => updateProgExercise(pe.id, "name", v)}>
+                                                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                                                  <SelectContent>
+                                                    <div className="p-2">
+                                                      <Input 
+                                                        placeholder="Search exercises..." 
+                                                        value={exerciseSearch} 
+                                                        onChange={e => setExerciseSearch(e.target.value)}
+                                                        className="mb-2 h-8"
+                                                        onKeyDown={e => e.stopPropagation()}
+                                                      />
+                                                    </div>
+                                                    {exercises
+                                                      .filter(ex => {
+                                                        if (!pe.blockType) return true;
+                                                        const cats = Array.isArray(ex.category) ? ex.category : [ex.category || "Strength"];
+                                                        return cats.includes(pe.blockType);
+                                                      })
+                                                      .filter(ex => ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()))
+                                                      .sort((a, b) => a.name.localeCompare(b.name))
+                                                      .map(ex => (
+                                                        <SelectItem key={ex.id} value={ex.id}>{ex.name} {ex.movementType ? `(${Array.isArray(ex.movementType) ? ex.movementType.join(", ") : ex.movementType})` : ""}</SelectItem>
+                                                    ))}
+                                                  </SelectContent>
+                                                </Select>
+                                              </div>
+                                              <Button variant="outline" size="icon" onClick={() => handleShuffleExercise(pe.id)} title="Shuffle Exercise">
+                                                <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.84998 7.49998C1.84998 4.66458 4.05979 2.23981 6.89998 1.92253V0.845728C3.47344 1.16915 0.849976 4.0402 0.849976 7.49998C0.849976 10.9598 3.47344 13.8308 6.89998 14.1542V13.0774C4.05979 12.7601 1.84998 10.3354 1.84998 7.49998ZM13.15 7.49998C13.15 10.3354 10.9402 12.7601 8.09998 13.0774V14.1542C11.5265 13.8308 14.15 10.9598 14.15 7.49998C14.15 4.0402 11.5265 1.16915 8.09998 0.845728V1.92253C10.9402 2.23981 13.15 4.66458 13.15 7.49998Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path></svg>
+                                              </Button>
                                             </div>
                                             {(() => {
                                               const libEx = exercises.find(e => e.id === pe.name);
-                                              const trackType = libEx?.trackingType || "Weight & Reps";
+                                              const trackType = libEx?.trackingType || ["Weight & Reps"];
+                                              const trackingArray = Array.isArray(trackType) ? trackType : [trackType];
+                                              
+                                              // Deduplicate time inputs if both Distance & Time and Time Only are selected
+                                              const showTimeMins = trackingArray.includes('Distance & Time') || trackingArray.includes('Time Only');
+                                              const showTimeSecs = trackingArray.includes('Time Only');
+                                              
                                               return (
                                                 <>
-                                                  <div className="space-y-2 w-16">
-                                                    <Label>Sets</Label>
-                                                    <Input type="number" value={pe.sets} onChange={(e) => updateProgExercise(pe.id, "sets", parseInt(e.target.value) || 0)} />
-                                                  </div>
-                                                  {trackType === 'Distance & Time' ? (
-                                                    <>
-                                                      <div className="space-y-2 w-20">
-                                                        <Label>Metres</Label>
-                                                        <Input type="number" value={pe.distance || 0} onChange={(e) => updateProgExercise(pe.id, "distance", parseInt(e.target.value) || 0)} />
-                                                      </div>
-                                                      <div className="space-y-2 w-16">
-                                                        <Label>Mins</Label>
-                                                        <Input type="number" value={pe.timeMins || 0} onChange={(e) => updateProgExercise(pe.id, "timeMins", parseInt(e.target.value) || 0)} />
-                                                      </div>
-                                                    </>
-                                                  ) : trackType === 'Time Only' ? (
+                                                  {trackingArray.includes('Weight & Reps') && (
                                                     <>
                                                       <div className="space-y-2 w-16">
-                                                        <Label>Mins</Label>
-                                                        <Input type="number" value={pe.timeMins || 0} onChange={(e) => updateProgExercise(pe.id, "timeMins", parseInt(e.target.value) || 0)} />
+                                                        <Label>Sets</Label>
+                                                        <Input type="number" value={pe.sets} onChange={(e) => updateProgExercise(pe.id, "sets", parseInt(e.target.value) || 0)} />
                                                       </div>
                                                       <div className="space-y-2 w-16">
-                                                        <Label>Secs</Label>
-                                                        <Input type="number" value={pe.timeSecs || 0} onChange={(e) => updateProgExercise(pe.id, "timeSecs", parseInt(e.target.value) || 0)} />
+                                                        <Label>Reps</Label>
+                                                        <Input type="number" value={pe.reps} onChange={(e) => updateProgExercise(pe.id, "reps", parseInt(e.target.value) || 0)} />
                                                       </div>
                                                     </>
-                                                  ) : (
+                                                  )}
+                                                  {trackingArray.includes('Distance & Time') && (
+                                                    <div className="space-y-2 w-20">
+                                                      <Label>Metres</Label>
+                                                      <Input type="number" value={pe.distance || 0} onChange={(e) => updateProgExercise(pe.id, "distance", parseInt(e.target.value) || 0)} />
+                                                    </div>
+                                                  )}
+                                                  {showTimeMins && (
                                                     <div className="space-y-2 w-16">
-                                                      <Label>Reps</Label>
-                                                      <Input type="number" value={pe.reps} onChange={(e) => updateProgExercise(pe.id, "reps", parseInt(e.target.value) || 0)} />
+                                                      <Label>Mins</Label>
+                                                      <Input type="number" value={pe.timeMins || 0} onChange={(e) => updateProgExercise(pe.id, "timeMins", parseInt(e.target.value) || 0)} />
+                                                    </div>
+                                                  )}
+                                                  {showTimeSecs && (
+                                                    <div className="space-y-2 w-16">
+                                                      <Label>Secs</Label>
+                                                      <Input type="number" value={pe.timeSecs || 0} onChange={(e) => updateProgExercise(pe.id, "timeSecs", parseInt(e.target.value) || 0)} />
+                                                    </div>
+                                                  )}
+                                                  {trackingArray.includes('Calories') && (
+                                                    <div className="space-y-2 w-16">
+                                                      <Label>Cals</Label>
+                                                      <Input type="number" value={pe.calories || 0} onChange={(e) => updateProgExercise(pe.id, "calories", parseInt(e.target.value) || 0)} />
                                                     </div>
                                                   )}
                                                 </>
@@ -1099,7 +1764,7 @@ const Admin = () => {
                                               />
                                             </div>
                                             <div className="space-y-2 w-16 flex flex-col items-center">
-                                              <Label className="text-center w-full">Superset</Label>
+                                              <Label className="text-[10px] uppercase text-center w-full">Superset</Label>
                                               <Button 
                                                 variant={pe.linkedToNext ? "default" : "outline"} 
                                                 size="icon" 
@@ -1110,16 +1775,30 @@ const Admin = () => {
                                                 {pe.linkedToNext ? <Link2Off className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
                                               </Button>
                                             </div>
-                                          </>
-                                        )}
-                                        
-                                        <Button variant="ghost" size="icon" className={`text-destructive shrink-0 self-center ${pe.isSection ? 'mt-6' : ''}`} onClick={() => handleRemoveProgExercise(pe.id)}>
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </div>
+                                          </div>
+                                          <div className="w-full flex gap-2">
+                                            <Input 
+                                              placeholder="Staff Notes (e.g. Cues, substitutions) - Not visible to members" 
+                                              value={pe.staffNotes || ""}
+                                              onChange={(e) => updateProgExercise(pe.id, "staffNotes", e.target.value)}
+                                              className="text-sm bg-muted/30 border-dashed flex-1"
+                                            />
+                                            {newProgType === "program" && (
+                                              <Button variant="outline" size="sm" onClick={() => handleApplyToWeek(pe.id)}>
+                                                Apply to Week
+                                              </Button>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      <Button variant="ghost" size="icon" className={`text-destructive shrink-0 self-center ${pe.isSection ? 'mt-6' : ''}`} onClick={() => handleRemoveProgExercise(pe.id)}>
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
                                   )}
                                 </Draggable>
-                              ))}
+                              )))}
                               {provided.placeholder}
                             </div>
                           )}
@@ -1127,9 +1806,20 @@ const Admin = () => {
                       </DragDropContext>
                       
                       <div className="flex gap-2 justify-center pt-4 border-t border-border mt-4">
-                        <Button variant="outline" size="sm" onClick={handleAddProgSection} className="gap-2">
-                          <Heading className="h-4 w-4" /> Add Section
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="gap-2">
+                              <Heading className="h-4 w-4" /> Add Section
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => handleAddProgSection("Normal")}>Normal Block</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleAddProgSection("AMRAP")}>AMRAP Block</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleAddProgSection("EMOM")}>EMOM Block</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleAddProgSection("Circuit")}>Circuit Block</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleAddProgSection("AI Engine")}>AI Engine Builder</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                         <Button variant="outline" size="sm" onClick={handleAddProgExercise} className="gap-2">
                           <Plus className="h-4 w-4" /> Add Exercise
                         </Button>
@@ -1281,7 +1971,7 @@ const Admin = () => {
                           <div className="flex justify-between items-center">
                             <CardTitle className="text-base">{workout.name || "Workout Session"}</CardTitle>
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Calendar className="h-3 w-3" />
+                              <CalendarIcon className="h-3 w-3" />
                               {new Date(workout.date).toLocaleDateString()}
                             </div>
                           </div>
@@ -1409,6 +2099,300 @@ const Admin = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="calendar" className="space-y-6 mt-6">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle>Schedule Workouts</CardTitle>
+              <CardDescription>Assign programs or specific sessions to dates.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={setSelectedDate}
+                    className="rounded-md border bg-card"
+                  />
+                </div>
+                <div className="space-y-4">
+                  <h3 className="text-lg font-bold">
+                    {selectedDate ? `Schedule for ${selectedDate.toLocaleDateString()}` : "Select a date"}
+                  </h3>
+                  {selectedDate && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Select Program</Label>
+                        <Select value={scheduleProgramId} onValueChange={(v) => { setScheduleProgramId(v); setScheduleWorkoutId(''); }}>
+                          <SelectTrigger><SelectValue placeholder="Select a program" /></SelectTrigger>
+                          <SelectContent>
+                            {programs.map(p => (
+                              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {scheduleProgramId && (
+                        <div className="space-y-2">
+                          <Label>Select Session</Label>
+                          <Select value={scheduleWorkoutId} onValueChange={setScheduleWorkoutId}>
+                            <SelectTrigger><SelectValue placeholder="Select a session" /></SelectTrigger>
+                            <SelectContent>
+                              {programs.find(p => p.id === scheduleProgramId)?.workouts?.map((w: any, idx: number) => (
+                                <SelectItem key={idx} value={idx.toString()}>{w.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      <Button 
+                        className="w-full"
+                        disabled={!scheduleProgramId || !scheduleWorkoutId}
+                        onClick={() => {
+                          const dateStr = selectedDate.toISOString().split('T')[0];
+                          const newEvent = {
+                            id: Date.now().toString(),
+                            date: dateStr,
+                            programId: scheduleProgramId,
+                            workoutIndex: scheduleWorkoutId,
+                            programName: programs.find(p => p.id === scheduleProgramId)?.name,
+                            workoutName: programs.find(p => p.id === scheduleProgramId)?.workouts[parseInt(scheduleWorkoutId)]?.name
+                          };
+                          saveScheduledEvents([...scheduledEvents, newEvent]);
+                          toast.success("Scheduled successfully!");
+                          setScheduleProgramId('');
+                          setScheduleWorkoutId('');
+                        }}
+                      >
+                        Schedule Session
+                      </Button>
+
+                      <div className="pt-6">
+                        <h4 className="font-bold mb-2">Scheduled on this date:</h4>
+                        <div className="space-y-2">
+                          {scheduledEvents.filter(e => e.date === selectedDate.toISOString().split('T')[0]).map(event => (
+                            <div key={event.id} className="flex items-center justify-between p-3 border border-border rounded-md bg-muted/30">
+                              <div>
+                                <div className="font-bold text-sm">{event.programName}</div>
+                                <div className="text-xs text-muted-foreground">{event.workoutName}</div>
+                              </div>
+                              <Button variant="ghost" size="icon" className="text-destructive" onClick={() => {
+                                saveScheduledEvents(scheduledEvents.filter(e => e.id !== event.id));
+                              }}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                          {scheduledEvents.filter(e => e.date === selectedDate.toISOString().split('T')[0]).length === 0 && (
+                            <div className="text-sm text-muted-foreground">No sessions scheduled.</div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="display" className="space-y-6 mt-6">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle>TV Display Settings</CardTitle>
+              <CardDescription>Manage presets and launch the TV display for your programs.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-bold">Launch Display</h3>
+                  <div className="space-y-2">
+                    <Label>Select Program</Label>
+                    <Select value={selectedDisplayProgramId} onValueChange={(v) => { setSelectedDisplayProgramId(v); setSelectedDisplayWorkoutId(''); }}>
+                      <SelectTrigger><SelectValue placeholder="Select a program" /></SelectTrigger>
+                      <SelectContent>
+                        {programs.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedDisplayProgramId && (
+                    <div className="space-y-2">
+                      <Label>Select Session</Label>
+                      <Select value={selectedDisplayWorkoutId} onValueChange={setSelectedDisplayWorkoutId}>
+                        <SelectTrigger><SelectValue placeholder="Select a session" /></SelectTrigger>
+                        <SelectContent>
+                          {programs.find(p => p.id === selectedDisplayProgramId)?.workouts?.map((w: any, idx: number) => (
+                            <SelectItem key={idx} value={idx.toString()}>{w.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label>Select Preset</Label>
+                    <Select value={selectedPresetId} onValueChange={setSelectedPresetId}>
+                      <SelectTrigger><SelectValue placeholder="Select a preset" /></SelectTrigger>
+                      <SelectContent>
+                        {displayPresets.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button 
+                    className="w-full gap-2" 
+                    disabled={!selectedDisplayProgramId || !selectedDisplayWorkoutId}
+                    onClick={() => window.open(`/tv/${selectedDisplayProgramId}/${selectedDisplayWorkoutId}?preset=${selectedPresetId}`, '_blank')}
+                  >
+                    <PlayCircle className="h-4 w-4" /> Launch TV Display
+                  </Button>
+                </div>
+                
+                <div className="space-y-4 border-l border-border pl-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold">Manage Presets</h3>
+                    <Button variant="outline" size="sm" onClick={() => {
+                      const newId = 'preset_' + Date.now();
+                      savePresets([...displayPresets, { ...displayPresets[0], id: newId, name: 'New Preset' }]);
+                      setEditingPresetId(newId);
+                    }}>
+                      <Plus className="h-4 w-4 mr-2" /> New Preset
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {displayPresets.map(preset => (
+                      <div key={preset.id} className="flex items-center justify-between p-3 border border-border rounded-md bg-muted/30">
+                        <span>{preset.name}</span>
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="icon" onClick={() => setEditingPresetId(preset.id)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          {preset.id !== 'default' && (
+                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => {
+                              savePresets(displayPresets.filter(p => p.id !== preset.id));
+                              if (selectedPresetId === preset.id) setSelectedPresetId('default');
+                            }}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="settings" className="space-y-6 mt-6">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle>AI Settings</CardTitle>
+              <CardDescription>Configure your AI brain (Claude) for automatic workout generation.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Anthropic API Key</Label>
+                <Input 
+                  type="password" 
+                  value={anthropicKey} 
+                  onChange={e => {
+                    setAnthropicKey(e.target.value);
+                    saveAnthropicKey(e.target.value);
+                  }} 
+                  placeholder="sk-ant-api03-..." 
+                />
+                <p className="text-xs text-muted-foreground pt-1">
+                  Your API key is stored securely on your device and synced to your profile. It is used directly from your browser to call Claude.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <Dialog open={!!editingPresetId} onOpenChange={(open) => !open && setEditingPresetId(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Display Preset</DialogTitle>
+            </DialogHeader>
+            {editingPresetId && (() => {
+              const preset = displayPresets.find(p => p.id === editingPresetId);
+              if (!preset) return null;
+              
+              const updatePreset = (field: string, subfield: string | null, value: any) => {
+                const updated = displayPresets.map(p => {
+                  if (p.id === editingPresetId) {
+                    if (subfield) {
+                      return { ...p, [field]: { ...p[field], [subfield]: value } };
+                    }
+                    return { ...p, [field]: value };
+                  }
+                  return p;
+                });
+                savePresets(updated);
+              };
+
+              return (
+                <div className="space-y-6 py-4">
+                  <div className="space-y-2">
+                    <Label>Preset Name</Label>
+                    <Input value={preset.name} onChange={e => updatePreset('name', null, e.target.value)} />
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <h4 className="font-bold border-b pb-2">Layout</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Orientation</Label>
+                        <Select value={preset.layout.orientation} onValueChange={v => updatePreset('layout', 'orientation', v)}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="landscape">Landscape</SelectItem>
+                            <SelectItem value="portrait">Portrait</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center space-x-2 pt-8">
+                        <Checkbox id="showRest" checked={preset.layout.showRest} onCheckedChange={c => updatePreset('layout', 'showRest', !!c)} />
+                        <label htmlFor="showRest" className="text-sm">Show Rest Times</label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="showHeaders" checked={preset.layout.showHeaders} onCheckedChange={c => updatePreset('layout', 'showHeaders', !!c)} />
+                        <label htmlFor="showHeaders" className="text-sm">Show Column Headers</label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="showDuration" checked={preset.layout.showDuration} onCheckedChange={c => updatePreset('layout', 'showDuration', !!c)} />
+                        <label htmlFor="showDuration" className="text-sm">Show Duration</label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="font-bold border-b pb-2">Colors</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Background Color</Label>
+                        <Input type="color" value={preset.colors.background} onChange={e => updatePreset('colors', 'background', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Block Color</Label>
+                        <Input type="color" value={preset.colors.blockBackground} onChange={e => updatePreset('colors', 'blockBackground', e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+            <DialogFooter>
+              <Button onClick={() => setEditingPresetId(null)}>Done</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </Tabs>
     </div>
   );

@@ -1,17 +1,17 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 export const defaultExercises = [
-  { id: "bench", name: "Bench Press", category: "Strength", muscle: "Chest", equipment: "Barbell", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push", trackingType: "Weight & Reps" },
-  { id: "squat", name: "Squat", category: "Strength", muscle: "Legs", equipment: "Barbell", difficulty: "Advanced", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Knee", trackingType: "Weight & Reps" },
-  { id: "deadlift", name: "Deadlift", category: "Strength", muscle: "Back", equipment: "Barbell", difficulty: "Advanced", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Hip", trackingType: "Weight & Reps" },
-  { id: "pullup", name: "Pull-up", category: "Strength", muscle: "Back", equipment: "Bodyweight", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Pull", trackingType: "Weight & Reps" },
-  { id: "pushup", name: "Push-up", category: "Strength", muscle: "Chest", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push", trackingType: "Weight & Reps" },
-  { id: "curl", name: "Dumbbell Curl", category: "Strength", muscle: "Biceps", equipment: "Dumbbell", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Accessory", trackingType: "Weight & Reps" },
-  { id: "legpress", name: "Leg Press", category: "Strength", muscle: "Legs", equipment: "Machine", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Knee", trackingType: "Weight & Reps" },
-  { id: "ohp", name: "Overhead Press", category: "Strength", muscle: "Shoulders", equipment: "Barbell", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push", trackingType: "Weight & Reps" },
-  { id: "treadmill", name: "Treadmill Run", category: "Cardio", muscle: "Full Body", equipment: "Machine", difficulty: "Beginner", videoUrl: "", movementType: "Conditioning", trackingType: "Distance & Time" },
-  { id: "stretching", name: "Dynamic Stretching", category: "Mobility", muscle: "Full Body", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "", movementType: "Warm Up", trackingType: "Time Only" },
-  { id: "glutebridge", name: "Glute Bridge", category: "Activation", muscle: "Legs", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "", movementType: "Fire Up", trackingType: "Weight & Reps" },
+  { id: "bench", name: "Bench Press", category: "Strength", muscle: "Chest", equipment: "Barbell", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push", trackingType: ["Weight & Reps"] },
+  { id: "squat", name: "Squat", category: "Strength", muscle: "Legs", equipment: "Barbell", difficulty: "Advanced", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Knee", trackingType: ["Weight & Reps"] },
+  { id: "deadlift", name: "Deadlift", category: "Strength", muscle: "Back", equipment: "Barbell", difficulty: "Advanced", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Hip", trackingType: ["Weight & Reps"] },
+  { id: "pullup", name: "Pull-up", category: "Strength", muscle: "Back", equipment: "Bodyweight", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Pull", trackingType: ["Weight & Reps"] },
+  { id: "pushup", name: "Push-up", category: "Strength", muscle: "Chest", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push", trackingType: ["Weight & Reps"] },
+  { id: "curl", name: "Dumbbell Curl", category: "Strength", muscle: "Biceps", equipment: "Dumbbell", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Accessory", trackingType: ["Weight & Reps"] },
+  { id: "legpress", name: "Leg Press", category: "Strength", muscle: "Legs", equipment: "Machine", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Knee", trackingType: ["Weight & Reps"] },
+  { id: "ohp", name: "Overhead Press", category: "Strength", muscle: "Shoulders", equipment: "Barbell", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push", trackingType: ["Weight & Reps"] },
+  { id: "treadmill", name: "Treadmill Run", category: "Cardio", muscle: "Full Body", equipment: "Machine", difficulty: "Beginner", videoUrl: "", movementType: "Conditioning", trackingType: ["Distance & Time", "Calories"] },
+  { id: "stretching", name: "Dynamic Stretching", category: "Mobility", muscle: "Full Body", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "", movementType: "Warm Up", trackingType: ["Time Only"] },
+  { id: "glutebridge", name: "Glute Bridge", category: "Activation", muscle: "Legs", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "", movementType: "Fire Up", trackingType: ["Weight & Reps"] },
 ];
 
 export const defaultPrograms = [
@@ -71,7 +71,7 @@ export const saveExercises = async (exercises: any[]) => {
           // Convert array to string for the database text column
           category: Array.isArray(e.category) ? e.category.join(', ') : e.category,
           movementType: movType,
-          trackingType: e.trackingType || 'Weight & Reps'
+          trackingType: Array.isArray(e.trackingType) ? e.trackingType.join(', ') : e.trackingType || 'Weight & Reps'
         };
       });
 
@@ -370,6 +370,19 @@ export const saveVimeoToken = (token: string) => {
   });
 };
 
+export const getAnthropicKey = () => {
+  return localStorage.getItem('fittrack_anthropic_key') || "";
+};
+
+export const saveAnthropicKey = (key: string) => {
+  localStorage.setItem('fittrack_anthropic_key', key);
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      supabase.from('user_settings').upsert({ user_id: user.id, key: 'anthropic_key', value: key }, { onConflict: 'user_id, key' }).then();
+    }
+  });
+};
+
 export const getCommunityPosts = () => {
   const local = localStorage.getItem('fittrack_community_posts');
   return local ? JSON.parse(local) : [];
@@ -483,7 +496,8 @@ export const syncFromSupabase = async () => {
         .map(e => ({
           ...e,
           category: typeof e.category === 'string' ? e.category.split(', ') : e.category,
-          movementType: typeof e.movementType === 'string' ? e.movementType.split(', ') : e.movementType
+          movementType: typeof e.movementType === 'string' ? e.movementType.split(', ') : e.movementType,
+          trackingType: typeof e.trackingType === 'string' ? e.trackingType.split(', ') : e.trackingType
         }));
       localStorage.setItem('fittrack_exercises', JSON.stringify(parsedEx));
     }
@@ -523,6 +537,9 @@ export const syncFromSupabase = async () => {
     if (settings) {
       const vimeo = settings.find(s => s.key === 'vimeo_token');
       if (vimeo) localStorage.setItem('fittrack_vimeo_token', vimeo.value);
+      
+      const anthropic = settings.find(s => s.key === 'anthropic_key');
+      if (anthropic) localStorage.setItem('fittrack_anthropic_key', anthropic.value);
       
       const activeProg = settings.find(s => s.key === 'active_program');
       if (activeProg) {

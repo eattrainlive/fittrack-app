@@ -805,8 +805,27 @@ const Workouts = () => {
 
                           <div className="space-y-6">
                             {Array.from({ length: Math.max(...currentBlock.exercises.map((e: any) => e.setsData?.length || 0)) }).map((_, roundIndex) => {
-                              const firstLibraryExercise = exerciseLibrary.find(e => e.id === currentBlock.exercises[0]?.name);
-                              const trackingType = firstLibraryExercise?.trackingType || "Weight & Reps";
+                              const allTrackingTypes = currentBlock.exercises.flatMap((e: any) => {
+                                const libEx = exerciseLibrary.find(le => le.id === e.name);
+                                return Array.isArray(libEx?.trackingType) ? libEx.trackingType : [libEx?.trackingType || "Weight & Reps"];
+                              });
+                              const trackingArray = Array.from(new Set(allTrackingTypes));
+                              
+                              const showWeight = trackingArray.includes('Weight & Reps');
+                              const showReps = trackingArray.includes('Weight & Reps');
+                              const showDistance = trackingArray.includes('Distance & Time');
+                              const showTimeMins = trackingArray.includes('Distance & Time') || trackingArray.includes('Time Only');
+                              const showTimeSecs = trackingArray.includes('Time Only');
+                              const showCalories = trackingArray.includes('Calories');
+
+                              const activeCols = [
+                                showWeight && { label: 'KG', field: 'weight', step: 2.5, isDecimal: true },
+                                showReps && { label: 'Reps', field: 'reps', step: 1 },
+                                showDistance && { label: 'Metres', field: 'distance', step: 50 },
+                                showTimeMins && { label: 'Mins', field: 'timeMins', step: 1 },
+                                showTimeSecs && { label: 'Secs', field: 'timeSecs', step: 5 },
+                                showCalories && { label: 'Cals', field: 'calories', step: 1 }
+                              ].filter(Boolean) as any[];
                               
                               return (
                               <div key={roundIndex} className="space-y-2">
@@ -815,10 +834,14 @@ const Workouts = () => {
                                   <div className="h-px bg-border flex-1"></div>
                                 </h4>
                                 
-                                <div className="grid grid-cols-[40px_1fr_1fr_48px] gap-1 items-center text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 mb-1">
+                                <div 
+                                  className="grid gap-1 items-center text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 mb-1"
+                                  style={{ gridTemplateColumns: `40px repeat(${Math.max(1, activeCols.length)}, 1fr) 48px` }}
+                                >
                                   <div className="text-center">Ex</div>
-                                  <div className="text-center">{trackingType === 'Distance & Time' ? 'Metres' : trackingType === 'Time Only' ? 'Mins' : 'KG'}</div>
-                                  <div className="text-center">{trackingType === 'Distance & Time' ? 'Mins' : trackingType === 'Time Only' ? 'Secs' : 'Reps'}</div>
+                                  {activeCols.map((col, i) => (
+                                    <div key={i} className="text-center">{col.label}</div>
+                                  ))}
                                   <div className="flex justify-center"><Check className="h-3 w-3" /></div>
                                 </div>
                                 
@@ -828,37 +851,29 @@ const Workouts = () => {
                                   const letter = String.fromCharCode(65 + exIdx);
                                   
                                   return (
-                                    <div key={set.id} className={`grid grid-cols-[40px_1fr_1fr_48px] gap-1 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary/20 border border-primary/50' : 'bg-background border border-border'}`}>
+                                    <div 
+                                      key={set.id} 
+                                      className={`grid gap-1 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary/20 border border-primary/50' : 'bg-background border border-border'}`}
+                                      style={{ gridTemplateColumns: `40px repeat(${Math.max(1, activeCols.length)}, 1fr) 48px` }}
+                                    >
                                       <div className="text-sm font-bold text-center text-primary shrink-0">{letter}</div>
-                                      <div className="flex justify-center">
-                                        <Stepper 
-                                          value={trackingType === 'Distance & Time' ? set.distance : trackingType === 'Time Only' ? set.timeMins : set.weight} 
-                                          onChange={(v: number) => {
-                                            const newSets = [...exercise.setsData];
-                                            if (trackingType === 'Distance & Time') newSets[roundIndex] = { ...set, distance: v };
-                                            else if (trackingType === 'Time Only') newSets[roundIndex] = { ...set, timeMins: v };
-                                            else newSets[roundIndex] = { ...set, weight: v };
-                                            updateExercise(exercise.id, "setsData", newSets);
-                                          }}
-                                          step={trackingType === 'Distance & Time' ? 50 : trackingType === 'Time Only' ? 1 : 2.5}
-                                          isDecimal={trackingType === 'Weight & Reps'}
-                                          completed={set.completed}
-                                        />
-                                      </div>
-                                      <div className="flex justify-center">
-                                        <Stepper 
-                                          value={trackingType === 'Distance & Time' ? set.timeMins : trackingType === 'Time Only' ? set.timeSecs : set.reps} 
-                                          onChange={(v: number) => {
-                                            const newSets = [...exercise.setsData];
-                                            if (trackingType === 'Distance & Time') newSets[roundIndex] = { ...set, timeMins: v };
-                                            else if (trackingType === 'Time Only') newSets[roundIndex] = { ...set, timeSecs: v };
-                                            else newSets[roundIndex] = { ...set, reps: v };
-                                            updateExercise(exercise.id, "setsData", newSets);
-                                          }}
-                                          step={trackingType === 'Time Only' ? 5 : 1}
-                                          completed={set.completed}
-                                        />
-                                      </div>
+                                      
+                                      {activeCols.map((col, i) => (
+                                        <div key={i} className="flex justify-center">
+                                          <Stepper 
+                                            value={set[col.field] || 0} 
+                                            onChange={(v: number) => {
+                                              const newSets = [...exercise.setsData];
+                                              newSets[roundIndex] = { ...set, [col.field]: v };
+                                              updateExercise(exercise.id, "setsData", newSets);
+                                            }}
+                                            step={col.step}
+                                            isDecimal={col.isDecimal}
+                                            completed={set.completed}
+                                          />
+                                        </div>
+                                      ))}
+
                                       <div className="flex justify-center shrink-0">
                                           <button 
                                             onClick={() => {
@@ -1002,48 +1017,61 @@ const Workouts = () => {
 
                                   <div className="w-full">
                                     {(() => {
-                                      const trackingType = libraryExercise?.trackingType || "Weight & Reps";
+                                      const trackingArray = Array.isArray(libraryExercise?.trackingType) ? libraryExercise.trackingType : [libraryExercise?.trackingType || "Weight & Reps"];
+                                      
+                                      const showWeight = trackingArray.includes('Weight & Reps');
+                                      const showReps = trackingArray.includes('Weight & Reps');
+                                      const showDistance = trackingArray.includes('Distance & Time');
+                                      const showTimeMins = trackingArray.includes('Distance & Time') || trackingArray.includes('Time Only');
+                                      const showTimeSecs = trackingArray.includes('Time Only');
+                                      const showCalories = trackingArray.includes('Calories');
+
+                                      const activeCols = [
+                                        showWeight && { label: 'KG', field: 'weight', step: 2.5, isDecimal: true },
+                                        showReps && { label: 'Reps', field: 'reps', step: 1 },
+                                        showDistance && { label: 'Metres', field: 'distance', step: 50 },
+                                        showTimeMins && { label: 'Mins', field: 'timeMins', step: 1 },
+                                        showTimeSecs && { label: 'Secs', field: 'timeSecs', step: 5 },
+                                        showCalories && { label: 'Cals', field: 'calories', step: 1 }
+                                      ].filter(Boolean) as any[];
+
                                       return (
                                         <>
-                                          <div className="grid grid-cols-[40px_1fr_1fr_48px] gap-1 items-center text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 mb-2">
+                                          <div 
+                                            className="grid gap-1 items-center text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 mb-2"
+                                            style={{ gridTemplateColumns: `40px repeat(${Math.max(1, activeCols.length)}, 1fr) 48px` }}
+                                          >
                                             <div className="text-center">Set</div>
-                                            <div className="text-center">{trackingType === 'Distance & Time' ? 'Metres' : trackingType === 'Time Only' ? 'Mins' : 'KG'}</div>
-                                            <div className="text-center">{trackingType === 'Distance & Time' ? 'Mins' : trackingType === 'Time Only' ? 'Secs' : 'Reps'}</div>
+                                            {activeCols.map((col, i) => (
+                                              <div key={i} className="text-center">{col.label}</div>
+                                            ))}
                                             <div className="flex justify-center"><Check className="h-3 w-3" /></div>
                                           </div>
                                           <div className="space-y-2">
                                             {exercise.setsData?.map((set: any, setIndex: number) => (
-                                              <div key={set.id} className={`grid grid-cols-[40px_1fr_1fr_48px] gap-1 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary/20 border border-primary/50' : 'bg-background border border-border'}`}>
+                                              <div 
+                                                key={set.id} 
+                                                className={`grid gap-1 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary/20 border border-primary/50' : 'bg-background border border-border'}`}
+                                                style={{ gridTemplateColumns: `40px repeat(${Math.max(1, activeCols.length)}, 1fr) 48px` }}
+                                              >
                                                 <div className="text-sm font-bold text-center text-muted-foreground shrink-0">{setIndex + 1}</div>
-                                                <div className="flex justify-center">
-                                                  <Stepper 
-                                                    value={trackingType === 'Distance & Time' ? set.distance : trackingType === 'Time Only' ? set.timeMins : set.weight} 
-                                                    onChange={(v: number) => {
-                                                      const newSets = [...exercise.setsData];
-                                                      if (trackingType === 'Distance & Time') newSets[setIndex] = { ...set, distance: v };
-                                                      else if (trackingType === 'Time Only') newSets[setIndex] = { ...set, timeMins: v };
-                                                      else newSets[setIndex] = { ...set, weight: v };
-                                                      updateExercise(exercise.id, "setsData", newSets);
-                                                    }}
-                                                    step={trackingType === 'Distance & Time' ? 50 : trackingType === 'Time Only' ? 1 : 2.5}
-                                                    isDecimal={trackingType === 'Weight & Reps'}
-                                                    completed={set.completed}
-                                                  />
-                                                </div>
-                                                <div className="flex justify-center">
-                                                  <Stepper 
-                                                    value={trackingType === 'Distance & Time' ? set.timeMins : trackingType === 'Time Only' ? set.timeSecs : set.reps} 
-                                                    onChange={(v: number) => {
-                                                      const newSets = [...exercise.setsData];
-                                                      if (trackingType === 'Distance & Time') newSets[setIndex] = { ...set, timeMins: v };
-                                                      else if (trackingType === 'Time Only') newSets[setIndex] = { ...set, timeSecs: v };
-                                                      else newSets[setIndex] = { ...set, reps: v };
-                                                      updateExercise(exercise.id, "setsData", newSets);
-                                                    }}
-                                                    step={trackingType === 'Time Only' ? 5 : 1}
-                                                    completed={set.completed}
-                                                  />
-                                                </div>
+                                                
+                                                {activeCols.map((col, i) => (
+                                                  <div key={i} className="flex justify-center">
+                                                    <Stepper 
+                                                      value={set[col.field] || 0} 
+                                                      onChange={(v: number) => {
+                                                        const newSets = [...exercise.setsData];
+                                                        newSets[setIndex] = { ...set, [col.field]: v };
+                                                        updateExercise(exercise.id, "setsData", newSets);
+                                                      }}
+                                                      step={col.step}
+                                                      isDecimal={col.isDecimal}
+                                                      completed={set.completed}
+                                                    />
+                                                  </div>
+                                                ))}
+
                                             <div className="flex justify-center shrink-0">
                                                 <button 
                                                   onClick={() => {
