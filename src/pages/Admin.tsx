@@ -60,6 +60,7 @@ const Admin = () => {
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(0);
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [selectedDay, setSelectedDay] = useState(1);
+  const [progViewMode, setProgViewMode] = useState<"day" | "full">("day");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -788,6 +789,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     
     setProgWorkouts(workouts);
     setSelectedWorkoutIndex(0);
+    setProgViewMode("day");
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -913,84 +915,139 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     savePrograms(updated);
   };
 
-  const [genWeek, setGenWeek] = useState(0);
+  const [genProgress, setGenProgress] = useState<string | null>(null);
 
-  const handleEdgeFunctionAI = async (workoutIndex: number | null, action: "generate" | "regenerate" | "edit" | "full_program") => {
+  const mergeCells = (grid: any[], cells: any[]) => {
+    const next = [...grid];
+    for (const c of cells) {
+      const i = next.findIndex((x) => x.week === c.week && x.day === c.day);
+      if (i !== -1) next[i].exercises = c.exercises;
+      else next.push({ ...c, id: `w_${Date.now()}_${Math.random()}`, name: `Week ${c.week}, Day ${c.day}` });
+    }
+    return next;
+  };
+
+  const streamCfg = () => ({ weeks: newProgWeeks, days: newProgDays, stream: newProgStream });
+  const exPayload = () => exercises.map(ex => ({
+    id: ex.id,
+    name: ex.name,
+    category: ex.category,
+    movementType: ex.movementType,
+    equipment: ex.equipment
+  }));
+
+  const handleGenerateQuick = async () => {
     setIsGeneratingAI(true);
-    let currentProgWorkouts = [...progWorkouts];
-    
+    let grid = [...progWorkouts];
+    let previousWeekWorkouts: any[] = [];
     try {
-      if (action === "full_program") {
-        let previousWeekWorkouts: any[] = [];
-        
-        for (let w = 1; w <= newProgWeeks; w++) {
-          setGenWeek(w);
-          const { data, error } = await supabase.functions.invoke('generate-workout', {
-            body: {
-              action: "week",
-              week: w,
-              program: {
-                name: newProgName,
-                weeks: newProgWeeks,
-                days: newProgDays,
-                stream: newProgStream
-              },
-              currentWorkouts: currentProgWorkouts,
-              previousWeekWorkouts,
-              exercises: exercises.map(ex => ({
-                id: ex.id,
-                name: ex.name,
-                category: ex.category,
-                movementType: ex.movementType,
-                equipment: ex.equipment
-              }))
-            }
+      for (let w = 1; w <= newProgWeeks; w++) {
+        setGenProgress(`Quick draft — week ${w}/${newProgWeeks}…`);
+        const { data, error } = await supabase.functions.invoke("generate-workout", {
+          body: { action: "week", program: streamCfg(), currentWorkouts: [], week: w, exercises: exPayload(), previousWeekWorkouts },
+        });
+        if (error) throw new Error(error.message);
+        if (data?.error) throw new Error(data.error);
+        const cells = data.workouts || [];
+        grid = mergeCells(grid, cells);
+        previousWeekWorkouts = cells;
+        setProgWorkouts([...grid]);
+      }
+      await autoSaveProgram(grid);
+      toast.success("Quick draft generated!");
+    } catch (e: any) {
+      toast.error(`Generation failed: ${e.message}`);
+    } finally {
+      setIsGeneratingAI(false);
+      setGenProgress(null);
+    }
+  };
+
+  const handleGenerateFullAI = async () => {
+    setIsGeneratingAI(true);
+    let grid = [...progWorkouts];
+    const byWeek = (w: number) => grid.filter((c) => c.week === w);
+    
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    
+    const generateCellWithRetry = async (bodyPayload: any, tries = 3) => {
+      let lastErr;
+      for (let i = 0; i < tries; i++) {
+        try {
+          const { data, error } = await supabase.functions.invoke("generate-workout", { body: bodyPayload });
+          if (error) throw new Error(error.message);
+          if (data?.error) throw new Error(data.error);
+          return (data.workouts || [])[0];
+        } catch (e) {
+          lastErr = e;
+          await sleep(2000 * (i + 1));
+        }
+      }
+      throw lastErr;
+    };
+
+    try {
+      let generatedCount = 0;
+      for (let w = 1; w <= newProgWeeks; w++) {
+        const previousWeekWorkouts = w > 1 ? byWeek(w - 1) : [];
+        for (let d = 1; d <= newProgDays; d++) {
+          const existingCell = grid.find((c) => c.week === w && c.day === d);
+          if (existingCell && existingCell.exercises && existingCell.exercises.length > 0) {
+            continue; // Resume: skip done cells
+          }
+          
+          setGenProgress(`Full AI plan — week ${w}, day ${d}…`);
+          const cell = await generateCellWithRetry({
+            action: "single", program: streamCfg(), currentWorkouts: [],
+            week: w, day: d, exercises: exPayload(), previousWeekWorkouts, weekSoFar: byWeek(w),
           });
           
-          if (error) throw new Error(error.message || `Failed to generate Week ${w}`);
-          if (!data || !data.workouts) throw new Error(`No workouts returned from AI for Week ${w}`);
-          
-          currentProgWorkouts = data.workouts;
-          previousWeekWorkouts = data.workouts.filter((wk: any) => wk.week === w);
-          setProgWorkouts([...currentProgWorkouts]); // live-update the grid each week
-        }
-      } else {
-        const { data, error } = await supabase.functions.invoke('generate-workout', {
-          body: {
-            action: "single",
-            program: {
-              name: newProgName,
-              weeks: newProgWeeks,
-              days: newProgDays,
-              stream: newProgStream
-            },
-            targetWorkoutIndex: workoutIndex,
-            currentWorkouts: progWorkouts,
-            exercises: exercises.map(ex => ({
-              id: ex.id,
-              name: ex.name,
-              category: ex.category,
-              movementType: ex.movementType,
-              equipment: ex.equipment
-            }))
+          if (cell) {
+            grid = mergeCells(grid, [cell]);
+            setProgWorkouts([...grid]);
+            await autoSaveProgram(grid); // Save progress after each cell
+            generatedCount++;
           }
-        });
-
-        if (error) throw new Error(error.message || "Failed to generate workout");
-        if (!data || !data.workouts) throw new Error("No workouts returned from AI");
-
-        currentProgWorkouts = data.workouts;
-        setProgWorkouts(currentProgWorkouts);
+          await sleep(600); // Ease API rate limits
+        }
       }
-      
-      await autoSaveProgram(currentProgWorkouts);
+      if (generatedCount > 0) {
+        toast.success("Full AI plan generated!");
+      } else {
+        toast.info("Program is already fully generated.");
+      }
+    } catch (e: any) {
+      toast.error(`Generation failed: ${e.message}`);
+    } finally {
+      setIsGeneratingAI(false);
+      setGenProgress(null);
+    }
+  };
+
+  const handleEdgeFunctionAI = async (workoutIndex: number | null, action: "generate" | "regenerate" | "edit") => {
+    setIsGeneratingAI(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-workout', {
+        body: {
+          action: "single",
+          program: streamCfg(),
+          targetWorkoutIndex: workoutIndex,
+          currentWorkouts: progWorkouts,
+          exercises: exPayload()
+        }
+      });
+
+      if (error) throw new Error(error.message || "Failed to generate workout");
+      if (!data || !data.workouts) throw new Error("No workouts returned from AI");
+
+      setProgWorkouts(data.workouts);
+      await autoSaveProgram(data.workouts);
       toast.success(`AI successfully completed: ${action}!`);
     } catch (err: any) {
       console.error(err);
       toast.error(`AI Generation failed: ${err.message}`);
     } finally {
       setIsGeneratingAI(false);
-      setGenWeek(0);
     }
   };
 
@@ -1441,19 +1498,120 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                     <Button onClick={handleGenerateWorkoutSlots} className="w-full">Generate Workout Grid</Button>
                     <Button 
                       variant="outline" 
-                      onClick={() => handleEdgeFunctionAI(null, "full_program")} 
+                      onClick={handleGenerateQuick} 
                       className="w-full gap-2 border-primary text-primary hover:bg-primary/10"
                       disabled={isGeneratingAI || !newProgStream}
                     >
                       {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                      {isGeneratingAI ? `Generating week ${genWeek}/${newProgWeeks}…` : "Generate full programme with AI"}
+                      {genProgress || "Quick generate"}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={handleGenerateFullAI} 
+                      className="w-full gap-2 border-primary text-primary hover:bg-primary/10"
+                      disabled={isGeneratingAI || !newProgStream}
+                    >
+                      {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      {genProgress || "Full AI plan (slower)"}
                     </Button>
                   </div>
                 ) : (
                   <div className="space-y-6 pt-4 border-t border-border">
-                    {newProgType === "program" ? (
-                      <div className="space-y-4">
-                        <div className="flex gap-2 overflow-x-auto pb-2 border-b border-border">
+                    {newProgType === "program" && (
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          {progWorkouts.some(w => !w.exercises || w.exercises.length === 0) && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={handleGenerateFullAI} 
+                              className="gap-2 border-primary text-primary hover:bg-primary/10"
+                              disabled={isGeneratingAI || !newProgStream}
+                            >
+                              {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                              {genProgress || "Resume AI generation"}
+                            </Button>
+                          )}
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => setProgViewMode(m => m === "day" ? "full" : "day")} className="gap-2">
+                          <CalendarIcon className="h-4 w-4" />
+                          {progViewMode === "day" ? "Full Program View" : "Day View"}
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {progViewMode === "full" && newProgType === "program" ? (
+                      <div className="space-y-8">
+                        {Array.from({ length: newProgWeeks }).map((_, wIdx) => {
+                          const weekNum = wIdx + 1;
+                          return (
+                            <div key={weekNum} className="space-y-4">
+                              <h4 className="font-bold text-lg border-b pb-2">Week {weekNum}</h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                                {Array.from({ length: newProgDays }).map((_, dIdx) => {
+                                  const dayNum = dIdx + 1;
+                                  const workout = progWorkouts.find(w => w.week === weekNum && w.day === dayNum);
+                                  return (
+                                    <Card key={dayNum} className="bg-muted/30 border-border flex flex-col cursor-pointer hover:border-primary transition-colors h-full min-h-[120px]" onClick={() => {
+                                      setSelectedWeek(weekNum);
+                                      setSelectedDay(dayNum);
+                                      setProgViewMode("day");
+                                      const idx = progWorkouts.findIndex(w => w.week === weekNum && w.day === dayNum);
+                                      if(idx >= 0) setSelectedWorkoutIndex(idx);
+                                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }}>
+                                      <CardHeader className="p-3 pb-2">
+                                        <CardTitle className="text-sm">Day {dayNum}</CardTitle>
+                                      </CardHeader>
+                                      <CardContent className="p-3 pt-0 flex-1">
+                                        {workout?.exercises?.length > 0 ? (
+                                          <div className="space-y-1 text-xs">
+                                            {workout.exercises.map((ex: any, i: number) => {
+                                              const isSupersetItem = ex.linkedToNext || (i > 0 && workout.exercises[i - 1].linkedToNext);
+                                              
+                                              let detailText = "";
+                                              if (ex.sets && ex.reps) detailText = `${ex.sets}x${ex.reps}`;
+                                              else if (ex.timeMins || ex.timeSecs) detailText = `${ex.timeMins || 0}m ${ex.timeSecs || 0}s`;
+                                              else if (ex.distance) detailText = `${ex.distance}m`;
+
+                                              return (
+                                                <div key={i} className={ex.isSection ? "font-bold mt-2 text-primary" : "text-muted-foreground flex justify-between gap-1 items-start"}>
+                                                  {ex.isSection ? (
+                                                    ex.name
+                                                  ) : (
+                                                    <>
+                                                      <div className="flex items-start gap-1 min-w-0">
+                                                        {isSupersetItem && <Link2 className="h-3 w-3 shrink-0 text-primary mt-0.5" />}
+                                                        <span className="truncate">{exercises.find(e => e.id === ex.name)?.name || ex.name || "Unknown Exercise"}</span>
+                                                      </div>
+                                                      {detailText && (
+                                                        <span className="text-[10px] opacity-70 shrink-0 font-medium whitespace-nowrap">
+                                                          {detailText}
+                                                        </span>
+                                                      )}
+                                                    </>
+                                                  )}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        ) : (
+                                          <div className="text-xs text-muted-foreground italic">Empty session</div>
+                                        )}
+                                      </CardContent>
+                                    </Card>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {newProgType === "program" ? (
+                          <div className="space-y-4">
+                            <div className="flex gap-2 overflow-x-auto pb-2 border-b border-border">
                           {Array.from({ length: newProgWeeks }).map((_, i) => (
                             <Button 
                               key={`week-${i+1}`} 
@@ -1861,7 +2019,8 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                   </div>
                 )}
               </div>
-
+            )}
+              </div>
               <div className="flex gap-2">
                 <Button onClick={handleAddProgram} className="flex-1 gap-2">
                   <Dumbbell className="h-4 w-4" /> {editingProgramId ? "Update Program" : "Save Program"}
