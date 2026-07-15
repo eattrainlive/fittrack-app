@@ -142,38 +142,68 @@ const Workouts = () => {
   }, [exercises]);
 
   useEffect(() => {
-    const loadData = () => {
+    const loadLibrary = () => {
       setExerciseLibrary(getExercises());
       setWorkoutTemplates(getPrograms());
-      const active = getActiveProgram();
-      setActiveProgram(active);
-      if (active && active.workouts) {
-        const currentWorkout = active.workouts[active.currentIndex];
-        if (currentWorkout && currentWorkout.exercises) {
-          setWorkoutName(`${active.name}: ${currentWorkout.name}`);
-          setExercises(currentWorkout.exercises.map((ex: any, idx: number) => ({ 
-            id: Date.now() + idx, 
-            blockType: ex.blockType || "Strength",
-            ...ex,
-            setsData: ex.setsData || Array.from({ length: ex.sets || 3 }).map((_, i) => ({
-              id: Date.now().toString() + i,
-              reps: ex.reps || 10,
-              weight: ex.weight || 0,
-              distance: ex.distance || 0,
-              timeMins: ex.timeMins || 0,
-              timeSecs: ex.timeSecs || 0,
-              completed: false
-            }))
-          })));
-          setViewMode('active');
-        }
-      }
+      setActiveProgram(getActiveProgram());
     };
     
-    loadData();
-    window.addEventListener('fittrack_synced', loadData);
-    return () => window.removeEventListener('fittrack_synced', loadData);
+    loadLibrary();
+    window.addEventListener('fittrack_synced', loadLibrary);
+    return () => window.removeEventListener('fittrack_synced', loadLibrary);
   }, []);
+
+  // Restore active workout session from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('fittrack_active_workout');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.workoutName) setWorkoutName(parsed.workoutName);
+        if (parsed.exercises && parsed.exercises.length > 0) setExercises(parsed.exercises);
+        if (parsed.currentBlockIndex !== undefined) setCurrentBlockIndex(parsed.currentBlockIndex);
+        if (parsed.lastSeenSectionId !== undefined) setLastSeenSectionId(parsed.lastSeenSectionId);
+        if (parsed.showSectionSlide !== undefined) setShowSectionSlide(parsed.showSectionSlide);
+        if (parsed.timerActive !== undefined) setTimerActive(parsed.timerActive);
+        if (parsed.timeLeft !== undefined) setTimeLeft(parsed.timeLeft);
+        if (parsed.viewMode) setViewMode(parsed.viewMode);
+      } catch (e) {
+        console.error("Failed to parse saved workout", e);
+      }
+    }
+  }, []);
+
+  // Persist active workout session
+  useEffect(() => {
+    const saveActiveWorkout = () => {
+      const hasActiveContent = workoutName || exercises.length > 1 || (exercises.length === 1 && exercises[0].name);
+      if (viewMode === 'active' || hasActiveContent) {
+        localStorage.setItem('fittrack_active_workout', JSON.stringify({
+          workoutName,
+          exercises,
+          currentBlockIndex,
+          lastSeenSectionId,
+          showSectionSlide,
+          timerActive,
+          timeLeft,
+          viewMode
+        }));
+      } else {
+        localStorage.removeItem('fittrack_active_workout');
+      }
+    };
+
+    saveActiveWorkout();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        saveActiveWorkout();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [workoutName, exercises, currentBlockIndex, lastSeenSectionId, showSectionSlide, timerActive, timeLeft, viewMode]);
 
   useEffect(() => {
     if (blocks.length > 0 && currentBlockIndex >= blocks.length) {
@@ -296,6 +326,35 @@ const Workouts = () => {
     setViewMode('active');
   };
 
+  const resumeActiveProgram = () => {
+    if (activeProgram && activeProgram.workouts) {
+      const currentWorkout = activeProgram.workouts[activeProgram.currentIndex];
+      // Only overwrite if we don't already have an active workout loaded
+      const hasActiveContent = workoutName || exercises.length > 1 || (exercises.length === 1 && exercises[0].name);
+      if (!hasActiveContent && currentWorkout && currentWorkout.exercises) {
+        setWorkoutName(`${activeProgram.name}: ${currentWorkout.name}`);
+        setExercises(currentWorkout.exercises.map((ex: any, idx: number) => ({ 
+          id: Date.now() + idx, 
+          blockType: ex.blockType || "Strength",
+          ...ex,
+          setsData: ex.setsData || Array.from({ length: ex.sets || 3 }).map((_, i) => ({
+            id: Date.now().toString() + i,
+            reps: ex.reps || 10,
+            weight: ex.weight || 0,
+            distance: ex.distance || 0,
+            timeMins: ex.timeMins || 0,
+            timeSecs: ex.timeSecs || 0,
+            completed: false
+          }))
+        })));
+        setCurrentBlockIndex(0);
+        setLastSeenSectionId(null);
+        setShowSectionSlide(false);
+      }
+    }
+    setViewMode('active');
+  };
+
   const handleSaveWorkout = () => {
     if (!workoutName) {
       toast.error("Please enter a workout name");
@@ -345,27 +404,7 @@ const Workouts = () => {
         const updatedProgram = { ...activeProgram, currentIndex: nextIndex };
         setActiveProgram(updatedProgram);
         saveActiveProgram(updatedProgram);
-        
-        const nextWorkout = activeProgram.workouts[nextIndex];
-        setWorkoutName(`${activeProgram.name}: ${nextWorkout.name}`);
-        setExercises(nextWorkout.exercises.map((ex: any, idx: number) => ({ 
-          id: Date.now() + idx, 
-          ...ex,
-          setsData: ex.setsData || Array.from({ length: ex.sets || 3 }).map((_, i) => ({
-            id: Date.now().toString() + i,
-            reps: ex.reps || 10,
-            weight: ex.weight || 0,
-            distance: ex.distance || 0,
-            timeMins: ex.timeMins || 0,
-            timeSecs: ex.timeSecs || 0,
-            completed: false
-          }))
-        })));
-        setCurrentBlockIndex(0);
-        setLastSeenSectionId(null);
-        setShowSectionSlide(false);
-        toast.info(`Up next: ${nextWorkout.name}`);
-        return;
+        toast.info(`Up next: ${activeProgram.workouts[nextIndex].name}`);
       } else {
         toast.success(`Congratulations! You completed ${activeProgram.name}!`);
         setActiveProgram(null);
@@ -379,6 +418,7 @@ const Workouts = () => {
     setLastSeenSectionId(null);
     setShowSectionSlide(false);
     setViewMode('browse');
+    localStorage.removeItem('fittrack_active_workout');
   };
 
   const variants: any = {
@@ -466,7 +506,7 @@ const Workouts = () => {
           
           {activeProgram && (
             <div className="pt-4">
-              <Button onClick={() => setViewMode('active')} className="w-full gap-2 font-bold tracking-wide h-14 text-lg rounded-xl">
+              <Button onClick={resumeActiveProgram} className="w-full gap-2 font-bold tracking-wide h-14 text-lg rounded-xl">
                 Resume {activeProgram.name}
               </Button>
             </div>
@@ -529,7 +569,7 @@ const Workouts = () => {
                 <div className="text-sm font-bold text-muted-foreground uppercase tracking-wider text-center">
                   Workout {activeProgram.currentIndex + 1} of {activeProgram.workouts.length}
                 </div>
-                <Button onClick={() => setViewMode('active')} className="w-full gap-2 font-bold tracking-wide h-14 text-lg rounded-xl shadow-lg">
+                <Button onClick={resumeActiveProgram} className="w-full gap-2 font-bold tracking-wide h-14 text-lg rounded-xl shadow-lg">
                   <Play className="h-5 w-5 fill-current" /> Continue Programme
                 </Button>
                 <Button 
