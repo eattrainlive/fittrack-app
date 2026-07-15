@@ -867,6 +867,12 @@ const Workouts = () => {
                                       {lastStats ? `Last time: ${lastStats.weight}kg × ${lastStats.reps}` : `First time — no previous data`}
                                     </div>
                                   )}
+                                  {exercise.coachingNotes && (
+                                    <div className="ml-8 mt-1.5 p-2 rounded-md bg-primary/10 border border-primary/20 text-xs text-foreground font-medium">
+                                      <span className="font-bold text-primary mr-1">Coach:</span>
+                                      {exercise.coachingNotes}
+                                    </div>
+                                  )}
                                   <div className="flex justify-between items-center mt-3 pt-3 border-t border-border/50">
                                     <div className="flex items-center gap-4">
                                       <Label className="flex items-center gap-2 cursor-pointer">
@@ -1116,11 +1122,17 @@ const Workouts = () => {
                                       )}
                                     </div>
                                     {exercise.name && (
-                                      <div className="mt-1.5 flex">
+                                      <div className="mt-1.5 flex flex-col gap-1.5">
                                         <span className="text-xs text-muted-foreground flex items-center gap-1">
                                           <History className="h-3 w-3" /> 
                                           {lastStats ? `Last time: ${lastStats.weight}kg × ${lastStats.reps}` : `First time — no previous data`}
                                         </span>
+                                        {exercise.coachingNotes && (
+                                          <div className="p-2 rounded-md bg-primary/10 border border-primary/20 text-xs text-foreground font-medium">
+                                            <span className="font-bold text-primary mr-1">Coach:</span>
+                                            {exercise.coachingNotes}
+                                          </div>
+                                        )}
                                       </div>
                                     )}
                                   </div>

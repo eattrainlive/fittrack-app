@@ -10,8 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification, getAnthropicKey, saveAnthropicKey } from "@/lib/store";
-import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar as CalendarIcon, Bell, Send, Download, Link2, Link2Off, Heading, Upload, Sparkles } from "lucide-react";
+import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar as CalendarIcon, Bell, Send, Download, Link2, Link2Off, Heading, Upload, Sparkles, Check, ChevronsUpDown } from "lucide-react";
 import JSZip from "jszip";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
@@ -413,7 +416,7 @@ const Admin = () => {
 
   const handleAddProgExercise = () => {
     const updatedWorkouts = [...progWorkouts];
-    updatedWorkouts[selectedWorkoutIndex].exercises.push({ id: Date.now(), blockType: "Strength", name: "", sets: 3, reps: 10, weight: 0, rest: 0, linkedToNext: false, eachSide: false });
+    updatedWorkouts[selectedWorkoutIndex].exercises.push({ id: Date.now(), blockType: "Strength", name: "", sets: 3, reps: 10, weight: 0, rest: 0, linkedToNext: false, eachSide: false, coachingNotes: "" });
     setProgWorkouts(updatedWorkouts);
   };
 
@@ -720,7 +723,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         name: w.name,
         week: w.week,
         day: w.day,
-        exercises: w.exercises.map((e: any) => ({ isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes }))
+        exercises: w.exercises.map((e: any) => ({ isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes, coachingNotes: e.coachingNotes }))
       }))
     };
     
@@ -778,7 +781,8 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         rest: e.rest || 0,
         linkedToNext: e.linkedToNext || false,
         eachSide: e.eachSide || false,
-        staffNotes: e.staffNotes || ""
+        staffNotes: e.staffNotes || "",
+        coachingNotes: e.coachingNotes || ""
       }))
     })) : [];
     
@@ -895,7 +899,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         name: w.name,
         week: w.week,
         day: w.day,
-        exercises: w.exercises.map((e: any) => ({ isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes }))
+        exercises: w.exercises.map((e: any) => ({ isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes, coachingNotes: e.coachingNotes }))
       }))
     };
     
@@ -1669,31 +1673,58 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                               </Select>
                                             </div>
                                             <div className="flex-1 flex gap-2">
-                                              <Select value={pe.name} onValueChange={(v) => updateProgExercise(pe.id, "name", v)}>
-                                                <SelectTrigger className="h-10 font-medium"><SelectValue placeholder="Select Exercise..." /></SelectTrigger>
-                                                <SelectContent>
-                                                  <div className="p-2">
-                                                    <Input 
-                                                      placeholder="Search exercises..." 
-                                                      value={exerciseSearch} 
-                                                      onChange={e => setExerciseSearch(e.target.value)}
-                                                      className="mb-2 h-8"
-                                                      onKeyDown={e => e.stopPropagation()}
-                                                    />
-                                                  </div>
-                                                  {exercises
-                                                    .filter(ex => {
-                                                      if (!pe.blockType) return true;
-                                                      const cats = Array.isArray(ex.category) ? ex.category : [ex.category || "Strength"];
-                                                      return cats.includes(pe.blockType);
-                                                    })
-                                                    .filter(ex => ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()))
-                                                    .sort((a, b) => a.name.localeCompare(b.name))
-                                                    .map(ex => (
-                                                      <SelectItem key={ex.id} value={ex.id}>{ex.name} {ex.movementType ? `(${Array.isArray(ex.movementType) ? ex.movementType.join(", ") : ex.movementType})` : ""}</SelectItem>
-                                                  ))}
-                                                </SelectContent>
-                                              </Select>
+                                              <Popover>
+                                                <PopoverTrigger asChild>
+                                                  <Button
+                                                    variant="outline"
+                                                    role="combobox"
+                                                    className={cn("h-10 font-medium justify-between flex-1 overflow-hidden", !pe.name && "text-muted-foreground")}
+                                                  >
+                                                    <span className="truncate">
+                                                      {pe.name
+                                                        ? exercises.find((e) => e.id === pe.name)?.name || "Select Exercise..."
+                                                        : "Select Exercise..."}
+                                                    </span>
+                                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                  </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[300px] p-0" align="start">
+                                                  <Command>
+                                                    <CommandInput placeholder="Search exercises..." />
+                                                    <CommandList>
+                                                      <CommandEmpty>No exercise found.</CommandEmpty>
+                                                      <CommandGroup>
+                                                        {exercises
+                                                          .filter(ex => {
+                                                            if (!pe.blockType) return true;
+                                                            const cats = Array.isArray(ex.category) ? ex.category : [ex.category || "Strength"];
+                                                            return cats.includes(pe.blockType);
+                                                          })
+                                                          .sort((a, b) => a.name.localeCompare(b.name))
+                                                          .map(ex => (
+                                                            <CommandItem
+                                                              key={ex.id}
+                                                              value={ex.name}
+                                                              onSelect={() => {
+                                                                updateProgExercise(pe.id, "name", ex.id);
+                                                              }}
+                                                            >
+                                                              <Check
+                                                                className={cn(
+                                                                  "mr-2 h-4 w-4 shrink-0",
+                                                                  pe.name === ex.id ? "opacity-100" : "opacity-0"
+                                                                )}
+                                                              />
+                                                              <span className="truncate">
+                                                                {ex.name} {ex.movementType ? `(${Array.isArray(ex.movementType) ? ex.movementType.join(", ") : ex.movementType})` : ""}
+                                                              </span>
+                                                            </CommandItem>
+                                                        ))}
+                                                      </CommandGroup>
+                                                    </CommandList>
+                                                  </Command>
+                                                </PopoverContent>
+                                              </Popover>
                                               <Button variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={() => handleShuffleExercise(pe.id)} title="Shuffle Exercise">
                                                 <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.84998 7.49998C1.84998 4.66458 4.05979 2.23981 6.89998 1.92253V0.845728C3.47344 1.16915 0.849976 4.0402 0.849976 7.49998C0.849976 10.9598 3.47344 13.8308 6.89998 14.1542V13.0774C4.05979 12.7601 1.84998 10.3354 1.84998 7.49998ZM13.15 7.49998C13.15 10.3354 10.9402 12.7601 8.09998 13.0774V14.1542C11.5265 13.8308 14.15 10.9598 14.15 7.49998C14.15 4.0402 11.5265 1.16915 8.09998 0.845728V1.92253C10.9402 2.23981 13.15 4.66458 13.15 7.49998Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path></svg>
                                               </Button>
@@ -1758,6 +1789,11 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                             </div>
 
                                             <div className="flex items-center gap-4 ml-auto">
+                                              {newProgType === "program" && (
+                                                <Button variant="secondary" size="sm" className="h-8 text-xs whitespace-nowrap" onClick={() => handleApplyToWeek(pe.id)}>
+                                                  Apply to Week
+                                                </Button>
+                                              )}
                                               <div className="flex items-center gap-2">
                                                 <Checkbox 
                                                   id={`eside-${pe.id}`}
@@ -1777,22 +1813,16 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                 <span className="text-xs">Superset</span>
                                               </Button>
                                             </div>
+                                            </div>
+                                            <div className="w-full">
+                                              <Input 
+                                                placeholder="Coaching notes (visible to member)..." 
+                                                value={pe.coachingNotes || ""} 
+                                                onChange={(e) => updateProgExercise(pe.id, "coachingNotes", e.target.value)}
+                                                className="h-8 text-xs bg-background"
+                                              />
+                                            </div>
                                           </div>
-
-                                          <div className="w-full flex gap-2">
-                                            <Input 
-                                              placeholder="Staff Notes (e.g. Cues, substitutions) - Not visible to members" 
-                                              value={pe.staffNotes || ""}
-                                              onChange={(e) => updateProgExercise(pe.id, "staffNotes", e.target.value)}
-                                              className="text-sm bg-muted/10 border-dashed h-9 flex-1"
-                                            />
-                                            {newProgType === "program" && (
-                                              <Button variant="secondary" size="sm" className="h-9 whitespace-nowrap" onClick={() => handleApplyToWeek(pe.id)}>
-                                                Apply to Week
-                                              </Button>
-                                            )}
-                                          </div>
-                                        </div>
                                       )}
                                       
                                       <Button variant="ghost" size="icon" className={`text-destructive shrink-0 self-center ${pe.isSection ? 'mt-6' : ''}`} onClick={() => handleRemoveProgExercise(pe.id)}>
