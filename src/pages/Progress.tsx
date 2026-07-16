@@ -1,13 +1,14 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { useState, useEffect } from "react";
-import { getBodyweightHistory, saveBodyweight, getPersonalRecords, savePersonalRecord, deletePersonalRecord, getExercises } from "@/lib/store";
+import { useState, useEffect, useMemo } from "react";
+import { getBodyweightHistory, saveBodyweight, getPersonalRecords, savePersonalRecord, deletePersonalRecord, getExercises, getWorkoutHistory } from "@/lib/store";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Trophy, Plus, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 const Progress = () => {
   const [bodyweightData, setBodyweightData] = useState<any[]>([]);
@@ -22,12 +23,14 @@ const Progress = () => {
   const [newPrExercise, setNewPrExercise] = useState("");
   const [newPrWeight, setNewPrWeight] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [workoutHistory, setWorkoutHistory] = useState<any[]>([]);
 
   useEffect(() => {
     const loadData = () => {
       setBodyweightData(getBodyweightHistory());
       setPrs(getPersonalRecords());
       setExercises(getExercises());
+      setWorkoutHistory(getWorkoutHistory());
     };
     loadData();
     const timer = setTimeout(() => setIsLoading(false), 600);
@@ -54,8 +57,15 @@ const Progress = () => {
     if (newLegs) data.legs = parseFloat(newLegs);
 
     if (Object.keys(data).length > 0) {
-      const updatedHistory = await saveBodyweight(data);
-      setBodyweightData(updatedHistory);
+      const { success, error, history } = await saveBodyweight(data);
+      setBodyweightData(history);
+      
+      if (success) {
+        toast.success("Measurements saved");
+      } else {
+        toast.warning("Saved locally — cloud sync failed");
+      }
+      
       setNewWeight("");
       setNewBodyFat("");
       setNewWaist("");
@@ -80,19 +90,44 @@ const Progress = () => {
     setPrs(updatedPrs);
   };
 
-  const volumeData = [
-    { name: "Week 1", volume: 10500 },
-    { name: "Week 2", volume: 11200 },
-    { name: "Week 3", volume: 10800 },
-    { name: "Week 4", volume: 12450 },
-  ];
+  const volumeData = useMemo(() => {
+    // Group history by week for the last 4 weeks
+    const data = [];
+    const now = new Date();
+    for (let i = 3; i >= 0; i--) {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (i * 7 + 7));
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (i * 7));
+      
+      const weekVolume = workoutHistory
+        .filter((w: any) => {
+          const d = new Date(w.date);
+          return d >= start && d < end;
+        })
+        .reduce((sum: number, w: any) => sum + (w.volume || 0), 0);
+        
+      data.push({ name: `Week ${4 - i}`, volume: weekVolume });
+    }
+    return data;
+  }, [workoutHistory]);
 
-  const oneRepMaxData = [
-    { name: "Jan", bench: 80, squat: 100, deadlift: 120 },
-    { name: "Feb", bench: 82.5, squat: 105, deadlift: 125 },
-    { name: "Mar", bench: 85, squat: 110, deadlift: 130 },
-    { name: "Apr", bench: 87.5, squat: 115, deadlift: 135 },
-  ];
+  const oneRepMaxData = useMemo(() => {
+    // We can extract maxes from history or just use a simplified version if not enough data
+    // For a real app we'd calculate E1RM per exercise over time.
+    // Let's use the PRs if available, else fallback to mock
+    if (prs.length === 0) {
+      return [
+        { name: "Jan", bench: 80, squat: 100, deadlift: 120 },
+        { name: "Feb", bench: 82.5, squat: 105, deadlift: 125 },
+        { name: "Mar", bench: 85, squat: 110, deadlift: 130 },
+      ];
+    }
+    
+    // Create a simplified chart from PRs
+    return [
+      { name: "Current", ...prs.reduce((acc: any, pr: any) => ({ ...acc, [pr.exerciseId]: pr.weight }), {}) }
+    ];
+  }, [prs, workoutHistory]);
+
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">

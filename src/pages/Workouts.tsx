@@ -122,8 +122,8 @@ const Workouts = () => {
   const [quickOverviewWorkout, setQuickOverviewWorkout] = useState<any>(null);
   const [showSectionSlide, setShowSectionSlide] = useState(false);
   const [lastSeenSectionId, setLastSeenSectionId] = useState<number | null>(null);
-
-
+  const [isSaving, setIsSaving] = useState(false);
+  const [startTime, setStartTime] = useState<number | null>(null);
   const isActiveWorkout = useMemo(() => {
     if (activeProgram) return true;
     if (workoutName.trim() !== "") return true;
@@ -192,6 +192,7 @@ const Workouts = () => {
         if (parsed.restEndsAt !== undefined) setRestEndsAt(parsed.restEndsAt);
         if (parsed.pausedTimeLeft !== undefined) setPausedTimeLeft(parsed.pausedTimeLeft);
         if (parsed.viewMode) setViewMode(parsed.viewMode);
+        if (parsed.startTime !== undefined) setStartTime(parsed.startTime);
       } catch (e) {
         console.error("Failed to parse saved workout", e);
       }
@@ -208,10 +209,11 @@ const Workouts = () => {
           exercises,
           currentBlockIndex,
           lastSeenSectionId,
-        showSectionSlide,
-        restEndsAt,
-        pausedTimeLeft,
-          viewMode
+          showSectionSlide,
+          restEndsAt,
+          pausedTimeLeft,
+          viewMode,
+          startTime
         }));
       } else {
         localStorage.removeItem('fittrack_active_workout');
@@ -228,7 +230,7 @@ const Workouts = () => {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [workoutName, exercises, currentBlockIndex, lastSeenSectionId, showSectionSlide, restEndsAt, pausedTimeLeft, viewMode]);
+  }, [workoutName, exercises, currentBlockIndex, lastSeenSectionId, showSectionSlide, restEndsAt, pausedTimeLeft, viewMode, startTime]);
 
   useEffect(() => {
     if (blocks.length > 0 && currentBlockIndex >= blocks.length) {
@@ -386,6 +388,7 @@ const Workouts = () => {
     setCurrentBlockIndex(0);
     setLastSeenSectionId(null);
     setShowSectionSlide(false);
+    setStartTime(Date.now());
     toast.success(`Started program: ${template.name}`);
     setViewMode('active');
   };
@@ -421,6 +424,7 @@ const Workouts = () => {
       setCurrentBlockIndex(0);
       setLastSeenSectionId(null);
       setShowSectionSlide(false);
+      setStartTime(Date.now());
       toast.success(`Started program: ${template.name}`);
     } else {
       setWorkoutName(template.name);
@@ -440,6 +444,7 @@ const Workouts = () => {
       setCurrentBlockIndex(0);
       setLastSeenSectionId(null);
       setShowSectionSlide(false);
+      setStartTime(Date.now());
     }
     setViewMode('active');
   };
@@ -484,10 +489,18 @@ const Workouts = () => {
     setViewMode('active');
   };
 
-  const handleSaveWorkout = () => {
+  const handleSaveWorkout = async () => {
     if (!workoutName) {
       toast.error("Please enter a workout name");
       return;
+    }
+    
+    setIsSaving(true);
+    
+    // Calculate total duration (difference between start time and now)
+    let duration = 45;
+    if (startTime) {
+      duration = Math.max(1, Math.round((Date.now() - startTime) / 60000));
     }
     
     const totalVolume = exercises.reduce((acc, ex) => {
@@ -513,15 +526,28 @@ const Workouts = () => {
       };
     }
     
-    saveWorkoutToHistory({
+    // Generate an ID before saving so we can dedupe
+    const sessionWorkoutId = Date.now().toString();
+    
+    const { success, error } = await saveWorkoutToHistory({
+      id: sessionWorkoutId,
       name: workoutName,
       exercises,
       volume: totalVolume,
+      duration: duration,
       reward: earnedReward || null
     });
     
+    setIsSaving(false);
+    
     if (navigator.vibrate) navigator.vibrate([30, 50, 30, 50, 50]);
-    toast.success("Workout saved successfully!");
+    
+    if (success) {
+      toast.success("Workout saved successfully!");
+    } else {
+      toast.warning("Saved locally — cloud sync failed");
+      console.error("Cloud sync error:", error);
+    }
 
     if (earnedReward && totalVolume > 0) {
       setRewardModal({ ...earnedReward, volume: totalVolume });
@@ -1524,8 +1550,8 @@ const Workouts = () => {
 
                 {isActiveWorkout && (
                   <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+64px)] left-0 right-0 p-4 bg-background/80 backdrop-blur-md border-t border-border z-40">
-                    <Button onClick={handleSaveWorkout} className="w-full gap-2 text-primary-foreground font-bold tracking-wide h-12 text-lg shadow-lg">
-                      <Check className="h-5 w-5" /> Finish Workout
+                    <Button onClick={handleSaveWorkout} disabled={isSaving} className="w-full gap-2 text-primary-foreground font-bold tracking-wide h-12 text-lg shadow-lg">
+                      <Check className="h-5 w-5" /> {isSaving ? "Saving..." : "Finish Workout"}
                     </Button>
                   </div>
                 )}

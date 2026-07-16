@@ -83,14 +83,14 @@ const Index = () => {
     }
   }
 
-  // Active minutes (assuming ~45 mins per workout if not specified)
-  const activeMinutes = history.reduce((sum, w) => sum + (w.duration || 45), 0);
+  // Active minutes
+  const activeMinutes = history.reduce((sum, w) => sum + (w.duration || 0), 0);
 
   // Weekly Activity Chart Data (last 7 days)
   const weeklyData = Array.from({ length: 7 }).map((_, i) => {
     const d = subDays(new Date(), 6 - i);
     const dayWorkouts = history.filter(w => isSameDay(new Date(w.date), d));
-    const duration = dayWorkouts.reduce((sum, w) => sum + (w.duration || 45), 0);
+    const duration = dayWorkouts.reduce((sum, w) => sum + (w.duration || 0), 0);
     return {
       name: format(d, 'EEE'),
       duration,
@@ -333,7 +333,7 @@ const Index = () => {
                     <p className="text-xs text-muted-foreground">{format(new Date(workout.date), 'MMM d, h:mm a')}</p>
                   </div>
                   <div className="ml-auto font-medium text-sm flex flex-col items-end">
-                    <span>{workout.duration || 45} min</span>
+                    <span>{workout.duration || 0} min</span>
                     {workout.volume > 0 && <span className="text-xs text-primary">{workout.volume.toLocaleString()} kg</span>}
                   </div>
                 </div>

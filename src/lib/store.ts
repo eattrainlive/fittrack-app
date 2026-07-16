@@ -196,22 +196,31 @@ export const getActiveProgram = () => {
   return stored ? JSON.parse(stored) : null;
 };
 
-export const saveActiveProgram = (activeProgram: any) => {
+export const saveActiveProgram = async (activeProgram: any) => {
   if (activeProgram) {
     localStorage.setItem('fittrack_active_program', JSON.stringify(activeProgram));
   } else {
     localStorage.removeItem('fittrack_active_program');
   }
   
-  supabase.auth.getUser().then(({ data: { user } }) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       if (activeProgram) {
-        supabase.from('user_settings').upsert({ user_id: user.id, key: 'active_program', value: JSON.stringify(activeProgram) }, { onConflict: 'user_id, key' }).then();
+        const { error } = await supabase.from('user_settings').upsert(
+          { user_id: user.id, key: 'active_program', value: JSON.stringify(activeProgram) }, 
+          { onConflict: 'user_id, key' }
+        );
+        return { success: !error, error };
       } else {
-        supabase.from('user_settings').delete().eq('user_id', user.id).eq('key', 'active_program').then();
+        const { error } = await supabase.from('user_settings').delete().eq('user_id', user.id).eq('key', 'active_program');
+        return { success: !error, error };
       }
     }
-  });
+    return { success: false, error: new Error('Not logged in') };
+  } catch (e) {
+    return { success: false, error: e };
+  }
 };
 
 export const getWorkoutHistory = () => {
@@ -221,18 +230,29 @@ export const getWorkoutHistory = () => {
 
 export const saveWorkoutToHistory = async (workout: any) => {
   const history = getWorkoutHistory();
-  const newWorkout = { ...workout, date: new Date().toISOString(), id: workout.id || Date.now().toString() };
-  history.unshift(newWorkout);
+  // Don't generate a new ID if it already has one, to prevent duplicates
+  const newWorkout = { ...workout, date: workout.date || new Date().toISOString(), id: workout.id || Date.now().toString() };
+  
+  // Replace if exists (dedupe)
+  const existingIdx = history.findIndex((w: any) => w.id === newWorkout.id);
+  if (existingIdx >= 0) {
+    history[existingIdx] = newWorkout;
+  } else {
+    history.unshift(newWorkout);
+  }
+  
   localStorage.setItem('fittrack_history', JSON.stringify(history));
   
   // Background sync
+  let syncError = null;
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const payload = { ...newWorkout, user_id: user.id };
-      const { error } = await supabase.from('workout_history').upsert(payload);
+      const { error } = await supabase.from('workout_history').upsert(payload, { onConflict: 'id' });
       if (error) {
         console.error("Failed to save workout history to Supabase:", error);
+        syncError = error;
         // Fallback: save to user_settings as a backup
         await supabase.from('user_settings').upsert({
           user_id: user.id,
@@ -240,10 +260,14 @@ export const saveWorkoutToHistory = async (workout: any) => {
           value: JSON.stringify(payload)
         }, { onConflict: 'user_id, key' });
       }
+    } else {
+      syncError = new Error('Not logged in');
     }
   } catch (e) {
     console.error(e);
+    syncError = e;
   }
+  return { success: !syncError, error: syncError, workout: newWorkout };
 };
 
 export const getLastExerciseStats = (exerciseId: string) => {
@@ -317,6 +341,7 @@ export const saveBodyweight = async (data: { weight?: number, bodyFat?: number, 
   localStorage.setItem('fittrack_bodyweight', JSON.stringify(history));
   
   // Background sync
+  let syncError = null;
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -324,18 +349,22 @@ export const saveBodyweight = async (data: { weight?: number, bodyFat?: number, 
       const { error } = await supabase.from('bodyweight_history').upsert(payload, { onConflict: 'user_id, date' });
       if (error) {
         console.error("Failed to save bodyweight to Supabase:", error);
+        syncError = error;
         await supabase.from('user_settings').upsert({
           user_id: user.id,
           key: `bw_${date}`,
           value: JSON.stringify(payload)
         }, { onConflict: 'user_id, key' });
       }
+    } else {
+      syncError = new Error('Not logged in');
     }
   } catch (e) {
     console.error(e);
+    syncError = e;
   }
   
-  return history;
+  return { success: !syncError, error: syncError, history };
 };
 
 export const getEducationFolders = () => {
@@ -521,8 +550,8 @@ export const syncFromSupabase = async () => {
   try {
     const { data: settings } = await supabase.from('user_settings').select('*').eq('user_id', user.id);
     
-    const { data: ex } = await supabase.from('exercises').select('*');
-    if (ex) {
+    const { data: ex } = await supabase.from('exercises').select('*').eq('user_id', user.id);
+    if (ex && ex.length > 0) {
       const parsedEx = ex
         .filter(e => e.is_deleted !== true)
         .map(e => ({
@@ -534,8 +563,8 @@ export const syncFromSupabase = async () => {
       localStorage.setItem('fittrack_exercises', JSON.stringify(parsedEx));
     }
     
-    const { data: prog } = await supabase.from('programs').select('*');
-    if (prog) {
+    const { data: prog } = await supabase.from('programs').select('*').eq('user_id', user.id);
+    if (prog && prog.length > 0) {
       let activeProg = prog.filter(p => p.is_deleted !== true);
       
       if (settings) {
@@ -641,11 +670,11 @@ export const syncFromSupabase = async () => {
     // const { data: prs } = await supabase.from('personal_records').select('*').eq('user_id', user.id).order('date', { ascending: false });
     // if (prs) localStorage.setItem('fittrack_prs', JSON.stringify(prs));
 
-    const { data: folders } = await supabase.from('education_folders').select('*');
-    if (folders) localStorage.setItem('fittrack_education_folders', JSON.stringify(folders));
+    const { data: folders } = await supabase.from('education_folders').select('*').eq('user_id', user.id);
+    if (folders && folders.length > 0) localStorage.setItem('fittrack_education_folders', JSON.stringify(folders));
 
-    const { data: videos } = await supabase.from('education_videos').select('*');
-    if (videos) localStorage.setItem('fittrack_education_videos', JSON.stringify(videos));
+    const { data: videos } = await supabase.from('education_videos').select('*').eq('user_id', user.id);
+    if (videos && videos.length > 0) localStorage.setItem('fittrack_education_videos', JSON.stringify(videos));
 
     if (settings) {
       const vimeo = settings.find(s => s.key === 'vimeo_token');
@@ -657,9 +686,8 @@ export const syncFromSupabase = async () => {
       const activeProg = settings.find(s => s.key === 'active_program');
       if (activeProg) {
         localStorage.setItem('fittrack_active_program', activeProg.value);
-      } else {
-        localStorage.removeItem('fittrack_active_program');
       }
+      // Removed the else branch that wiped the local active program
     }
     
     // Check for workout reminders (disabled to prevent 404 on missing notifications table)
