@@ -945,11 +945,12 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     setIsGeneratingAI(true);
     let grid = [...progWorkouts];
     let previousWeekWorkouts: any[] = [];
+    const previousProgramWorkouts = programs.find((p: any) => p.type !== "GroupPT" && p.id !== editingProgramId)?.workouts || [];
     try {
       for (let w = 1; w <= newProgWeeks; w++) {
         setGenProgress(`Quick draft — week ${w}/${newProgWeeks}…`);
         const { data, error } = await supabase.functions.invoke("generate-workout", {
-          body: { action: "week", program: streamCfg(), currentWorkouts: [], week: w, exercises: exPayload(), previousWeekWorkouts },
+          body: { action: "week", program: streamCfg(), currentWorkouts: [], week: w, exercises: exPayload(), previousWeekWorkouts, previousProgramWorkouts },
         });
         if (error) throw new Error(error.message);
         if (data?.error) throw new Error(data.error);
@@ -993,6 +994,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
 
     try {
       let generatedCount = 0;
+      const previousProgramWorkouts = programs.find((p: any) => p.type !== "GroupPT" && p.id !== editingProgramId)?.workouts || [];
       for (let w = 1; w <= newProgWeeks; w++) {
         const previousWeekWorkouts = w > 1 ? byWeek(w - 1) : [];
         for (let d = 1; d <= newProgDays; d++) {
@@ -1004,7 +1006,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           setGenProgress(`Full AI plan — week ${w}, day ${d}…`);
           const cell = await generateCellWithRetry({
             action: "single", program: streamCfg(), currentWorkouts: [],
-            week: w, day: d, exercises: exPayload(), previousWeekWorkouts, weekSoFar: byWeek(w),
+            week: w, day: d, exercises: exPayload(), previousWeekWorkouts, weekSoFar: byWeek(w), previousProgramWorkouts
           });
           
           if (cell) {
@@ -1031,6 +1033,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
 
   const handleEdgeFunctionAI = async (workoutIndex: number | null, action: "generate" | "regenerate" | "edit") => {
     setIsGeneratingAI(true);
+    const previousProgramWorkouts = programs.find((p: any) => p.type !== "GroupPT" && p.id !== editingProgramId)?.workouts || [];
     try {
       const { data, error } = await supabase.functions.invoke('generate-workout', {
         body: {
@@ -1038,7 +1041,8 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           program: streamCfg(),
           targetWorkoutIndex: workoutIndex,
           currentWorkouts: progWorkouts,
-          exercises: exPayload()
+          exercises: exPayload(),
+          previousProgramWorkouts
         }
       });
 
