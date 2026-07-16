@@ -43,6 +43,30 @@ const REWARD_ITEMS = [
   { weight: 400000, name: "Boeing 747", plural: "Boeing 747s", emoji: "✈️" },
 ];
 
+const playPing = () => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1000, ctx.currentTime);
+    
+    gainNode.gain.setValueAtTime(1, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
+  } catch (e) {
+    console.error("Audio playback failed", e);
+  }
+};
+
 const Stepper = ({ value, onChange, step = 1, completed, isDecimal = false }: any) => (
   <div className={`flex items-center justify-between w-full max-w-[110px] h-11 rounded-md bg-background border transition-colors focus-within:ring-1 focus-within:ring-primary ${completed ? 'border-transparent bg-transparent' : 'border-border'}`}>
     <button 
@@ -72,11 +96,11 @@ const Stepper = ({ value, onChange, step = 1, completed, isDecimal = false }: an
 
 const Workouts = () => {
   const navigate = useNavigate();
-  const [viewMode, setViewModeState] = useState<'browse' | 'detail' | 'active'>('browse');
+  const [viewMode, setViewModeState] = useState<'browse' | 'detail' | 'active' | 'rest-day'>('browse');
   const [viewDirection, setViewDirection] = useState<'forward' | 'backward'>('forward');
 
-  const setViewMode = (newMode: 'browse' | 'detail' | 'active') => {
-    const depths = { browse: 0, detail: 1, active: 2 };
+  const setViewMode = (newMode: 'browse' | 'detail' | 'active' | 'rest-day') => {
+    const depths = { browse: 0, 'rest-day': 1, detail: 1, active: 2 };
     setViewDirection(depths[newMode] > depths[viewMode] ? 'forward' : 'backward');
     setViewModeState(newMode);
   };
@@ -88,8 +112,9 @@ const Workouts = () => {
   const [exercises, setExercises] = useState<any[]>([{ id: 1, blockType: "Strength", name: "", setsData: [{ id: '1', reps: 10, weight: 0, distance: 0, timeMins: 0, timeSecs: 0, completed: false }, { id: '2', reps: 10, weight: 0, distance: 0, timeMins: 0, timeSecs: 0, completed: false }, { id: '3', reps: 10, weight: 0, distance: 0, timeMins: 0, timeSecs: 0, completed: false }], rest: 0, linkedToNext: false, eachSide: false }]);
   const [exerciseLibrary, setExerciseLibrary] = useState<any[]>([]);
   const [workoutTemplates, setWorkoutTemplates] = useState<any[]>([]);
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const [timerActive, setTimerActive] = useState(false);
+  const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
+  const [pausedTimeLeft, setPausedTimeLeft] = useState<number | null>(null);
+  const [now, setNow] = useState<number>(Date.now());
   const [exerciseSearch, setExerciseSearch] = useState("");
   const [activeProgram, setActiveProgram] = useState<any>(null);
   const [rewardModal, setRewardModal] = useState<{name: string, emoji: string, volume: number, count?: number, displayName?: string} | null>(null);
@@ -164,8 +189,8 @@ const Workouts = () => {
         if (parsed.currentBlockIndex !== undefined) setCurrentBlockIndex(parsed.currentBlockIndex);
         if (parsed.lastSeenSectionId !== undefined) setLastSeenSectionId(parsed.lastSeenSectionId);
         if (parsed.showSectionSlide !== undefined) setShowSectionSlide(parsed.showSectionSlide);
-        if (parsed.timerActive !== undefined) setTimerActive(parsed.timerActive);
-        if (parsed.timeLeft !== undefined) setTimeLeft(parsed.timeLeft);
+        if (parsed.restEndsAt !== undefined) setRestEndsAt(parsed.restEndsAt);
+        if (parsed.pausedTimeLeft !== undefined) setPausedTimeLeft(parsed.pausedTimeLeft);
         if (parsed.viewMode) setViewMode(parsed.viewMode);
       } catch (e) {
         console.error("Failed to parse saved workout", e);
@@ -183,9 +208,9 @@ const Workouts = () => {
           exercises,
           currentBlockIndex,
           lastSeenSectionId,
-          showSectionSlide,
-          timerActive,
-          timeLeft,
+        showSectionSlide,
+        restEndsAt,
+        pausedTimeLeft,
           viewMode
         }));
       } else {
@@ -203,7 +228,7 @@ const Workouts = () => {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [workoutName, exercises, currentBlockIndex, lastSeenSectionId, showSectionSlide, timerActive, timeLeft, viewMode]);
+  }, [workoutName, exercises, currentBlockIndex, lastSeenSectionId, showSectionSlide, restEndsAt, pausedTimeLeft, viewMode]);
 
   useEffect(() => {
     if (blocks.length > 0 && currentBlockIndex >= blocks.length) {
@@ -224,25 +249,25 @@ const Workouts = () => {
   }, [currentBlockIndex, blocks, viewMode, lastSeenSectionId]);
 
   useEffect(() => {
-    let interval: any;
-    if (timerActive) {
-      interval = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev === null || prev <= 0) {
-            clearInterval(interval);
-            return prev;
-          }
-          if (prev === 1) {
-            setTimerActive(false);
-            toast.success("Rest time is up!");
-            return null;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+    const id = setInterval(() => setNow(Date.now()), 250);
+    const onVis = () => setNow(Date.now());
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onVis);
+    return () => { 
+      clearInterval(id); 
+      document.removeEventListener("visibilitychange", onVis); 
+      window.removeEventListener("focus", onVis); 
+    };
+  }, []);
+
+  useEffect(() => {
+    if (restEndsAt !== null && now >= restEndsAt) {
+      setRestEndsAt(null);
+      toast.success("Rest time is up!");
+      if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+      playPing();
     }
-    return () => clearInterval(interval);
-  }, [timerActive]);
+  }, [restEndsAt, now]);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -251,9 +276,35 @@ const Workouts = () => {
   };
 
   const startTimer = (seconds: number) => {
-    setTimeLeft(seconds);
-    setTimerActive(true);
+    setRestEndsAt(Date.now() + seconds * 1000);
+    setPausedTimeLeft(null);
   };
+
+  const toggleTimer = () => {
+    if (restEndsAt) {
+      setPausedTimeLeft(Math.max(0, Math.ceil((restEndsAt - Date.now()) / 1000)));
+      setRestEndsAt(null);
+    } else if (pausedTimeLeft !== null) {
+      setRestEndsAt(Date.now() + pausedTimeLeft * 1000);
+      setPausedTimeLeft(null);
+    }
+  };
+
+  const add30s = () => {
+    if (restEndsAt) {
+      setRestEndsAt(restEndsAt + 30000);
+    } else if (pausedTimeLeft !== null) {
+      setPausedTimeLeft(pausedTimeLeft + 30);
+    }
+  };
+
+  const closeTimer = () => {
+    setRestEndsAt(null);
+    setPausedTimeLeft(null);
+  };
+
+  const currentRemaining = restEndsAt ? Math.max(0, Math.ceil((restEndsAt - now) / 1000)) : (pausedTimeLeft || 0);
+  const isTimerVisible = restEndsAt !== null || pausedTimeLeft !== null;
 
   const addExercise = () => {
     setExercises([...exercises, { id: Date.now(), blockType: "Strength", name: "", setsData: [{ id: Date.now().toString(), reps: 10, weight: 0, distance: 0, timeMins: 0, timeSecs: 0, completed: false }], rest: 0, linkedToNext: false, eachSide: false }]);
@@ -267,9 +318,76 @@ const Workouts = () => {
     setExercises(exercises.map((e) => e.id === id ? { ...e, [field]: value } : e));
   };
 
+  const [nextSession, setNextSession] = useState<any>(null);
+
+  const localToday = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  const launchTarget = (grid: any[]) => {
+    const today = localToday();
+    const dated = grid.filter((c: any) => c.date);
+    if (dated.length === 0) return { mode: "undated" };
+    const todays = dated.filter((c: any) => c.date === today);
+    if (todays.length === 0) {
+      const upcoming = dated
+        .filter((c: any) => c.date > today)
+        .sort((a: any, b: any) => a.date.localeCompare(b.date))[0] || null;
+      return { mode: "rest", next: upcoming };
+    }
+    return { mode: "session", session: todays[0], index: grid.indexOf(todays[0]) };
+  };
+
   const openTemplateDetail = (template: any) => {
     setSelectedTemplate(template);
+    
+    if (template.workouts && template.workouts.length > 0) {
+      const target = launchTarget(template.workouts);
+      if (target.mode === "session" && target.session) {
+        startTargetSession(template, target.session, target.index);
+        return;
+      } else if (target.mode === "rest") {
+        setNextSession(target.next);
+        setViewMode('rest-day');
+        return;
+      }
+    }
+    
     setViewMode('detail');
+  };
+
+  const startTargetSession = (template: any, session: any, index: number) => {
+    const newActive = {
+      programId: template.id,
+      name: template.name,
+      weeks: template.weeks,
+      daysPerWeek: template.daysPerWeek,
+      workouts: template.workouts,
+      currentIndex: index
+    };
+    setActiveProgram(newActive);
+    saveActiveProgram(newActive);
+    
+    setWorkoutName(`${template.name}: ${session.name}`);
+    setExercises(session.exercises.map((ex: any, idx: number) => ({ 
+      id: Date.now() + idx, 
+      ...ex,
+      setsData: ex.setsData || Array.from({ length: ex.sets || 3 }).map((_, i) => ({
+        id: Date.now().toString() + i,
+        reps: ex.reps || 10,
+        weight: ex.weight || 0,
+        distance: ex.distance || 0,
+        timeMins: ex.timeMins || 0,
+        timeSecs: ex.timeSecs || 0,
+        completed: false
+      }))
+    })));
+    setCurrentBlockIndex(0);
+    setLastSeenSectionId(null);
+    setShowSectionSlide(false);
+    toast.success(`Started program: ${template.name}`);
+    setViewMode('active');
   };
 
   const startTemplate = (template: any) => {
@@ -328,28 +446,39 @@ const Workouts = () => {
 
   const resumeActiveProgram = () => {
     if (activeProgram && activeProgram.workouts) {
-      const currentWorkout = activeProgram.workouts[activeProgram.currentIndex];
-      // Only overwrite if we don't already have an active workout loaded
       const hasActiveContent = workoutName || exercises.length > 1 || (exercises.length === 1 && exercises[0].name);
-      if (!hasActiveContent && currentWorkout && currentWorkout.exercises) {
-        setWorkoutName(`${activeProgram.name}: ${currentWorkout.name}`);
-        setExercises(currentWorkout.exercises.map((ex: any, idx: number) => ({ 
-          id: Date.now() + idx, 
-          blockType: ex.blockType || "Strength",
-          ...ex,
-          setsData: ex.setsData || Array.from({ length: ex.sets || 3 }).map((_, i) => ({
-            id: Date.now().toString() + i,
-            reps: ex.reps || 10,
-            weight: ex.weight || 0,
-            distance: ex.distance || 0,
-            timeMins: ex.timeMins || 0,
-            timeSecs: ex.timeSecs || 0,
-            completed: false
-          }))
-        })));
-        setCurrentBlockIndex(0);
-        setLastSeenSectionId(null);
-        setShowSectionSlide(false);
+      if (!hasActiveContent) {
+        const target = launchTarget(activeProgram.workouts);
+        if (target.mode === "session" && target.session) {
+          startTargetSession(activeProgram, target.session, target.index);
+          return;
+        } else if (target.mode === "rest") {
+          setNextSession(target.next);
+          setViewMode('rest-day');
+          return;
+        }
+        
+        const currentWorkout = activeProgram.workouts[activeProgram.currentIndex];
+        if (currentWorkout && currentWorkout.exercises) {
+          setWorkoutName(`${activeProgram.name}: ${currentWorkout.name}`);
+          setExercises(currentWorkout.exercises.map((ex: any, idx: number) => ({ 
+            id: Date.now() + idx, 
+            blockType: ex.blockType || "Strength",
+            ...ex,
+            setsData: ex.setsData || Array.from({ length: ex.sets || 3 }).map((_, i) => ({
+              id: Date.now().toString() + i,
+              reps: ex.reps || 10,
+              weight: ex.weight || 0,
+              distance: ex.distance || 0,
+              timeMins: ex.timeMins || 0,
+              timeSecs: ex.timeSecs || 0,
+              completed: false
+            }))
+          })));
+          setCurrentBlockIndex(0);
+          setLastSeenSectionId(null);
+          setShowSectionSlide(false);
+        }
       }
     }
     setViewMode('active');
@@ -619,7 +748,10 @@ const Workouts = () => {
                                   {isCompleted ? <Check className="h-4 w-4" /> : <span className="text-xs font-bold">{dayIdx + 1}</span>}
                                 </div>
                                 <div>
-                                  <div className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-0.5">Day {dayIdx + 1}</div>
+                                  <div className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-0.5">
+                                    Day {dayIdx + 1}
+                                    {w.date && <span className="ml-2 px-1.5 py-0.5 bg-muted/50 rounded-sm text-[10px]">{new Date(w.date).toLocaleDateString()}</span>}
+                                  </div>
                                   <div className="font-bold leading-tight">{w.name}</div>
                                 </div>
                               </div>
@@ -639,7 +771,7 @@ const Workouts = () => {
                 <h3 className="font-heading text-xl tracking-wider uppercase text-muted-foreground">Exercises</h3>
                 <div className="space-y-2">
                   {selectedTemplate.exercises?.map((ex: any, idx: number) => {
-                    const libEx = exerciseLibrary.find(e => e.id === ex.name);
+                    const libEx = exerciseLibrary.find(e => String(e.id) === String(ex.name));
                     return (
                       <div key={idx} className="p-4 rounded-xl border border-border bg-card flex justify-between items-center">
                         <div className="font-bold">{libEx ? libEx.name : (ex.name || "Unknown")}</div>
@@ -652,6 +784,34 @@ const Workouts = () => {
             )}
           </div>
         </motion.div>
+        )}
+
+        {viewMode === 'rest-day' && (
+          <motion.div 
+            key="rest-day"
+            custom={viewDirection}
+            variants={variants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 flex flex-col items-center justify-center min-h-[70vh]"
+          >
+            <div className="text-center space-y-6 max-w-md mx-auto">
+              <h2 className="text-4xl font-heading tracking-wider uppercase">Rest Day</h2>
+              <p className="text-muted-foreground text-lg">No session scheduled for today.</p>
+              {nextSession && (
+                <p className="font-bold text-primary">Next up: {nextSession.name} on {new Date(nextSession.date).toLocaleDateString()}</p>
+              )}
+              <div className="pt-8 flex flex-col gap-4">
+                <Button onClick={() => setViewMode('detail')} className="w-full h-14 text-lg font-bold tracking-wide rounded-xl">
+                  View Full Programme
+                </Button>
+                <Button variant="outline" onClick={() => setViewMode('browse')} className="w-full h-14 text-lg font-bold tracking-wide rounded-xl">
+                  Back to Library
+                </Button>
+              </div>
+            </div>
+          </motion.div>
         )}
 
         {viewMode === 'active' && (
@@ -738,7 +898,7 @@ const Workouts = () => {
                         const ex = exercises[i];
                         if (ex.isSection) break;
                         if (ex.name) {
-                          const libEx = exerciseLibrary.find(le => le.id === ex.name);
+                          const libEx = exerciseLibrary.find(le => String(le.id) === String(ex.name));
                           const name = libEx ? libEx.name : ex.name;
                           
                           const setsCount = ex.setsData?.length || ex.sets || 3;
@@ -836,7 +996,7 @@ const Workouts = () => {
                           
                           <div className="space-y-4 mb-6">
                             {currentBlock.exercises.map((exercise: any, exIdx: number) => {
-                              const libraryExercise = exerciseLibrary.find(e => e.id === exercise.name);
+                              const libraryExercise = exerciseLibrary.find(e => String(e.id) === String(exercise.name));
                               const lastStats = exercise.name ? getLastExerciseStats(exercise.name) : null;
                               const letter = String.fromCharCode(65 + exIdx);
                               
@@ -846,8 +1006,11 @@ const Workouts = () => {
                                     <div className="h-6 w-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">{letter}</div>
                                     <div className="flex-1">
                                       <Select 
-                                        value={exercise.name} 
-                                        onValueChange={(val) => updateExercise(exercise.id, "name", val)}
+                                        value={exercise.name?.toString() || ""} 
+                                        onValueChange={(val) => {
+                                          const numVal = Number(val);
+                                          updateExercise(exercise.id, "name", isNaN(numVal) ? val : numVal);
+                                        }}
                                       >
                                         <SelectTrigger className="h-8">
                                           <SelectValue placeholder="Select exercise" />
@@ -864,14 +1027,16 @@ const Workouts = () => {
                                           </div>
                                           {exerciseLibrary
                                             .filter(ex => {
+                                              if (String(ex.id) === String(exercise.name)) return true;
                                               if (!exercise.blockType) return true;
                                               const cats = Array.isArray(ex.category) ? ex.category : [ex.category || "Strength"];
-                                              return cats.includes(exercise.blockType);
+                                              const movs = Array.isArray(ex.movementType) ? ex.movementType : [ex.movementType || ""];
+                                              return cats.includes(exercise.blockType) || movs.includes(exercise.blockType);
                                             })
                                             .filter(ex => ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()))
                                             .sort((a, b) => a.name.localeCompare(b.name))
                                             .map(ex => (
-                                              <SelectItem key={ex.id} value={ex.id}>
+                                              <SelectItem key={ex.id} value={ex.id?.toString()}>
                                                 {ex.name} {ex.movementType ? `(${Array.isArray(ex.movementType) ? ex.movementType.join(", ") : ex.movementType})` : ""}
                                               </SelectItem>
                                           ))}
@@ -962,7 +1127,7 @@ const Workouts = () => {
                           <div className="space-y-6">
                             {Array.from({ length: Math.max(...currentBlock.exercises.map((e: any) => e.setsData?.length || 0)) }).map((_, roundIndex) => {
                               const allTrackingTypes = currentBlock.exercises.flatMap((e: any) => {
-                                const libEx = exerciseLibrary.find(le => le.id === e.name);
+                                const libEx = exerciseLibrary.find(le => String(le.id) === String(e.name));
                                 return Array.isArray(libEx?.trackingType) ? libEx.trackingType : [libEx?.trackingType || "Weight & Reps"];
                               });
                               const trackingArray = Array.from(new Set(allTrackingTypes));
@@ -1087,7 +1252,7 @@ const Workouts = () => {
                       ) : (
                         <div className="space-y-4">
                           {currentBlock.exercises.map((exercise: any) => {
-                            const libraryExercise = exerciseLibrary.find(e => e.id === exercise.name);
+                            const libraryExercise = exerciseLibrary.find(e => String(e.id) === String(exercise.name));
                             const lastStats = exercise.name ? getLastExerciseStats(exercise.name) : null;
                             
                             return (
@@ -1106,8 +1271,11 @@ const Workouts = () => {
                                     </div>
                                     <div className="flex gap-2">
                                       <Select 
-                                        value={exercise.name} 
-                                        onValueChange={(val) => updateExercise(exercise.id, "name", val)}
+                                        value={exercise.name?.toString() || ""} 
+                                        onValueChange={(val) => {
+                                          const numVal = Number(val);
+                                          updateExercise(exercise.id, "name", isNaN(numVal) ? val : numVal);
+                                        }}
                                       >
                                         <SelectTrigger className="flex-1">
                                           <SelectValue placeholder="Select exercise" />
@@ -1124,14 +1292,16 @@ const Workouts = () => {
                                           </div>
                                           {exerciseLibrary
                                             .filter(ex => {
+                                              if (String(ex.id) === String(exercise.name)) return true;
                                               if (!exercise.blockType) return true;
                                               const cats = Array.isArray(ex.category) ? ex.category : [ex.category || "Strength"];
-                                              return cats.includes(exercise.blockType);
+                                              const movs = Array.isArray(ex.movementType) ? ex.movementType : [ex.movementType || ""];
+                                              return cats.includes(exercise.blockType) || movs.includes(exercise.blockType);
                                             })
                                             .filter(ex => ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()))
                                             .sort((a, b) => a.name.localeCompare(b.name))
                                             .map(ex => (
-                                              <SelectItem key={ex.id} value={ex.id}>
+                                              <SelectItem key={ex.id} value={ex.id?.toString()}>
                                                 {ex.name} {ex.movementType ? `(${Array.isArray(ex.movementType) ? ex.movementType.join(", ") : ex.movementType})` : ""}
                                               </SelectItem>
                                           ))}
@@ -1366,25 +1536,25 @@ const Workouts = () => {
         )}
       </AnimatePresence>
 
-      {timerActive && (
+      {isTimerVisible && (
         <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+144px)] left-4 right-4 bg-primary text-primary-foreground shadow-lg rounded-xl p-3 flex items-center justify-between z-50 animate-in slide-in-from-bottom-5">
           <div className="flex items-center gap-3">
             <Timer className="h-5 w-5" />
             <div className="flex flex-col">
               <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">Rest Timer</span>
               <span className="text-xl font-heading font-bold tabular-nums tracking-wider leading-none">
-                {formatTime(timeLeft)}
+                {formatTime(currentRemaining)}
               </span>
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground" onClick={() => setTimeLeft(prev => (prev || 0) + 30)}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground" onClick={add30s}>
               <span className="text-xs font-bold">+30s</span>
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground" onClick={() => setTimerActive(!timerActive)}>
-              {timerActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground" onClick={toggleTimer}>
+              {restEndsAt ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground" onClick={() => { setTimeLeft(null); setTimerActive(false); }}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground" onClick={closeTimer}>
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -1406,7 +1576,7 @@ const Workouts = () => {
               </div>
               <div className="p-4 max-h-[60vh] overflow-y-auto space-y-3">
                 {quickOverviewWorkout.workout.exercises?.map((ex: any, idx: number) => {
-                  const libEx = exerciseLibrary.find(e => e.id === ex.name);
+                  const libEx = exerciseLibrary.find(e => String(e.id) === String(ex.name));
                   return (
                     <div key={idx} className="flex justify-between items-center bg-background border border-border p-3 rounded-lg">
                       <div className="font-bold text-sm">{libEx ? libEx.name : (ex.name || "Unknown")}</div>
@@ -1419,47 +1589,8 @@ const Workouts = () => {
                 <Button 
                   className="w-full font-bold tracking-wide h-12 text-lg rounded-xl"
                   onClick={() => {
-                    const template = quickOverviewWorkout.template;
-                    
-                    // Enroll if not already active or if on a different program
-                    if (!activeProgram || activeProgram.programId !== template.id) {
-                      const newActive = {
-                        programId: template.id,
-                        name: template.name,
-                        weeks: template.weeks,
-                        daysPerWeek: template.daysPerWeek,
-                        workouts: template.workouts,
-                        currentIndex: quickOverviewWorkout.index
-                      };
-                      setActiveProgram(newActive);
-                      saveActiveProgram(newActive);
-                      toast.success(`Started program: ${template.name}`);
-                    } else if (activeProgram.currentIndex !== quickOverviewWorkout.index) {
-                      // Just update the index if already enrolled
-                      const updatedProgram = { ...activeProgram, currentIndex: quickOverviewWorkout.index };
-                      setActiveProgram(updatedProgram);
-                      saveActiveProgram(updatedProgram);
-                    }
-                    
-                    // Setup the workout
-                    const workout = quickOverviewWorkout.workout;
-                    setWorkoutName(`${template.name}: ${workout.name}`);
-                    setExercises(workout.exercises.map((ex: any, exIdx: number) => ({ 
-                      id: Date.now() + exIdx, 
-                      ...ex,
-                      setsData: ex.setsData || Array.from({ length: ex.sets || 3 }).map((_, i) => ({
-                        id: Date.now().toString() + i,
-                        reps: ex.reps || 10,
-                        weight: ex.weight || 0,
-                        distance: ex.distance || 0,
-                        timeMins: ex.timeMins || 0,
-                        timeSecs: ex.timeSecs || 0,
-                        completed: false
-                      }))
-                    })));
-                    setCurrentBlockIndex(0);
+                    startTargetSession(quickOverviewWorkout.template, quickOverviewWorkout.workout, quickOverviewWorkout.index);
                     setQuickOverviewWorkout(null);
-                    setViewMode('active');
                   }}
                 >
                   <Play className="h-5 w-5 mr-2 fill-current" /> Start Workout

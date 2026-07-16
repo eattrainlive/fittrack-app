@@ -126,26 +126,53 @@ const Index = () => {
       </div>
 
       {/* Active Program / Today's Workout */}
-      {activeProgram ? (
-        <Card className="bg-card border-border shadow-md overflow-hidden relative">
-          <div className="absolute top-0 left-0 w-1 h-full bg-primary"></div>
-          <CardHeader className="pb-3">
-            <CardDescription className="text-primary font-bold uppercase tracking-wider text-xs">Up Next</CardDescription>
-            <CardTitle className="font-heading text-2xl tracking-wider uppercase">
-              {activeProgram.name}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-4">
-              <p className="font-bold text-lg">{activeProgram.workouts[activeProgram.currentIndex]?.name}</p>
-              <p className="text-sm text-muted-foreground">Workout {activeProgram.currentIndex + 1} of {activeProgram.workouts.length}</p>
-            </div>
-            <Button onClick={() => navigate('/workouts')} className="w-full gap-2 font-bold tracking-wide h-14 text-lg rounded-xl">
-              <Play className="h-5 w-5 fill-current" /> Start Workout
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
+      {activeProgram ? (() => {
+        const localToday = () => {
+          const d = new Date();
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        };
+        const today = localToday();
+        const dated = activeProgram.workouts?.filter((c: any) => c.date) || [];
+        
+        let targetWorkout = activeProgram.workouts[activeProgram.currentIndex];
+        let targetIndex = activeProgram.currentIndex;
+        let isRestDay = false;
+        
+        if (dated.length > 0) {
+          const todays = dated.filter((c: any) => c.date === today);
+          if (todays.length > 0) {
+            targetWorkout = todays[0];
+            targetIndex = activeProgram.workouts.indexOf(todays[0]);
+          } else {
+            isRestDay = true;
+          }
+        }
+
+        return (
+          <Card className="bg-card border-border shadow-md overflow-hidden relative">
+            <div className="absolute top-0 left-0 w-1 h-full bg-primary"></div>
+            <CardHeader className="pb-3">
+              <CardDescription className="text-primary font-bold uppercase tracking-wider text-xs">Up Next</CardDescription>
+              <CardTitle className="font-heading text-2xl tracking-wider uppercase">
+                {activeProgram.name}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4">
+                {isRestDay ? (
+                  <p className="font-bold text-lg">Rest Day</p>
+                ) : (
+                  <p className="font-bold text-lg">{targetWorkout?.name}</p>
+                )}
+                {!isRestDay && <p className="text-sm text-muted-foreground">Workout {targetIndex + 1} of {activeProgram.workouts.length}</p>}
+              </div>
+              <Button onClick={() => navigate('/workouts')} className="w-full gap-2 font-bold tracking-wide h-14 text-lg rounded-xl">
+                <Play className="h-5 w-5 fill-current" /> {isRestDay ? "View Programme" : "Start Workout"}
+              </Button>
+            </CardContent>
+          </Card>
+        );
+      })() : (
         <Card className="bg-card border-border shadow-md overflow-hidden relative">
           <div className="absolute top-0 left-0 w-1 h-full bg-muted"></div>
           <CardHeader className="pb-3">

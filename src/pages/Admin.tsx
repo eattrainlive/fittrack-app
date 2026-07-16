@@ -54,7 +54,7 @@ const Admin = () => {
   const [newProgCover, setNewProgCover] = useState("");
   const [newProgWeeks, setNewProgWeeks] = useState(4);
   const [newProgDays, setNewProgDays] = useState(5);
-  const [newProgType, setNewProgType] = useState<"program" | "session_folder">("program");
+  const [newProgType, setNewProgType] = useState<"program" | "session_folder" | "GroupPT">("program");
   const [progWorkouts, setProgWorkouts] = useState<any[]>([]);
   const [progWeekNotes, setProgWeekNotes] = useState<Record<number, string>>({});
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(0);
@@ -385,7 +385,8 @@ const Admin = () => {
         exercises: []
       }]);
     } else {
-      const totalWorkouts = newProgWeeks * newProgDays;
+      const weeks = newProgType === "GroupPT" ? 12 : newProgWeeks;
+      const totalWorkouts = weeks * newProgDays;
       const newWorkouts = [];
       for (let i = 0; i < totalWorkouts; i++) {
         const week = Math.floor(i / newProgDays) + 1;
@@ -504,7 +505,8 @@ const Admin = () => {
   };
 
   const handleDuplicateWeekTo = (targetWeek: number) => {
-    if (targetWeek === selectedWeek || targetWeek < 1 || targetWeek > newProgWeeks) return;
+    const maxWeeks = newProgType === "GroupPT" ? 12 : newProgWeeks;
+    if (targetWeek === selectedWeek || targetWeek < 1 || targetWeek > maxWeeks) return;
     const updatedWorkouts = [...progWorkouts];
     
     for (let d = 1; d <= newProgDays; d++) {
@@ -526,7 +528,7 @@ const Admin = () => {
     const currentEx = updatedWorkouts[selectedWorkoutIndex].exercises.find((e: any) => e.id === exerciseId);
     if (!currentEx || !currentEx.name) return;
     
-    const libEx = exercises.find(e => e.id === currentEx.name);
+    const libEx = exercises.find(e => String(e.id) === String(currentEx.name));
     if (!libEx) return;
     
     const matchingExercises = exercises.filter(e => 
@@ -585,7 +587,7 @@ const Admin = () => {
     updatedWorkouts[selectedWorkoutIndex].exercises.forEach((currentEx: any) => {
       if (currentEx.isSection || !currentEx.name) return;
       
-      const libEx = exercises.find(e => e.id === currentEx.name);
+      const libEx = exercises.find(e => String(e.id) === String(currentEx.name));
       if (!libEx) return;
       
       const matchingExercises = exercises.filter(e => 
@@ -717,13 +719,14 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       stream: newProgStream,
       coverImage: newProgCover,
       type: newProgType,
-      weeks: newProgWeeks,
+      weeks: newProgType === "GroupPT" ? 12 : newProgWeeks,
       daysPerWeek: newProgDays,
       weekNotes: progWeekNotes,
       workouts: progWorkouts.map(w => ({
         name: w.name,
         week: w.week,
         day: w.day,
+        date: w.date,
         exercises: w.exercises.map((e: any) => ({ isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes, coachingNotes: e.coachingNotes }))
       }))
     };
@@ -756,7 +759,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     setNewProgDesc(prog.description || "");
     setNewProgStream(prog.stream || "Fusion");
     setNewProgCover(prog.coverImage || "");
-    setNewProgType(prog.type || "program");
+    setNewProgType((prog.type as "program" | "session_folder" | "GroupPT") || "program");
     setNewProgWeeks(prog.weeks || 4);
     setNewProgDays(prog.daysPerWeek || 3);
     setProgWeekNotes(prog.weekNotes || {});
@@ -766,6 +769,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       name: w.name,
       week: w.week,
       day: w.day,
+      date: w.date,
       exercises: w.exercises.map((e: any, eIdx: number) => ({
         id: Date.now() + eIdx + Math.random(),
         isSection: e.isSection,
@@ -894,13 +898,14 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       stream: newProgStream,
       coverImage: newProgCover,
       type: newProgType,
-      weeks: newProgWeeks,
+      weeks: newProgType === "GroupPT" ? 12 : newProgWeeks,
       daysPerWeek: newProgDays,
       weekNotes: progWeekNotes,
       workouts: workoutsToSave.map(w => ({
         name: w.name,
         week: w.week,
         day: w.day,
+        date: w.date,
         exercises: w.exercises.map((e: any) => ({ isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes, coachingNotes: e.coachingNotes }))
       }))
     };
@@ -1050,6 +1055,69 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       setIsGeneratingAI(false);
     }
   };
+
+  const GROUP_PT_WEEKS = 12;
+  const [genCycle, setGenCycle] = useState(0);
+
+  async function callGroupGen(body: any) {
+    const { data, error } = await supabase.functions.invoke("generate-group-pt", { body });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    return data.workouts;
+  }
+
+  async function generateGroupBlock() {
+    setIsGeneratingAI(true);
+    let current = progWorkouts;
+    const previousGroupPTProgram = programs.find((p: any) => p.type === "GroupPT" && p.id !== editingProgramId);
+    const previousBlock = previousGroupPTProgram?.workouts || [];
+
+    try {
+      for (let cw = 1; cw <= 4; cw++) {
+        setGenCycle(cw);
+        current = await callGroupGen({
+          action: "week",
+          program: { weeks: GROUP_PT_WEEKS, days: newProgDays },
+          currentWorkouts: current,
+          exercises: exPayload(),
+          cycleWeek: cw,
+          previousBlockWorkouts: previousBlock,
+        });
+        setProgWorkouts([...current]);
+      }
+      await autoSaveProgram(current);
+      toast.success("Group PT block generated successfully!");
+    } catch (e: any) {
+      toast.error(`Generation failed on template week ${genCycle}: ${e.message}`);
+    } finally {
+      setIsGeneratingAI(false);
+      setGenCycle(0);
+    }
+  }
+
+  async function regenerateGroupCell(index: number) {
+    setIsGeneratingAI(true);
+    const previousGroupPTProgram = programs.find((p: any) => p.type === "GroupPT" && p.id !== editingProgramId);
+    const previousBlock = previousGroupPTProgram?.workouts || [];
+
+    try {
+      const updated = await callGroupGen({
+        action: "single",
+        program: { weeks: GROUP_PT_WEEKS, days: newProgDays },
+        currentWorkouts: progWorkouts,
+        exercises: exPayload(),
+        targetWorkoutIndex: index,
+        previousBlockWorkouts: previousBlock,
+      });
+      setProgWorkouts(updated);
+      await autoSaveProgram(updated);
+      toast.success("Group PT session regenerated successfully!");
+    } catch (e: any) {
+      toast.error("Regenerate failed: " + e.message);
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  }
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6 max-w-5xl mx-auto w-full">
@@ -1453,37 +1521,47 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                   </div>
                   <div className="space-y-2 md:col-span-2">
                     <Label>Program Structure</Label>
-                    <Select value={newProgType} onValueChange={(v: "program" | "session_folder") => setNewProgType(v)}>
+                    <Select value={newProgType} onValueChange={(v: "program" | "session_folder" | "GroupPT") => setNewProgType(v)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="program">Structured Program (Weeks/Days)</SelectItem>
                         <SelectItem value="session_folder">Session Folder (Standalone Sessions)</SelectItem>
+                        <SelectItem value="GroupPT">Group PT (12-Week Block)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  {newProgType === "program" && (
+                  {(newProgType === "program" || newProgType === "GroupPT") && (
                     <>
-                      <div className="space-y-2">
-                        <Label>Stream</Label>
-                        <Select value={newProgStream} onValueChange={(val) => {
-                          setNewProgStream(val);
-                          if (val === "Stronger") setNewProgDays(5);
-                          else if (val === "Fusion") setNewProgDays(4);
-                          else if (val === "Performance") setNewProgDays(5);
-                        }}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Stronger">Stronger</SelectItem>
-                            <SelectItem value="Fusion">Fusion</SelectItem>
-                            <SelectItem value="Performance">Performance</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {newProgType === "program" && (
+                        <div className="space-y-2">
+                          <Label>Stream</Label>
+                          <Select value={newProgStream} onValueChange={(val) => {
+                            setNewProgStream(val);
+                            if (val === "Stronger") setNewProgDays(5);
+                            else if (val === "Fusion") setNewProgDays(4);
+                            else if (val === "Performance") setNewProgDays(5);
+                          }}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Stronger">Stronger</SelectItem>
+                              <SelectItem value="Fusion">Fusion</SelectItem>
+                              <SelectItem value="Performance">Performance</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <Label>Length (Weeks)</Label>
-                        <Input type="number" min="1" max="52" value={newProgWeeks} onChange={e => setNewProgWeeks(parseInt(e.target.value) || 1)} />
+                        <Input 
+                          type="number" 
+                          min="1" 
+                          max="52" 
+                          value={newProgType === "GroupPT" ? 12 : newProgWeeks} 
+                          onChange={e => setNewProgWeeks(parseInt(e.target.value) || 1)} 
+                          disabled={newProgType === "GroupPT"}
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>Days per Week</Label>
@@ -1496,31 +1574,45 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                 {progWorkouts.length === 0 ? (
                   <div className="flex flex-col gap-2">
                     <Button onClick={handleGenerateWorkoutSlots} className="w-full">Generate Workout Grid</Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={handleGenerateQuick} 
-                      className="w-full gap-2 border-primary text-primary hover:bg-primary/10"
-                      disabled={isGeneratingAI || !newProgStream}
-                    >
-                      {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                      {genProgress || "Quick generate"}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={handleGenerateFullAI} 
-                      className="w-full gap-2 border-primary text-primary hover:bg-primary/10"
-                      disabled={isGeneratingAI || !newProgStream}
-                    >
-                      {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                      {genProgress || "Full AI plan (slower)"}
-                    </Button>
+                    {newProgType === "GroupPT" ? (
+                      <Button 
+                        variant="outline" 
+                        onClick={generateGroupBlock} 
+                        className="w-full gap-2 border-primary text-primary hover:bg-primary/10"
+                        disabled={isGeneratingAI}
+                      >
+                        {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                        {genCycle > 0 ? `Generating template week ${genCycle}/4…` : "Generate 12-week Group PT block"}
+                      </Button>
+                    ) : (
+                      <>
+                        <Button 
+                          variant="outline" 
+                          onClick={handleGenerateQuick} 
+                          className="w-full gap-2 border-primary text-primary hover:bg-primary/10"
+                          disabled={isGeneratingAI || !newProgStream}
+                        >
+                          {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                          {genProgress || "Quick generate"}
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={handleGenerateFullAI} 
+                          className="w-full gap-2 border-primary text-primary hover:bg-primary/10"
+                          disabled={isGeneratingAI || !newProgStream}
+                        >
+                          {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                          {genProgress || "Full AI plan (slower)"}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-6 pt-4 border-t border-border">
-                    {newProgType === "program" && (
+                    {(newProgType === "program" || newProgType === "GroupPT") && (
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          {progWorkouts.some(w => !w.exercises || w.exercises.length === 0) && (
+                          {newProgType === "program" && progWorkouts.some(w => !w.exercises || w.exercises.length === 0) && (
                             <Button 
                               variant="outline" 
                               size="sm"
@@ -1540,9 +1632,9 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                       </div>
                     )}
                     
-                    {progViewMode === "full" && newProgType === "program" ? (
+                    {progViewMode === "full" && (newProgType === "program" || newProgType === "GroupPT") ? (
                       <div className="space-y-8">
-                        {Array.from({ length: newProgWeeks }).map((_, wIdx) => {
+                        {Array.from({ length: newProgType === "GroupPT" ? 12 : newProgWeeks }).map((_, wIdx) => {
                           const weekNum = wIdx + 1;
                           return (
                             <div key={weekNum} className="space-y-4">
@@ -1582,7 +1674,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                     <>
                                                       <div className="flex items-start gap-1 min-w-0">
                                                         {isSupersetItem && <Link2 className="h-3 w-3 shrink-0 text-primary mt-0.5" />}
-                                                        <span className="truncate">{exercises.find(e => e.id === ex.name)?.name || ex.name || "Unknown Exercise"}</span>
+                                                        <span className="truncate">{exercises.find(e => String(e.id) === String(ex.name))?.name || ex.name || "Unknown Exercise"}</span>
                                                       </div>
                                                       {detailText && (
                                                         <span className="text-[10px] opacity-70 shrink-0 font-medium whitespace-nowrap">
@@ -1609,10 +1701,10 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                       </div>
                     ) : (
                       <div className="space-y-6">
-                        {newProgType === "program" ? (
+                        {(newProgType === "program" || newProgType === "GroupPT") ? (
                           <div className="space-y-4">
                             <div className="flex gap-2 overflow-x-auto pb-2 border-b border-border">
-                          {Array.from({ length: newProgWeeks }).map((_, i) => (
+                          {Array.from({ length: newProgType === "GroupPT" ? 12 : newProgWeeks }).map((_, i) => (
                             <Button 
                               key={`week-${i+1}`} 
                               variant={selectedWeek === i + 1 ? "default" : "outline"}
@@ -1664,7 +1756,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                     )}
 
                     <div className="bg-muted/30 p-4 rounded-lg border border-border space-y-4">
-                      {newProgType === "program" && (
+                      {(newProgType === "program" || newProgType === "GroupPT") && (
                         <div className="space-y-4 mb-6 pb-4 border-b border-border">
                           <div className="flex items-center justify-between">
                             <h3 className="font-heading tracking-wider text-xl">Week {selectedWeek} Settings</h3>
@@ -1677,7 +1769,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                               <Select onValueChange={(v) => handleDuplicateWeekTo(parseInt(v))}>
                                 <SelectTrigger className="w-[160px] h-9"><SelectValue placeholder="Duplicate To..." /></SelectTrigger>
                                 <SelectContent>
-                                  {Array.from({ length: newProgWeeks }).map((_, i) => (
+                                  {Array.from({ length: newProgType === "GroupPT" ? 12 : newProgWeeks }).map((_, i) => (
                                     i + 1 !== selectedWeek && <SelectItem key={`dup-w-${i+1}`} value={(i + 1).toString()}>Week {i + 1}</SelectItem>
                                   ))}
                                 </SelectContent>
@@ -1695,15 +1787,30 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                         </div>
                       )}
 
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-heading tracking-wider text-xl">{progWorkouts[selectedWorkoutIndex]?.name}</h3>
+                      <div className="flex items-center justify-between flex-wrap gap-4">
+                        <div className="flex items-center gap-4">
+                          <h3 className="font-heading tracking-wider text-xl">{progWorkouts[selectedWorkoutIndex]?.name}</h3>
+                          <div className="flex items-center gap-2">
+                            <Label className="whitespace-nowrap text-xs text-muted-foreground uppercase">Scheduled Date</Label>
+                            <Input 
+                              type="date" 
+                              value={progWorkouts[selectedWorkoutIndex]?.date || ""} 
+                              onChange={(e) => {
+                                const updatedWorkouts = [...progWorkouts];
+                                updatedWorkouts[selectedWorkoutIndex].date = e.target.value;
+                                setProgWorkouts(updatedWorkouts);
+                              }}
+                              className="w-[140px] h-8 text-sm"
+                            />
+                          </div>
+                        </div>
                         <div className="flex gap-2">
                           {selectedWorkoutIndex > 0 && (
                             <Button variant="outline" size="sm" onClick={handleCopyFromPrevious} className="gap-2">
                               <Copy className="h-4 w-4" /> Copy Previous Day
                             </Button>
                           )}
-                          {newProgType === "program" && (
+                          {(newProgType === "program" || newProgType === "GroupPT") && (
                             <Select onValueChange={(v) => handleDuplicateDayTo(selectedWeek, parseInt(v))}>
                               <SelectTrigger className="w-[160px] h-9"><SelectValue placeholder="Duplicate To Day..." /></SelectTrigger>
                               <SelectContent>
@@ -1720,22 +1827,24 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                             variant="default" 
                             size="sm" 
                             className="gap-2 bg-primary text-primary-foreground"
-                            onClick={() => handleEdgeFunctionAI(selectedWorkoutIndex, "regenerate")}
+                            onClick={() => newProgType === "GroupPT" ? regenerateGroupCell(selectedWorkoutIndex) : handleEdgeFunctionAI(selectedWorkoutIndex, "regenerate")}
                             disabled={isGeneratingAI}
                           >
                             {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                             Regenerate
                           </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="gap-2"
-                            onClick={() => handleEdgeFunctionAI(selectedWorkoutIndex, "edit")}
-                            disabled={isGeneratingAI}
-                          >
-                            {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
-                            Edit with AI
-                          </Button>
+                          {newProgType !== "GroupPT" && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="gap-2"
+                              onClick={() => handleEdgeFunctionAI(selectedWorkoutIndex, "edit")}
+                              disabled={isGeneratingAI}
+                            >
+                              {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
+                              Edit with AI
+                            </Button>
+                          )}
                         </div>
                       </div>
 
@@ -1748,7 +1857,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                   <Dumbbell className="h-12 w-12 text-muted-foreground mb-4 opacity-20" />
                                   <p className="text-muted-foreground mb-4">No exercises added yet.</p>
                                   <Button 
-                                    onClick={() => handleEdgeFunctionAI(selectedWorkoutIndex, "generate")} 
+                                    onClick={() => newProgType === "GroupPT" ? regenerateGroupCell(selectedWorkoutIndex) : handleEdgeFunctionAI(selectedWorkoutIndex, "generate")} 
                                     className="gap-2 bg-primary text-primary-foreground"
                                     disabled={isGeneratingAI}
                                   >
@@ -1840,7 +1949,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                   >
                                                     <span className="truncate">
                                                       {pe.name
-                                                        ? exercises.find((e) => e.id === pe.name)?.name || "Select Exercise..."
+                                                        ? exercises.find((e) => String(e.id) === String(pe.name))?.name || "Select Exercise..."
                                                         : "Select Exercise..."}
                                                     </span>
                                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -1853,11 +1962,12 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                       <CommandEmpty>No exercise found.</CommandEmpty>
                                                       <CommandGroup>
                                                         {exercises
-                                                          .filter(ex => {
-                                                            if (!pe.blockType) return true;
-                                                            const cats = Array.isArray(ex.category) ? ex.category : [ex.category || "Strength"];
-                                                            return cats.includes(pe.blockType);
-                                                          })
+                                                            .filter(ex => {
+                                                              if (!pe.blockType) return true;
+                                                              const cats = Array.isArray(ex.category) ? ex.category : [ex.category || "Strength"];
+                                                              const movs = Array.isArray(ex.movementType) ? ex.movementType : [ex.movementType || ""];
+                                                              return cats.includes(pe.blockType) || movs.includes(pe.blockType);
+                                                            })
                                                           .sort((a, b) => a.name.localeCompare(b.name))
                                                           .map(ex => (
                                                             <CommandItem
@@ -1892,7 +2002,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                           <div className="flex flex-wrap items-center gap-x-6 gap-y-3 bg-muted/20 p-3 rounded-md border border-border/50">
                                             <div className="flex flex-wrap items-center gap-4">
                                               {(() => {
-                                                const libEx = exercises.find(e => e.id === pe.name);
+                                                const libEx = exercises.find(e => String(e.id) === String(pe.name));
                                                 const trackType = libEx?.trackingType || ["Weight & Reps"];
                                                 const trackingArray = Array.isArray(trackType) ? trackType : [trackType];
                                                 
@@ -1947,7 +2057,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                             </div>
 
                                             <div className="flex items-center gap-4 ml-auto">
-                                              {newProgType === "program" && (
+                                              {(newProgType === "program" || newProgType === "GroupPT") && (
                                                 <Button variant="secondary" size="sm" className="h-8 text-xs whitespace-nowrap" onClick={() => handleApplyToWeek(pe.id)}>
                                                   Apply to Week
                                                 </Button>
@@ -2095,7 +2205,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                       <ul className="list-disc list-inside">
                         {p.exercises?.map((ex: any, i: number) => {
                           if (ex.isSection) return <li key={i} className="font-bold mt-2 list-none">{ex.name}</li>;
-                          const exerciseName = exercises.find(e => e.id === ex.name)?.name || ex.name;
+                          const exerciseName = exercises.find(e => String(e.id) === String(ex.name))?.name || ex.name;
                           return <li key={i}>{exerciseName} - {ex.sets}x{ex.reps}</li>;
                         })}
                       </ul>

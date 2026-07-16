@@ -219,18 +219,31 @@ export const getWorkoutHistory = () => {
   return stored ? JSON.parse(stored) : [];
 };
 
-export const saveWorkoutToHistory = (workout: any) => {
+export const saveWorkoutToHistory = async (workout: any) => {
   const history = getWorkoutHistory();
-  const newWorkout = { ...workout, date: new Date().toISOString() };
+  const newWorkout = { ...workout, date: new Date().toISOString(), id: workout.id || Date.now().toString() };
   history.unshift(newWorkout);
   localStorage.setItem('fittrack_history', JSON.stringify(history));
   
   // Background sync
-  supabase.auth.getUser().then(({ data: { user } }) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      supabase.from('workout_history').insert({ ...newWorkout, user_id: user.id }).then();
+      const payload = { ...newWorkout, user_id: user.id };
+      const { error } = await supabase.from('workout_history').upsert(payload);
+      if (error) {
+        console.error("Failed to save workout history to Supabase:", error);
+        // Fallback: save to user_settings as a backup
+        await supabase.from('user_settings').upsert({
+          user_id: user.id,
+          key: `history_${newWorkout.id}`,
+          value: JSON.stringify(payload)
+        }, { onConflict: 'user_id, key' });
+      }
     }
-  });
+  } catch (e) {
+    console.error(e);
+  }
 };
 
 export const getLastExerciseStats = (exerciseId: string) => {
@@ -289,7 +302,7 @@ export const getBodyweightHistory = () => {
   ];
 };
 
-export const saveBodyweight = (data: { weight?: number, bodyFat?: number, waist?: number, arms?: number, chest?: number, legs?: number }) => {
+export const saveBodyweight = async (data: { weight?: number, bodyFat?: number, waist?: number, arms?: number, chest?: number, legs?: number }) => {
   const history = getBodyweightHistory();
   const date = new Date().toISOString().split('T')[0];
   
@@ -304,11 +317,23 @@ export const saveBodyweight = (data: { weight?: number, bodyFat?: number, waist?
   localStorage.setItem('fittrack_bodyweight', JSON.stringify(history));
   
   // Background sync
-  supabase.auth.getUser().then(({ data: { user } }) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      supabase.from('bodyweight_history').upsert({ user_id: user.id, date, ...data }, { onConflict: 'user_id, date' }).then();
+      const payload = { user_id: user.id, date, ...data };
+      const { error } = await supabase.from('bodyweight_history').upsert(payload, { onConflict: 'user_id, date' });
+      if (error) {
+        console.error("Failed to save bodyweight to Supabase:", error);
+        await supabase.from('user_settings').upsert({
+          user_id: user.id,
+          key: `bw_${date}`,
+          value: JSON.stringify(payload)
+        }, { onConflict: 'user_id, key' });
+      }
     }
-  });
+  } catch (e) {
+    console.error(e);
+  }
   
   return history;
 };
@@ -534,11 +559,84 @@ export const syncFromSupabase = async () => {
       localStorage.setItem('fittrack_programs', JSON.stringify(activeProg));
     }
     
-    const { data: hist } = await supabase.from('workout_history').select('*').eq('user_id', user.id).order('date', { ascending: false });
-    if (hist) localStorage.setItem('fittrack_history', JSON.stringify(hist));
+    const { data: hist, error: histErr } = await supabase.from('workout_history').select('*').eq('user_id', user.id).order('date', { ascending: false });
     
-    const { data: bw } = await supabase.from('bodyweight_history').select('*').eq('user_id', user.id).order('date', { ascending: true });
-    if (bw) localStorage.setItem('fittrack_bodyweight', JSON.stringify(bw));
+    const fallbackHistSettings = settings ? settings.filter(s => s.key.startsWith('history_')) : [];
+    const fallbackHist = fallbackHistSettings.map(s => {
+      try { return JSON.parse(s.value); } catch(e) { return null; }
+    }).filter(Boolean);
+    
+    const cloudHist = hist || [];
+    const allCloudHist = [...cloudHist, ...fallbackHist];
+    
+    const localHistStr = localStorage.getItem('fittrack_history');
+    const localHist = localHistStr ? JSON.parse(localHistStr) : [];
+    
+    const combinedHist = [...localHist, ...allCloudHist];
+    const uniqueHist = [];
+    const seenHist = new Set();
+    for (const item of combinedHist) {
+      const key = item.id || `${item.date}-${item.name}`;
+      if (!seenHist.has(key)) {
+        seenHist.add(key);
+        uniqueHist.push(item);
+      }
+    }
+    uniqueHist.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    localStorage.setItem('fittrack_history', JSON.stringify(uniqueHist));
+    
+    if (!histErr && cloudHist.length === 0 && localHist.length > 0) {
+      for (const item of localHist) {
+        supabase.from('workout_history').upsert({ ...item, user_id: user.id }).then(({ error }) => {
+          if (error) {
+             supabase.from('user_settings').upsert({
+               user_id: user.id,
+               key: `history_${item.id || Date.now()}`,
+               value: JSON.stringify({ ...item, user_id: user.id })
+             }, { onConflict: 'user_id, key' });
+          }
+        });
+      }
+    }
+    
+    const { data: bw, error: bwErr } = await supabase.from('bodyweight_history').select('*').eq('user_id', user.id).order('date', { ascending: true });
+    
+    const fallbackBwSettings = settings ? settings.filter(s => s.key.startsWith('bw_')) : [];
+    const fallbackBw = fallbackBwSettings.map(s => {
+      try { return JSON.parse(s.value); } catch(e) { return null; }
+    }).filter(Boolean);
+    
+    const cloudBw = bw || [];
+    const allCloudBw = [...cloudBw, ...fallbackBw];
+    
+    const localBwStr = localStorage.getItem('fittrack_bodyweight');
+    const localBw = localBwStr ? JSON.parse(localBwStr) : [];
+    
+    const combinedBw = [...localBw, ...allCloudBw];
+    const uniqueBw = [];
+    const seenBw = new Set();
+    for (const item of combinedBw) {
+      if (!seenBw.has(item.date)) {
+        seenBw.add(item.date);
+        uniqueBw.push(item);
+      }
+    }
+    uniqueBw.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    localStorage.setItem('fittrack_bodyweight', JSON.stringify(uniqueBw));
+    
+    if (!bwErr && cloudBw.length === 0 && localBw.length > 0) {
+      for (const item of localBw) {
+        supabase.from('bodyweight_history').upsert({ ...item, user_id: user.id }, { onConflict: 'user_id, date' }).then(({ error }) => {
+          if (error) {
+            supabase.from('user_settings').upsert({
+              user_id: user.id,
+              key: `bw_${item.date}`,
+              value: JSON.stringify({ ...item, user_id: user.id })
+            }, { onConflict: 'user_id, key' });
+          }
+        });
+      }
+    }
     
     // const { data: prs } = await supabase.from('personal_records').select('*').eq('user_id', user.id).order('date', { ascending: false });
     // if (prs) localStorage.setItem('fittrack_prs', JSON.stringify(prs));

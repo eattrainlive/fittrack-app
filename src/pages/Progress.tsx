@@ -44,7 +44,7 @@ const Progress = () => {
     };
   }, []);
 
-  const handleSaveMeasurements = () => {
+  const handleSaveMeasurements = async () => {
     const data: any = {};
     if (newWeight) data.weight = parseFloat(newWeight);
     if (newBodyFat) data.bodyFat = parseFloat(newBodyFat);
@@ -54,7 +54,7 @@ const Progress = () => {
     if (newLegs) data.legs = parseFloat(newLegs);
 
     if (Object.keys(data).length > 0) {
-      const updatedHistory = saveBodyweight(data);
+      const updatedHistory = await saveBodyweight(data);
       setBodyweightData(updatedHistory);
       setNewWeight("");
       setNewBodyFat("");
@@ -310,13 +310,13 @@ const Progress = () => {
                 <CardDescription>Track your all-time best lifts</CardDescription>
               </div>
               <div className="flex items-center space-x-2 w-full md:w-auto">
-                <Select value={newPrExercise} onValueChange={setNewPrExercise}>
+                <Select value={newPrExercise?.toString() || ""} onValueChange={setNewPrExercise}>
                   <SelectTrigger className="w-full md:w-[200px]">
                     <SelectValue placeholder="Select exercise" />
                   </SelectTrigger>
                   <SelectContent>
                     {exercises.map((ex) => (
-                      <SelectItem key={ex.id} value={ex.id}>{ex.name}</SelectItem>
+                      <SelectItem key={ex.id} value={ex.id?.toString()}>{ex.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
