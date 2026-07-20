@@ -125,14 +125,28 @@ const trackingOf = (ex: any, exerciseLibrary: any[]) => {
 
 const columnsFor = (ex: any, exerciseLibrary: any[]) => {
   const t = trackingOf(ex, exerciseLibrary);
-  const cols = [];
-  if (t.includes("Weight & Reps"))   cols.push({ field:"weight", label:"KG", step:2.5, decimal:true },
-                                                { field:"reps", label:"REPS", step:1 });
-  if (t.includes("Distance & Time")) cols.push({ field:"distance", label:"DIST", step:0.1, decimal:true },
-                                                { field:"time", label:"TIME", isTime:true });
-  if (t.includes("Time Only"))       cols.push({ field:"time", label:"TIME", isTime:true });
-  if (t.includes("Calories"))        cols.push({ field:"calories", label:"CALS", step:1 });
-  return cols.length ? cols : [{ field:"reps", label:"REPS", step:1 }];
+  const libEx = exerciseLibrary.find((le: any) => String(le.id) === String(ex.name));
+  const isBodyweight = String(ex.equipment ?? libEx?.equipment ?? "").trim().toLowerCase() === "bodyweight";
+  const sets = Array.isArray(ex.setsData) ? ex.setsData : [];
+  const usedReps = sets.some((s: any) => (+s.reps || 0) > 0);
+  const usedTime = sets.some((s: any) => (+s.timeMins || 0) > 0 || (+s.timeSecs || 0) > 0);
+  const usedDist = sets.some((s: any) => (+s.distance || 0) > 0);
+
+  const canWR   = t.includes("Weight & Reps");
+  const canTime = t.includes("Time Only") || t.includes("Distance & Time");
+  const canDist = t.includes("Distance & Time");
+  const canCals = t.includes("Calories");
+
+  const cols: any[] = [];
+  if (canWR && (usedReps || (!canTime && !canDist))) {
+    if (!isBodyweight) cols.push({ field: "weight", label: "KG", step: 2.5, decimal: true });
+    cols.push({ field: "reps", label: "REPS", step: 1 });
+  }
+  if (canDist && usedDist) cols.push({ field: "distance", label: "DIST", step: 0.1, decimal: true });
+  if (canTime && (usedTime || (!canWR && !usedDist))) cols.push({ field: "time", label: "TIME", isTime: true });
+  if (canCals) cols.push({ field: "calories", label: "CALS", step: 1 });
+
+  return cols.length ? cols : [{ field: "reps", label: "REPS", step: 1 }];
 };
 
 const Workouts = () => {
@@ -430,7 +444,7 @@ const Workouts = () => {
       ...ex,
       setsData: ex.setsData || Array.from({ length: ex.sets || 3 }).map((_, i) => ({
         id: Date.now().toString() + i,
-        reps: ex.reps || 10,
+        reps: ex.reps !== undefined ? ex.reps : 10,
         weight: ex.weight || 0,
         distance: ex.distance || 0,
         timeMins: ex.timeMins || 0,
@@ -466,7 +480,7 @@ const Workouts = () => {
         ...ex,
         setsData: ex.setsData || Array.from({ length: ex.sets || 3 }).map((_, i) => ({
           id: Date.now().toString() + i,
-          reps: ex.reps || 10,
+          reps: ex.reps !== undefined ? ex.reps : 10,
           weight: ex.weight || 0,
           distance: ex.distance || 0,
           timeMins: ex.timeMins || 0,
@@ -486,7 +500,7 @@ const Workouts = () => {
         ...ex,
         setsData: ex.setsData || Array.from({ length: ex.sets || 3 }).map((_, i) => ({
           id: Date.now().toString() + i,
-          reps: ex.reps || 10,
+          reps: ex.reps !== undefined ? ex.reps : 10,
           weight: ex.weight || 0,
           distance: ex.distance || 0,
           timeMins: ex.timeMins || 0,
@@ -525,7 +539,7 @@ const Workouts = () => {
             ...ex,
             setsData: ex.setsData || Array.from({ length: ex.sets || 3 }).map((_, i) => ({
               id: Date.now().toString() + i,
-              reps: ex.reps || 10,
+              reps: ex.reps !== undefined ? ex.reps : 10,
               weight: ex.weight || 0,
               distance: ex.distance || 0,
               timeMins: ex.timeMins || 0,
@@ -854,10 +868,23 @@ const Workouts = () => {
                 <div className="space-y-2">
                   {selectedTemplate.exercises?.map((ex: any, idx: number) => {
                     const libEx = exerciseLibrary.find(e => String(e.id) === String(ex.name));
+                    const setsCount = ex.setsData?.length || ex.sets || 3;
+                    const firstSet = ex.setsData?.[0] || ex || {};
+                    const trackingArray = Array.isArray(libEx?.trackingType) ? libEx.trackingType : [libEx?.trackingType || "Weight & Reps"];
+                    let details = [];
+                    if (trackingArray.includes('Weight & Reps')) details.push(`${firstSet.reps || 0} reps`);
+                    if (trackingArray.includes('Distance & Time') && firstSet.distance) details.push(`${firstSet.distance}m`);
+                    if (trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) {
+                      const m = firstSet.timeMins || 0;
+                      const s = firstSet.timeSecs || 0;
+                      if (m || s) details.push(`${m ? m + 'm ' : ''}${s ? s + 's' : ''}`.trim());
+                    }
+                    if (trackingArray.includes('Calories') && firstSet.calories) details.push(`${firstSet.calories} cals`);
+                    const detailStr = details.length > 0 ? details.join(', ') : '';
                     return (
                       <div key={idx} className="p-4 rounded-xl border border-border bg-card flex justify-between items-center">
                         <div className="font-bold">{libEx ? libEx.name : (ex.name || "Unknown")}</div>
-                        <div className="text-sm text-muted-foreground bg-muted px-2 py-1 rounded-md">{ex.sets || 3} sets</div>
+                        <div className="text-sm text-muted-foreground bg-muted px-2 py-1 rounded-md">{setsCount} sets {detailStr ? `× ${detailStr}` : ''}</div>
                       </div>
                     );
                   })}
@@ -969,6 +996,30 @@ const Workouts = () => {
                       <div className="p-3 space-y-3">
                         {sec.exercises.map((ex: any, exIdx: number) => {
                           const libEx = exerciseLibrary.find(e => String(e.id) === String(ex.name));
+                          
+                          const setsCount = ex.setsData?.length || ex.sets || 3;
+                          const firstSet = ex.setsData?.[0] || ex || {};
+                          
+                          const trackingArray = Array.isArray(libEx?.trackingType) ? libEx.trackingType : [libEx?.trackingType || "Weight & Reps"];
+                          
+                          let details = [];
+                          if (trackingArray.includes('Weight & Reps')) {
+                            details.push(`${firstSet.reps || 0} reps`);
+                          }
+                          if (trackingArray.includes('Distance & Time')) {
+                            if (firstSet.distance) details.push(`${firstSet.distance}m`);
+                          }
+                          if (trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) {
+                            const m = firstSet.timeMins || 0;
+                            const s = firstSet.timeSecs || 0;
+                            if (m || s) details.push(`${m ? m + 'm ' : ''}${s ? s + 's' : ''}`.trim());
+                          }
+                          if (trackingArray.includes('Calories')) {
+                            if (firstSet.calories) details.push(`${firstSet.calories} cals`);
+                          }
+                          
+                          const detailStr = details.length > 0 ? details.join(', ') : '';
+
                           return (
                             <div key={exIdx} className="flex justify-between items-center">
                               <div className="flex items-center gap-3">
@@ -976,8 +1027,10 @@ const Workouts = () => {
                                   <Dumbbell className="h-5 w-5 text-muted-foreground/50" />
                                 </div>
                                 <div className="flex flex-col">
-                                  <span className="font-bold text-sm">{libEx ? libEx.name : (ex.name || "Unknown")}</span>
-                                  <span className="text-xs text-muted-foreground">{ex.sets || 3} sets</span>
+                                  <span className="font-bold text-sm leading-tight">{libEx ? libEx.name : (ex.name || "Unknown")}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {setsCount} sets {detailStr ? `× ${detailStr}` : ''}
+                                  </span>
                                 </div>
                               </div>
                               {ex.linkedToNext && (
@@ -1051,15 +1104,7 @@ const Workouts = () => {
                   <h3 className="text-lg font-medium">Exercises</h3>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 p-3 bg-muted/50 rounded-lg border border-border">
-                  <Timer className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium mr-2">Quick Rest:</span>
-                  <Button variant="outline" size="sm" onClick={() => startTimer(30)}>30s</Button>
-                  <Button variant="outline" size="sm" onClick={() => startTimer(60)}>1m</Button>
-                  <Button variant="outline" size="sm" onClick={() => startTimer(90)}>1.5m</Button>
-                  <Button variant="outline" size="sm" onClick={() => startTimer(120)}>2m</Button>
-                  <Button variant="outline" size="sm" onClick={() => startTimer(180)}>3m</Button>
-                </div>
+
 
                 {blocks.length > 0 && (() => {
                   const currentBlock = blocks[currentBlockIndex];

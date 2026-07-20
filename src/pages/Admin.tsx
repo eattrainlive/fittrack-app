@@ -2095,56 +2095,84 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                               </div>
                                               
                                               <div className="flex flex-wrap items-center gap-x-6 gap-y-3 bg-muted/20 p-3 rounded-md border border-border/50">
-                                                <div className="flex flex-wrap items-center gap-4">
-                                                  {(() => {
-                                                    const libEx = exercises.find(e => String(e.id) === String(pe.name));
-                                                    const trackType = libEx?.trackingType || ["Weight & Reps"];
-                                                    const trackingArray = Array.isArray(trackType) ? trackType : [trackType];
-                                                    
-                                                    const showTimeMins = trackingArray.includes('Distance & Time') || trackingArray.includes('Time Only');
-                                                    const showTimeSecs = trackingArray.includes('Time Only');
-                                                    
-                                                    return (
-                                                      <>
-                                                        {trackingArray.includes('Weight & Reps') && (
-                                                          <>
-                                                            <div className="flex flex-col gap-1.5 w-16">
-                                                              <Label className="text-[10px] uppercase text-muted-foreground font-bold">Sets</Label>
-                                                              <Input type="number" className="h-8 text-center" value={pe.sets} onChange={(e) => updateProgExercise(pe.id, "sets", parseInt(e.target.value) || 0)} />
+                                                  <div className="flex flex-wrap items-center gap-4">
+                                                    {(() => {
+                                                      const libEx = exercises.find(e => String(e.id) === String(pe.name));
+                                                      const trackType = libEx?.trackingType || ["Weight & Reps"];
+                                                      const trackingArray = Array.isArray(trackType) ? trackType : [trackType];
+                                                      
+                                                      const canWR = trackingArray.includes('Weight & Reps');
+                                                      const canTime = trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time');
+                                                      const canDist = trackingArray.includes('Distance & Time');
+                                                      const canCals = trackingArray.includes('Calories');
+
+                                                      const hasBoth = canWR && canTime;
+                                                      const activeMode = pe.trackingMode || (canWR ? 'reps' : canTime ? 'time' : 'reps');
+
+                                                      const showWR = canWR && (!hasBoth || activeMode === 'reps');
+                                                      const showTime = canTime && (!hasBoth || activeMode === 'time');
+
+                                                      return (
+                                                        <>
+                                                          <div className="flex flex-col gap-1.5 w-16">
+                                                            <Label className="text-[10px] uppercase text-muted-foreground font-bold">Sets</Label>
+                                                            <Input type="number" className="h-8 text-center" value={pe.sets} onChange={(e) => updateProgExercise(pe.id, "sets", parseInt(e.target.value) || 0)} />
+                                                          </div>
+                                                          {hasBoth && (
+                                                            <div className="flex flex-col gap-1.5 w-32 mr-2">
+                                                              <Label className="text-[10px] uppercase text-muted-foreground font-bold">Mode</Label>
+                                                              <div className="flex bg-muted/50 rounded-md p-0.5 border border-border">
+                                                                <button 
+                                                                  className={`flex-1 text-[10px] uppercase font-bold py-1 rounded-sm ${activeMode === 'reps' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                                                                  onClick={() => {
+                                                                    updateProgExercise(pe.id, "trackingMode", 'reps');
+                                                                    updateProgExercise(pe.id, "timeMins", 0);
+                                                                    updateProgExercise(pe.id, "timeSecs", 0);
+                                                                  }}
+                                                                >Reps</button>
+                                                                <button 
+                                                                  className={`flex-1 text-[10px] uppercase font-bold py-1 rounded-sm ${activeMode === 'time' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                                                                  onClick={() => {
+                                                                    updateProgExercise(pe.id, "trackingMode", 'time');
+                                                                    updateProgExercise(pe.id, "reps", 0);
+                                                                  }}
+                                                                >Time</button>
+                                                              </div>
                                                             </div>
+                                                          )}
+                                                          {showWR && (
                                                             <div className="flex flex-col gap-1.5 w-16">
                                                               <Label className="text-[10px] uppercase text-muted-foreground font-bold">Reps</Label>
                                                               <Input type="number" className="h-8 text-center" value={pe.reps} onChange={(e) => updateProgExercise(pe.id, "reps", parseInt(e.target.value) || 0)} />
                                                             </div>
-                                                          </>
-                                                        )}
-                                                        {trackingArray.includes('Distance & Time') && (
-                                                          <div className="flex flex-col gap-1.5 w-20">
-                                                            <Label className="text-[10px] uppercase text-muted-foreground font-bold">Metres</Label>
-                                                            <Input type="number" className="h-8 text-center" value={pe.distance || 0} onChange={(e) => updateProgExercise(pe.id, "distance", parseInt(e.target.value) || 0)} />
-                                                          </div>
-                                                        )}
-                                                        {showTimeMins && (
-                                                          <div className="flex flex-col gap-1.5 w-16">
-                                                            <Label className="text-[10px] uppercase text-muted-foreground font-bold">Mins</Label>
-                                                            <Input type="number" className="h-8 text-center" value={pe.timeMins || 0} onChange={(e) => updateProgExercise(pe.id, "timeMins", parseInt(e.target.value) || 0)} />
-                                                          </div>
-                                                        )}
-                                                        {showTimeSecs && (
-                                                          <div className="flex flex-col gap-1.5 w-16">
-                                                            <Label className="text-[10px] uppercase text-muted-foreground font-bold">Secs</Label>
-                                                            <Input type="number" className="h-8 text-center" value={pe.timeSecs || 0} onChange={(e) => updateProgExercise(pe.id, "timeSecs", parseInt(e.target.value) || 0)} />
-                                                          </div>
-                                                        )}
-                                                        {trackingArray.includes('Calories') && (
-                                                          <div className="flex flex-col gap-1.5 w-16">
-                                                            <Label className="text-[10px] uppercase text-muted-foreground font-bold">Cals</Label>
-                                                            <Input type="number" className="h-8 text-center" value={pe.calories || 0} onChange={(e) => updateProgExercise(pe.id, "calories", parseInt(e.target.value) || 0)} />
-                                                          </div>
-                                                        )}
-                                                      </>
-                                                    );
-                                                  })()}
+                                                          )}
+                                                          {canDist && (
+                                                            <div className="flex flex-col gap-1.5 w-20">
+                                                              <Label className="text-[10px] uppercase text-muted-foreground font-bold">Metres</Label>
+                                                              <Input type="number" className="h-8 text-center" value={pe.distance || 0} onChange={(e) => updateProgExercise(pe.id, "distance", parseInt(e.target.value) || 0)} />
+                                                            </div>
+                                                          )}
+                                                          {showTime && (
+                                                            <>
+                                                              <div className="flex flex-col gap-1.5 w-16">
+                                                                <Label className="text-[10px] uppercase text-muted-foreground font-bold">Mins</Label>
+                                                                <Input type="number" className="h-8 text-center" value={pe.timeMins || 0} onChange={(e) => updateProgExercise(pe.id, "timeMins", parseInt(e.target.value) || 0)} />
+                                                              </div>
+                                                              <div className="flex flex-col gap-1.5 w-16">
+                                                                <Label className="text-[10px] uppercase text-muted-foreground font-bold">Secs</Label>
+                                                                <Input type="number" className="h-8 text-center" value={pe.timeSecs || 0} onChange={(e) => updateProgExercise(pe.id, "timeSecs", parseInt(e.target.value) || 0)} />
+                                                              </div>
+                                                            </>
+                                                          )}
+                                                          {canCals && (
+                                                            <div className="flex flex-col gap-1.5 w-16">
+                                                              <Label className="text-[10px] uppercase text-muted-foreground font-bold">Cals</Label>
+                                                              <Input type="number" className="h-8 text-center" value={pe.calories || 0} onChange={(e) => updateProgExercise(pe.id, "calories", parseInt(e.target.value) || 0)} />
+                                                            </div>
+                                                          )}
+                                                        </>
+                                                      );
+                                                    })()}
                                                   <div className="flex flex-col gap-1.5 w-16">
                                                     <Label className="text-[10px] uppercase text-muted-foreground font-bold">Rest(s)</Label>
                                                     <Input type="number" className="h-8 text-center" value={pe.rest || 0} onChange={(e) => updateProgExercise(pe.id, "rest", parseInt(e.target.value) || 0)} />
