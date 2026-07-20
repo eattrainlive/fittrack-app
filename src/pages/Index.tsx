@@ -13,6 +13,7 @@ const Index = () => {
   const [history, setHistory] = useState<any[]>([]);
   const [bodyweight, setBodyweight] = useState<any[]>([]);
   const [activeProgram, setActiveProgram] = useState<any>(null);
+  const [allowedAccess, setAllowedAccess] = useState<string[] | null>(null);
   const [userName, setUserName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
@@ -25,6 +26,10 @@ const Index = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       setUserName(user.user_metadata?.full_name || user.email?.split('@')[0] || "there");
+      const { data } = await supabase.from('members').select('allowed_access').eq('id', user.id).maybeSingle();
+      setAllowedAccess(data?.allowed_access ?? ["Stronger", "Fusion", "Performance"]);
+    } else {
+      setAllowedAccess(["Stronger", "Fusion", "Performance"]);
     }
   };
 
@@ -109,6 +114,8 @@ const Index = () => {
 
   const currentWeight = bwData.length > 0 ? bwData[bwData.length - 1].weight : 0;
 
+  const bucketOf = (p: any) => (p.type === "GroupPT" ? "Group PT" : (p.stream || "Stronger"));
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return "Good morning";
@@ -126,7 +133,8 @@ const Index = () => {
       </div>
 
       {/* Active Program / Today's Workout */}
-      {activeProgram ? (() => {
+      {activeProgram && allowedAccess && allowedAccess.includes(bucketOf(activeProgram)) ? (() => {
+
         const localToday = () => {
           const d = new Date();
           return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

@@ -93,9 +93,27 @@ const AppRoutes = () => {
 const AppContent = () => {
   useEffect(() => {
     supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
+      if (session?.user) {
+        const storedUid = localStorage.getItem('fittrack_current_uid');
+        if (storedUid && storedUid !== session.user.id) {
+          // Clear user-specific cache
+          localStorage.removeItem('fittrack_history');
+          localStorage.removeItem('fittrack_active_program');
+          localStorage.removeItem('fittrack_bodyweight');
+          localStorage.removeItem('fittrack_active_workout');
+          localStorage.removeItem('fittrack_prs');
+        }
+        localStorage.setItem('fittrack_current_uid', session.user.id);
+        
         syncFromSupabase();
         syncProfile();
+      } else if (event === 'SIGNED_OUT') {
+        localStorage.removeItem('fittrack_current_uid');
+        localStorage.removeItem('fittrack_history');
+        localStorage.removeItem('fittrack_active_program');
+        localStorage.removeItem('fittrack_bodyweight');
+        localStorage.removeItem('fittrack_active_workout');
+        localStorage.removeItem('fittrack_prs');
       }
     });
   }, []);
