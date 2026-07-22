@@ -7,26 +7,10 @@ export function cn(...inputs: ClassValue[]) {
 
 export function getEmbedUrl(url: string | undefined): string {
   if (!url) return "";
-  
-  // Handle Vimeo
-  if (url.includes("vimeo.com")) {
-    if (url.includes("player.vimeo.com")) return url;
-    const match = url.match(/vimeo\.com\/(?:.*\/)?(\d+)/) || url.match(/(\d{8,})/);
-    // Use match[1] if from the first regex, or match[0] if from the fallback
-    const id = match ? (match[1] || match[0]) : null;
-    if (id) {
-      return `https://player.vimeo.com/video/${id}`;
-    }
-  }
-  
-  // Handle YouTube
-  if (url.includes("youtube.com/watch") || url.includes("youtu.be/")) {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    if (match && match[2].length === 11) {
-      return `https://www.youtube.com/embed/${match[2]}`;
-    }
-  }
-  
+  const vim = url.match(/vimeo\.com\/(?:video\/)?(\d+)(?:\/(\w+))?/);
+  if (vim) return `https://player.vimeo.com/video/${vim[1]}${vim[2] ? `?h=${vim[2]}` : ""}`;
+  if (url.includes("player.vimeo.com")) return url;
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]+)/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
   return url;
 }

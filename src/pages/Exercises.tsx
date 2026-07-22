@@ -19,11 +19,12 @@ const Exercises = () => {
   const MOVEMENT_TYPES = ["Warm Up", "Knee", "Hip", "Push", "Pull", "Conditioning", "Core", "Carries", "Fire Up", "Accessory"];
 
   useEffect(() => {
-    const loadExercises = () => setExerciseLibrary(getExercises());
+    const loadExercises = async () => setExerciseLibrary(await getExercises());
     loadExercises();
     window.addEventListener('fittrack_synced', loadExercises);
     return () => window.removeEventListener('fittrack_synced', loadExercises);
   }, []);
+
 
   const uniqueMuscles = ["All", ...Array.from(new Set(exerciseLibrary.map(ex => ex.muscle))).filter(Boolean)];
   const uniqueEquipment = ["All", ...Array.from(new Set(exerciseLibrary.map(ex => ex.equipment))).filter(Boolean)];
@@ -135,3 +136,4 @@ const Exercises = () => {
 };
 
 export default Exercises;
+

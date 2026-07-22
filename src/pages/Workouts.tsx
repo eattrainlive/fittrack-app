@@ -6,12 +6,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Dumbbell, Plus, Minus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw, Link2, Link2Off, Heading, List, Check, Search, ArrowLeft, RefreshCw } from "lucide-react";
 import React, { useState, useEffect, useMemo } from "react";
-import { getExercises, getPrograms, saveWorkoutToHistory, getLastExerciseStats, getActiveProgram, saveActiveProgram } from "@/lib/store";
+import { getExercises, getPrograms, saveWorkoutToHistory, getLastExerciseStats, getActiveProgram, saveActiveProgram, getHabits } from "@/lib/store";
 import { getEmbedUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { supabase } from "@/lib/supabase";
+
 
 const REWARD_ITEMS = [
   { weight: 0.2, name: "Apple", plural: "Apples", emoji: "🍎" },
@@ -1095,6 +1096,8 @@ const Workouts = () => {
                   id="workout-name" 
                   placeholder="e.g. Upper Body Power" 
                   value={workoutName}
+                  readOnly
+                  className="bg-muted/50 cursor-not-allowed focus-visible:ring-0"
                   onChange={(e) => setWorkoutName(e.target.value)}
                 />
               </div>
@@ -1554,3 +1557,4 @@ const Workouts = () => {
 };
 
 export default Workouts;
+

@@ -14,6 +14,7 @@ import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
 import Feed from "./pages/Feed";
 import Education from "./pages/Education";
+import Nutrition from "./pages/Nutrition";
 import TVDisplay from "./pages/TVDisplay";
 
 import { useEffect, useState } from "react";
@@ -24,7 +25,7 @@ import { useLocation, useNavigationType } from "react-router-dom";
 
 const queryClient = new QueryClient();
 
-const TAB_ROUTES = ["/", "/workouts", "/progress", "/feed", "/profile"];
+const TAB_ROUTES = ["/", "/workouts", "/progress", "/nutrition", "/feed", "/profile"];
 
 const AppRoutes = () => {
   const location = useLocation();
@@ -76,6 +77,7 @@ const AppRoutes = () => {
             <Route path="/workouts" element={<Workouts />} />
             <Route path="/exercises" element={<Exercises />} />
             <Route path="/progress" element={<Progress />} />
+            <Route path="/nutrition" element={<Nutrition />} />
             <Route path="/education" element={<Education />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/admin" element={<Admin />} />

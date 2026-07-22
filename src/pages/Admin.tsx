@@ -6,20 +6,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { cn } from "@/lib/utils";
-import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification, getAnthropicKey, saveAnthropicKey } from "@/lib/store";
+import { cn, getEmbedUrl } from "@/lib/utils";
+import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification, getAnthropicKey, saveAnthropicKey, getVimeoToken, getHabits } from "@/lib/store";
+import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar as CalendarIcon, Bell, Send, Download, Link2, Link2Off, Heading, Upload, Sparkles, Check, ChevronsUpDown } from "lucide-react";
 import JSZip from "jszip";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+
 
 const Admin = () => {
   const isStaff = localStorage.getItem("fittrack_is_staff") === "true";
@@ -30,6 +32,7 @@ const Admin = () => {
 
   const [exercises, setExercises] = useState<any[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
+
 
   // New Exercise State
   const [newExName, setNewExName] = useState("");
@@ -111,9 +114,16 @@ const Admin = () => {
   const [isBulkInviting, setIsBulkInviting] = useState(false);
 
   // Notification State
+  const [nutritionMembers, setNutritionMembers] = useState<any[]>([]);
+  const [nutritionHabits, setNutritionHabits] = useState<any[]>([]);
+  const [nutritionSearch, setNutritionSearch] = useState("");
+  const [nutritionFilter, setNutritionFilter] = useState<"all" | "attention" | "coached">("all");
   const [notifTitle, setNotifTitle] = useState("");
   const [notifMessage, setNotifMessage] = useState("");
   const [isSendingNotif, setIsSendingNotif] = useState(false);
+  const [nutritionSubView, setNutritionSubView] = useState<"coaching" | "library">("coaching");
+  const [habitLibrary, setHabitLibrary] = useState<any[]>([]);
+  const [isUpdatingHabit, setIsUpdatingHabit] = useState<number | null>(null);
 
   // Export State
   const [isZipping, setIsZipping] = useState(false);
@@ -167,14 +177,50 @@ const Admin = () => {
     }
   };
 
+  const loadNutritionMembers = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-nutrition", { body: { action: "list", staffSecret } });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      if (data?.members) setNutritionMembers(data.members);
+    } catch (e) {
+      console.error("Failed to load nutrition members", e);
+    }
+  };
+
+  const loadHabitLibrary = async () => {
+    try {
+      const data = await manageNutrition({ action: "listHabits" });
+      if (data?.habits) setHabitLibrary(data.habits);
+    } catch (e) {
+      console.error("Failed to load habit library", e);
+    }
+  };
+
+  const handleUpdateHabit = async (habitId: number, updates: any) => {
+    setIsUpdatingHabit(habitId);
+    try {
+      await manageNutrition({ action: "updateHabit", habitId, ...updates });
+      toast.success("Habit updated");
+      loadHabitLibrary();
+    } catch (e: any) {
+      toast.error(`Failed: ${e.message}`);
+    } finally {
+      setIsUpdatingHabit(null);
+    }
+  };
+
   useEffect(() => {
-    const handleSync = () => {
-      setExercises(getExercises());
-      setPrograms(getPrograms());
+    const handleSync = async () => {
+      setExercises(await getExercises());
+      setPrograms(await getPrograms());
     };
-    
+
     handleSync();
     loadMembers();
+    loadNutritionMembers();
+    loadHabitLibrary();
+    getHabits().then(setNutritionHabits);
 
     window.addEventListener('fittrack_synced', handleSync);
     return () => window.removeEventListener('fittrack_synced', handleSync);
@@ -185,6 +231,43 @@ const Admin = () => {
     if (error) throw new Error(error.message);
     if (data?.error) throw new Error(data.error);
     return data;
+  };
+
+  const manageNutrition = async (body: any) => {
+    const { data, error } = await supabase.functions.invoke("manage-nutrition", { body: { ...body, staffSecret } });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    return data;
+  };
+
+  const handleSetNextHabit = async (memberId: string, habitId: number) => {
+    try {
+      await manageNutrition({ action: "setNextHabit", memberId, habitId });
+      toast.success("Next habit updated");
+      loadNutritionMembers();
+    } catch (e: any) {
+      toast.error(`Failed: ${e.message}`);
+    }
+  };
+
+  const handleAddCoachNote = async (memberId: string, habitId: number | undefined, note: string) => {
+    try {
+      await manageNutrition({ action: "addNote", memberId, habitId, note });
+      toast.success("Note added");
+      loadNutritionMembers();
+    } catch (e: any) {
+      toast.error(`Failed: ${e.message}`);
+    }
+  };
+
+  const handleSetCoached = async (memberId: string, coached: boolean) => {
+    try {
+      await manageNutrition({ action: "setCoached", memberId, coached });
+      toast.success(coached ? "Marked as coached" : "Un-coached");
+      loadNutritionMembers();
+    } catch (e: any) {
+      toast.error(`Failed: ${e.message}`);
+    }
   };
 
   const handleSetAccess = async (memberId: string, acc: string, checked: boolean) => {
@@ -924,7 +1007,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     }
     setIsSendingNotif(true);
     try {
-      await sendNotification(notifTitle, notifMessage);
+      await Promise.all(members.map(m => sendNotification(m.id, notifTitle, notifMessage)));
       toast.success("Broadcast notification sent!");
       setNotifTitle("");
       setNotifMessage("");
@@ -1226,12 +1309,13 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       </div>
 
       <Tabs defaultValue="exercises" className="w-full">
-        <TabsList className="grid w-full grid-cols-8 max-w-[1200px]">
+        <TabsList className="grid w-full grid-cols-9 max-w-[1300px]">
           <TabsTrigger value="exercises">Manage Exercises</TabsTrigger>
           <TabsTrigger value="programs">Manage Programs</TabsTrigger>
           <TabsTrigger value="calendar">Calendar</TabsTrigger>
           <TabsTrigger value="display">TV Display</TabsTrigger>
           <TabsTrigger value="members">Members</TabsTrigger>
+          <TabsTrigger value="nutrition">Nutrition</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -2445,6 +2529,273 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
               </div>
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="nutrition" className="space-y-6 mt-6">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <h3 className="text-2xl font-heading tracking-wider">Nutrition</h3>
+              <div className="flex bg-muted p-1 rounded-lg">
+                <Button 
+                  variant={nutritionSubView === "coaching" ? "default" : "ghost"} 
+                  size="sm" 
+                  className="h-8 text-xs px-4"
+                  onClick={() => setNutritionSubView("coaching")}
+                >
+                  Coaching
+                </Button>
+                <Button 
+                  variant={nutritionSubView === "library" ? "default" : "ghost"} 
+                  size="sm" 
+                  className="h-8 text-xs px-4"
+                  onClick={() => setNutritionSubView("library")}
+                >
+                  Habit Library
+                </Button>
+              </div>
+            </div>
+
+            {nutritionSubView === "coaching" ? (
+              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                <Input 
+                  placeholder="Search members..." 
+                  value={nutritionSearch} 
+                  onChange={e => setNutritionSearch(e.target.value)}
+                  className="max-w-[200px] h-9"
+                />
+                <Select value={nutritionFilter} onValueChange={(v: any) => setNutritionFilter(v)}>
+                  <SelectTrigger className="w-[130px] h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Members</SelectItem>
+                    <SelectItem value="attention">Needs Attention</SelectItem>
+                    <SelectItem value="coached">1-1 Coached</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm" onClick={loadNutritionMembers} className="h-9"><History className="h-4 w-4 mr-2"/> Refresh</Button>
+              </div>
+            ) : (
+              <Button variant="outline" size="sm" onClick={loadHabitLibrary} className="h-9"><History className="h-4 w-4 mr-2"/> Refresh Library</Button>
+            )}
+          </div>
+
+          {nutritionSubView === "coaching" ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {nutritionMembers
+                .filter(m => {
+                  const matchesSearch = m.name?.toLowerCase().includes(nutritionSearch.toLowerCase()) || m.email?.toLowerCase().includes(nutritionSearch.toLowerCase());
+                  const requiresAttention = m.consistency < 50 || (m.lastCheckin && new Date().getTime() - new Date(m.lastCheckin).getTime() > 3 * 24 * 60 * 60 * 1000);
+                  
+                  if (nutritionFilter === "attention") return matchesSearch && requiresAttention;
+                  if (nutritionFilter === "coached") return matchesSearch && m.coached;
+                  return matchesSearch;
+                })
+                .sort((a, b) => {
+                  const aAttn = a.consistency < 50 || (a.lastCheckin && new Date().getTime() - new Date(a.lastCheckin).getTime() > 3 * 24 * 60 * 60 * 1000);
+                  const bAttn = b.consistency < 50 || (b.lastCheckin && new Date().getTime() - new Date(b.lastCheckin).getTime() > 3 * 24 * 60 * 60 * 1000);
+                  if (aAttn && !bAttn) return -1;
+                  if (!aAttn && bAttn) return 1;
+                  return 0;
+                })
+                .map((member: any) => {
+                  const noCheckinDays = member.lastCheckin ? Math.floor((new Date().getTime() - new Date(member.lastCheckin).getTime()) / (24 * 60 * 60 * 1000)) : 999;
+                  const requiresAttention = member.consistency < 50 || noCheckinDays >= 3;
+                  
+                  return (
+                    <Card key={member.memberId} className={cn("bg-card border-border relative overflow-hidden", requiresAttention && "border-destructive/50 ring-1 ring-destructive/20")}>
+                      {requiresAttention && (
+                        <div className="absolute top-0 right-0 p-1">
+                          <Badge variant="destructive" className="text-[8px] uppercase px-1 h-4">Attention</Badge>
+                        </div>
+                      )}
+                      <CardHeader className="pb-2">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="text-lg">{member.name || 'Unknown'}</CardTitle>
+                            <CardDescription className="text-xs">{member.email}</CardDescription>
+                          </div>
+                          {member.coached && <span className="bg-primary/20 text-primary text-[10px] px-2 py-0.5 rounded font-bold uppercase">Coached</span>}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div className="bg-muted p-2 rounded">
+                            <span className="text-muted-foreground text-[10px] uppercase font-bold block">Goal</span>
+                            <span className="font-medium capitalize text-xs">{member.goal?.replace('_', ' ') || 'None'}</span>
+                          </div>
+                          <div className="bg-muted p-2 rounded">
+                            <span className="text-muted-foreground text-[10px] uppercase font-bold block">Consistency</span>
+                            <span className={cn("font-medium text-xs", member.consistency < 50 ? "text-destructive" : "text-primary")}>{member.consistency}%</span>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Active Habit(s)</Label>
+                          {member.activeHabits?.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {member.activeHabits.map((h: any) => (
+                                <Badge key={h.id} variant="outline" className="text-[10px] bg-primary/5 border-primary/20 text-primary py-0 h-5">
+                                  {h.name}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground italic">None active</p>
+                          )}
+                          {noCheckinDays > 0 && (
+                            <p className={cn("text-[10px] font-bold uppercase mt-1", noCheckinDays >= 3 ? "text-destructive" : "text-muted-foreground")}>
+                              Last check-in: {noCheckinDays === 999 ? 'Never' : `${noCheckinDays}d ago`}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="pt-2 space-y-3 border-t border-border">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor={`coached-${member.memberId}`} className="text-xs font-bold uppercase cursor-pointer">1-1 Coached Tier</Label>
+                            <Checkbox 
+                              id={`coached-${member.memberId}`}
+                              checked={member.coached}
+                              onCheckedChange={(c) => handleSetCoached(member.memberId, !!c)}
+                            />
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <Label className="text-[10px] uppercase font-bold">Override Next Habit</Label>
+                            <Select onValueChange={(v) => handleSetNextHabit(member.memberId, parseInt(v))}>
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Select habit..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {nutritionHabits.map((h: any) => (
+                                  <SelectItem key={h.id} value={h.id.toString()}>{h.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <Label className="text-[10px] uppercase font-bold">Coach Note / Macro Targets</Label>
+                            <div className="flex gap-2">
+                              <Input 
+                                id={`note-${member.memberId}`} 
+                                placeholder="e.g. Aim for 180g Protein..." 
+                                className="h-8 text-xs" 
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    const target = e.target as HTMLInputElement;
+                                    if (target.value.trim()) {
+                                      handleAddCoachNote(member.memberId, member.activeHabits?.[0]?.id, target.value.trim());
+                                      target.value = '';
+                                    }
+                                  }
+                                }}
+                              />
+                              <Button 
+                                size="sm" 
+                                className="h-8 w-8 p-0"
+                                onClick={() => {
+                                  const input = document.getElementById(`note-${member.memberId}`) as HTMLInputElement;
+                                  if (input?.value.trim()) {
+                                    handleAddCoachNote(member.memberId, member.activeHabits?.[0]?.id, input.value.trim());
+                                    input.value = '';
+                                  }
+                                }}
+                              ><Send className="h-3 w-3" /></Button>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              {nutritionMembers.length === 0 && (
+                <div className="col-span-full text-center py-12 text-muted-foreground bg-muted/20 rounded-lg border border-dashed">
+                  <Users className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                  <p>No nutrition members found yet.</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {[1, 2, 3].map(phase => {
+                const phaseHabits = habitLibrary.filter(h => h.phase === phase);
+                if (phaseHabits.length === 0) return null;
+                
+                return (
+                  <section key={phase} className="space-y-4">
+                    <div className="flex items-center gap-2 border-b pb-2 border-border/50">
+                      <Badge className="bg-primary text-primary-foreground font-bold uppercase tracking-wider text-[10px]">Phase {phase}</Badge>
+                      <h4 className="font-heading text-xl uppercase tracking-tight text-foreground/80">
+                        {phase === 1 ? "Foundations" : phase === 2 ? "Building" : "Performance"}
+                      </h4>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3">
+                      {phaseHabits.map(habit => (
+                        <Card key={habit.id} className="bg-card border-border overflow-hidden">
+                          <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <h5 className="font-bold text-lg">{habit.name}</h5>
+                              <p className="text-xs text-muted-foreground line-clamp-1">{habit.coaching_cue}</p>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 w-full md:w-auto">
+                              <div className="relative flex-1 md:w-72">
+                                <Input 
+                                  placeholder="Video URL (Vimeo/YouTube)" 
+                                  className="h-9 text-xs pr-10"
+                                  defaultValue={habit.video_url || ""}
+                                  id={`habit-vid-${habit.id}`}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      const target = e.target as HTMLInputElement;
+                                      handleUpdateHabit(habit.id, { video_url: target.value });
+                                    }
+                                  }}
+                                />
+                                {habit.video_url && (
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 absolute right-1.5 top-1 text-primary hover:text-primary/80 hover:bg-primary/10">
+                                        <PlayCircle className="h-5 w-5" />
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden bg-black border-none">
+                                      <DialogHeader className="p-4 absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent">
+                                        <DialogTitle className="text-white">{habit.name}</DialogTitle>
+                                      </DialogHeader>
+                                      <div className="aspect-video w-full mt-10">
+                                        <iframe
+                                          src={getEmbedUrl(habit.video_url)}
+                                          className="w-full h-full"
+                                          allow="autoplay; fullscreen; picture-in-picture"
+                                          allowFullScreen
+                                        />
+                                      </div>
+                                    </DialogContent>
+                                  </Dialog>
+                                )}
+                              </div>
+                              <Button 
+                                size="sm" 
+                                className="h-9 gap-2"
+                                disabled={isUpdatingHabit === habit.id}
+                                onClick={() => {
+                                  const input = document.getElementById(`habit-vid-${habit.id}`) as HTMLInputElement;
+                                  handleUpdateHabit(habit.id, { video_url: input?.value || "" });
+                                }}
+                              >
+                                {isUpdatingHabit === habit.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                Save
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="notifications" className="space-y-6 mt-6">

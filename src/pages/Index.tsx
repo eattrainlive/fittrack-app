@@ -19,9 +19,9 @@ const Index = () => {
   const navigate = useNavigate();
 
   const loadData = async () => {
-    setHistory(getWorkoutHistory());
-    setBodyweight(getBodyweightHistory());
-    setActiveProgram(getActiveProgram());
+    setHistory(await getWorkoutHistory());
+    setBodyweight(await getBodyweightHistory());
+    setActiveProgram(await getActiveProgram());
     
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -48,6 +48,7 @@ const Index = () => {
       window.removeEventListener('fittrack_synced', handleSync);
     };
   }, []);
+
 
   // Calculate metrics
   const totalWorkouts = history.length;
@@ -357,3 +358,4 @@ const Index = () => {
 };
 
 export default Index;
+

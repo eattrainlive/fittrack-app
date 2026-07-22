@@ -20,9 +20,9 @@ const Feed = () => {
   const isStaff = localStorage.getItem("fittrack_is_staff") === "true";
   const [announcementText, setAnnouncementText] = useState("");
 
-  const loadFeed = () => {
-    setFeed(getCommunityFeed());
-    setExercises(getExercises());
+  const loadFeed = async () => {
+    setFeed(await getCommunityFeed());
+    setExercises(await getExercises());
   };
 
   useEffect(() => {
@@ -40,6 +40,7 @@ const Feed = () => {
       window.removeEventListener('fittrack_synced', handleSync);
     };
   }, []);
+
 
   const getExerciseName = (id: string) => {
     const ex = exercises.find(e => e.id === id || e.name === id);
@@ -239,3 +240,4 @@ const Feed = () => {
 };
 
 export default Feed;
+

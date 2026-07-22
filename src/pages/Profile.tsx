@@ -36,23 +36,18 @@ const Profile = () => {
   const [isMigrating, setIsMigrating] = useState(false);
   const handleMigrate = async () => {
     setIsMigrating(true);
-    const success = await migrateLocalToSupabase();
+    await migrateLocalToSupabase();
     setIsMigrating(false);
-    if (success) toast.success("Data migrated to Supabase successfully!");
-    else toast.error("Failed to migrate data. Make sure you are logged in and tables exist.");
+    toast.success("Migration complete!");
   };
 
   const [isSyncing, setIsSyncing] = useState(false);
   const handleSync = async () => {
     setIsSyncing(true);
-    const success = await syncFromSupabase();
+    await syncFromSupabase();
     setIsSyncing(false);
-    if (success) {
-      toast.success("Data synced from Supabase!");
-      window.location.reload();
-    } else {
-      toast.error("Failed to sync data.");
-    }
+    toast.success("Data synced from Supabase!");
+    window.location.reload();
   };
 
   const handleUnlockStaff = () => {

@@ -26,11 +26,11 @@ const Progress = () => {
   const [workoutHistory, setWorkoutHistory] = useState<any[]>([]);
 
   useEffect(() => {
-    const loadData = () => {
-      setBodyweightData(getBodyweightHistory());
-      setPrs(getPersonalRecords());
-      setExercises(getExercises());
-      setWorkoutHistory(getWorkoutHistory());
+    const loadData = async () => {
+      setBodyweightData(await getBodyweightHistory());
+      setPrs(await getPersonalRecords());
+      setExercises(await getExercises());
+      setWorkoutHistory(await getWorkoutHistory());
     };
     loadData();
     const timer = setTimeout(() => setIsLoading(false), 600);
@@ -47,6 +47,7 @@ const Progress = () => {
     };
   }, []);
 
+
   const handleSaveMeasurements = async () => {
     const data: any = {};
     if (newWeight) data.weight = parseFloat(newWeight);
@@ -57,10 +58,10 @@ const Progress = () => {
     if (newLegs) data.legs = parseFloat(newLegs);
 
     if (Object.keys(data).length > 0) {
-      const { success, error, history } = await saveBodyweight(data);
-      setBodyweightData(history);
+      const res: any = await saveBodyweight(data);
+      setBodyweightData(res.history || []);
       
-      if (success) {
+      if (res.success) {
         toast.success("Measurements saved");
       } else {
         toast.warning("Saved locally — cloud sync failed");
@@ -409,3 +410,4 @@ const Progress = () => {
 };
 
 export default Progress;
+

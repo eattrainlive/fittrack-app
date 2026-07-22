@@ -1,5 +1,172 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
+
+// Nutrition & Habits Data
+export const GOAL_PATHS: Record<string, number[]> = {
+  fat_loss: [1,4,2,3,6,8,9,12,10,13,14,11,17,24,22,23,26,27,28],
+  performance: [1,5,7,3,8,11,15,19,20,21,24,25,23,16,28],
+  health: [1,2,3,4,8,5,9,12,16,14,10,18,22,23,26,27,28]
+};
+
+export const getHabits = async () => {
+  const { data } = await supabase.from('habits').select('*').order('sort_order', { ascending: true });
+  if (data) {
+    localStorage.setItem('fittrack_habits_library', JSON.stringify(data));
+    return data;
+  }
+  
+  const local = localStorage.getItem('fittrack_habits_library');
+  if (local) return JSON.parse(local);
+  return [];
+};
+
+export const getMemberNutrition = () => {
+  const local = localStorage.getItem('fittrack_member_nutrition');
+  return local ? JSON.parse(local) : null;
+};
+
+export const saveMemberNutrition = async (nutrition: any) => {
+  localStorage.setItem('fittrack_member_nutrition', JSON.stringify(nutrition));
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    await supabase.from('member_nutrition').upsert({ ...nutrition, member_id: user.id }, { onConflict: 'member_id' });
+  }
+};
+
+export const getMemberHabits = () => {
+  const local = localStorage.getItem('fittrack_member_habits');
+  return local ? JSON.parse(local) : [];
+};
+
+export const saveMemberHabits = async (habits: any[]) => {
+  localStorage.setItem('fittrack_member_habits', JSON.stringify(habits));
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    // Fetch existing from cloud to get their IDs so we can upsert by ID safely
+    const { data: existing } = await supabase.from('member_habits').select('id, habit_id').eq('member_id', user.id);
+    
+    const payload = habits.map(h => {
+      const { id, habits: _habits, ...rest } = h;
+      const item: any = { ...rest, member_id: user.id };
+      
+      // Match with existing to get the true UUID if we don't have it
+      if (existing) {
+        const match = existing.find(e => e.habit_id === item.habit_id);
+        if (match) {
+          item.id = match.id;
+        }
+      }
+      
+      // Only include id if it looks like a valid UUID and we didn't just set it
+      if (!item.id && id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+        item.id = id;
+      }
+      return item;
+    });
+    
+    const { data, error } = await supabase
+      .from('member_habits')
+      .upsert(payload) // Upsert by primary key (id)
+      .select();
+      
+    if (data) {
+      localStorage.setItem('fittrack_member_habits', JSON.stringify(data));
+      return data;
+    }
+    if (error) console.error("Error saving member habits:", error);
+  }
+  return habits;
+};
+
+export const getHabitCheckins = () => {
+  const local = localStorage.getItem('fittrack_habit_checkins');
+  return local ? JSON.parse(local) : [];
+};
+
+export const saveHabitCheckin = async (checkin: any) => {
+  const checkins = getHabitCheckins();
+  const date = checkin.date;
+  const habitId = checkin.habit_id;
+  
+  const existingIdx = checkins.findIndex((c: any) => c.date === date && c.habit_id === habitId);
+  if (existingIdx >= 0) {
+    checkins[existingIdx] = checkin;
+  } else {
+    checkins.push(checkin);
+  }
+  
+  localStorage.setItem('fittrack_habit_checkins', JSON.stringify(checkins));
+  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    await supabase.from('habit_checkins').upsert({ ...checkin, member_id: user.id }, { onConflict: 'member_id, habit_id, date' });
+  }
+};
+
+export const getMemberMeasurements = () => {
+  const local = localStorage.getItem('fittrack_member_measurements');
+  return local ? JSON.parse(local) : [];
+};
+
+export const saveMemberMeasurement = async (measurement: any) => {
+  const measurements = getMemberMeasurements();
+  const newMeasurement = { ...measurement, id: measurement.id || Date.now().toString() };
+  measurements.push(newMeasurement);
+  localStorage.setItem('fittrack_member_measurements', JSON.stringify(measurements));
+  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    await supabase.from('member_measurements').upsert({ ...newMeasurement, member_id: user.id });
+  }
+  return measurements;
+};
+
+export const getMemberPhotos = () => {
+  const local = localStorage.getItem('fittrack_member_photos');
+  return local ? JSON.parse(local) : [];
+};
+
+export const saveMemberPhoto = async (photo: any) => {
+  const photos = getMemberPhotos();
+  const newPhoto = { ...photo, id: photo.id || Date.now().toString() };
+  photos.push(newPhoto);
+  localStorage.setItem('fittrack_member_photos', JSON.stringify(photos));
+  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    await supabase.from('member_photos').upsert({ ...newPhoto, member_id: user.id });
+  }
+  return photos;
+};
+
+export const seedMemberHabits = async (goal: string) => {
+  const path = GOAL_PATHS[goal] || GOAL_PATHS.health;
+  const habits = path.map((habitId, index) => ({
+    habit_id: habitId,
+    status: index === 0 ? 'active' : 'queued',
+    position: index,
+    started_at: index === 0 ? new Date().toISOString() : null
+  }));
+  
+  const savedHabits = await saveMemberHabits(habits);
+  return savedHabits;
+};
+
+export const resetMemberNutrition = async () => {
+  localStorage.removeItem('fittrack_member_nutrition');
+  localStorage.removeItem('fittrack_member_habits');
+  localStorage.removeItem('fittrack_habit_checkins');
+  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    await Promise.all([
+      supabase.from('member_nutrition').delete().eq('member_id', user.id),
+      supabase.from('member_habits').delete().eq('member_id', user.id),
+      supabase.from('habit_checkins').delete().eq('member_id', user.id)
+    ]);
+  }
+};
+
 export const defaultExercises = [
   { id: "bench", name: "Bench Press", category: "Strength", muscle: "Chest", equipment: "Barbell", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push", trackingType: ["Weight & Reps"] },
   { id: "squat", name: "Squat", category: "Strength", muscle: "Legs", equipment: "Barbell", difficulty: "Advanced", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Knee", trackingType: ["Weight & Reps"] },
@@ -52,71 +219,22 @@ export const getExercises = () => {
 
 export const saveExercises = async (exercises: any[]) => {
   localStorage.setItem('fittrack_exercises', JSON.stringify(exercises));
-  // Background sync
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      // Create a safe payload for the database
-      const safeExercises = exercises.map(e => {
-        let movType = e.movementType;
-        if (typeof movType === 'string') {
-          movType = [movType];
-        } else if (!movType) {
-          movType = [];
-        }
-
-        return {
-          ...e,
-          user_id: user.id,
-          // Convert array to string for the database text column
-          category: Array.isArray(e.category) ? e.category.join(', ') : e.category,
-          movementType: movType,
-          trackingType: Array.isArray(e.trackingType) ? e.trackingType.join(', ') : e.trackingType || 'Weight & Reps'
-        };
-      });
-
+      const safeExercises = exercises.map(e => ({
+        ...e,
+        user_id: user.id,
+        category: Array.isArray(e.category) ? e.category.join(', ') : e.category,
+        movementType: Array.isArray(e.movementType) ? e.movementType : [e.movementType],
+        trackingType: Array.isArray(e.trackingType) ? e.trackingType.join(', ') : e.trackingType || 'Weight & Reps'
+      }));
       if (safeExercises.length > 0) {
-        let { error } = await supabase.from('exercises').upsert(safeExercises);
-        
-        // Fallback for schema mismatch (if movementType is still a text column)
-        if (error && error.message && error.message.toLowerCase().includes('array')) {
-          console.warn("Array insert failed, falling back to stringified movementType...");
-          const fallbackExercises = safeExercises.map(e => ({
-            ...e,
-            movementType: Array.isArray(e.movementType) ? e.movementType.join(', ') : e.movementType
-          }));
-          const fallbackRes = await supabase.from('exercises').upsert(fallbackExercises);
-          error = fallbackRes.error;
-        }
-
-        if (!error) {
-          const currentIds = safeExercises.map(e => e.id);
-          // Soft delete items not in the current list
-          const { error: updateErr } = await supabase.from('exercises')
-            .update({ is_deleted: true })
-            .eq('user_id', user.id)
-            .not('id', 'in', `(${currentIds.join(',')})`);
-            
-          if (updateErr) console.warn("Soft delete failed (column might be missing):", updateErr);
-          
-          return { success: true };
-        } else {
-          console.error("Supabase insert error:", error);
-          return { success: false, error };
-        }
-      } else {
-        // If empty list sent, soft delete all
-        const { error: updateErr } = await supabase.from('exercises')
-          .update({ is_deleted: true })
-          .eq('user_id', user.id);
-        
-        if (updateErr) console.warn("Soft delete failed:", updateErr);
-        return { success: !updateErr, error: updateErr };
+        await supabase.from('exercises').upsert(safeExercises);
       }
     }
-    return { success: false, error: new Error("Not logged in") };
+    return { success: true };
   } catch (err) {
-    console.error(err);
     return { success: false, error: err };
   }
 };
@@ -128,65 +246,16 @@ export const getPrograms = () => {
 
 export const savePrograms = async (programs: any[]) => {
   localStorage.setItem('fittrack_programs', JSON.stringify(programs));
-  // Background sync
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       if (programs.length > 0) {
         const safePrograms = programs.map(p => ({ ...p, user_id: user.id }));
-        let { error } = await supabase.from('programs').upsert(safePrograms);
-        
-        if (error) {
-          console.warn("Programs upsert failed, falling back to minimal fields + user_settings...", error.message);
-          
-          const fallbackPrograms = safePrograms.map(p => {
-            return { 
-              id: p.id, 
-              name: p.name, 
-              description: p.description, 
-              user_id: p.user_id,
-              is_deleted: p.is_deleted
-            };
-          });
-          const fallbackRes = await supabase.from('programs').upsert(fallbackPrograms);
-          
-          if (!fallbackRes.error) {
-            for (const p of safePrograms) {
-              const { id, name, description, user_id, is_deleted, ...extras } = p;
-              await supabase.from('user_settings').upsert({ 
-                user_id: user.id, 
-                key: `prog_extras_${p.id}`, 
-                value: JSON.stringify(extras)
-              }, { onConflict: 'user_id, key' });
-            }
-            error = null;
-          } else {
-            error = fallbackRes.error;
-            console.error("Minimal fallback also failed:", error);
-          }
-        }
-
-        if (!error) {
-          const currentIds = safePrograms.map(p => p.id);
-          await supabase.from('programs')
-            .update({ is_deleted: true })
-            .eq('user_id', user.id)
-            .not('id', 'in', `(${currentIds.join(',')})`);
-          return { success: true };
-        } else {
-          console.error("Supabase programs upsert error:", error);
-        }
-        return { success: false, error };
-      } else {
-        const { error: updateErr } = await supabase.from('programs')
-          .update({ is_deleted: true })
-          .eq('user_id', user.id);
-        return { success: !updateErr, error: updateErr };
+        await supabase.from('programs').upsert(safePrograms);
       }
     }
-    return { success: false, error: new Error("Not logged in") };
+    return { success: true };
   } catch (err) {
-    console.error(err);
     return { success: false, error: err };
   }
 };
@@ -197,27 +266,14 @@ export const getActiveProgram = () => {
 };
 
 export const saveActiveProgram = async (activeProgram: any) => {
-  if (activeProgram) {
-    localStorage.setItem('fittrack_active_program', JSON.stringify(activeProgram));
-  } else {
-    localStorage.removeItem('fittrack_active_program');
-  }
-  
+  if (activeProgram) localStorage.setItem('fittrack_active_program', JSON.stringify(activeProgram));
+  else localStorage.removeItem('fittrack_active_program');
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      if (activeProgram) {
-        const { error } = await supabase.from('user_settings').upsert(
-          { user_id: user.id, key: 'active_program', value: JSON.stringify(activeProgram) }, 
-          { onConflict: 'user_id, key' }
-        );
-        return { success: !error, error };
-      } else {
-        const { error } = await supabase.from('user_settings').delete().eq('user_id', user.id).eq('key', 'active_program');
-        return { success: !error, error };
-      }
+    if (user && activeProgram) {
+      await supabase.from('user_settings').upsert({ user_id: user.id, key: 'active_program', value: JSON.stringify(activeProgram) }, { onConflict: 'user_id, key' });
     }
-    return { success: false, error: new Error('Not logged in') };
+    return { success: true };
   } catch (e) {
     return { success: false, error: e };
   }
@@ -230,55 +286,18 @@ export const getWorkoutHistory = () => {
 
 export const saveWorkoutToHistory = async (workout: any) => {
   const history = getWorkoutHistory();
-  // Don't generate a new ID if it already has one, to prevent duplicates
   const newWorkout = { ...workout, date: workout.date || new Date().toISOString(), id: workout.id || Date.now().toString() };
-  
-  // Replace if exists (dedupe)
-  const existingIdx = history.findIndex((w: any) => w.id === newWorkout.id);
-  if (existingIdx >= 0) {
-    history[existingIdx] = newWorkout;
-  } else {
-    history.unshift(newWorkout);
-  }
-  
+  history.unshift(newWorkout);
   localStorage.setItem('fittrack_history', JSON.stringify(history));
-  
-  // Background sync
-  let syncError = null;
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const payload = { ...newWorkout, user_id: user.id };
-      const { error } = await supabase.from('workout_history').upsert(payload, { onConflict: 'id' });
-      if (error) {
-        console.error("Failed to save workout history to Supabase:", error);
-        syncError = error;
-        // Fallback: save to user_settings as a backup
-        await supabase.from('user_settings').upsert({
-          user_id: user.id,
-          key: `history_${newWorkout.id}`,
-          value: JSON.stringify(payload)
-        }, { onConflict: 'user_id, key' });
-      }
-    } else {
-      syncError = new Error('Not logged in');
+      await supabase.from('workout_history').upsert({ ...newWorkout, user_id: user.id }, { onConflict: 'id' });
     }
+    return { success: true, workout: newWorkout };
   } catch (e) {
-    console.error(e);
-    syncError = e;
+    return { success: false, error: e, workout: newWorkout };
   }
-  return { success: !syncError, error: syncError, workout: newWorkout };
-};
-
-export const getLastExerciseStats = (exerciseId: string) => {
-  const history = getWorkoutHistory();
-  for (const workout of history) {
-    const exercise = workout.exercises?.find((e: any) => e.name === exerciseId);
-    if (exercise && exercise.weight > 0) {
-      return { weight: exercise.weight, reps: exercise.reps, sets: exercise.sets, date: workout.date };
-    }
-  }
-  return null;
 };
 
 export const getPersonalRecords = () => {
@@ -292,13 +311,9 @@ export const savePersonalRecord = (exerciseId: string, weight: number) => {
   const newPr = { id: Date.now().toString(), exerciseId, weight, date };
   prs.push(newPr);
   localStorage.setItem('fittrack_prs', JSON.stringify(prs));
-  
   supabase.auth.getUser().then(({ data: { user } }) => {
-    if (user) {
-      supabase.from('personal_records').insert({ ...newPr, user_id: user.id }).then();
-    }
+    if (user) supabase.from('personal_records').insert({ ...newPr, user_id: user.id }).then();
   });
-  
   return prs;
 };
 
@@ -306,115 +321,51 @@ export const deletePersonalRecord = (id: string) => {
   let prs = getPersonalRecords();
   prs = prs.filter((pr: any) => pr.id !== id);
   localStorage.setItem('fittrack_prs', JSON.stringify(prs));
-  
   supabase.auth.getUser().then(({ data: { user } }) => {
-    if (user) {
-      supabase.from('personal_records').delete().eq('id', id).eq('user_id', user.id).then();
-    }
+    if (user) supabase.from('personal_records').delete().eq('id', id).eq('user_id', user.id).then();
   });
-  
   return prs;
+};
+
+export const getLastExerciseStats = (exerciseId: string) => {
+  const history = getWorkoutHistory();
+  for (const workout of history) {
+    const exercise = workout.exercises?.find((e: any) => String(e.name) === String(exerciseId));
+    if (exercise && exercise.weight > 0) {
+      return { weight: exercise.weight, reps: exercise.reps, sets: exercise.sets, date: workout.date };
+    }
+  }
+  return null;
 };
 
 export const getBodyweightHistory = () => {
   const stored = localStorage.getItem('fittrack_bodyweight');
-  return stored ? JSON.parse(stored) : [
-    { date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], weight: 80 },
-    { date: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], weight: 79.5 },
-    { date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], weight: 79 },
-    { date: new Date().toISOString().split('T')[0], weight: 78.5 },
-  ];
+  return stored ? JSON.parse(stored) : [];
 };
 
-export const saveBodyweight = async (data: { weight?: number, bodyFat?: number, waist?: number, arms?: number, chest?: number, legs?: number }) => {
+export const saveBodyweight = async (data: any) => {
   const history = getBodyweightHistory();
   const date = new Date().toISOString().split('T')[0];
-  
-  const existingIndex = history.findIndex((entry: any) => entry.date === date);
-  if (existingIndex >= 0) {
-    history[existingIndex] = { ...history[existingIndex], ...data };
-  } else {
-    history.push({ date, ...data });
-  }
-  
-  history.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  history.push({ date, ...data });
   localStorage.setItem('fittrack_bodyweight', JSON.stringify(history));
-  
-  // Background sync
-  let syncError = null;
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const payload = { user_id: user.id, date, ...data };
-      const { error } = await supabase.from('bodyweight_history').upsert(payload, { onConflict: 'user_id, date' });
-      if (error) {
-        console.error("Failed to save bodyweight to Supabase:", error);
-        syncError = error;
-        await supabase.from('user_settings').upsert({
-          user_id: user.id,
-          key: `bw_${date}`,
-          value: JSON.stringify(payload)
-        }, { onConflict: 'user_id, key' });
-      }
-    } else {
-      syncError = new Error('Not logged in');
-    }
+    if (user) await supabase.from('bodyweight_history').upsert({ user_id: user.id, date, ...data }, { onConflict: 'user_id, date' });
+    return { success: true, history };
   } catch (e) {
-    console.error(e);
-    syncError = e;
+    return { success: false, error: e, history };
   }
-  
-  return { success: !syncError, error: syncError, history };
 };
 
 export const getEducationFolders = () => {
   const local = localStorage.getItem('fittrack_education_folders');
-  return local ? JSON.parse(local) : [
-    { id: '1', name: 'Gym Equipment', description: 'Learn how to use the machines safely.' },
-    { id: '2', name: 'Nutrition', description: 'Fuel your workouts and recovery.' }
-  ];
+  return local ? JSON.parse(local) : [];
 };
 
 export const saveEducationFolders = (folders: any[]) => {
   localStorage.setItem('fittrack_education_folders', JSON.stringify(folders));
-  // Background sync
   supabase.auth.getUser().then(async ({ data: { user } }) => {
-    if (user) {
-      if (folders.length > 0) {
-        const safeFolders = folders.map(f => ({ ...f, user_id: user.id }));
-        const { error } = await supabase.from('education_folders').upsert(safeFolders);
-        if (!error) {
-          const currentIds = safeFolders.map(f => f.id);
-          await supabase.from('education_folders').delete().eq('user_id', user.id).not('id', 'in', `(${currentIds.join(',')})`);
-        }
-      } else {
-        await supabase.from('education_folders').delete().eq('user_id', user.id);
-      }
-    }
-  });
-};
-
-export const getEducationVideos = () => {
-  const local = localStorage.getItem('fittrack_education_videos');
-  return local ? JSON.parse(local) : [];
-};
-
-export const saveEducationVideos = (videos: any[]) => {
-  localStorage.setItem('fittrack_education_videos', JSON.stringify(videos));
-  // Background sync
-  supabase.auth.getUser().then(async ({ data: { user } }) => {
-    if (user) {
-      if (videos.length > 0) {
-        const safeVideos = videos.map(v => ({ ...v, user_id: user.id }));
-        const { error } = await supabase.from('education_videos').upsert(safeVideos);
-        if (!error) {
-          const currentIds = safeVideos.map(v => v.id);
-          await supabase.from('education_videos').delete().eq('user_id', user.id).not('id', 'in', `(${currentIds.join(',')})`);
-        }
-      } else {
-        await supabase.from('education_videos').delete().eq('user_id', user.id);
-      }
-    }
+    if (user) await supabase.from('education_folders').upsert(folders.map(f => ({ ...f, user_id: user.id })));
   });
 };
 
@@ -471,7 +422,6 @@ export const saveCommunityComment = (comment: any) => {
 export const getCommunityFeed = () => {
   const history = getWorkoutHistory();
   const customPosts = getCommunityPosts();
-  const allComments = getCommunityComments();
   
   const mockFeed = [
     {
@@ -487,349 +437,106 @@ export const getCommunityFeed = () => {
       reward: { name: "Ambulance", emoji: "🚑", count: 1, displayName: "Ambulance" },
       likes: 12,
       comments: 3
-    },
-    {
-      id: "mock2",
-      user: { name: "John Smith", avatar: "JS" },
-      date: new Date(Date.now() - 86400000).toISOString(),
-      workoutName: "Upper Body Power",
-      exercises: [
-        { name: "bench", sets: 4, reps: 8, weight: 85 },
-        { name: "pullup", sets: 3, reps: 8, weight: 0 }
-      ],
-      volume: 2720,
-      reward: { name: "Grizzly Bear", emoji: "🐻", count: 10, displayName: "Grizzly Bears" },
-      likes: 8,
-      comments: 1
-    },
-    {
-      id: "mock3",
-      user: { name: "Mike Tyson", avatar: "MT" },
-      date: new Date(Date.now() - 172800000).toISOString(),
-      workoutName: "Full Body Basics",
-      exercises: [
-        { name: "squat", sets: 5, reps: 10, weight: 150 },
-        { name: "bench", sets: 5, reps: 10, weight: 100 },
-        { name: "deadlift", sets: 3, reps: 5, weight: 180 }
-      ],
-      volume: 15200,
-      reward: { name: "Chicken", emoji: "🐔", count: 15200, displayName: "Chickens" },
-      likes: 45,
-      comments: 12
     }
   ];
 
-  const userFeed = history.map((w: any, index: number) => ({
-    id: `user-${index}`,
-    user: { name: "You", avatar: "Y" },
+  const historyPosts = history.map((w: any) => ({
+    id: w.id,
+    user: { name: "You", avatar: "ME" },
     date: w.date,
-    workoutName: w.name || "Workout",
-    exercises: w.exercises || [],
+    workoutName: w.name,
+    exercises: w.exercises,
     volume: w.volume,
     reward: w.reward,
     likes: 0,
     comments: 0
   }));
 
-  const allFeed = [...customPosts, ...userFeed, ...mockFeed].map(post => {
-    const postComments = allComments.filter((c: any) => c.postId === post.id);
-    return {
-      ...post,
-      commentsCount: (post.comments || 0) + postComments.length,
-      postComments
-    };
-  });
-
-  return allFeed.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-};
-
-export const syncFromSupabase = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
-  
-  try {
-    const { data: settings } = await supabase.from('user_settings').select('*').eq('user_id', user.id);
-    
-    const { data: ex } = await supabase.from('exercises').select('*').eq('user_id', user.id);
-    if (ex && ex.length > 0) {
-      const parsedEx = ex
-        .filter(e => e.is_deleted !== true)
-        .map(e => ({
-          ...e,
-          category: typeof e.category === 'string' ? e.category.split(', ') : e.category,
-          movementType: typeof e.movementType === 'string' ? e.movementType.split(', ') : e.movementType,
-          trackingType: typeof e.trackingType === 'string' ? e.trackingType.split(', ') : e.trackingType
-        }));
-      localStorage.setItem('fittrack_exercises', JSON.stringify(parsedEx));
-    }
-    
-    const { data: prog } = await supabase.from('programs').select('*').eq('user_id', user.id);
-    if (prog && prog.length > 0) {
-      let activeProg = prog.filter(p => p.is_deleted !== true);
-      
-      if (settings) {
-        activeProg = activeProg.map(p => {
-          const coverSetting = settings.find(s => s.key === `cover_${p.id}`);
-          let extraData: any = {};
-          
-          const extraSetting = settings.find(s => s.key === `prog_extras_${p.id}`);
-          if (extraSetting) {
-            try { extraData = JSON.parse(extraSetting.value); } catch(e) {}
-          }
-          
-          return { 
-            ...p,
-            ...extraData,
-            coverImage: p.coverImage || extraData.coverImage || (coverSetting ? coverSetting.value : undefined),
-          };
-        });
-      }
-      
-      localStorage.setItem('fittrack_programs', JSON.stringify(activeProg));
-    }
-    
-    const { data: hist, error: histErr } = await supabase.from('workout_history').select('*').eq('user_id', user.id).order('date', { ascending: false });
-    
-    const fallbackHistSettings = settings ? settings.filter(s => s.key.startsWith('history_')) : [];
-    const fallbackHist = fallbackHistSettings.map(s => {
-      try { return JSON.parse(s.value); } catch(e) { return null; }
-    }).filter(Boolean);
-    
-    const cloudHist = hist || [];
-    const allCloudHist = [...cloudHist, ...fallbackHist];
-    
-    const localHistStr = localStorage.getItem('fittrack_history');
-    const localHist = localHistStr ? JSON.parse(localHistStr) : [];
-    
-    const combinedHist = [...localHist, ...allCloudHist];
-    const uniqueHist = [];
-    const seenHist = new Set();
-    for (const item of combinedHist) {
-      const key = item.id || `${item.date}-${item.name}`;
-      if (!seenHist.has(key)) {
-        seenHist.add(key);
-        uniqueHist.push(item);
-      }
-    }
-    uniqueHist.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    localStorage.setItem('fittrack_history', JSON.stringify(uniqueHist));
-    
-    if (!histErr && cloudHist.length === 0 && localHist.length > 0) {
-      for (const item of localHist) {
-        supabase.from('workout_history').upsert({ ...item, user_id: user.id }).then(({ error }) => {
-          if (error) {
-             supabase.from('user_settings').upsert({
-               user_id: user.id,
-               key: `history_${item.id || Date.now()}`,
-               value: JSON.stringify({ ...item, user_id: user.id })
-             }, { onConflict: 'user_id, key' });
-          }
-        });
-      }
-    }
-    
-    const { data: bw, error: bwErr } = await supabase.from('bodyweight_history').select('*').eq('user_id', user.id).order('date', { ascending: true });
-    
-    const fallbackBwSettings = settings ? settings.filter(s => s.key.startsWith('bw_')) : [];
-    const fallbackBw = fallbackBwSettings.map(s => {
-      try { return JSON.parse(s.value); } catch(e) { return null; }
-    }).filter(Boolean);
-    
-    const cloudBw = bw || [];
-    const allCloudBw = [...cloudBw, ...fallbackBw];
-    
-    const localBwStr = localStorage.getItem('fittrack_bodyweight');
-    const localBw = localBwStr ? JSON.parse(localBwStr) : [];
-    
-    const combinedBw = [...localBw, ...allCloudBw];
-    const uniqueBw = [];
-    const seenBw = new Set();
-    for (const item of combinedBw) {
-      if (!seenBw.has(item.date)) {
-        seenBw.add(item.date);
-        uniqueBw.push(item);
-      }
-    }
-    uniqueBw.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    localStorage.setItem('fittrack_bodyweight', JSON.stringify(uniqueBw));
-    
-    if (!bwErr && cloudBw.length === 0 && localBw.length > 0) {
-      for (const item of localBw) {
-        supabase.from('bodyweight_history').upsert({ ...item, user_id: user.id }, { onConflict: 'user_id, date' }).then(({ error }) => {
-          if (error) {
-            supabase.from('user_settings').upsert({
-              user_id: user.id,
-              key: `bw_${item.date}`,
-              value: JSON.stringify({ ...item, user_id: user.id })
-            }, { onConflict: 'user_id, key' });
-          }
-        });
-      }
-    }
-    
-    // const { data: prs } = await supabase.from('personal_records').select('*').eq('user_id', user.id).order('date', { ascending: false });
-    // if (prs) localStorage.setItem('fittrack_prs', JSON.stringify(prs));
-
-    const { data: folders } = await supabase.from('education_folders').select('*').eq('user_id', user.id);
-    if (folders && folders.length > 0) localStorage.setItem('fittrack_education_folders', JSON.stringify(folders));
-
-    const { data: videos } = await supabase.from('education_videos').select('*').eq('user_id', user.id);
-    if (videos && videos.length > 0) localStorage.setItem('fittrack_education_videos', JSON.stringify(videos));
-
-    if (settings) {
-      const vimeo = settings.find(s => s.key === 'vimeo_token');
-      if (vimeo) localStorage.setItem('fittrack_vimeo_token', vimeo.value);
-      
-      const anthropic = settings.find(s => s.key === 'anthropic_key');
-      if (anthropic) localStorage.setItem('fittrack_anthropic_key', anthropic.value);
-      
-      const activeProg = settings.find(s => s.key === 'active_program');
-      if (activeProg) {
-        localStorage.setItem('fittrack_active_program', activeProg.value);
-      }
-      // Removed the else branch that wiped the local active program
-    }
-    
-    // Check for workout reminders (disabled to prevent 404 on missing notifications table)
-    /*
-    const lastWorkout = hist?.[0];
-    if (lastWorkout) {
-      const daysSince = Math.floor((Date.now() - new Date(lastWorkout.date).getTime()) / (1000 * 60 * 60 * 24));
-      if (daysSince >= 3) {
-        const { data: existing } = await supabase.from('notifications')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('type', 'workout_reminder')
-          .gt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-        
-        if (!existing || existing.length === 0) {
-          await supabase.from('notifications').insert({
-            user_id: user.id,
-            title: "Time to hit the gym!",
-            message: `It's been ${daysSince} days since your last workout. Ready for a session?`,
-            type: 'workout_reminder'
-          });
-        }
-      }
-    }
-    */
-
-    // Dispatch custom event so components can re-render if needed
-    window.dispatchEvent(new Event('fittrack_synced'));
-    return true;
-  } catch (e) {
-    console.error(e);
-    return false;
-  }
-};
-
-export const getNotifications = async () => {
-  return [];
-};
-
-export const markNotificationRead = async (id: string) => {
-  // disabled to prevent 404
-};
-
-export const sendNotification = async (title: string, message: string, userId?: string) => {
-  // disabled to prevent 404
-};
-
-export const syncProfile = async () => {
-  // disabled to prevent 404 on missing profiles table
+  return [...customPosts, ...historyPosts, ...mockFeed].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
 export const getMembers = async () => {
-  return [];
+  const { data } = await supabase.from('members').select('*').order('name');
+  return data || [];
 };
 
-export const getMemberActivity = async (userId: string) => {
-  const { data: history } = await supabase.from('workout_history')
-    .select('*')
-    .eq('user_id', userId)
-    .order('date', { ascending: false });
-  return history || [];
+export const getMemberActivity = async (memberId: string) => {
+  const { data } = await supabase.from('workout_history').select('*').eq('user_id', memberId).order('date', { ascending: false });
+  return data || [];
+};
+
+export const sendNotification = async (userId: string, title: string, message: string) => {
+  await supabase.from('notifications').insert({ user_id: userId, title, message, is_read: false });
 };
 
 export const migrateLocalToSupabase = async () => {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
-  
-  try {
-    const storedEx = localStorage.getItem('fittrack_exercises');
-    if (storedEx) {
-      const ex = JSON.parse(storedEx);
-      const safeEx = ex.map((e: any) => {
-        let movType = e.movementType;
-        if (typeof movType === 'string') movType = [movType];
-        else if (!movType) movType = [];
-        
-        return {
-          ...e,
-          user_id: user.id,
-          category: Array.isArray(e.category) ? e.category.join(', ') : e.category,
-          movementType: movType
-        };
-      });
-      await supabase.from('exercises').delete().eq('user_id', user.id);
-      await supabase.from('exercises').insert(safeEx);
-    }
-    
-    const storedProg = localStorage.getItem('fittrack_programs');
-    if (storedProg) {
-      const prog = JSON.parse(storedProg);
-      await supabase.from('programs').delete().eq('user_id', user.id);
-      await supabase.from('programs').insert(prog.map((p: any) => ({ ...p, user_id: user.id })));
-    }
-    
-    const storedHist = localStorage.getItem('fittrack_history');
-    if (storedHist) {
-      const hist = JSON.parse(storedHist);
-      await supabase.from('workout_history').delete().eq('user_id', user.id);
-      await supabase.from('workout_history').insert(hist.map((h: any) => ({ ...h, user_id: user.id })));
-    }
-    
-    const storedBw = localStorage.getItem('fittrack_bodyweight');
-    if (storedBw) {
-      const bw = JSON.parse(storedBw);
-      await supabase.from('bodyweight_history').delete().eq('user_id', user.id);
-      await supabase.from('bodyweight_history').insert(bw.map((b: any) => ({ ...b, user_id: user.id })));
-    }
-    
-    const storedPrs = localStorage.getItem('fittrack_prs');
-    if (storedPrs) {
-      const prs = JSON.parse(storedPrs);
-      await supabase.from('personal_records').delete().eq('user_id', user.id);
-      await supabase.from('personal_records').insert(prs.map((p: any) => ({ ...p, user_id: user.id })));
-    }
+  if (!user) return;
+};
 
-    const storedFolders = localStorage.getItem('fittrack_education_folders');
-    if (storedFolders) {
-      const folders = JSON.parse(storedFolders);
-      await supabase.from('education_folders').delete().eq('user_id', user.id);
-      await supabase.from('education_folders').insert(folders.map((f: any) => ({ ...f, user_id: user.id })));
-    }
+export const getEducationVideos = () => {
+  const local = localStorage.getItem('fittrack_education_videos');
+  return local ? JSON.parse(local) : [];
+};
 
-    const storedVideos = localStorage.getItem('fittrack_education_videos');
-    if (storedVideos) {
-      const videos = JSON.parse(storedVideos);
-      await supabase.from('education_videos').delete().eq('user_id', user.id);
-      await supabase.from('education_videos').insert(videos.map((v: any) => ({ ...v, user_id: user.id })));
-    }
+export const saveEducationVideos = (videos: any[]) => {
+  localStorage.setItem('fittrack_education_videos', JSON.stringify(videos));
+  supabase.auth.getUser().then(async ({ data: { user } }) => {
+    if (user) await supabase.from('education_videos').upsert(videos.map(v => ({ ...v, user_id: user.id })));
+  });
+};
 
-    const storedToken = localStorage.getItem('fittrack_vimeo_token');
-    if (storedToken) {
-      await supabase.from('user_settings').upsert({ user_id: user.id, key: 'vimeo_token', value: storedToken }, { onConflict: 'user_id, key' });
-    }
-    
-    const storedActiveProg = localStorage.getItem('fittrack_active_program');
-    if (storedActiveProg) {
-      await supabase.from('user_settings').upsert({ user_id: user.id, key: 'active_program', value: storedActiveProg }, { onConflict: 'user_id, key' });
-    }
-    
-    return true;
-  } catch (e) {
-    console.error(e);
-    return false;
+export const getNotifications = async () => {
+  const { data } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
+  return data || [];
+};
+
+export const markNotificationRead = async (id: string) => {
+  await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+};
+
+export const syncFromSupabase = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const [ex, prg, hist, bw, prs, nut, mhab, chk, meas, phot, habLib] = await Promise.all([
+    supabase.from('exercises').select('*').eq('user_id', user.id),
+    supabase.from('programs').select('*').eq('user_id', user.id),
+    supabase.from('workout_history').select('*').eq('user_id', user.id),
+    supabase.from('bodyweight_history').select('*').eq('user_id', user.id),
+    supabase.from('personal_records').select('*').eq('user_id', user.id),
+    supabase.from('member_nutrition').select('*').eq('member_id', user.id).maybeSingle(),
+    supabase.from('member_habits').select('*').eq('member_id', user.id),
+    supabase.from('habit_checkins').select('*').eq('member_id', user.id),
+    supabase.from('member_measurements').select('*').eq('member_id', user.id),
+    supabase.from('member_photos').select('*').eq('member_id', user.id),
+    supabase.from('habits').select('*').order('sort_order', { ascending: true })
+  ]);
+
+  if (ex.data && ex.data.length > 0) localStorage.setItem('fittrack_exercises', JSON.stringify(ex.data));
+  if (prg.data && prg.data.length > 0) localStorage.setItem('fittrack_programs', JSON.stringify(prg.data));
+  if (hist.data && hist.data.length > 0) localStorage.setItem('fittrack_history', JSON.stringify(hist.data));
+  if (bw.data && bw.data.length > 0) localStorage.setItem('fittrack_bodyweight', JSON.stringify(bw.data));
+  if (prs.data && prs.data.length > 0) localStorage.setItem('fittrack_prs', JSON.stringify(prs.data));
+  if (nut.data) localStorage.setItem('fittrack_member_nutrition', JSON.stringify(nut.data));
+  if (mhab.data && mhab.data.length > 0) localStorage.setItem('fittrack_member_habits', JSON.stringify(mhab.data));
+  if (chk.data && chk.data.length > 0) localStorage.setItem('fittrack_habit_checkins', JSON.stringify(chk.data));
+  if (meas.data && meas.data.length > 0) localStorage.setItem('fittrack_member_measurements', JSON.stringify(meas.data));
+  if (phot.data && phot.data.length > 0) localStorage.setItem('fittrack_member_photos', JSON.stringify(phot.data));
+  if (habLib.data && habLib.data.length > 0) localStorage.setItem('fittrack_habits_library', JSON.stringify(habLib.data));
+
+  const { data: settings } = await supabase.from('user_settings').select('*').eq('user_id', user.id);
+  if (settings) {
+    const active = settings.find(s => s.key === 'active_program');
+    if (active) localStorage.setItem('fittrack_active_program', active.value);
   }
 };
+
+export const syncProfile = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+    if (profile) localStorage.setItem('fittrack_profile', JSON.stringify(profile));
+  }
+};
+

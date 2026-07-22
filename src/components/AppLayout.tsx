@@ -1,4 +1,4 @@
-import { Dumbbell, LayoutDashboard, LineChart, User, Users, Bell, LogIn, Download, Loader2 } from "lucide-react";
+import { Dumbbell, LayoutDashboard, LineChart, User, Users, Bell, LogIn, Download, Loader2, Apple } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -22,6 +22,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     downloadSourceCode(setIsZipping);
   };
 
+  const loadNotifications = async () => {
+    const data = await getNotifications();
+    if (Array.isArray(data)) {
+      setNotifications(data);
+    }
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -43,11 +50,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
-
-  const loadNotifications = async () => {
-    const data = await getNotifications();
-    setNotifications(data);
-  };
 
   const handleMarkRead = async (id: string) => {
     await markNotificationRead(id);
@@ -160,6 +162,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <NavItem to="/" icon={<LayoutDashboard className="h-6 w-6" />} label="Home" active={location.pathname === "/"} />
         <NavItem to="/workouts" icon={<Dumbbell className="h-6 w-6" />} label="Workouts" active={location.pathname === "/workouts"} />
         <NavItem to="/progress" icon={<LineChart className="h-6 w-6" />} label="Progress" active={location.pathname === "/progress"} />
+        <NavItem to="/nutrition" icon={<Apple className="h-6 w-6" />} label="Nutrition" active={location.pathname === "/nutrition"} />
         <NavItem to="/feed" icon={<Users className="h-6 w-6" />} label="Feed" active={location.pathname === "/feed"} />
         <NavItem to="/profile" icon={<User className="h-6 w-6" />} label="Profile" active={location.pathname === "/profile"} />
       </nav>
