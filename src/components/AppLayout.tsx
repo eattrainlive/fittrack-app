@@ -1,8 +1,8 @@
-import { Dumbbell, LayoutDashboard, LineChart, User, Users, Bell, LogIn, Download, Loader2, Apple } from "lucide-react";
+import { Dumbbell, LayoutDashboard, LineChart, User, Users, Bell, LogIn, Download, Loader2, Apple, CloudOff, Cloud, CheckCircle2 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getNotifications, markNotificationRead } from "@/lib/store";
+import { getNotifications, markNotificationRead, subscribeSyncStatus, getSyncStatus, flushRetryQueue, type SyncStatus } from "@/lib/store";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -17,6 +17,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isStaff, setIsStaff] = useState(() => localStorage.getItem("fittrack_is_staff") === "true");
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isZipping, setIsZipping] = useState(false);
+  const [syncStatus, setSyncStatusLocal] = useState<SyncStatus>(getSyncStatus());
 
   const handleDownloadSource = () => {
     downloadSourceCode(setIsZipping);
@@ -44,10 +45,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
     const handleStorage = () => setIsStaff(localStorage.getItem("fittrack_is_staff") === "true");
     window.addEventListener("storage", handleStorage);
+
+    // Subscribe to sync status updates
+    const unsubSync = subscribeSyncStatus(setSyncStatusLocal);
+
+    // Flush any queued writes on mount
+    flushRetryQueue();
     
     return () => {
       window.removeEventListener("storage", handleStorage);
       subscription.unsubscribe();
+      unsubSync();
     };
   }, []);
 
@@ -97,6 +105,27 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <span className="font-heading text-xl text-foreground uppercase tracking-wider mt-1">FitTrack</span>
         </div>
         <div className="flex items-center gap-2">
+          {/* Sync status indicator */}
+          {user && syncStatus !== 'idle' && (
+            <div className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full transition-all ${
+              syncStatus === 'saving' ? 'text-muted-foreground' :
+              syncStatus === 'saved' ? 'text-primary' :
+              'text-destructive'
+            }`}>
+              {syncStatus === 'saving' && <Loader2 className="h-3 w-3 animate-spin" />}
+              {syncStatus === 'saved' && <CheckCircle2 className="h-3 w-3" />}
+              {syncStatus === 'error' && (
+                <button onClick={() => flushRetryQueue()} className="flex items-center gap-1 hover:underline" title="Click to retry">
+                  <CloudOff className="h-3 w-3" />
+                  <span className="hidden sm:inline">Save failed — retry</span>
+                </button>
+              )}
+              <span className="hidden sm:inline">
+                {syncStatus === 'saving' && 'Saving…'}
+                {syncStatus === 'saved' && 'Saved'}
+              </span>
+            </div>
+          )}
           <Button variant="outline" size="sm" onClick={handleDownloadSource} disabled={isZipping} className="gap-2 hidden sm:flex border-primary text-primary hover:bg-primary/10">
             {isZipping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             Download Source

@@ -452,8 +452,10 @@ const Admin = () => {
     };
     const updated = [...exercises, newEx];
     setExercises(updated);
-    saveExercises(updated);
-    toast.success("Exercise added!");
+    saveExercises(updated).then(r => {
+      if (r.success) toast.success("Exercise added!");
+      else toast.warning("Exercise saved locally — cloud sync failed");
+    });
     setNewExName("");
     setNewExMuscle("");
     setNewExVid("");
@@ -463,17 +465,21 @@ const Admin = () => {
   const handleDeleteExercise = (id: string) => {
     const updated = exercises.filter(e => e.id !== id);
     setExercises(updated);
-    saveExercises(updated);
-    toast.success("Exercise deleted!");
+    saveExercises(updated).then(r => {
+      if (r.success) toast.success("Exercise deleted!");
+      else toast.warning("Deleted locally — cloud sync failed");
+    });
   };
 
   const handleUpdateExercise = () => {
     if (!editingExercise) return;
     const updated = exercises.map(e => e.id === editingExercise.id ? editingExercise : e);
     setExercises(updated);
-    saveExercises(updated);
+    saveExercises(updated).then(r => {
+      if (!r.success) toast.warning("Updated locally — cloud sync failed");
+      else toast.success("Exercise updated!");
+    });
     setEditingExercise(null);
-    toast.success("Exercise updated!");
   };
 
   const handleBulkDelete = () => {
@@ -484,8 +490,10 @@ const Admin = () => {
     const idsToDelete = filtered.map(e => e.id);
     const updated = exercises.filter(e => !idsToDelete.includes(e.id));
     setExercises(updated);
-    saveExercises(updated);
-    toast.success(`Deleted ${filtered.length} exercises!`);
+    saveExercises(updated).then(r => {
+      if (r.success) toast.success(`Deleted ${filtered.length} exercises!`);
+      else toast.warning(`Deleted locally — cloud sync failed`);
+    });
     setLibrarySearch("");
   };
 
@@ -914,14 +922,16 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     let updated;
     if (editingProgramId) {
       updated = programs.map(p => p.id === editingProgramId ? newProg : p);
-      toast.success("Program updated!");
     } else {
       updated = [...programs, newProg];
-      toast.success("Program added!");
     }
     
     setPrograms(updated);
-    savePrograms(updated);
+    const isEdit = !!editingProgramId;
+    savePrograms(updated).then(r => {
+      if (r.success) toast.success(isEdit ? "Program updated!" : "Program added!");
+      else toast.warning("Saved locally — cloud sync failed. It will retry automatically.");
+    });
     
     setNewProgName("");
     setNewProgDesc("");
@@ -980,8 +990,10 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
   const handleDeleteProgram = (id: string) => {
     const updated = programs.filter(p => p.id !== id);
     setPrograms(updated);
-    savePrograms(updated);
-    toast.success("Program deleted!");
+    savePrograms(updated).then(r => {
+      if (r.success) toast.success("Program deleted!");
+      else toast.warning("Deleted locally — cloud sync failed. It will retry automatically.");
+    });
   };
 
   const handleDuplicateProgram = (id: string) => {
@@ -996,8 +1008,10 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     
     const updated = [...programs, newProg];
     setPrograms(updated);
-    savePrograms(updated);
-    toast.success("Program duplicated!");
+    savePrograms(updated).then(r => {
+      if (r.success) toast.success("Program duplicated!");
+      else toast.warning("Duplicated locally — cloud sync failed. It will retry automatically.");
+    });
   };
 
   const handleSendBroadcast = async () => {
@@ -1096,7 +1110,9 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       updated = [...programs, newProg];
     }
     setPrograms(updated);
-    savePrograms(updated);
+    const result = await savePrograms(updated);
+    if (!result.success) toast.warning("AI programme saved locally — cloud sync failed. It will retry automatically.");
+    return result;
   };
 
   const [genProgress, setGenProgress] = useState<string | null>(null);
