@@ -222,15 +222,22 @@ export const saveExercises = async (exercises: any[]) => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const safeExercises = exercises.map(e => ({
-        ...e,
-        user_id: user.id,
-        category: Array.isArray(e.category) ? e.category.join(', ') : e.category,
-        movementType: Array.isArray(e.movementType) ? e.movementType : [e.movementType],
-        trackingType: Array.isArray(e.trackingType) ? e.trackingType.join(', ') : e.trackingType || 'Weight & Reps'
-      }));
-      if (safeExercises.length > 0) {
+      if (exercises.length > 0) {
+        const safeExercises = exercises.map(e => ({
+          ...e,
+          user_id: user.id,
+          category: Array.isArray(e.category) ? e.category.join(', ') : e.category,
+          movementType: Array.isArray(e.movementType) ? e.movementType : [e.movementType],
+          trackingType: Array.isArray(e.trackingType) ? e.trackingType.join(', ') : e.trackingType || 'Weight & Reps'
+        }));
         await supabase.from('exercises').upsert(safeExercises);
+        
+        const currentIds = exercises.map(e => String(e.id)).filter(Boolean);
+        if (currentIds.length > 0) {
+          await supabase.from('exercises').update({ is_deleted: true }).eq('user_id', user.id).not('id', 'in', currentIds);
+        }
+      } else {
+        await supabase.from('exercises').update({ is_deleted: true }).eq('user_id', user.id);
       }
     }
     return { success: true };
@@ -252,6 +259,13 @@ export const savePrograms = async (programs: any[]) => {
       if (programs.length > 0) {
         const safePrograms = programs.map(p => ({ ...p, user_id: user.id }));
         await supabase.from('programs').upsert(safePrograms);
+        
+        const currentIds = programs.map(p => String(p.id)).filter(Boolean);
+        if (currentIds.length > 0) {
+          await supabase.from('programs').update({ is_deleted: true }).eq('user_id', user.id).not('id', 'in', currentIds);
+        }
+      } else {
+        await supabase.from('programs').update({ is_deleted: true }).eq('user_id', user.id);
       }
     }
     return { success: true };
@@ -513,8 +527,14 @@ export const syncFromSupabase = async () => {
     supabase.from('habits').select('*').order('sort_order', { ascending: true })
   ]);
 
-  if (ex.data && ex.data.length > 0) localStorage.setItem('fittrack_exercises', JSON.stringify(ex.data));
-  if (prg.data && prg.data.length > 0) localStorage.setItem('fittrack_programs', JSON.stringify(prg.data));
+  if (ex.data && ex.data.length > 0) {
+    const activeEx = ex.data.filter((e: any) => e.is_deleted !== true);
+    localStorage.setItem('fittrack_exercises', JSON.stringify(activeEx));
+  }
+  if (prg.data && prg.data.length > 0) {
+    const activePrg = prg.data.filter((p: any) => p.is_deleted !== true);
+    localStorage.setItem('fittrack_programs', JSON.stringify(activePrg));
+  }
   if (hist.data && hist.data.length > 0) localStorage.setItem('fittrack_history', JSON.stringify(hist.data));
   if (bw.data && bw.data.length > 0) localStorage.setItem('fittrack_bodyweight', JSON.stringify(bw.data));
   if (prs.data && prs.data.length > 0) localStorage.setItem('fittrack_prs', JSON.stringify(prs.data));
