@@ -1127,6 +1127,26 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     return next;
   };
 
+  // Within each Warm Up / Fire Up section, chain the exercises into a single superset.
+  const linkWarmupFireupSupersets = (exercises: any[]) => {
+    if (!Array.isArray(exercises)) return exercises;
+    let inGroupSection = false;
+    for (let i = 0; i < exercises.length; i++) {
+      const e = exercises[i];
+      if (e.isSection) {
+        const nm = String(e.name || e.sectionType || "").toLowerCase();
+        inGroupSection = nm.includes("warm up") || nm.includes("fire up");
+        continue;
+      }
+      if (inGroupSection) {
+        const next = exercises[i + 1];
+        // link to next only if the next row is another exercise in the SAME section
+        e.linkedToNext = !!(next && !next.isSection);
+      }
+    }
+    return exercises;
+  };
+
   const streamCfg = () => ({ weeks: newProgWeeks, days: newProgDays, stream: newProgStream });
   const exPayload = () => exercises.map(ex => ({
     id: ex.id,
@@ -1150,6 +1170,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         if (error) throw new Error(error.message);
         if (data?.error) throw new Error(data.error);
         const cells = data.workouts || [];
+        cells.forEach((c: any) => c.exercises && linkWarmupFireupSupersets(c.exercises));
         grid = mergeCells(grid, cells);
         previousWeekWorkouts = cells;
         setProgWorkouts([...grid]);
@@ -1178,7 +1199,9 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           const { data, error } = await supabase.functions.invoke("generate-workout", { body: bodyPayload });
           if (error) throw new Error(error.message);
           if (data?.error) throw new Error(data.error);
-          return (data.workouts || [])[0];
+          const cell = (data.workouts || [])[0];
+          if (cell?.exercises) linkWarmupFireupSupersets(cell.exercises);
+          return cell;
         } catch (e) {
           lastErr = e;
           await sleep(2000 * (i + 1));
@@ -1244,8 +1267,11 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       if (error) throw new Error(error.message || "Failed to generate workout");
       if (!data || !data.workouts) throw new Error("No workouts returned from AI");
 
-      setProgWorkouts(data.workouts);
-      await autoSaveProgram(data.workouts);
+      const workouts = data.workouts;
+      workouts.forEach((c: any) => c.exercises && linkWarmupFireupSupersets(c.exercises));
+
+      setProgWorkouts(workouts);
+      await autoSaveProgram(workouts);
       toast.success(`AI successfully completed: ${action}!`);
     } catch (err: any) {
       console.error(err);
@@ -1262,7 +1288,9 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     const { data, error } = await supabase.functions.invoke("generate-group-pt", { body });
     if (error) throw new Error(error.message);
     if (data?.error) throw new Error(data.error);
-    return data.workouts;
+    const cells = data.workouts || [];
+    cells.forEach((c: any) => c.exercises && linkWarmupFireupSupersets(c.exercises));
+    return cells;
   }
 
   async function generateGroupBlock() {
