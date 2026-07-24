@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 // ── Dirty flag helpers ─────────────────────────────────────────────────────
 // A "dirty" store has local writes that haven't confirmed to Supabase yet.
 // syncFromSupabase will NOT overwrite a dirty store (it re-pushes instead).
-const DIRTY_STORES = ['programs', 'exercises', 'history', 'bodyweight', 'habits'] as const;
+const DIRTY_STORES = ['programs', 'exercises', 'history', 'bodyweight', 'habits', 'macros', 'macroLogs'] as const;
 type DirtyStore = typeof DIRTY_STORES[number];
 
 export const markDirty = (store: DirtyStore) => localStorage.setItem(`fittrack_dirty_${store}`, '1');
@@ -70,6 +70,17 @@ export const flushRetryQueue = async () => {
         if (bw.length > 0) {
           const latest = bw[bw.length - 1];
           await supabase.from('bodyweight_history').upsert({ user_id: user.id, ...latest }, { onConflict: 'user_id, date' });
+        }
+      }
+    } else if (item.store === 'macros') {
+      const local = localStorage.getItem('fittrack_member_macros');
+      if (local) { await saveMemberMacros(JSON.parse(local)); }
+    } else if (item.store === 'macroLogs') {
+      const local = localStorage.getItem('fittrack_macro_logs');
+      if (local) {
+        const logs = JSON.parse(local);
+        for (const log of logs) {
+          await supabase.from('macro_logs').upsert({ ...log, member_id: user.id }, { onConflict: 'member_id, date' });
         }
       }
     }
@@ -216,13 +227,83 @@ export const resetMemberNutrition = async () => {
   localStorage.removeItem('fittrack_member_nutrition');
   localStorage.removeItem('fittrack_member_habits');
   localStorage.removeItem('fittrack_habit_checkins');
+  localStorage.removeItem('fittrack_member_macros');
+  localStorage.removeItem('fittrack_macro_logs');
   const { data: { user } } = await supabase.auth.getUser();
   if (user) {
     await Promise.all([
       supabase.from('member_nutrition').delete().eq('member_id', user.id),
       supabase.from('member_habits').delete().eq('member_id', user.id),
-      supabase.from('habit_checkins').delete().eq('member_id', user.id)
+      supabase.from('habit_checkins').delete().eq('member_id', user.id),
+      supabase.from('member_macros').delete().eq('member_id', user.id),
+      supabase.from('macro_logs').delete().eq('member_id', user.id)
     ]);
+  }
+};
+
+export const getMemberMacros = () => {
+  const local = localStorage.getItem('fittrack_member_macros');
+  return local ? JSON.parse(local) : null;
+};
+
+export const saveMemberMacros = async (macros: any): Promise<{ success: boolean; error?: any }> => {
+  localStorage.setItem('fittrack_member_macros', JSON.stringify(macros));
+  markDirty('macros');
+  setSyncStatus('saving');
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { error } = await supabase.from('member_macros').upsert({ ...macros, member_id: user.id }, { onConflict: 'member_id' });
+      if (error) {
+        enqueue('macros');
+        setSyncStatus('error');
+        return { success: false, error };
+      }
+    }
+    clearDirty('macros');
+    dequeue('macros');
+    setSyncStatus('saved');
+    return { success: true };
+  } catch (e) {
+    enqueue('macros');
+    setSyncStatus('error');
+    return { success: false, error: e };
+  }
+};
+
+export const getMacroLogs = () => {
+  const local = localStorage.getItem('fittrack_macro_logs');
+  return local ? JSON.parse(local) : [];
+};
+
+export const saveMacroLog = async (log: any): Promise<{ success: boolean; error?: any }> => {
+  const logs = getMacroLogs();
+  const date = log.date;
+  const existingIdx = logs.findIndex((l: any) => l.date === date);
+  if (existingIdx >= 0) logs[existingIdx] = log;
+  else logs.push(log);
+  
+  localStorage.setItem('fittrack_macro_logs', JSON.stringify(logs));
+  markDirty('macroLogs');
+  setSyncStatus('saving');
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { error } = await supabase.from('macro_logs').upsert({ ...log, member_id: user.id }, { onConflict: 'member_id, date' });
+      if (error) {
+        enqueue('macroLogs');
+        setSyncStatus('error');
+        return { success: false, error };
+      }
+    }
+    clearDirty('macroLogs');
+    dequeue('macroLogs');
+    setSyncStatus('saved');
+    return { success: true };
+  } catch (e) {
+    enqueue('macroLogs');
+    setSyncStatus('error');
+    return { success: false, error: e };
   }
 };
 
@@ -362,6 +443,12 @@ export const savePrograms = async (programs: any[]): Promise<{ success: boolean;
           if (currentIds.length > 0) {
             await supabase.from('programs').update({ is_deleted: true }).eq('user_id', user.id).not('id', 'in', `(${currentIds.join(',')})`);
           }
+          
+          const keys = safePrograms.map(p => `prog_extras_${p.id}`);
+          if (keys.length > 0) {
+            await supabase.from('user_settings').delete().eq('user_id', user.id).in('key', keys);
+          }
+
           clearDirty('programs');
           dequeue('programs');
           setSyncStatus('saved');
@@ -661,7 +748,7 @@ export const syncFromSupabase = async () => {
   // Flush any pending queued writes BEFORE syncing (push local → cloud first)
   await flushRetryQueue();
 
-  const [ex, prg, hist, bw, prs, nut, mhab, chk, meas, phot, habLib] = await Promise.all([
+  const [ex, prg, hist, bw, prs, nut, mhab, chk, meas, phot, habLib, mac, mlogs] = await Promise.all([
     supabase.from('exercises').select('*').eq('user_id', user.id),
     supabase.from('programs').select('*').eq('user_id', user.id),
     supabase.from('workout_history').select('*').eq('user_id', user.id),
@@ -672,7 +759,9 @@ export const syncFromSupabase = async () => {
     supabase.from('habit_checkins').select('*').eq('member_id', user.id),
     supabase.from('member_measurements').select('*').eq('member_id', user.id),
     supabase.from('member_photos').select('*').eq('member_id', user.id),
-    supabase.from('habits').select('*').order('sort_order', { ascending: true })
+    supabase.from('habits').select('*').order('sort_order', { ascending: true }),
+    supabase.from('member_macros').select('*').eq('member_id', user.id).maybeSingle(),
+    supabase.from('macro_logs').select('*').eq('member_id', user.id)
   ]);
 
   const { data: settings } = await supabase.from('user_settings').select('*').eq('user_id', user.id);
@@ -694,7 +783,7 @@ export const syncFromSupabase = async () => {
         const extraSetting = settings.find((s: any) => s.key === `prog_extras_${p.id}`);
         let extraData: any = {};
         if (extraSetting) { try { extraData = JSON.parse(extraSetting.value); } catch (e) {} }
-        return { ...p, ...extraData };
+        return { ...extraData, ...p };
       });
     }
     localStorage.setItem('fittrack_programs', JSON.stringify(activePrg));
@@ -718,6 +807,19 @@ export const syncFromSupabase = async () => {
   if (meas.data && meas.data.length > 0) localStorage.setItem('fittrack_member_measurements', JSON.stringify(meas.data));
   if (phot.data && phot.data.length > 0) localStorage.setItem('fittrack_member_photos', JSON.stringify(phot.data));
   if (habLib.data && habLib.data.length > 0) localStorage.setItem('fittrack_habits_library', JSON.stringify(habLib.data));
+  if (mac.data && !isDirty('macros')) localStorage.setItem('fittrack_member_macros', JSON.stringify(mac.data));
+  else if (isDirty('macros')) {
+    const local = localStorage.getItem('fittrack_member_macros');
+    if (local) saveMemberMacros(JSON.parse(local));
+  }
+  if (mlogs.data && mlogs.data.length > 0 && !isDirty('macroLogs')) localStorage.setItem('fittrack_macro_logs', JSON.stringify(mlogs.data));
+  else if (isDirty('macroLogs')) {
+    const local = localStorage.getItem('fittrack_macro_logs');
+    if (local) {
+      const logs = JSON.parse(local);
+      for (const log of logs) saveMacroLog(log);
+    }
+  }
 
   if (settings) {
     const active = settings.find(s => s.key === 'active_program');

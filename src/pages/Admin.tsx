@@ -23,6 +23,26 @@ import { Navigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
 
+// Within each Warm Up / Fire Up section, chain the exercises into a single superset.
+function applyWarmupFireupSupersets(exercises: any[]) {
+  if (!Array.isArray(exercises)) return exercises;
+  let inGroup = false;
+  for (let i = 0; i < exercises.length; i++) {
+    const e = exercises[i];
+    if (e.isSection) {
+      const nm = String(e.name || e.sectionType || "").toLowerCase();
+      inGroup = nm.includes("warm up") || nm.includes("fire up"); // matches "Warm Up/Mobility" and "Fire Up"
+      continue;
+    }
+    if (inGroup) {
+      const next = exercises[i + 1];
+      // link to next only within the same section
+      e.linkedToNext = !!(next && !next.isSection);
+    }
+  }
+  return exercises;
+}
+
 const Admin = () => {
   const isStaff = localStorage.getItem("fittrack_is_staff") === "true";
 
@@ -264,6 +284,16 @@ const Admin = () => {
     try {
       await manageNutrition({ action: "setCoached", memberId, coached });
       toast.success(coached ? "Marked as coached" : "Un-coached");
+      loadNutritionMembers();
+    } catch (e: any) {
+      toast.error(`Failed: ${e.message}`);
+    }
+  };
+
+  const handleSetMacros = async (memberId: string, macros: any) => {
+    try {
+      await manageNutrition({ action: "setMacros", memberId, ...macros });
+      toast.success("Macros updated");
       loadNutritionMembers();
     } catch (e: any) {
       toast.error(`Failed: ${e.message}`);
@@ -612,7 +642,13 @@ const Admin = () => {
 
   const handleAddProgExercise = () => {
     const updatedWorkouts = [...progWorkouts];
-    updatedWorkouts[selectedWorkoutIndex].exercises.push({ id: Date.now(), blockType: "Strength", name: "", sets: 3, reps: 10, weight: 0, rest: 0, linkedToNext: false, eachSide: false, coachingNotes: "" });
+    updatedWorkouts[selectedWorkoutIndex] = {
+      ...updatedWorkouts[selectedWorkoutIndex],
+      exercises: [
+        ...updatedWorkouts[selectedWorkoutIndex].exercises,
+        { id: Date.now(), blockType: "Strength", name: "", sets: 3, reps: 10, weight: 0, rest: 0, linkedToNext: false, eachSide: false, coachingNotes: "" }
+      ]
+    };
     setProgWorkouts(updatedWorkouts);
   };
 
@@ -624,25 +660,31 @@ const Admin = () => {
       name = "AI Engine Builder";
       description = "30-60 min scalable cardio focus";
     }
-    updatedWorkouts[selectedWorkoutIndex].exercises.push({ 
-      id: Date.now(), 
-      isSection: true, 
-      name, 
-      description,
-      sectionType: type
-    });
+    updatedWorkouts[selectedWorkoutIndex] = {
+      ...updatedWorkouts[selectedWorkoutIndex],
+      exercises: [
+        ...updatedWorkouts[selectedWorkoutIndex].exercises,
+        { id: Date.now(), isSection: true, name, description, sectionType: type }
+      ]
+    };
     setProgWorkouts(updatedWorkouts);
   };
 
-  const handleRemoveProgExercise = (id: number) => {
+  const handleRemoveProgExercise = (id: number | string) => {
     const updatedWorkouts = [...progWorkouts];
-    updatedWorkouts[selectedWorkoutIndex].exercises = updatedWorkouts[selectedWorkoutIndex].exercises.filter((e: any) => e.id !== id);
+    updatedWorkouts[selectedWorkoutIndex] = {
+      ...updatedWorkouts[selectedWorkoutIndex],
+      exercises: updatedWorkouts[selectedWorkoutIndex].exercises.filter((e: any) => String(e.id) !== String(id))
+    };
     setProgWorkouts(updatedWorkouts);
   };
 
-  const updateProgExercise = (id: number, field: string, val: any) => {
+  const updateProgExercise = (id: number | string, field: string, val: any) => {
     const updatedWorkouts = [...progWorkouts];
-    updatedWorkouts[selectedWorkoutIndex].exercises = updatedWorkouts[selectedWorkoutIndex].exercises.map((e: any) => e.id === id ? { ...e, [field]: val } : e);
+    updatedWorkouts[selectedWorkoutIndex] = {
+      ...updatedWorkouts[selectedWorkoutIndex],
+      exercises: updatedWorkouts[selectedWorkoutIndex].exercises.map((e: any) => String(e.id) === String(id) ? { ...e, [field]: val } : e)
+    };
     setProgWorkouts(updatedWorkouts);
   };
 
@@ -652,7 +694,10 @@ const Admin = () => {
     const items = Array.from(updatedWorkouts[selectedWorkoutIndex].exercises);
     const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
-    updatedWorkouts[selectedWorkoutIndex].exercises = items;
+    updatedWorkouts[selectedWorkoutIndex] = {
+      ...updatedWorkouts[selectedWorkoutIndex],
+      exercises: items
+    };
     setProgWorkouts(updatedWorkouts);
   };
 
@@ -661,7 +706,10 @@ const Admin = () => {
     const updatedWorkouts = [...progWorkouts];
     const previousExercises = JSON.parse(JSON.stringify(updatedWorkouts[selectedWorkoutIndex - 1].exercises));
     const newExercises = previousExercises.map((e: any) => ({ ...e, id: Date.now() + Math.random() }));
-    updatedWorkouts[selectedWorkoutIndex].exercises = newExercises;
+    updatedWorkouts[selectedWorkoutIndex] = {
+      ...updatedWorkouts[selectedWorkoutIndex],
+      exercises: newExercises
+    };
     setProgWorkouts(updatedWorkouts);
     toast.success("Copied exercises from previous workout!");
   };
@@ -673,7 +721,10 @@ const Admin = () => {
     
     const targetIdx = updatedWorkouts.findIndex(w => w.week === targetWeek && w.day === targetDay);
     if (targetIdx >= 0) {
-      updatedWorkouts[targetIdx].exercises = newExercises;
+      updatedWorkouts[targetIdx] = {
+        ...updatedWorkouts[targetIdx],
+        exercises: newExercises
+      };
       setProgWorkouts(updatedWorkouts);
       toast.success(`Copied to Week ${targetWeek}, Day ${targetDay}!`);
     }
@@ -689,7 +740,7 @@ const Admin = () => {
       
       if (sourceIdx >= 0 && targetIdx >= 0) {
         const sourceExercises = JSON.parse(JSON.stringify(updatedWorkouts[sourceIdx].exercises));
-        updatedWorkouts[targetIdx].exercises = sourceExercises.map((e: any) => ({ ...e, id: Date.now() + Math.random() }));
+        updatedWorkouts[targetIdx] = { ...updatedWorkouts[targetIdx], exercises: sourceExercises.map((e: any) => ({ ...e, id: Date.now() + Math.random() })) };
       }
     }
     
@@ -708,7 +759,7 @@ const Admin = () => {
       
       if (sourceIdx >= 0 && targetIdx >= 0) {
         const sourceExercises = JSON.parse(JSON.stringify(updatedWorkouts[sourceIdx].exercises));
-        updatedWorkouts[targetIdx].exercises = sourceExercises.map((e: any) => ({ ...e, id: Date.now() + Math.random() }));
+        updatedWorkouts[targetIdx] = { ...updatedWorkouts[targetIdx], exercises: sourceExercises.map((e: any) => ({ ...e, id: Date.now() + Math.random() })) };
       }
     }
     
@@ -716,9 +767,9 @@ const Admin = () => {
     toast.success(`Copied Week ${selectedWeek} to Week ${targetWeek}!`);
   };
 
-  const handleShuffleExercise = (exerciseId: number) => {
+  const handleShuffleExercise = (exerciseId: number | string) => {
     const updatedWorkouts = [...progWorkouts];
-    const currentEx = updatedWorkouts[selectedWorkoutIndex].exercises.find((e: any) => e.id === exerciseId);
+    const currentEx = updatedWorkouts[selectedWorkoutIndex].exercises.find((e: any) => String(e.id) === String(exerciseId));
     if (!currentEx || !currentEx.name) return;
     
     const libEx = exercises.find(e => String(e.id) === String(currentEx.name));
@@ -732,7 +783,10 @@ const Admin = () => {
     
     if (matchingExercises.length > 0) {
       const randomEx = matchingExercises[Math.floor(Math.random() * matchingExercises.length)];
-      currentEx.name = randomEx.id;
+      updatedWorkouts[selectedWorkoutIndex] = {
+        ...updatedWorkouts[selectedWorkoutIndex],
+        exercises: updatedWorkouts[selectedWorkoutIndex].exercises.map((e: any) => String(e.id) === String(exerciseId) ? { ...e, name: randomEx.id } : e)
+      };
       setProgWorkouts(updatedWorkouts);
       toast.success(`Swapped for ${randomEx.name}`);
     } else {
@@ -740,8 +794,8 @@ const Admin = () => {
     }
   };
 
-  const handleApplyToWeek = (exerciseId: number) => {
-    const currentEx = progWorkouts[selectedWorkoutIndex].exercises.find((e: any) => e.id === exerciseId);
+  const handleApplyToWeek = (exerciseId: number | string) => {
+    const currentEx = progWorkouts[selectedWorkoutIndex].exercises.find((e: any) => String(e.id) === String(exerciseId));
     if (!currentEx) return;
 
     const updatedWorkouts = [...progWorkouts];
@@ -751,16 +805,22 @@ const Admin = () => {
       if (d === selectedDay) continue;
       const targetIdx = updatedWorkouts.findIndex(w => w.week === selectedWeek && w.day === d);
       if (targetIdx >= 0) {
-        const exIndex = updatedWorkouts[selectedWorkoutIndex].exercises.findIndex((e: any) => e.id === exerciseId);
+        const exIndex = updatedWorkouts[selectedWorkoutIndex].exercises.findIndex((e: any) => String(e.id) === String(exerciseId));
         if (updatedWorkouts[targetIdx].exercises[exIndex]) {
           const targetEx = updatedWorkouts[targetIdx].exercises[exIndex];
           if (!targetEx.isSection) {
-            targetEx.sets = currentEx.sets;
-            targetEx.reps = currentEx.reps;
-            targetEx.distance = currentEx.distance;
-            targetEx.timeMins = currentEx.timeMins;
-            targetEx.timeSecs = currentEx.timeSecs;
-            targetEx.rest = currentEx.rest;
+            updatedWorkouts[targetIdx] = {
+              ...updatedWorkouts[targetIdx],
+              exercises: updatedWorkouts[targetIdx].exercises.map((e: any, i: number) => i === exIndex ? {
+                ...e,
+                sets: currentEx.sets,
+                reps: currentEx.reps,
+                distance: currentEx.distance,
+                timeMins: currentEx.timeMins,
+                timeSecs: currentEx.timeSecs,
+                rest: currentEx.rest
+              } : e)
+            };
             appliedCount++;
           }
         }
@@ -910,13 +970,17 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       weeks: newProgType === "GroupPT" ? 12 : newProgWeeks,
       daysPerWeek: newProgDays,
       weekNotes: progWeekNotes,
-      workouts: progWorkouts.map(w => ({
-        name: w.name,
-        week: w.week,
-        day: w.day,
-        date: w.date,
-        exercises: w.exercises.map((e: any) => ({ isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes, coachingNotes: e.coachingNotes }))
-      }))
+      workouts: progWorkouts.map(w => {
+        const exercises = w.exercises.map((e: any) => ({ isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes, coachingNotes: e.coachingNotes }));
+        applyWarmupFireupSupersets(exercises);
+        return {
+          name: w.name,
+          week: w.week,
+          day: w.day,
+          date: w.date,
+          exercises
+        };
+      })
     };
     
     let updated;
@@ -1094,13 +1158,17 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       weeks: newProgType === "GroupPT" ? 12 : newProgWeeks,
       daysPerWeek: newProgDays,
       weekNotes: progWeekNotes,
-      workouts: workoutsToSave.map(w => ({
-        name: w.name,
-        week: w.week,
-        day: w.day,
-        date: w.date,
-        exercises: w.exercises.map((e: any) => ({ isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes, coachingNotes: e.coachingNotes }))
-      }))
+      workouts: workoutsToSave.map(w => {
+        const exercises = w.exercises.map((e: any) => ({ isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes, coachingNotes: e.coachingNotes }));
+        applyWarmupFireupSupersets(exercises);
+        return {
+          name: w.name,
+          week: w.week,
+          day: w.day,
+          date: w.date,
+          exercises
+        };
+      })
     };
     
     let updated;
@@ -1127,26 +1195,6 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     return next;
   };
 
-  // Within each Warm Up / Fire Up section, chain the exercises into a single superset.
-  const linkWarmupFireupSupersets = (exercises: any[]) => {
-    if (!Array.isArray(exercises)) return exercises;
-    let inGroupSection = false;
-    for (let i = 0; i < exercises.length; i++) {
-      const e = exercises[i];
-      if (e.isSection) {
-        const nm = String(e.name || e.sectionType || "").toLowerCase();
-        inGroupSection = nm.includes("warm up") || nm.includes("fire up");
-        continue;
-      }
-      if (inGroupSection) {
-        const next = exercises[i + 1];
-        // link to next only if the next row is another exercise in the SAME section
-        e.linkedToNext = !!(next && !next.isSection);
-      }
-    }
-    return exercises;
-  };
-
   const streamCfg = () => ({ weeks: newProgWeeks, days: newProgDays, stream: newProgStream });
   const exPayload = () => exercises.map(ex => ({
     id: ex.id,
@@ -1170,7 +1218,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         if (error) throw new Error(error.message);
         if (data?.error) throw new Error(data.error);
         const cells = data.workouts || [];
-        cells.forEach((c: any) => c.exercises && linkWarmupFireupSupersets(c.exercises));
+        cells.forEach((c: any) => c.exercises && applyWarmupFireupSupersets(c.exercises));
         grid = mergeCells(grid, cells);
         previousWeekWorkouts = cells;
         setProgWorkouts([...grid]);
@@ -1200,7 +1248,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           if (error) throw new Error(error.message);
           if (data?.error) throw new Error(data.error);
           const cell = (data.workouts || [])[0];
-          if (cell?.exercises) linkWarmupFireupSupersets(cell.exercises);
+          if (cell?.exercises) applyWarmupFireupSupersets(cell.exercises);
           return cell;
         } catch (e) {
           lastErr = e;
@@ -1268,7 +1316,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       if (!data || !data.workouts) throw new Error("No workouts returned from AI");
 
       const workouts = data.workouts;
-      workouts.forEach((c: any) => c.exercises && linkWarmupFireupSupersets(c.exercises));
+      workouts.forEach((c: any) => c.exercises && applyWarmupFireupSupersets(c.exercises));
 
       setProgWorkouts(workouts);
       await autoSaveProgram(workouts);
@@ -1289,7 +1337,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     if (error) throw new Error(error.message);
     if (data?.error) throw new Error(data.error);
     const cells = data.workouts || [];
-    cells.forEach((c: any) => c.exercises && linkWarmupFireupSupersets(c.exercises));
+    cells.forEach((c: any) => c.exercises && applyWarmupFireupSupersets(c.exercises));
     return cells;
   }
 
@@ -2020,7 +2068,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                   value={progWorkouts[selectedWorkoutIndex]?.date || ""} 
                                   onChange={(e) => {
                                     const updatedWorkouts = [...progWorkouts];
-                                    updatedWorkouts[selectedWorkoutIndex].date = e.target.value;
+                                    updatedWorkouts[selectedWorkoutIndex] = { ...updatedWorkouts[selectedWorkoutIndex], date: e.target.value };
                                     setProgWorkouts(updatedWorkouts);
                                   }}
                                   className="w-[140px] h-8 text-sm"
@@ -2746,6 +2794,52 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                               ><Send className="h-3 w-3" /></Button>
                             </div>
                           </div>
+                          
+                          {member.coached && (
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="outline" size="sm" className="w-full h-8 text-xs">Set Macro Targets</Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Set Macros for {member.name}</DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                      <Label>Calories</Label>
+                                      <Input id={`mac-cal-${member.memberId}`} type="number" defaultValue={member.macros?.calorie_target || ''} />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Protein (g)</Label>
+                                      <Input id={`mac-pro-${member.memberId}`} type="number" defaultValue={member.macros?.protein_target || ''} />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Carbs (g)</Label>
+                                      <Input id={`mac-crb-${member.memberId}`} type="number" defaultValue={member.macros?.carb_target || ''} />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Fat (g)</Label>
+                                      <Input id={`mac-fat-${member.memberId}`} type="number" defaultValue={member.macros?.fat_target || ''} />
+                                    </div>
+                                  </div>
+                                  <Button className="w-full" onClick={() => {
+                                    const cal = parseInt((document.getElementById(`mac-cal-${member.memberId}`) as HTMLInputElement).value);
+                                    const pro = parseInt((document.getElementById(`mac-pro-${member.memberId}`) as HTMLInputElement).value);
+                                    const crb = parseInt((document.getElementById(`mac-crb-${member.memberId}`) as HTMLInputElement).value);
+                                    const fat = parseInt((document.getElementById(`mac-fat-${member.memberId}`) as HTMLInputElement).value);
+                                    handleSetMacros(member.memberId, {
+                                      calorie_target: cal,
+                                      protein_target: pro,
+                                      carb_target: crb,
+                                      fat_target: fat,
+                                      tracking_enabled: true
+                                    });
+                                  }}>Save Macros</Button>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
