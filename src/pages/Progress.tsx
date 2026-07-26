@@ -378,11 +378,11 @@ const Progress = () => {
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {prs.map((pr) => {
-                    const exercise = exercises.find((e) => e.id === pr.exerciseId);
+                    const exercise = exercises.find((e) => String(e.id) === String(pr.exerciseId) || String(e.id) === String(pr.exercise));
                     return (
                       <div key={pr.id} className="flex items-center justify-between p-4 rounded-lg border border-border bg-muted/50 group">
                         <div className="space-y-1">
-                          <p className="font-medium">{exercise?.name || 'Unknown Exercise'}</p>
+                          <p className="font-medium">{exercise?.name || pr.exercise || 'Unknown Exercise'}</p>
                           <p className="text-sm text-muted-foreground">{new Date(pr.date).toLocaleDateString()}</p>
                         </div>
                         <div className="flex items-center gap-4">

@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 // ── Dirty flag helpers ─────────────────────────────────────────────────────
 // A "dirty" store has local writes that haven't confirmed to Supabase yet.
 // syncFromSupabase will NOT overwrite a dirty store (it re-pushes instead).
-const DIRTY_STORES = ['programs', 'exercises', 'history', 'bodyweight', 'habits', 'macros', 'macroLogs'] as const;
+const DIRTY_STORES = ['programs', 'exercises', 'history', 'bodyweight', 'habits', 'macros', 'macroLogs', 'prs'] as const;
 type DirtyStore = typeof DIRTY_STORES[number];
 
 export const markDirty = (store: DirtyStore) => localStorage.setItem(`fittrack_dirty_${store}`, '1');
@@ -81,6 +81,15 @@ export const flushRetryQueue = async () => {
         const logs = JSON.parse(local);
         for (const log of logs) {
           await supabase.from('macro_logs').upsert({ ...log, member_id: user.id }, { onConflict: 'member_id, date' });
+        }
+      }
+    } else if (item.store === 'prs') {
+      const local = localStorage.getItem('fittrack_prs');
+      if (local) {
+        const prs = JSON.parse(local);
+        if (prs.length > 0) {
+          const rows = prs.map((p:any) => ({ ...p, user_id: user.id }));
+          await supabase.from('personal_records').upsert(rows, { onConflict: 'user_id, exercise' });
         }
       }
     }
@@ -536,19 +545,67 @@ export const saveWorkoutToHistory = async (workout: any): Promise<{ success: boo
 };
 
 export const getPersonalRecords = () => {
-  const stored = localStorage.getItem('fittrack_prs');
-  return stored ? JSON.parse(stored) : [];
+  try {
+    return JSON.parse(localStorage.getItem('fittrack_prs') || '[]');
+  } catch {
+    return [];
+  }
+};
+
+export const detectAndSavePBs = async (exercises: any[]) => {
+  const prs = getPersonalRecords();
+  const byName: Record<string, any> = {};
+  prs.forEach((p: any) => { byName[p.exercise || p.exerciseId] = p; });
+  const newPBs: any[] = [];
+
+  for (const ex of exercises) {
+    if (ex.isSection || !ex.name) continue;
+    const sets = Array.isArray(ex.setsData) ? ex.setsData : [];
+    const best = sets.reduce((m: number, s: any) => Math.max(m, s.weight || 0), 0);
+    if (best <= 0) continue;                          // skip bodyweight/cardio/no-weight
+    const bestSet = sets.filter((s:any)=> (s.weight||0)===best).sort((a:any,b:any)=>(b.reps||0)-(a.reps||0))[0];
+    const prev = byName[ex.name];
+    if (!prev || best > prev.weight) {
+      const rec = { id: Date.now().toString() + Math.random().toString(36).slice(2,6),
+        exercise: ex.name, weight: best, reps: bestSet?.reps || 0,
+        date: new Date().toISOString().split('T')[0] };
+      byName[ex.name] = rec;
+      newPBs.push(rec);
+    }
+  }
+  
+  if (newPBs.length === 0) return [];
+
+  const merged = Object.values(byName);
+  localStorage.setItem('fittrack_prs', JSON.stringify(merged));
+  markDirty('prs');
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const rows = newPBs.map((p:any) => ({ ...p, user_id: user.id }));
+      const { error } = await supabase.from('personal_records')
+        .upsert(rows, { onConflict: 'user_id, exercise' });
+      if (error) { enqueue('prs'); } else { clearDirty('prs'); dequeue('prs'); }
+    } else { clearDirty('prs'); }
+  } catch { enqueue('prs'); }
+  return newPBs;
 };
 
 export const savePersonalRecord = (exerciseId: string, weight: number) => {
   const prs = getPersonalRecords();
   const date = new Date().toISOString().split('T')[0];
-  const newPr = { id: Date.now().toString(), exerciseId, weight, date };
+  const newPr = { id: Date.now().toString(), exercise: exerciseId, exerciseId, weight, date }; // kept exerciseId for backwards compat in Progress.tsx
   prs.push(newPr);
   localStorage.setItem('fittrack_prs', JSON.stringify(prs));
+  markDirty('prs');
   supabase.auth.getUser().then(({ data: { user } }) => {
-    if (user) supabase.from('personal_records').insert({ ...newPr, user_id: user.id }).then();
-  });
+    if (user) {
+      supabase.from('personal_records').upsert({ ...newPr, user_id: user.id }, { onConflict: 'user_id, exercise' }).then(({ error }) => {
+        if (error) enqueue('prs');
+        else { clearDirty('prs'); dequeue('prs'); }
+      });
+    }
+  }).catch(() => enqueue('prs'));
   return prs;
 };
 
@@ -556,18 +613,24 @@ export const deletePersonalRecord = (id: string) => {
   let prs = getPersonalRecords();
   prs = prs.filter((pr: any) => pr.id !== id);
   localStorage.setItem('fittrack_prs', JSON.stringify(prs));
+  markDirty('prs'); // using dirty mechanism for deletions might be complex, simplified for now
   supabase.auth.getUser().then(({ data: { user } }) => {
     if (user) supabase.from('personal_records').delete().eq('id', id).eq('user_id', user.id).then();
   });
   return prs;
 };
 
-export const getLastExerciseStats = (exerciseId: string) => {
+export const getLastExerciseStats = (exerciseName: string) => {
   const history = getWorkoutHistory();
   for (const workout of history) {
-    const exercise = workout.exercises?.find((e: any) => String(e.name) === String(exerciseId));
-    if (exercise && exercise.weight > 0) {
-      return { weight: exercise.weight, reps: exercise.reps, sets: exercise.sets, date: workout.date };
+    const ex = workout.exercises?.find((e: any) => String(e.name) === String(exerciseName));
+    if (!ex) continue;
+    const sets = Array.isArray(ex.setsData) ? ex.setsData : [];
+    const done = sets.filter((s: any) => s.completed && (s.weight || 0) > 0);
+    const pool = done.length ? done : sets.filter((s: any) => (s.weight || 0) > 0);
+    if (pool.length) {
+      const top = pool.reduce((a: any, b: any) => (b.weight > a.weight ? b : a));
+      return { weight: top.weight, reps: top.reps, date: workout.date };
     }
   }
   return null;
@@ -800,7 +863,15 @@ export const syncFromSupabase = async () => {
     localStorage.setItem('fittrack_bodyweight', JSON.stringify(bw.data));
   }
   
-  if (prs.data && prs.data.length > 0) localStorage.setItem('fittrack_prs', JSON.stringify(prs.data));
+  if (prs.data && prs.data.length > 0 && !isDirty('prs')) localStorage.setItem('fittrack_prs', JSON.stringify(prs.data));
+  else if (isDirty('prs')) {
+    const local = localStorage.getItem('fittrack_prs');
+    if (local) {
+      const prsData = JSON.parse(local);
+      const rows = prsData.map((p:any) => ({ ...p, user_id: user.id }));
+      supabase.from('personal_records').upsert(rows, { onConflict: 'user_id, exercise' }).then();
+    }
+  }
   if (nut.data) localStorage.setItem('fittrack_member_nutrition', JSON.stringify(nut.data));
   if (mhab.data && mhab.data.length > 0) localStorage.setItem('fittrack_member_habits', JSON.stringify(mhab.data));
   if (chk.data && chk.data.length > 0) localStorage.setItem('fittrack_habit_checkins', JSON.stringify(chk.data));

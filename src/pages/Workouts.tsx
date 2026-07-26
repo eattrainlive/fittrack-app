@@ -4,9 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Dumbbell, Plus, Minus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw, Link2, Link2Off, Heading, List, Check, Search, ArrowLeft, RefreshCw } from "lucide-react";
+import { Dumbbell, Plus, Minus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw, Link2, Link2Off, Heading, List, Check, Search, ArrowLeft, RefreshCw, Trophy } from "lucide-react";
 import React, { useState, useEffect, useMemo } from "react";
-import { getExercises, getPrograms, saveWorkoutToHistory, getLastExerciseStats, getActiveProgram, saveActiveProgram, getHabits } from "@/lib/store";
+import { getExercises, getPrograms, saveWorkoutToHistory, getLastExerciseStats, getActiveProgram, saveActiveProgram, getHabits, detectAndSavePBs, saveCommunityPost, getPersonalRecords } from "@/lib/store";
 import { getEmbedUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -174,6 +174,7 @@ const Workouts = () => {
   const [exerciseSearch, setExerciseSearch] = useState("");
   const [activeProgram, setActiveProgram] = useState<any>(null);
   const [rewardModal, setRewardModal] = useState<{name: string, emoji: string, volume: number, count?: number, displayName?: string} | null>(null);
+  const [pbModal, setPbModal] = useState<any[] | null>(null);
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [quickOverviewWorkout, setQuickOverviewWorkout] = useState<any>(null);
   const [showSectionSlide, setShowSectionSlide] = useState(false);
@@ -617,7 +618,10 @@ const Workouts = () => {
       console.error("Cloud sync error:", error);
     }
 
-    if (earnedReward && totalVolume > 0) {
+    const newPBs = await detectAndSavePBs(exercises);
+    if (newPBs.length > 0) {
+      setPbModal(newPBs);
+    } else if (earnedReward && totalVolume > 0) {
       setRewardModal({ ...earnedReward, volume: totalVolume });
     }
     
@@ -1239,6 +1243,7 @@ const Workouts = () => {
                         {currentBlock.exercises.map((exercise: any, exIdx: number) => {
                           const libraryExercise = exerciseLibrary.find(e => String(e.id) === String(exercise.name));
                           const lastStats = exercise.name ? getLastExerciseStats(exercise.name) : null;
+                          const pbStats = exercise.name ? getPersonalRecords().find((p: any) => String(p.exercise) === String(exercise.name) || String(p.exerciseId) === String(exercise.name)) : null;
                           const cols = columnsFor(exercise, exerciseLibrary);
                           
                           return (
@@ -1367,9 +1372,45 @@ const Workouts = () => {
                                   )}
                                   
                                   {exercise.name && lastStats && (
-                                    <div className="text-xs text-muted-foreground flex items-center gap-1">
-                                      <History className="h-3 w-3" /> 
-                                      Last time: {lastStats.weight}kg × {lastStats.reps}
+                                    <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap bg-muted/30 p-2 rounded-md border border-border/50">
+                                      <div className="flex items-center gap-1">
+                                        <History className="h-3 w-3" /> 
+                                        Last: {lastStats.weight}kg &times; {lastStats.reps}
+                                      </div>
+                                      {pbStats && (
+                                        <>
+                                          <span className="opacity-50">&middot;</span>
+                                          <div className="flex items-center gap-1 text-primary">
+                                            <Trophy className="h-3 w-3" />
+                                            PB: {pbStats.weight}kg
+                                          </div>
+                                        </>
+                                      )}
+                                      {(() => {
+                                        const expectedReps = parseInt(String(exercise.reps || "0").split("/")[0]) || 0;
+                                        if (expectedReps > 0 && lastStats.reps >= expectedReps) {
+                                          const isDumbbell = String(libraryExercise?.equipment || "").toLowerCase() === "dumbbell";
+                                          const inc = isDumbbell ? 2 : 2.5;
+                                          return (
+                                            <>
+                                              <span className="opacity-50">&middot;</span>
+                                              <div className="flex items-center gap-1 font-medium">
+                                                Try: {lastStats.weight + inc}kg
+                                              </div>
+                                            </>
+                                          );
+                                        } else if (expectedReps > 0) {
+                                          return (
+                                            <>
+                                              <span className="opacity-50">&middot;</span>
+                                              <div className="flex items-center gap-1 font-medium">
+                                                Try: {lastStats.weight}kg
+                                              </div>
+                                            </>
+                                          );
+                                        }
+                                        return null;
+                                      })()}
                                     </div>
                                   )}
                                 </div>
@@ -1548,6 +1589,45 @@ const Workouts = () => {
                 <br/>That's roughly the weight of {rewardModal.count && rewardModal.count > 1 ? `${rewardModal.count.toLocaleString()} ${(rewardModal.displayName || rewardModal.name).toLowerCase()}` : `a ${(rewardModal.name).toLowerCase()}`}!
               </p>
               <Button className="mt-4 w-full text-lg h-12 font-bold tracking-wide" onClick={() => setRewardModal(null)}>Awesome!</Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!pbModal} onOpenChange={(open) => !open && setPbModal(null)}>
+        <DialogContent className="sm:max-w-md text-center bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-heading tracking-wider text-center">🏆 New Personal Record!</DialogTitle>
+          </DialogHeader>
+          {pbModal && (
+            <div className="py-6 flex flex-col items-center gap-4 animate-in zoom-in duration-500">
+              <div className="text-6xl mt-2 mb-4">🏆</div>
+              <div className="space-y-3 w-full">
+                {pbModal.map((pb, i) => {
+                  const libEx = exerciseLibrary.find(e => String(e.id) === String(pb.exercise));
+                  return (
+                    <div key={i} className="bg-muted/50 p-3 rounded-lg border border-border">
+                      <p className="font-bold text-lg">{libEx?.name || pb.exercise}</p>
+                      <p className="text-primary font-heading tracking-wider text-2xl">{pb.weight}kg &times; {pb.reps}</p>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex flex-col gap-2 w-full mt-4">
+                <Button className="w-full text-lg h-12 font-bold tracking-wide" onClick={() => {
+                  saveCommunityPost({
+                    id: 'pb_' + Date.now(),
+                    user: { name: 'You', avatar: 'ME' },
+                    date: new Date().toISOString(),
+                    type: 'pb',
+                    pbs: pbModal.map(p => ({ exercise: p.exercise, weight: p.weight, reps: p.reps })),
+                    likes: 0, comments: 0,
+                  });
+                  toast.success("Shared to feed!");
+                  setPbModal(null);
+                }}>Share to feed</Button>
+                <Button variant="ghost" className="w-full" onClick={() => setPbModal(null)}>Not now</Button>
+              </div>
             </div>
           )}
         </DialogContent>

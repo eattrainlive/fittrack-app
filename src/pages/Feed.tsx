@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Heart, MessageCircle, Share2, Send, Megaphone } from "lucide-react";
+import { Heart, MessageCircle, Share2, Send, Megaphone, Trophy } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getCommunityFeed, getExercises, saveCommunityPost, saveCommunityComment } from "@/lib/store";
 import { toast } from "sonner";
@@ -156,6 +156,21 @@ const Feed = () => {
             <CardContent>
               {post.isAnnouncement ? (
                 <p className="text-lg whitespace-pre-wrap">{post.text}</p>
+              ) : post.type === 'pb' ? (
+                <div className="bg-primary/10 border border-primary/20 rounded-xl p-4">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Trophy className="h-8 w-8 text-primary" />
+                    <h3 className="text-2xl font-heading tracking-wide text-primary">New Personal Records!</h3>
+                  </div>
+                  <div className="space-y-3">
+                    {post.pbs?.map((pb: any, i: number) => (
+                      <div key={i} className="flex justify-between items-center bg-card p-3 rounded-lg border border-border">
+                        <span className="font-bold text-lg">{getExerciseName(pb.exercise)}</span>
+                        <span className="text-xl font-heading tracking-wider text-primary">{pb.weight}kg &times; {pb.reps}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ) : (
                 <>
                   <div className="flex items-center justify-between mb-4">
