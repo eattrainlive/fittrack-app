@@ -1,7 +1,6 @@
-import { execSync } from "child_process";
+const { execSync } = require("child_process");
 try {
-  console.log(execSync("npm run build").toString());
+  console.log(execSync("npx tsc --noEmit").toString());
 } catch (e) {
-  console.log(e.stdout.toString());
-  console.log(e.stderr.toString());
+  console.error(e.stdout ? e.stdout.toString() : e);
 }

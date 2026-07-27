@@ -9,7 +9,8 @@ import { Save, LogOut, CloudUpload, CloudDownload, BookOpen } from "lucide-react
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
-import { migrateLocalToSupabase, syncFromSupabase } from "@/lib/store";
+import { migrateLocalToSupabase, syncFromSupabase, getPreferredDays, savePreferredDays } from "@/lib/store";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
 const Profile = () => {
@@ -18,6 +19,14 @@ const Profile = () => {
   const [name, setName] = useState("John Doe");
   const [passcode, setPasscode] = useState("");
   const [isStaff, setIsStaff] = useState(() => localStorage.getItem("fittrack_is_staff") === "true");
+  const [preferredDays, setPreferredDays] = useState(3);
+
+  useEffect(() => {
+    setPreferredDays(getPreferredDays());
+    const handleSync = () => setPreferredDays(getPreferredDays());
+    window.addEventListener('fittrack_synced', handleSync);
+    return () => window.removeEventListener('fittrack_synced', handleSync);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -120,6 +129,27 @@ const Profile = () => {
                   <Input id="height" type="number" defaultValue="180" />
                 </div>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="preferredDays">Preferred Training Days (per week)</Label>
+              <Select value={preferredDays.toString()} onValueChange={async (v) => {
+                const days = parseInt(v, 10);
+                setPreferredDays(days);
+                const { success } = await savePreferredDays(days);
+                if (success) toast.success("Training days updated");
+                else toast.error("Failed to update training days");
+              }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2">2 Days</SelectItem>
+                  <SelectItem value="3">3 Days</SelectItem>
+                  <SelectItem value="4">4 Days</SelectItem>
+                  <SelectItem value="5">5 Days</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <Button className="w-full gap-2 text-primary-foreground font-bold">

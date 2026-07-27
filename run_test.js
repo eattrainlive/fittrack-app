@@ -1,7 +1,7 @@
-import { execSync } from 'child_process';
+const { execSync } = require("child_process");
 try {
-  console.log(execSync('node test_build.js').toString());
+  const out = execSync("npx tsc --noEmit").toString();
+  require("fs").writeFileSync("tsc_out.txt", out);
 } catch (e) {
-  console.log(e.stdout.toString());
-  console.log(e.stderr.toString());
+  require("fs").writeFileSync("tsc_out.txt", e.stdout ? e.stdout.toString() : e.toString());
 }

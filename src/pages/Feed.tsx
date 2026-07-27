@@ -171,6 +171,23 @@ const Feed = () => {
                     ))}
                   </div>
                 </div>
+              ) : post.type === 'wow' ? (
+                <div className="bg-primary/10 border border-primary/20 rounded-xl p-4">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Trophy className="h-8 w-8 text-primary" />
+                    <h3 className="text-2xl font-heading tracking-wide text-primary">Workout of the Week!</h3>
+                  </div>
+                  <div className="bg-card p-4 rounded-lg border border-border space-y-2">
+                    <p className="font-bold text-lg">{post.wowDetails?.name}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground uppercase tracking-wider font-bold">Score</span>
+                      <span className="text-2xl font-heading tracking-wider text-primary">
+                        {post.wowDetails?.score}
+                        {post.wowDetails?.scaled && <span className="ml-2 text-xs text-muted-foreground uppercase">(Scaled)</span>}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <>
                   <div className="flex items-center justify-between mb-4">

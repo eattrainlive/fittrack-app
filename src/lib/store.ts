@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 // ── Dirty flag helpers ─────────────────────────────────────────────────────
 // A "dirty" store has local writes that haven't confirmed to Supabase yet.
 // syncFromSupabase will NOT overwrite a dirty store (it re-pushes instead).
-const DIRTY_STORES = ['programs', 'exercises', 'history', 'bodyweight', 'habits', 'macros', 'macroLogs', 'prs'] as const;
+const DIRTY_STORES = ['programs', 'exercises', 'history', 'bodyweight', 'habits', 'macros', 'macroLogs', 'prs', 'wowResults'] as const;
 type DirtyStore = typeof DIRTY_STORES[number];
 
 export const markDirty = (store: DirtyStore) => localStorage.setItem(`fittrack_dirty_${store}`, '1');
@@ -90,6 +90,15 @@ export const flushRetryQueue = async () => {
         if (prs.length > 0) {
           const rows = prs.map((p:any) => ({ ...p, user_id: user.id }));
           await supabase.from('personal_records').upsert(rows, { onConflict: 'user_id, exercise' });
+        }
+      }
+    } else if (item.store === 'wowResults') {
+      const local = localStorage.getItem('fittrack_wow_results');
+      if (local) {
+        const results = JSON.parse(local);
+        if (results.length > 0) {
+          const rows = results.map((r:any) => ({ ...r, member_id: user.id }));
+          await supabase.from('wow_results').upsert(rows, { onConflict: 'wow_id, member_id' });
         }
       }
     }
@@ -508,6 +517,24 @@ export const saveActiveProgram = async (activeProgram: any): Promise<{ success: 
   }
 };
 
+export const getPreferredDays = () => {
+  const stored = localStorage.getItem('fittrack_preferred_days');
+  return stored ? parseInt(stored, 10) : 3;
+};
+
+export const savePreferredDays = async (days: number): Promise<{ success: boolean; error?: any }> => {
+  localStorage.setItem('fittrack_preferred_days', days.toString());
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from('user_settings').upsert({ user_id: user.id, key: 'preferred_days', value: days.toString() }, { onConflict: 'user_id, key' });
+    }
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e };
+  }
+};
+
 export const getWorkoutHistory = () => {
   const stored = localStorage.getItem('fittrack_history');
   return stored ? JSON.parse(stored) : [];
@@ -811,7 +838,7 @@ export const syncFromSupabase = async () => {
   // Flush any pending queued writes BEFORE syncing (push local → cloud first)
   await flushRetryQueue();
 
-  const [ex, prg, hist, bw, prs, nut, mhab, chk, meas, phot, habLib, mac, mlogs] = await Promise.all([
+  const [ex, prg, hist, bw, prs, nut, mhab, chk, meas, phot, habLib, mac, mlogs, wows, wowRes] = await Promise.all([
     supabase.from('exercises').select('*').eq('user_id', user.id),
     supabase.from('programs').select('*').eq('user_id', user.id),
     supabase.from('workout_history').select('*').eq('user_id', user.id),
@@ -824,7 +851,9 @@ export const syncFromSupabase = async () => {
     supabase.from('member_photos').select('*').eq('member_id', user.id),
     supabase.from('habits').select('*').order('sort_order', { ascending: true }),
     supabase.from('member_macros').select('*').eq('member_id', user.id).maybeSingle(),
-    supabase.from('macro_logs').select('*').eq('member_id', user.id)
+    supabase.from('macro_logs').select('*').eq('member_id', user.id),
+    supabase.from('workout_of_week').select('*').order('week_start', { ascending: false }),
+    supabase.from('wow_results').select('*')
   ]);
 
   const { data: settings } = await supabase.from('user_settings').select('*').eq('user_id', user.id);
@@ -872,6 +901,9 @@ export const syncFromSupabase = async () => {
       supabase.from('personal_records').upsert(rows, { onConflict: 'user_id, exercise' }).then();
     }
   }
+
+  if (wows.data) localStorage.setItem('fittrack_wows', JSON.stringify(wows.data));
+  if (wowRes.data && !isDirty('wowResults')) localStorage.setItem('fittrack_wow_results', JSON.stringify(wowRes.data));
   if (nut.data) localStorage.setItem('fittrack_member_nutrition', JSON.stringify(nut.data));
   if (mhab.data && mhab.data.length > 0) localStorage.setItem('fittrack_member_habits', JSON.stringify(mhab.data));
   if (chk.data && chk.data.length > 0) localStorage.setItem('fittrack_habit_checkins', JSON.stringify(chk.data));
@@ -895,6 +927,9 @@ export const syncFromSupabase = async () => {
   if (settings) {
     const active = settings.find(s => s.key === 'active_program');
     if (active) localStorage.setItem('fittrack_active_program', active.value);
+    
+    const prefDays = settings.find(s => s.key === 'preferred_days');
+    if (prefDays) localStorage.setItem('fittrack_preferred_days', prefDays.value);
   }
 
   window.dispatchEvent(new Event('fittrack_synced'));
@@ -905,5 +940,65 @@ export const syncProfile = async () => {
   if (user) {
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
     if (profile) localStorage.setItem('fittrack_profile', JSON.stringify(profile));
+  }
+};
+
+// ── Workout of the Week (WOW) ──────────────────────────────────────────────
+
+export const getWorkoutsOfWeek = async () => {
+  const { data } = await supabase.from('workout_of_week').select('*').order('week_start', { ascending: false });
+  if (data) {
+    localStorage.setItem('fittrack_wows', JSON.stringify(data));
+    return data;
+  }
+  const local = localStorage.getItem('fittrack_wows');
+  return local ? JSON.parse(local) : [];
+};
+
+export const saveWorkoutOfWeek = async (wow: any): Promise<{ success: boolean; error?: any }> => {
+  try {
+    const { error } = await supabase.from('workout_of_week').upsert(wow);
+    if (error) return { success: false, error };
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e };
+  }
+};
+
+export const getWowResults = async (wowId: string) => {
+  const { data } = await supabase.from('wow_results').select('*').eq('wow_id', wowId);
+  return data || [];
+};
+
+export const saveWowResult = async (result: any): Promise<{ success: boolean; error?: any }> => {
+  const localResults = JSON.parse(localStorage.getItem('fittrack_wow_results') || '[]');
+  const existingIdx = localResults.findIndex((r: any) => r.wow_id === result.wow_id);
+  if (existingIdx >= 0) {
+    localResults[existingIdx] = result;
+  } else {
+    localResults.push(result);
+  }
+  localStorage.setItem('fittrack_wow_results', JSON.stringify(localResults));
+  markDirty('wowResults');
+  setSyncStatus('saving');
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { error } = await supabase.from('wow_results').upsert({ ...result, member_id: user.id }, { onConflict: 'wow_id, member_id' });
+      if (error) {
+        enqueue('wowResults');
+        setSyncStatus('error');
+        return { success: false, error };
+      }
+    }
+    clearDirty('wowResults');
+    dequeue('wowResults');
+    setSyncStatus('saved');
+    return { success: true };
+  } catch (e) {
+    enqueue('wowResults');
+    setSyncStatus('error');
+    return { success: false, error: e };
   }
 };

@@ -150,7 +150,8 @@ const TVDisplay = () => {
                     
                     // Format Reps/Time
                     let displayReps = "";
-                    const trackingArray = Array.isArray(libEx?.trackingType) ? libEx.trackingType : [libEx?.trackingType || "Weight & Reps"];
+                    const rawTrack = libEx?.trackingType ?? "Weight & Reps";
+                    const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                     
                     if (trackingArray.includes('Distance & Time') && ex.distance > 0) {
                       displayReps = `${ex.distance}m`;
