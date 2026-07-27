@@ -1,12 +1,14 @@
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Dumbbell, Plus, Minus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw, Link2, Link2Off, Heading, List, Check, Search, ArrowLeft, RefreshCw, Trophy } from "lucide-react";
+import { Dumbbell, Plus, Minus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw, Link2, Link2Off, Heading, List, Check, Search, ArrowLeft, RefreshCw, Trophy, CheckCircle2 } from "lucide-react";
 import React, { useState, useEffect, useMemo } from "react";
-import { getExercises, getPrograms, saveWorkoutToHistory, getLastExerciseStats, getActiveProgram, saveActiveProgram, getHabits, detectAndSavePBs, saveCommunityPost, getPersonalRecords } from "@/lib/store";
+import { getExercises, getPrograms, saveWorkoutToHistory, getLastExerciseStats, getActiveProgram, saveActiveProgram, getHabits, detectAndSavePBs, saveCommunityPost, getPersonalRecords, getPreferredDays, savePreferredDays, getWorkoutHistory, getWorkoutsOfWeek, getWowResults, saveWowResult } from "@/lib/store";
 import { getEmbedUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -121,7 +123,7 @@ const TimeStepper = ({ mins, secs, onChangeMins, onChangeSecs, completed, classN
 const trackingOf = (ex: any, exerciseLibrary: any[]) => {
   const libEx = exerciseLibrary.find(le => String(le.id) === String(ex.name));
   const t = ex.trackingType ?? libEx?.trackingType ?? "Weight & Reps";
-  return Array.isArray(t) ? t : String(t).split(",").map((s: string) => s.trim());
+  return (Array.isArray(t) ? t : String(t).split(/[;,]/)).map((s: string) => s.trim()).filter(Boolean);
 };
 
 const columnsFor = (ex: any, exerciseLibrary: any[]) => {
@@ -150,13 +152,43 @@ const columnsFor = (ex: any, exerciseLibrary: any[]) => {
   return cols.length ? cols : [{ field: "reps", label: "REPS", step: 1 }];
 };
 
+const weekLabel = (program: any, week: number) => {
+  const wc = program?.weekNotes?.[week]?.start_date;
+  if (!wc) return `Week ${week}`;
+  const d = new Date(wc + 'T00:00:00');
+  return `W/C ${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+};
+
+const sessionTitle = (program: any, workout: any) => {
+  const theme = workout.name && !workout.name.toLowerCase().startsWith("week ") && !workout.name.toLowerCase().startsWith("day ") ? workout.name : `Day ${workout.day}`;
+  return `${program.stream || (program.type === 'GroupPT' ? 'Group PT' : 'Workout')} · ${weekLabel(program, workout.week)} · ${theme}`;
+};
+
+const getCoverImage = (prog: any, cat?: string) => {
+  if (prog?.coverImage) return prog.coverImage;
+  const category = cat || (prog?.type === "GroupPT" ? "Group PT" : (prog?.stream || "Foundations"));
+  if (category === "Stronger") {
+    return "https://vibe.filesafe.space/1783496939163756206/attachments/537d7107-ea07-4065-b402-b1421aa5f38d.png";
+  }
+  if (category === "Foundations") {
+    return "https://vibe.filesafe.space/1783496939163756206/attachments/26d68c54-8cd0-49cc-8c57-8add846cdfdb.png";
+  }
+  if (category === "Fusion") {
+    return "https://vibe.filesafe.space/1783496939163756206/attachments/30e70910-c8f2-4dcf-9782-e1f57a34385d.png";
+  }
+  if (category === "Performance") {
+    return "https://vibe.filesafe.space/1783496939163756206/attachments/1f005e60-ccc4-437f-83ce-cafa4593e109.png";
+  }
+  return "https://vibe.filesafe.space/1783496939163756206/assets/d81fb983-0fbc-4056-ae4e-83766de15850.png";
+};
+
 const Workouts = () => {
   const navigate = useNavigate();
-  const [viewMode, setViewModeState] = useState<'browse' | 'detail' | 'session-overview' | 'active' | 'rest-day'>('browse');
+  const [viewMode, setViewModeState] = useState<'browse' | 'detail' | 'session-overview' | 'active' | 'wow-detail'>('browse');
   const [viewDirection, setViewDirection] = useState<'forward' | 'backward'>('forward');
 
-  const setViewMode = (newMode: 'browse' | 'detail' | 'session-overview' | 'active' | 'rest-day') => {
-    const depths = { browse: 0, 'rest-day': 1, detail: 1, 'session-overview': 2, active: 3 };
+  const setViewMode = (newMode: 'browse' | 'detail' | 'session-overview' | 'active' | 'wow-detail') => {
+    const depths = { browse: 0, detail: 1, 'session-overview': 2, active: 3, 'wow-detail': 1 };
     setViewDirection(depths[newMode] > depths[viewMode] ? 'forward' : 'backward');
     setViewModeState(newMode);
   };
@@ -177,10 +209,14 @@ const Workouts = () => {
   const [pbModal, setPbModal] = useState<any[] | null>(null);
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [quickOverviewWorkout, setQuickOverviewWorkout] = useState<any>(null);
+  const [templateForChooser, setTemplateForChooser] = useState<any>(null);
+  const [videoTutorial, setVideoTutorial] = useState<string | null>(null);
+  const [videoTitle, setVideoTitle] = useState<string | null>(null);
   const [showSectionSlide, setShowSectionSlide] = useState(false);
   const [lastSeenSectionId, setLastSeenSectionId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
+  const [activeWorkoutMeta, setActiveWorkoutMeta] = useState<{programId?: string, week?: number, day?: number, stream?: string}>({});
   const isActiveWorkout = useMemo(() => {
     if (activeProgram) return true;
     if (workoutName.trim() !== "") return true;
@@ -188,6 +224,8 @@ const Workouts = () => {
     if (exercises.length === 1 && exercises[0].name) return true;
     return false;
   }, [activeProgram, workoutName, exercises]);
+
+  const [preferredDays, setPreferredDays] = useState(3);
 
   const blocks = useMemo(() => {
     const result: any[] = [];
@@ -225,26 +263,128 @@ const Workouts = () => {
 
   const [allowedAccess, setAllowedAccess] = useState<string[] | null>(null);
 
-  const bucketOf = (p: any) => (p.type === "GroupPT" ? "Group PT" : (p.stream || "Stronger"));
+  const [wows, setWows] = useState<any[]>([]);
+  const [wowResults, setWowResults] = useState<any[]>([]);
+  const [showWowLogger, setShowWowLogger] = useState(false);
+  const [showWowShare, setShowWowShare] = useState(false);
+  const [wowShareResult, setWowShareResult] = useState<any>(null);
+  const [wowLogScore, setWowLogScore] = useState("");
+  const [wowLogScoreSecs, setWowLogScoreSecs] = useState("");
+  const [wowLogScaled, setWowLogScaled] = useState(false);
+  const [showWowLeaderboard, setShowWowLeaderboard] = useState(false);
+  const [wowLeaderboardFilter, setWowLeaderboardFilter] = useState<"Overall" | "Male" | "Female">("Overall");
+
+  const d = new Date();
+  const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  let currentWow = wows.find((w: any) => w.week_start <= todayStr);
+  if (!currentWow && wows.length > 0) currentWow = wows[wows.length - 1];
+
+  const handleLogWow = async () => {
+    if (!currentWow) return;
+    
+    let score = 0;
+    if (currentWow.score_type === 'time') {
+      const mins = parseInt(wowLogScore) || 0;
+      const secs = parseInt(wowLogScoreSecs) || 0;
+      score = (mins * 60) + secs;
+      if (score <= 0) { toast.error("Please enter a valid time"); return; }
+    } else {
+      score = parseFloat(wowLogScore) || 0;
+      if (score <= 0) { toast.error("Please enter a valid score"); return; }
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    const { data: profile } = await supabase.from('members').select('name, gender').eq('id', user.id).maybeSingle();
+    const { data: macros } = await supabase.from('member_macros').select('sex').eq('member_id', user.id).maybeSingle();
+    
+    const displayName = profile?.name?.split(' ')[0] || "Member";
+    const gender = profile?.gender || macros?.sex || "unknown";
+
+    const result = {
+      id: `wow_res_${Date.now()}`,
+      wow_id: currentWow.id,
+      member_id: user.id,
+      display_name: displayName,
+      gender: gender,
+      score: score,
+      scaled: wowLogScaled
+    };
+
+    const existing = wowResults.find(r => r.member_id === user.id);
+    if (existing) {
+      if (currentWow.score_type === 'time' && existing.score <= score) {
+        toast.info("Your existing score is better!");
+        setShowWowLogger(false);
+        return;
+      }
+      if (currentWow.score_type !== 'time' && existing.score >= score) {
+        toast.info("Your existing score is better!");
+        setShowWowLogger(false);
+        return;
+      }
+      result.id = existing.id;
+    }
+
+    const { success, error } = await saveWowResult(result);
+    if (success) {
+      toast.success("Score logged!");
+      setWowResults(await getWowResults(currentWow.id));
+      setShowWowLogger(false);
+      setWowShareResult(result);
+      setShowWowShare(true);
+      setWowLogScore("");
+      setWowLogScoreSecs("");
+      setWowLogScaled(false);
+    } else {
+      toast.error(`Failed to log score: ${error?.message || 'Unknown error'}`);
+    }
+  };
+
+  const bucketOf = (p: any) => (p.type === "GroupPT" ? "Group PT" : (p.stream || "Foundations"));
 
   useEffect(() => {
     const loadLibrary = async () => {
       setExerciseLibrary(getExercises());
       setWorkoutTemplates(getPrograms());
       setActiveProgram(getActiveProgram());
+      setPreferredDays(getPreferredDays());
+      
+      const wowsData = await getWorkoutsOfWeek();
+      setWows(wowsData);
+      
+      const d = new Date();
+      const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      let currentWow = wowsData.find((w: any) => w.week_start <= todayStr);
+      if (!currentWow && wowsData.length > 0) currentWow = wowsData[wowsData.length - 1];
+      
+      if (currentWow) {
+        const results = await getWowResults(currentWow.id);
+        setWowResults(results);
+      }
       
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data } = await supabase.from('members').select('allowed_access').eq('id', user.id).maybeSingle();
-        setAllowedAccess(data?.allowed_access ?? ["Stronger", "Fusion", "Performance"]);
+        setAllowedAccess(data?.allowed_access ?? ["Foundations", "Stronger", "Fusion", "Performance"]);
       } else {
-        setAllowedAccess(["Stronger", "Fusion", "Performance"]);
+        setAllowedAccess(["Foundations", "Stronger", "Fusion", "Performance"]);
       }
     };
     
     loadLibrary();
     window.addEventListener('fittrack_synced', loadLibrary);
     return () => window.removeEventListener('fittrack_synced', loadLibrary);
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('wow') === 'true') {
+      setViewMode('wow-detail');
+      // Clean up URL
+      window.history.replaceState({}, '', '/workouts');
+    }
   }, []);
 
   // Restore active workout session from localStorage on mount
@@ -262,6 +402,7 @@ const Workouts = () => {
         if (parsed.pausedTimeLeft !== undefined) setPausedTimeLeft(parsed.pausedTimeLeft);
         if (parsed.viewMode) setViewMode(parsed.viewMode);
         if (parsed.startTime !== undefined) setStartTime(parsed.startTime);
+        if (parsed.activeWorkoutMeta !== undefined) setActiveWorkoutMeta(parsed.activeWorkoutMeta);
       } catch (e) {
         console.error("Failed to parse saved workout", e);
       }
@@ -282,7 +423,8 @@ const Workouts = () => {
           restEndsAt,
           pausedTimeLeft,
           viewMode,
-          startTime
+          startTime,
+          activeWorkoutMeta
         }));
       } else {
         localStorage.removeItem('fittrack_active_workout');
@@ -389,43 +531,46 @@ const Workouts = () => {
     setExercises(exercises.map((e) => e.id === id ? { ...e, [field]: value } : e));
   };
 
-  const [nextSession, setNextSession] = useState<any>(null);
-
-  const localToday = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  };
-
-  const launchTarget = (grid: any[]) => {
-    const today = localToday();
-    const dated = grid.filter((c: any) => c.date);
-    if (dated.length === 0) return { mode: "undated" };
-    const todays = dated.filter((c: any) => c.date === today);
-    if (todays.length === 0) {
-      const upcoming = dated
-        .filter((c: any) => c.date > today)
-        .sort((a: any, b: any) => a.date.localeCompare(b.date))[0] || null;
-      return { mode: "rest", next: upcoming };
-    }
-    return { mode: "session", session: todays[0], index: grid.indexOf(todays[0]) };
-  };
-
   const openTemplateDetail = (template: any) => {
-    setSelectedTemplate(template);
-    
-    if (template.workouts && template.workouts.length > 0) {
-      const target = launchTarget(template.workouts);
-      if (target.mode === "session" && target.session) {
-        startTargetSession(template, target.session, target.index);
-        return;
-      } else if (target.mode === "rest") {
-        setNextSession(target.next);
-        setViewMode('rest-day');
-        return;
-      }
+    if (template.workouts && !activeProgram) {
+      setTemplateForChooser(template);
+    } else {
+      setSelectedTemplate(template);
+      setViewMode('detail');
     }
+  };
+
+  const buildDayPreview = (template: any, days: number) => {
+    if (!template || !template.workouts) return "";
+    const weeks = Array.from(new Set(template.workouts.map((w: any) => w.week))).sort();
+    const firstWeek = weeks[0] || 1;
+    const weekWorkouts = template.workouts.filter((w: any) => w.week === firstWeek);
+    const validSessions = weekWorkouts.filter((w: any) => w.dayCounts ? w.dayCounts.includes(days) : (!w.minDays || w.minDays <= days));
+    return validSessions.map((w: any) => w.name && !w.name.toLowerCase().startsWith("week ") && !w.name.toLowerCase().startsWith("day ") ? w.name : `Day ${w.day}`).join(" + ");
+  };
+
+  const activateProgram = async (template: any, days: number) => {
+    setPreferredDays(days);
+    await savePreferredDays(days);
     
+    const newActive = {
+      programId: template.id,
+      name: template.name,
+      weeks: template.weeks,
+      daysPerWeek: template.daysPerWeek,
+      workouts: template.workouts,
+      currentIndex: 0,
+      stream: template.stream,
+      type: template.type,
+      weekNotes: template.weekNotes
+    };
+    setActiveProgram(newActive);
+    await saveActiveProgram(newActive);
+    
+    setSelectedTemplate(template);
     setViewMode('detail');
+    setTemplateForChooser(null);
+    toast.success(`Started ${template.name}`);
   };
 
   const startTargetSession = (template: any, session: any, index: number) => {
@@ -435,12 +580,15 @@ const Workouts = () => {
       weeks: template.weeks,
       daysPerWeek: template.daysPerWeek,
       workouts: template.workouts,
-      currentIndex: index
+      currentIndex: index,
+      stream: template.stream,
+      type: template.type,
+      weekNotes: template.weekNotes
     };
     setActiveProgram(newActive);
     saveActiveProgram(newActive);
     
-    setWorkoutName(`${template.name}: ${session.name}`);
+    setWorkoutName(sessionTitle(template, session));
     setExercises(session.exercises.map((ex: any, idx: number) => ({ 
       id: Date.now() + idx, 
       ...ex,
@@ -457,6 +605,12 @@ const Workouts = () => {
     setCurrentBlockIndex(0);
     setLastSeenSectionId(null);
     setShowSectionSlide(false);
+    setActiveWorkoutMeta({
+      programId: template.id,
+      week: session.week,
+      day: session.day,
+      stream: template.stream || (template.type === 'GroupPT' ? 'GroupPT' : 'Stronger')
+    });
     setStartTime(Date.now());
     toast.success(`Started program: ${template.name}`);
     setViewMode('active');
@@ -464,37 +618,7 @@ const Workouts = () => {
 
   const startTemplate = (template: any) => {
     if (template.workouts && template.workouts.length > 0) {
-      const newActive = {
-        programId: template.id,
-        name: template.name,
-        weeks: template.weeks,
-        daysPerWeek: template.daysPerWeek,
-        workouts: template.workouts,
-        currentIndex: 0
-      };
-      setActiveProgram(newActive);
-      saveActiveProgram(newActive);
-      
-      const firstWorkout = template.workouts[0];
-      setWorkoutName(`${template.name}: ${firstWorkout.name}`);
-      setExercises(firstWorkout.exercises.map((ex: any, idx: number) => ({ 
-        id: Date.now() + idx, 
-        ...ex,
-        setsData: ex.setsData || Array.from({ length: ex.sets || 3 }).map((_, i) => ({
-          id: Date.now().toString() + i,
-          reps: ex.reps !== undefined ? ex.reps : 10,
-          weight: ex.weight || 0,
-          distance: ex.distance || 0,
-          timeMins: ex.timeMins || 0,
-          timeSecs: ex.timeSecs || 0,
-          completed: false
-        }))
-      })));
-      setCurrentBlockIndex(0);
-      setLastSeenSectionId(null);
-      setShowSectionSlide(false);
-      setStartTime(Date.now());
-      toast.success(`Started program: ${template.name}`);
+      activateProgram(template, preferredDays);
     } else {
       setWorkoutName(template.name);
       setExercises(template.exercises.map((ex: any, idx: number) => ({ 
@@ -514,27 +638,17 @@ const Workouts = () => {
       setLastSeenSectionId(null);
       setShowSectionSlide(false);
       setStartTime(Date.now());
+      setViewMode('active');
     }
-    setViewMode('active');
   };
 
   const resumeActiveProgram = () => {
     if (activeProgram && activeProgram.workouts) {
       const hasActiveContent = workoutName || exercises.length > 1 || (exercises.length === 1 && exercises[0].name);
       if (!hasActiveContent) {
-        const target = launchTarget(activeProgram.workouts);
-        if (target.mode === "session" && target.session) {
-          startTargetSession(activeProgram, target.session, target.index);
-          return;
-        } else if (target.mode === "rest") {
-          setNextSession(target.next);
-          setViewMode('rest-day');
-          return;
-        }
-        
         const currentWorkout = activeProgram.workouts[activeProgram.currentIndex];
         if (currentWorkout && currentWorkout.exercises) {
-          setWorkoutName(`${activeProgram.name}: ${currentWorkout.name}`);
+          setWorkoutName(sessionTitle(activeProgram, currentWorkout));
           setExercises(currentWorkout.exercises.map((ex: any, idx: number) => ({ 
             id: Date.now() + idx, 
             blockType: ex.blockType || "Strength",
@@ -604,7 +718,11 @@ const Workouts = () => {
       exercises,
       volume: totalVolume,
       duration: duration,
-      reward: earnedReward || null
+      reward: earnedReward || null,
+      programId: activeWorkoutMeta.programId,
+      week: activeWorkoutMeta.week,
+      day: activeWorkoutMeta.day,
+      stream: activeWorkoutMeta.stream
     });
     
     setIsSaving(false);
@@ -685,6 +803,81 @@ const Workouts = () => {
             <h2 className="text-3xl font-heading tracking-wider font-bold uppercase">Browse</h2>
           </div>
 
+          {currentWow && activeTab === "All" && !searchQuery && (
+            <Card className="bg-primary/10 border-primary overflow-hidden relative">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <Trophy className="w-24 h-24" />
+              </div>
+              <CardHeader className="relative z-10 pb-2">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <span className="text-primary font-bold text-xs tracking-wider uppercase bg-primary/20 px-2 py-0.5 rounded-full">
+                      Workout of the Week
+                    </span>
+                    <CardTitle className="text-3xl font-heading uppercase tracking-wider">{currentWow.name}</CardTitle>
+                  </div>
+                </div>
+                <CardDescription className="text-foreground/80 mt-2 whitespace-pre-wrap">
+                  {currentWow.description}
+                </CardDescription>
+                <div className="flex items-center gap-2 mt-4 text-sm font-medium">
+                  <Badge variant="outline" className="bg-background">
+                    {currentWow.score_type === 'time' ? 'For Time' : currentWow.score_type === 'reps' ? 'Total Reps' : currentWow.score_type === 'distance' ? 'Distance' : 'Calories'}
+                  </Badge>
+                  <span className="text-muted-foreground">{wowResults.length} logged</span>
+                </div>
+              </CardHeader>
+              <CardContent className="relative z-10">
+                {(() => {
+                  const myScore = wowResults.find(r => r.member_id === localStorage.getItem('fittrack_current_uid'));
+                  const sorted = [...wowResults].sort((a, b) => currentWow.score_type === 'time' ? a.score - b.score : b.score - a.score);
+                  const myRank = sorted.findIndex(r => r.member_id === localStorage.getItem('fittrack_current_uid')) + 1;
+                  const top3 = sorted.slice(0, 3);
+                  
+                  return (
+                    <div className="flex flex-col gap-3 mt-2">
+                      {top3.length > 0 && (
+                        <div className="bg-background/50 rounded-lg border border-border p-3 space-y-2">
+                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Top 3 Leaderboard</p>
+                          {top3.map((r, i) => (
+                            <div key={r.id} className="flex justify-between items-center text-sm">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-primary w-4">{i + 1}.</span>
+                                <span>{r.display_name}</span>
+                                {r.scaled && <Badge variant="outline" className="text-[8px] px-1 h-4">Scaled</Badge>}
+                              </div>
+                              <span className="font-medium">
+                                {currentWow.score_type === 'time' ? `${Math.floor((r.score || 0) / 60)}:${((r.score || 0) % 60).toString().padStart(2, '0')}` : r.score}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {myScore ? (
+                        <div className="flex items-center justify-between bg-background/50 p-3 rounded-lg border border-border">
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Your Score (Rank {myRank})</p>
+                            <p className="text-xl font-heading text-primary">
+                              {currentWow.score_type === 'time' ? `${Math.floor((myScore.score || 0) / 60)}:${((myScore.score || 0) % 60).toString().padStart(2, '0')}` : myScore.score}
+                              {myScore.scaled && <span className="ml-2 text-xs text-muted-foreground uppercase">(Scaled)</span>}
+                            </p>
+                          </div>
+                          <Button variant="outline" size="sm" onClick={() => setShowWowLogger(true)}>Update</Button>
+                        </div>
+                      ) : (
+                        <Button className="w-full font-bold" onClick={() => setShowWowLogger(true)}>Log Your Score</Button>
+                      )}
+                      <div className="flex gap-2">
+                        <Button className="flex-1 font-bold" onClick={() => setViewMode('wow-detail')}>View Workout</Button>
+                        <Button variant="secondary" className="flex-1 font-bold" onClick={() => setShowWowLeaderboard(true)}>Leaderboard</Button>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+          )}
+
           <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
             {["All", "Workouts", "Programs"].map(tab => (
               <Button
@@ -709,27 +902,99 @@ const Workouts = () => {
           </div>
 
           <div className="space-y-4">
-            {workoutTemplates
-              .filter(t => !t.workouts || !allowedAccess || allowedAccess.includes(bucketOf(t)))
-              .filter(t => activeTab === "All" || (activeTab === "Programs" && t.workouts) || (activeTab === "Workouts" && !t.workouts))
-              .filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()))
-              .map((template) => (
-              <div 
-                key={template.id} 
-                className="relative overflow-hidden rounded-2xl aspect-[16/9] cursor-pointer active:scale-[0.98] transition-transform shadow-md"
-                onClick={() => openTemplateDetail(template)}
-              >
-                <div className="absolute inset-0 bg-muted">
-                  <img src={template.coverImage || "https://vibe.filesafe.space/1783496939163756206/assets/d81fb983-0fbc-4056-ae4e-83766de15850.png"} alt={template.name} className="w-full h-full object-cover" />
-                </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent flex flex-col justify-end p-6">
-                  <span className="text-primary font-bold text-xs tracking-wider uppercase mb-1">
-                    {template.workouts ? `${template.weeks || 4} WEEK PROGRAMME` : 'SINGLE WORKOUT'}
-                  </span>
-                  <h3 className="text-white font-heading text-3xl uppercase leading-tight">{template.name}</h3>
-                </div>
-              </div>
-            ))}
+            {(() => {
+              const filtered = workoutTemplates
+                .filter(t => !t.workouts || !allowedAccess || allowedAccess.includes(bucketOf(t)))
+                .filter(t => activeTab === "All" || (activeTab === "Programs" && t.workouts) || (activeTab === "Workouts" && !t.workouts))
+                .filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+              // If searching or filtering Workouts, show flat list. Otherwise, group programs by category folders.
+              if (searchQuery || activeTab === "Workouts") {
+                return filtered.map((template) => (
+                  <div 
+                    key={template.id} 
+                    className="relative overflow-hidden rounded-2xl aspect-[16/9] cursor-pointer active:scale-[0.98] transition-transform shadow-md"
+                    onClick={() => openTemplateDetail(template)}
+                  >
+                    <div className="absolute inset-0 bg-muted">
+                      <img src={getCoverImage(template)} alt={template.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent flex flex-col justify-end p-6">
+                      <span className="text-primary font-bold text-xs tracking-wider uppercase mb-1">
+                        {template.workouts ? `${template.weeks || 4} WEEK PROGRAMME` : 'SINGLE WORKOUT'}
+                      </span>
+                      <h3 className="text-white font-heading text-3xl uppercase leading-tight">{template.name}</h3>
+                    </div>
+                  </div>
+                ));
+              }
+
+              // Folder view for programs
+              const categories = ["Foundations", "Stronger", "Fusion", "Performance", "Group PT"];
+              const singleWorkouts = filtered.filter(t => !t.workouts);
+              
+              return (
+                <>
+                  {categories.map(cat => {
+                    if (!allowedAccess?.includes(cat)) return null;
+                    const catProgs = filtered.filter(t => t.workouts && bucketOf(t) === cat);
+                    if (catProgs.length === 0) return null;
+                    
+                    catProgs.sort((a, b) => {
+                      const dateA = a.start_date || a.created_at || "";
+                      const dateB = b.start_date || b.created_at || "";
+                      return dateB.localeCompare(dateA);
+                    });
+
+                    const d = new Date();
+                    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    let currentProg = catProgs.find(p => (p.start_date || p.created_at || "") <= todayStr);
+                    if (!currentProg) currentProg = catProgs[catProgs.length - 1]; // earliest upcoming if all in future
+                    
+                    return (
+                      <div 
+                        key={cat} 
+                        className="relative overflow-hidden rounded-2xl aspect-[16/9] cursor-pointer active:scale-[0.98] transition-transform shadow-md"
+                        onClick={() => openTemplateDetail(currentProg)}
+                      >
+                        <div className="absolute inset-0 bg-muted">
+                          <img src={getCoverImage(currentProg, cat)} alt={cat} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent flex flex-col justify-end p-6">
+                          <span className="text-primary font-bold text-xs tracking-wider uppercase mb-1 bg-primary/20 w-fit px-2 py-0.5 rounded-full backdrop-blur-sm">
+                            This Week
+                          </span>
+                          <h3 className="text-white font-heading text-3xl uppercase leading-tight">{currentProg.name}</h3>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  
+                  {singleWorkouts.length > 0 && (
+                    <div className="pt-4 space-y-4">
+                      <h3 className="font-heading tracking-wider text-xl uppercase">Single Workouts</h3>
+                      {singleWorkouts.map((template) => (
+                        <div 
+                          key={template.id} 
+                          className="relative overflow-hidden rounded-2xl aspect-[16/9] cursor-pointer active:scale-[0.98] transition-transform shadow-md"
+                          onClick={() => openTemplateDetail(template)}
+                        >
+                          <div className="absolute inset-0 bg-muted">
+                            <img src={getCoverImage(template)} alt={template.name} className="w-full h-full object-cover" />
+                          </div>
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent flex flex-col justify-end p-6">
+                            <span className="text-primary font-bold text-xs tracking-wider uppercase mb-1">
+                              SINGLE WORKOUT
+                            </span>
+                            <h3 className="text-white font-heading text-3xl uppercase leading-tight">{template.name}</h3>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
           
           {activeProgram && allowedAccess && allowedAccess.includes(bucketOf(activeProgram)) && (
@@ -754,7 +1019,7 @@ const Workouts = () => {
             className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24"
           >
           <div className="relative overflow-hidden rounded-2xl aspect-[4/3] shadow-md -mx-4 -mt-6 rounded-t-none md:mx-0 md:mt-0 md:rounded-t-2xl">
-             <img src={selectedTemplate.coverImage || "https://vibe.filesafe.space/1783496939163756206/assets/d81fb983-0fbc-4056-ae4e-83766de15850.png"} alt={selectedTemplate.name} className="w-full h-full object-cover" />
+             <img src={getCoverImage(selectedTemplate)} alt={selectedTemplate.name} className="w-full h-full object-cover" />
              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/40"></div>
              
              <div className="absolute top-4 left-4 z-10">
@@ -778,7 +1043,7 @@ const Workouts = () => {
                   {selectedTemplate.weeks} Weeks
                 </span>
               )}
-              {selectedTemplate.daysPerWeek && (
+              {selectedTemplate.daysPerWeek && selectedTemplate.stream !== "Stronger" && (
                 <span className="bg-muted text-muted-foreground px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
                   {selectedTemplate.daysPerWeek} Days/Week
                 </span>
@@ -803,15 +1068,19 @@ const Workouts = () => {
                 </Button>
                 <Button 
                   variant="ghost" 
-                  onClick={() => { setActiveProgram(null); saveActiveProgram(null); }} 
-                  className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => setTemplateForChooser(selectedTemplate)} 
+                  className="w-full text-muted-foreground hover:bg-muted"
                 >
-                  Leave Programme
+                  Switch / End Plan
                 </Button>
               </div>
+            ) : selectedTemplate.workouts ? (
+              <Button onClick={() => setTemplateForChooser(selectedTemplate)} className="w-full gap-2 font-bold tracking-wide h-14 text-lg rounded-xl shadow-lg">
+                <Play className="h-5 w-5 fill-current" /> Switch to this plan
+              </Button>
             ) : (
               <Button onClick={() => startTemplate(selectedTemplate)} className="w-full gap-2 font-bold tracking-wide h-14 text-lg rounded-xl shadow-lg">
-                <Play className="h-5 w-5 fill-current" /> Start {selectedTemplate.workouts ? 'Programme' : 'Workout'}
+                <Play className="h-5 w-5 fill-current" /> Start Workout
               </Button>
             )}
           </div>
@@ -819,53 +1088,204 @@ const Workouts = () => {
           <div className="px-4 md:px-0 space-y-6 pt-4">
             {selectedTemplate.workouts ? (
               <div className="space-y-6">
-                {Array.from({ length: selectedTemplate.weeks || 1 }).map((_, weekIdx) => {
-                  const daysPerWeek = selectedTemplate.daysPerWeek || 3;
-                  const startIndex = weekIdx * daysPerWeek;
-                  const weekWorkouts = selectedTemplate.workouts.slice(startIndex, startIndex + daysPerWeek);
+                {(() => {
+                  let currentWeek = 1;
+                  const weekNotes = selectedTemplate.weekNotes || {};
+                  const d = new Date();
+                  const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                  let latestWeek = 1;
+                  let latestDate = "";
                   
-                  if (weekWorkouts.length === 0) return null;
+                  Object.entries(weekNotes).forEach(([weekNum, notes]: [string, any]) => {
+                    if (notes?.start_date && notes.start_date <= todayStr) {
+                      if (!latestDate || notes.start_date > latestDate) {
+                        latestDate = notes.start_date;
+                        latestWeek = parseInt(weekNum, 10);
+                      }
+                    }
+                  });
                   
+                  if (latestDate) {
+                    currentWeek = latestWeek;
+                  } else if (selectedTemplate.start_date) {
+                    const start = new Date(selectedTemplate.start_date).getTime();
+                    const now = new Date().getTime();
+                    currentWeek = Math.max(1, Math.floor((now - start) / (7 * 24 * 60 * 60 * 1000)) + 1);
+                  }
+                  if (selectedTemplate.weeks) currentWeek = Math.min(currentWeek, selectedTemplate.weeks);
+
+                  const renderWorkoutCard = (w: any, globalIdx: number, dayIdx: number) => {
+                    const isCompleted = activeProgram && activeProgram.programId === selectedTemplate.id && globalIdx < activeProgram.currentIndex;
+                    const isActive = activeProgram && activeProgram.programId === selectedTemplate.id && globalIdx === activeProgram.currentIndex;
+                    return (
+                      <div 
+                        key={globalIdx} 
+                        onClick={() => {
+                          setQuickOverviewWorkout({ workout: w, index: globalIdx, template: selectedTemplate });
+                          setViewMode('session-overview');
+                        }}
+                        className={`p-4 rounded-xl border flex justify-between items-center cursor-pointer transition-colors ${isActive ? 'bg-primary/10 border-primary' : 'bg-card border-border hover:bg-muted/50'}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${isCompleted ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                            {isCompleted ? <Check className="h-4 w-4" /> : <span className="text-xs font-bold">{dayIdx + 1}</span>}
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-0.5">
+                              {weekLabel(selectedTemplate, w.week)} · Day {w.day}
+                            </div>
+                            <div className="font-bold leading-tight">{w.name && !w.name.toLowerCase().startsWith("week ") && !w.name.toLowerCase().startsWith("day ") ? w.name : `Day ${w.day}`}</div>
+                          </div>
+                        </div>
+                        <div className="text-sm text-muted-foreground font-medium bg-muted px-2 py-1 rounded-md">
+                          {w.exercises?.length || 0} exercises
+                        </div>
+                      </div>
+                    );
+                  };
+
+                  const history = getWorkoutHistory();
+                  const thisWeekWorkouts = selectedTemplate.workouts
+                    .map((w: any, i: number) => ({ w, i }))
+                    .filter((x: any) => x.w.week === currentWeek && (x.w.dayCounts ? x.w.dayCounts.includes(preferredDays) : (!x.w.minDays || x.w.minDays <= preferredDays)))
+                    .sort((a: any, b: any) => a.w.day - b.w.day); // Ensure day order
+
+                  const processedWorkouts = thisWeekWorkouts.map((x: any) => {
+                    const isCompleted = history.some((h: any) => 
+                      h.programId === selectedTemplate.id && 
+                      h.week === x.w.week && 
+                      h.day === x.w.day
+                    );
+                    return { ...x, isCompleted };
+                  });
+
+                  const nextUpIndex = processedWorkouts.findIndex(x => !x.isCompleted);
+                  const isWeekComplete = nextUpIndex === -1 && processedWorkouts.length > 0;
+
                   return (
-                    <div key={weekIdx} className="space-y-3">
-                      <h3 className="font-heading text-xl tracking-wider uppercase text-muted-foreground">Week {weekIdx + 1}</h3>
-                      <div className="space-y-2">
-                        {weekWorkouts.map((w: any, dayIdx: number) => {
-                          const globalIdx = startIndex + dayIdx;
-                          const isCompleted = activeProgram && activeProgram.programId === selectedTemplate.id && globalIdx < activeProgram.currentIndex;
-                          const isActive = activeProgram && activeProgram.programId === selectedTemplate.id && globalIdx === activeProgram.currentIndex;
+                    <>
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-heading text-2xl tracking-wider uppercase text-foreground">Sessions</h3>
+                        <Select value={preferredDays.toString()} onValueChange={(v) => {
+                          const days = parseInt(v, 10);
+                          setPreferredDays(days);
+                          savePreferredDays(days);
+                        }}>
+                          <SelectTrigger className="w-auto h-8 text-xs font-bold uppercase tracking-wider bg-muted/50 border-transparent">
+                            <SelectValue placeholder="Days" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="2">2 Days/Week</SelectItem>
+                            <SelectItem value="3">3 Days/Week</SelectItem>
+                            <SelectItem value="4">4 Days/Week</SelectItem>
+                            <SelectItem value="5">5 Days/Week</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-4">
+                        {processedWorkouts.length > 0 ? (
+                          <>
+                            {isWeekComplete ? (
+                              <div className="text-center py-6 bg-primary/10 rounded-xl border border-primary/20">
+                                <CheckCircle2 className="h-10 w-10 text-primary mx-auto mb-2" />
+                                <h4 className="font-heading text-xl tracking-wider text-foreground">Week Complete!</h4>
+                                <p className="text-sm text-muted-foreground">You've finished all your sessions for this week.</p>
+                              </div>
+                            ) : (
+                              <div className="mb-6">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-primary mb-2">Next up — Session {nextUpIndex + 1} of {processedWorkouts.length}</h4>
+                                {renderWorkoutCard(processedWorkouts[nextUpIndex].w, processedWorkouts[nextUpIndex].i, nextUpIndex)}
+                              </div>
+                            )}
+                            
+                            {processedWorkouts.length > 1 && (
+                              <div className="space-y-2 pt-4 border-t border-border/50">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">All Sessions</h4>
+                                {processedWorkouts.map((x: any, idx: number) => {
+                                  if (!isWeekComplete && idx === nextUpIndex) return null;
+                                  return (
+                                    <div key={idx} className="relative">
+                                      {x.isCompleted && (
+                                        <div className="absolute -left-2 -top-2 z-10 bg-background rounded-full p-0.5">
+                                          <CheckCircle2 className="h-5 w-5 text-primary" />
+                                        </div>
+                                      )}
+                                      <div className={x.isCompleted ? "opacity-60" : ""}>
+                                        {renderWorkoutCard(x.w, x.i, idx)}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-sm text-muted-foreground text-center py-4">No sessions scheduled for this week with {preferredDays} days/week.</p>
+                        )}
+                      </div>
+
+                      <div className="pt-8 space-y-6">
+                        <h3 className="font-heading text-2xl tracking-wider uppercase text-foreground mb-4">Full Library</h3>
+                        {Array.from({ length: selectedTemplate.weeks || 1 }).map((_, weekIdx) => {
+                          const weekWorkouts = selectedTemplate.workouts
+                            .map((w: any, i: number) => ({ w, i }))
+                            .filter((x: any) => x.w.week === weekIdx + 1 && (x.w.dayCounts ? x.w.dayCounts.includes(preferredDays) : (!x.w.minDays || x.w.minDays <= preferredDays)));
+                          
+                          if (weekWorkouts.length === 0) return null;
                           
                           return (
-                            <div 
-                              key={globalIdx} 
-                              onClick={() => {
-                                setQuickOverviewWorkout({ workout: w, index: globalIdx, template: selectedTemplate });
-                                setViewMode('session-overview');
-                              }}
-                              className={`p-4 rounded-xl border flex justify-between items-center cursor-pointer transition-colors ${isActive ? 'bg-primary/10 border-primary' : 'bg-card border-border hover:bg-muted/50'}`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${isCompleted ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                                  {isCompleted ? <Check className="h-4 w-4" /> : <span className="text-xs font-bold">{dayIdx + 1}</span>}
-                                </div>
-                                <div>
-                                  <div className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-0.5">
-                                    Day {dayIdx + 1}
-                                    {w.date && <span className="ml-2 px-1.5 py-0.5 bg-muted/50 rounded-sm text-[10px]">{new Date(w.date).toLocaleDateString()}</span>}
-                                  </div>
-                                  <div className="font-bold leading-tight">{w.name}</div>
-                                </div>
-                              </div>
-                              <div className="text-sm text-muted-foreground font-medium bg-muted px-2 py-1 rounded-md">
-                                {w.exercises?.length || 0} exercises
+                            <div key={weekIdx} className="space-y-3">
+                              <h4 className="font-heading text-xl tracking-wider uppercase text-muted-foreground">{weekLabel(selectedTemplate, weekIdx + 1)}</h4>
+                              <div className="space-y-2">
+                                {weekWorkouts.map((x: any, dayIdx: number) => renderWorkoutCard(x.w, x.i, dayIdx))}
                               </div>
                             </div>
                           );
                         })}
                       </div>
-                    </div>
+
+                      {/* Past Weeks in Category */}
+                      {(() => {
+                        const cat = bucketOf(selectedTemplate);
+                        const catProgs = workoutTemplates.filter(t => t.workouts && bucketOf(t) === cat && t.id !== selectedTemplate.id);
+                        if (catProgs.length === 0) return null;
+                        
+                        catProgs.sort((a, b) => {
+                          const dateA = a.start_date || a.created_at || "";
+                          const dateB = b.start_date || b.created_at || "";
+                          return dateB.localeCompare(dateA);
+                        });
+
+                        return (
+                          <div className="pt-8 space-y-4">
+                            <h3 className="font-heading text-2xl tracking-wider uppercase text-foreground mb-4">Past Weeks ({cat})</h3>
+                            <div className="space-y-3">
+                              {catProgs.map(prog => (
+                                <div 
+                                  key={prog.id} 
+                                  className="p-4 rounded-xl border border-border bg-card flex justify-between items-center cursor-pointer hover:bg-muted/50 transition-colors"
+                                  onClick={() => {
+                                    setSelectedTemplate(prog);
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                  }}
+                                >
+                                  <div>
+                                    <div className="font-bold text-lg">{prog.name}</div>
+                                    {prog.start_date && (
+                                      <div className="text-sm text-muted-foreground">W/C {new Date(prog.start_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                                    )}
+                                  </div>
+                                  <Button variant="ghost" size="sm">View</Button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </>
                   );
-                })}
+                })()}
               </div>
             ) : (
               <div className="space-y-3">
@@ -875,7 +1295,8 @@ const Workouts = () => {
                     const libEx = exerciseLibrary.find(e => String(e.id) === String(ex.name));
                     const setsCount = ex.setsData?.length || ex.sets || 3;
                     const firstSet = ex.setsData?.[0] || ex || {};
-                    const trackingArray = Array.isArray(libEx?.trackingType) ? libEx.trackingType : [libEx?.trackingType || "Weight & Reps"];
+                    const rawTrack = libEx?.trackingType ?? "Weight & Reps";
+                    const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                     let details = [];
                     if (trackingArray.includes('Weight & Reps')) details.push(`${firstSet.reps || 0} reps`);
                     if (trackingArray.includes('Distance & Time') && firstSet.distance) details.push(`${firstSet.distance}m`);
@@ -899,34 +1320,125 @@ const Workouts = () => {
           </div>
         </motion.div>
         )}
-
-        {viewMode === 'rest-day' && (
+        {viewMode === 'wow-detail' && currentWow && (
           <motion.div 
-            key="rest-day"
+            key="wow-detail"
             custom={viewDirection}
             variants={variants}
             initial="initial"
             animate="animate"
             exit="exit"
-            className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 flex flex-col items-center justify-center min-h-[70vh]"
+            className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24"
           >
-            <div className="text-center space-y-6 max-w-md mx-auto">
-              <h2 className="text-4xl font-heading tracking-wider uppercase">Rest Day</h2>
-              <p className="text-muted-foreground text-lg">No session scheduled for today.</p>
-              {nextSession && (
-                <p className="font-bold text-primary">Next up: {nextSession.name} on {new Date(nextSession.date).toLocaleDateString()}</p>
-              )}
-              <div className="pt-8 flex flex-col gap-4">
-                <Button onClick={() => setViewMode('detail')} className="w-full h-14 text-lg font-bold tracking-wide rounded-xl">
-                  View Full Programme
-                </Button>
-                <Button variant="outline" onClick={() => setViewMode('browse')} className="w-full h-14 text-lg font-bold tracking-wide rounded-xl">
-                  Back to Library
-                </Button>
+            <div className="flex flex-col gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setViewMode('browse')} className="w-fit -ml-4 text-muted-foreground">
+                <ArrowLeft className="h-4 w-4 mr-2" /> Back
+              </Button>
+              <div className="flex flex-col gap-1">
+                <span className="text-primary font-bold text-xs tracking-wider uppercase">
+                  Workout of the Week
+                </span>
+                <h2 className="text-4xl font-heading tracking-wider uppercase text-foreground leading-none">
+                  {currentWow.name}
+                </h2>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium mt-1">
+                  <Badge variant="outline" className="bg-background">
+                    {currentWow.score_type === 'time' ? 'For Time' : currentWow.score_type === 'reps' ? 'Total Reps' : currentWow.score_type === 'distance' ? 'Distance' : 'Calories'}
+                  </Badge>
+                  <span>·</span>
+                  <span>{wowResults.length} logged</span>
+                </div>
               </div>
+            </div>
+
+            <div className="space-y-4">
+              {(() => {
+                const exercises = currentWow.exercises || [];
+                const sections: {section: any, exercises: any[]}[] = [];
+                let currentSection: any = null;
+                let currentGroup: any[] = [];
+                
+                exercises.forEach((ex: any) => {
+                  if (ex.isSection) {
+                    if (currentSection || currentGroup.length > 0) {
+                      sections.push({ section: currentSection, exercises: currentGroup });
+                    }
+                    currentSection = ex;
+                    currentGroup = [];
+                  } else {
+                    currentGroup.push(ex);
+                  }
+                });
+                if (currentSection || currentGroup.length > 0) {
+                  sections.push({ section: currentSection, exercises: currentGroup });
+                }
+
+                return sections.map((sec, idx) => (
+                  <Card key={idx} className="bg-card border-border overflow-hidden">
+                    <CardContent className="p-0">
+                      <div className="bg-muted/50 p-3 border-b border-border flex justify-between items-center">
+                        <span className="font-bold text-sm tracking-wider uppercase">
+                          {sec.section ? sec.section.name : `Block ${idx + 1}`}
+                        </span>
+                        <span className="text-xs text-muted-foreground font-medium">
+                          {sec.exercises.length} exercises
+                        </span>
+                      </div>
+                      <div className="p-3 space-y-3">
+                        {sec.exercises.map((ex: any, exIdx: number) => {
+                          const libEx = exerciseLibrary.find(e => String(e.id) === String(ex.name));
+                          
+                          let detailText = "";
+                          if (ex.sets && ex.reps) detailText = `${ex.sets}x${ex.reps}`;
+                          else if (ex.timeMins || ex.timeSecs) detailText = `${ex.timeMins || 0}m ${ex.timeSecs || 0}s`;
+                          else if (ex.distance) detailText = `${ex.distance}m`;
+
+                          const isSupersetItem = ex.linkedToNext || (exIdx > 0 && sec.exercises[exIdx - 1].linkedToNext);
+
+                          return (
+                            <div key={exIdx} className="flex gap-3 items-center group cursor-pointer" onClick={() => {
+                              if (libEx?.videoUrl) {
+                                setVideoTutorial(libEx.videoUrl);
+                                setVideoTitle(libEx.name);
+                              }
+                            }}>
+                              <div className="relative shrink-0">
+                                {isSupersetItem && (
+                                  <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-0.5 h-full bg-primary rounded-full" />
+                                )}
+                                <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden border border-border">
+                                  {libEx?.videoUrl ? (
+                                    <div className="relative w-full h-full flex items-center justify-center group-hover:bg-black/10 transition-colors">
+                                      <PlayCircle className="h-5 w-5 text-primary opacity-80" />
+                                    </div>
+                                  ) : (
+                                    <Dumbbell className="h-5 w-5 text-muted-foreground opacity-50" />
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-sm truncate">{libEx?.name || ex.name || "Unknown Exercise"}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-xs text-muted-foreground font-medium">{detailText}</span>
+                                  {isSupersetItem && (
+                                    <Badge variant="outline" className="text-[8px] px-1 py-0 h-4 uppercase bg-primary/10 text-primary border-primary/20">
+                                      Superset
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ));
+              })()}
             </div>
           </motion.div>
         )}
+
 
         {viewMode === 'session-overview' && quickOverviewWorkout && (
           <motion.div 
@@ -1005,7 +1517,8 @@ const Workouts = () => {
                           const setsCount = ex.setsData?.length || ex.sets || 3;
                           const firstSet = ex.setsData?.[0] || ex || {};
                           
-                          const trackingArray = Array.isArray(libEx?.trackingType) ? libEx.trackingType : [libEx?.trackingType || "Weight & Reps"];
+                          const rawTrack = libEx?.trackingType ?? "Weight & Reps";
+                          const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                           
                           let details = [];
                           if (trackingArray.includes('Weight & Reps')) {
@@ -1072,7 +1585,7 @@ const Workouts = () => {
             </Button>
           </div>
 
-          {activeProgram && (!allowedAccess || allowedAccess.includes(activeProgram.type === 'GroupPT' ? 'Group PT' : (activeProgram.stream || 'Stronger'))) && (
+          {activeProgram && (!allowedAccess || allowedAccess.includes(activeProgram.type === 'GroupPT' ? 'Group PT' : (activeProgram.stream || 'Foundations'))) && (
             <Card className="bg-primary/10 border-primary">
               <CardHeader>
                 <CardTitle className="font-heading tracking-wider flex justify-between items-center">
@@ -1131,7 +1644,8 @@ const Workouts = () => {
                           const setsCount = ex.setsData?.length || ex.sets || 3;
                           const firstSet = ex.setsData?.[0] || ex || {};
                           
-                          const trackingArray = Array.isArray(libEx?.trackingType) ? libEx.trackingType : [libEx?.trackingType || "Weight & Reps"];
+                          const rawTrack = libEx?.trackingType ?? "Weight & Reps";
+                          const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                           
                           let details = [];
                           if (trackingArray.includes('Weight & Reps')) {
@@ -1632,9 +2146,181 @@ const Workouts = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!templateForChooser} onOpenChange={(open) => !open && setTemplateForChooser(null)}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="font-heading tracking-wider text-2xl uppercase">How many days a week can you train?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            {[2, 3, 4, 5].map(days => {
+              const previewText = buildDayPreview(templateForChooser, days);
+              return (
+                <Button 
+                  key={days} 
+                  variant="outline" 
+                  className="w-full justify-start h-auto p-4 flex flex-col items-start gap-1"
+                  onClick={() => activateProgram(templateForChooser, days)}
+                >
+                  <span className="font-bold text-lg">{days} days</span>
+                  <span className="text-sm text-muted-foreground whitespace-normal text-left leading-snug">{previewText}</span>
+                </Button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showWowLogger} onOpenChange={setShowWowLogger}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="font-heading tracking-wider text-2xl uppercase">Log Your Score</DialogTitle>
+          </DialogHeader>
+          {currentWow && (
+            <div className="space-y-4 py-4">
+              {currentWow.score_type === 'time' ? (
+                <div className="flex gap-2">
+                  <div className="space-y-2 flex-1">
+                    <Label>Minutes</Label>
+                    <Input type="number" value={wowLogScore} onChange={e => setWowLogScore(e.target.value)} placeholder="0" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <Label>Seconds</Label>
+                    <Input type="number" value={wowLogScoreSecs} onChange={e => setWowLogScoreSecs(e.target.value)} placeholder="00" />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>Score ({currentWow.score_type === 'reps' ? 'Reps' : currentWow.score_type === 'distance' ? 'Metres' : 'Calories'})</Label>
+                  <Input type="number" value={wowLogScore} onChange={e => setWowLogScore(e.target.value)} placeholder="0" />
+                </div>
+              )}
+              {currentWow.scaled_allowed && (
+                <div className="flex items-center space-x-2 pt-2">
+                  <Checkbox id="scaled" checked={wowLogScaled} onCheckedChange={(c) => setWowLogScaled(!!c)} />
+                  <Label htmlFor="scaled">I did the scaled version</Label>
+                </div>
+              )}
+              <Button className="w-full mt-4" onClick={handleLogWow}>Save Score</Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showWowLeaderboard} onOpenChange={setShowWowLeaderboard}>
+        <DialogContent className="sm:max-w-md bg-card border-border max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="font-heading tracking-wider text-2xl uppercase">Leaderboard</DialogTitle>
+          </DialogHeader>
+          {currentWow && (
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex gap-2 mb-4 shrink-0">
+                {["Overall", "Male", "Female"].map(f => (
+                  <Button key={f} variant={wowLeaderboardFilter === f ? "default" : "outline"} size="sm" onClick={() => setWowLeaderboardFilter(f as any)} className="flex-1">
+                    {f}
+                  </Button>
+                ))}
+              </div>
+              <div className="overflow-y-auto flex-1 space-y-2 pr-2">
+                {(() => {
+                  const filtered = wowResults.filter(r => wowLeaderboardFilter === "Overall" || r.gender.toLowerCase() === wowLeaderboardFilter.toLowerCase());
+                  filtered.sort((a, b) => currentWow.score_type === 'time' ? a.score - b.score : b.score - a.score);
+                  
+                  if (filtered.length === 0) return <p className="text-center text-muted-foreground py-8">No scores yet.</p>;
+
+                  return filtered.map((r, i) => {
+                    const isMe = r.member_id === localStorage.getItem('fittrack_current_uid');
+                    return (
+                      <div key={r.id} className={`flex items-center justify-between p-3 rounded-lg border ${isMe ? 'bg-primary/10 border-primary' : 'bg-card border-border'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className="font-bold text-muted-foreground w-6 text-center">{i + 1}</div>
+                          <div>
+                            <div className="font-bold">{r.display_name} {isMe && "(You)"}</div>
+                            {r.scaled && <div className="text-[10px] text-muted-foreground uppercase">Scaled</div>}
+                          </div>
+                        </div>
+                        <div className="font-heading text-xl text-primary">
+                          {currentWow.score_type === 'time' ? `${Math.floor((r.score || 0) / 60)}:${((r.score || 0) % 60).toString().padStart(2, '0')}` : r.score}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+              <Button className="w-full mt-4 shrink-0" variant="outline" onClick={() => {
+                const myScore = wowResults.find(r => r.member_id === localStorage.getItem('fittrack_current_uid'));
+                if (!myScore) return;
+                saveCommunityPost({
+                  id: 'wow_' + Date.now(),
+                  user: { name: 'You', avatar: 'ME' },
+                  date: new Date().toISOString(),
+                  type: 'wow',
+                  wowDetails: {
+                    name: currentWow.name,
+                    score: currentWow.score_type === 'time' ? `${Math.floor((myScore.score || 0) / 60)}:${((myScore.score || 0) % 60).toString().padStart(2, '0')}` : (myScore.score || 0).toString(),
+                    scaled: myScore.scaled
+                  },
+                  likes: 0, comments: 0,
+                });
+                toast.success("Shared to feed!");
+                setShowWowLeaderboard(false);
+              }}>Share to Feed</Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showWowShare} onOpenChange={setShowWowShare}>
+        <DialogContent className="sm:max-w-md bg-card border-border text-center">
+          <DialogHeader>
+            <DialogTitle className="font-heading tracking-wider text-2xl uppercase">Score Logged!</DialogTitle>
+          </DialogHeader>
+          <div className="py-6 flex flex-col items-center">
+            <Trophy className="h-16 w-16 text-primary mb-4" />
+            <p className="text-muted-foreground mb-6">Great job crushing the Workout of the Week!</p>
+            <div className="flex gap-4 w-full">
+              <Button variant="outline" className="flex-1" onClick={() => setShowWowShare(false)}>Not now</Button>
+              <Button className="flex-1" onClick={() => {
+                saveCommunityPost({
+                  id: 'wow_' + Date.now(),
+                  user: { name: 'You', avatar: 'ME' },
+                  date: new Date().toISOString(),
+                  type: 'wow',
+                  wowDetails: {
+                    name: currentWow.name,
+                    score: currentWow.score_type === 'time' ? `${Math.floor((wowShareResult.score || 0) / 60)}:${((wowShareResult.score || 0) % 60).toString().padStart(2, '0')}` : (wowShareResult.score || 0).toString(),
+                    scaled: wowShareResult.scaled
+                  },
+                  likes: 0, comments: 0,
+                });
+                toast.success("Shared to feed!");
+                setShowWowShare(false);
+              }}>Share to feed</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!videoTutorial} onOpenChange={(open) => !open && setVideoTutorial(null)}>
+        <DialogContent className="sm:max-w-[800px] p-0 bg-black overflow-hidden border-none">
+          <div className="aspect-video w-full">
+            {videoTutorial && (
+              <iframe
+                src={getEmbedUrl(videoTutorial)}
+                className="w-full h-full"
+                allow="autoplay; fullscreen; picture-in-picture"
+                allowFullScreen
+                title={videoTitle || "Exercise Tutorial"}
+              />
+            )}
+          </div>
+          <div className="p-4 bg-card border-t border-border flex justify-between items-center">
+            <h3 className="font-heading text-xl uppercase tracking-wider">{videoTitle}</h3>
+            <Button variant="ghost" size="sm" onClick={() => setVideoTutorial(null)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
 
 export default Workouts;
-

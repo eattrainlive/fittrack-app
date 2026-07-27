@@ -13,7 +13,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn, getEmbedUrl } from "@/lib/utils";
-import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification, getAnthropicKey, saveAnthropicKey, getVimeoToken, getHabits } from "@/lib/store";
+import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification, getAnthropicKey, saveAnthropicKey, getVimeoToken, getHabits, getWorkoutsOfWeek, saveWorkoutOfWeek } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar as CalendarIcon, Bell, Send, Download, Link2, Link2Off, Heading, Upload, Sparkles, Check, ChevronsUpDown } from "lucide-react";
 import JSZip from "jszip";
@@ -22,6 +22,37 @@ import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
+
+const CARDIO_WARMUP = ["Bike Erg", "Ski-Erg", "Rower", "Air Bike", "Run"];
+
+function ensureCardioWarmup(exercises: any[], dayIndex: number, exerciseLibrary: any[]) {
+  const i = exercises.findIndex(e => e.isSection && /warm ?up/i.test(e.name || ""));
+  if (i === -1) return exercises;
+  const first = exercises[i + 1];
+  
+  const isCardioMachine = (ex: any) => {
+     if (!ex || !ex.name) return false;
+     const libEx = exerciseLibrary.find(le => String(le.id) === String(ex.name));
+     if (!libEx) return false;
+     return CARDIO_WARMUP.some(m => String(libEx.name).toLowerCase().includes(m.toLowerCase()) || String(libEx.id).toLowerCase().includes(m.toLowerCase().replace(/\s+/g, '-')));
+  };
+
+  const already = first && !first.isSection && isCardioMachine(first);
+  if (already) return exercises;
+  
+  const targetName = CARDIO_WARMUP[dayIndex % CARDIO_WARMUP.length];
+  let machineEx = exerciseLibrary.find(le => String(le.name).toLowerCase() === targetName.toLowerCase() || String(le.id) === targetName.toLowerCase().replace(/\s+/g, '-'));
+  
+  if (!machineEx) {
+    machineEx = exerciseLibrary.find(le => CARDIO_WARMUP.some(m => String(le.name).toLowerCase().includes(m.toLowerCase())));
+  }
+  
+  if (!machineEx) return exercises;
+  
+  const item = { id: Date.now() + Math.random(), name: machineEx.id, timeMins: 3, timeSecs: 0, sets: 1, staffNotes: "3 min easy — build gently", trackingType: ["Time Only"], isSection: false };
+  exercises.splice(i + 1, 0, item);
+  return exercises;
+}
 
 // Within each Warm Up / Fire Up section, chain the exercises into a single superset.
 function applyWarmupFireupSupersets(exercises: any[]) {
@@ -52,7 +83,16 @@ const Admin = () => {
 
   const [exercises, setExercises] = useState<any[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
+  const [wows, setWows] = useState<any[]>([]);
 
+  // WOW State
+  const [wowName, setWowName] = useState("");
+  const [wowDesc, setWowDesc] = useState("");
+  const [wowScoreType, setWowScoreType] = useState("time");
+  const [wowScaledAllowed, setWowScaledAllowed] = useState(true);
+  const [wowWeekStart, setWowWeekStart] = useState("");
+  const [wowExercises, setWowExercises] = useState<any[]>([]);
+  const [wowEditingId, setWowEditingId] = useState<string | null>(null);
 
   // New Exercise State
   const [newExName, setNewExName] = useState("");
@@ -73,13 +113,14 @@ const Admin = () => {
   // New Program State
   const [newProgName, setNewProgName] = useState("");
   const [newProgDesc, setNewProgDesc] = useState("");
-  const [newProgStream, setNewProgStream] = useState("Stronger");
+  const [newProgStream, setNewProgStream] = useState("Foundations");
+  const [newProgStartDate, setNewProgStartDate] = useState("");
   const [newProgCover, setNewProgCover] = useState("");
   const [newProgWeeks, setNewProgWeeks] = useState(4);
   const [newProgDays, setNewProgDays] = useState(5);
-  const [newProgType, setNewProgType] = useState<"program" | "session_folder" | "GroupPT">("program");
+  const [newProgType, setNewProgType] = useState<"program" | "session_folder" | "GroupPT" | "wow">("program");
   const [progWorkouts, setProgWorkouts] = useState<any[]>([]);
-  const [progWeekNotes, setProgWeekNotes] = useState<Record<number, string>>({});
+  const [progWeekNotes, setProgWeekNotes] = useState<Record<number, any>>({});
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(0);
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [selectedDay, setSelectedDay] = useState(1);
@@ -121,15 +162,23 @@ const Admin = () => {
   // Edit Exercise State
   const [editingExercise, setEditingExercise] = useState<any | null>(null);
   const [librarySearch, setLibrarySearch] = useState("");
+  const [catF, setCatF] = useState("All");
+  const [muscleF, setMuscleF] = useState("All");
+  const [moveF, setMoveF] = useState("All");
+  const [equipF, setEquipF] = useState("All");
+  const [diffF, setDiffF] = useState("All");
+  const [trackF, setTrackF] = useState("All");
 
   // Members State
+  const [activeTab, setActiveTab] = useState("exercises");
+
   const [members, setMembers] = useState<any[]>([]);
   const [selectedMember, setSelectedMember] = useState<any | null>(null);
   const [memberActivity, setMemberActivity] = useState<any[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteAllowed, setInviteAllowed] = useState<string[]>(["Stronger", "Fusion", "Performance", "Group PT"]);
+  const [inviteAllowed, setInviteAllowed] = useState<string[]>(["Foundations", "Stronger", "Fusion", "Performance", "Group PT"]);
   const [isInviting, setIsInviting] = useState(false);
   const [isBulkInviting, setIsBulkInviting] = useState(false);
 
@@ -234,6 +283,7 @@ const Admin = () => {
     const handleSync = async () => {
       setExercises(await getExercises());
       setPrograms(await getPrograms());
+      setWows(await getWorkoutsOfWeek());
     };
 
     handleSync();
@@ -362,7 +412,7 @@ const Admin = () => {
       }
       
       const newMembers = rows.slice(1).filter((r: string[]) => r.length > Math.max(nameIdx, emailIdx) && r[emailIdx]).map((r: string[]) => {
-        let allowed = ["Stronger", "Fusion", "Performance", "Group PT"];
+        let allowed = ["Foundations", "Stronger", "Fusion", "Performance", "Group PT"];
         if (accessIdx !== -1 && r[accessIdx]) {
           allowed = r[accessIdx].split(';').map(s => s.trim()).filter(Boolean);
         }
@@ -512,19 +562,45 @@ const Admin = () => {
     setEditingExercise(null);
   };
 
+  const toArr = (v: any) => Array.isArray(v) ? v : (v == null ? [] : String(v).split(/[;,]/).map(s => s.trim()).filter(Boolean));
+  const uniq  = (vals: string[]) => ["All", ...Array.from(new Set(vals)).filter(Boolean).sort()];
+
+  const filteredLibrary = exercises.filter(ex => {
+    const n = ex.name?.toLowerCase() || "";
+    return n.includes(librarySearch.toLowerCase())
+      && (catF === "All" || toArr(ex.category).includes(catF))
+      && (muscleF === "All" || ex.muscle === muscleF)
+      && (moveF === "All" || toArr(ex.movementType).includes(moveF))
+      && (equipF === "All" || ex.equipment === equipF)
+      && (diffF === "All" || ex.difficulty === diffF)
+      && (trackF === "All" || toArr(ex.trackingType).includes(trackF));
+  });
+
+  const catOpts    = uniq(exercises.flatMap(ex => toArr(ex.category)));
+  const muscleOpts = uniq(exercises.map(ex => ex.muscle));
+  const moveOpts   = uniq(exercises.flatMap(ex => toArr(ex.movementType)));
+  const equipOpts  = uniq(exercises.map(ex => ex.equipment));
+  const diffOpts   = uniq(exercises.map(ex => ex.difficulty));
+  const trackOpts  = uniq(exercises.flatMap(ex => toArr(ex.trackingType)));
+
   const handleBulkDelete = () => {
-    if (!librarySearch) return;
-    const filtered = exercises.filter(ex => ex.name.toLowerCase().includes(librarySearch.toLowerCase()));
-    if (filtered.length === 0) return;
+    if (!librarySearch && catF === "All" && muscleF === "All" && moveF === "All" && equipF === "All" && diffF === "All" && trackF === "All") return;
+    if (filteredLibrary.length === 0) return;
     
-    const idsToDelete = filtered.map(e => e.id);
+    const idsToDelete = filteredLibrary.map(e => e.id);
     const updated = exercises.filter(e => !idsToDelete.includes(e.id));
     setExercises(updated);
     saveExercises(updated).then(r => {
-      if (r.success) toast.success(`Deleted ${filtered.length} exercises!`);
+      if (r.success) toast.success(`Deleted ${filteredLibrary.length} exercises!`);
       else toast.warning(`Deleted locally — cloud sync failed`);
     });
     setLibrarySearch("");
+    setCatF("All");
+    setMuscleF("All");
+    setMoveF("All");
+    setEquipF("All");
+    setDiffF("All");
+    setTrackF("All");
   };
 
   const handleExportData = () => {
@@ -610,14 +686,15 @@ const Admin = () => {
       }]);
     } else {
       const weeks = newProgType === "GroupPT" ? 12 : newProgWeeks;
-      const totalWorkouts = weeks * newProgDays;
+      const days = newProgType === "program" ? (newProgStream === "Stronger" ? 7 : 5) : newProgDays;
+      const totalWorkouts = weeks * days;
       const newWorkouts = [];
       for (let i = 0; i < totalWorkouts; i++) {
-        const week = Math.floor(i / newProgDays) + 1;
-        const day = (i % newProgDays) + 1;
+        const week = Math.floor(i / days) + 1;
+        const day = (i % days) + 1;
         newWorkouts.push({
           id: `w_${Date.now()}_${i}`,
-          name: `Week ${week}, Day ${day}`,
+          name: `Day ${day}`,
           week,
           day,
           exercises: []
@@ -734,7 +811,8 @@ const Admin = () => {
     if (selectedWeek <= 1) return;
     const updatedWorkouts = [...progWorkouts];
     
-    for (let d = 1; d <= newProgDays; d++) {
+    const daysToCopy = newProgType === "program" ? (newProgStream === "Stronger" ? 7 : 5) : newProgDays;
+    for (let d = 1; d <= daysToCopy; d++) {
       const sourceIdx = updatedWorkouts.findIndex(w => w.week === selectedWeek - 1 && w.day === d);
       const targetIdx = updatedWorkouts.findIndex(w => w.week === selectedWeek && w.day === d);
       
@@ -753,7 +831,8 @@ const Admin = () => {
     if (targetWeek === selectedWeek || targetWeek < 1 || targetWeek > maxWeeks) return;
     const updatedWorkouts = [...progWorkouts];
     
-    for (let d = 1; d <= newProgDays; d++) {
+    const daysToDup = newProgType === "program" ? (newProgStream === "Stronger" ? 7 : 5) : newProgDays;
+    for (let d = 1; d <= daysToDup; d++) {
       const sourceIdx = updatedWorkouts.findIndex(w => w.week === selectedWeek && w.day === d);
       const targetIdx = updatedWorkouts.findIndex(w => w.week === selectedWeek && w.day === d);
       
@@ -801,7 +880,8 @@ const Admin = () => {
     const updatedWorkouts = [...progWorkouts];
     let appliedCount = 0;
     
-    for (let d = 1; d <= newProgDays; d++) {
+    const daysToApply = newProgType === "program" ? (newProgStream === "Stronger" ? 7 : 5) : newProgDays;
+    for (let d = 1; d <= daysToApply; d++) {
       if (d === selectedDay) continue;
       const targetIdx = updatedWorkouts.findIndex(w => w.week === selectedWeek && w.day === d);
       if (targetIdx >= 0) {
@@ -960,46 +1040,78 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       toast.error("Please provide a program name.");
       return;
     }
-    const newProg = {
-      id: editingProgramId || "p_" + Date.now(),
-      name: newProgName,
-      description: newProgDesc,
-      stream: newProgStream,
-      coverImage: newProgCover,
-      type: newProgType,
-      weeks: newProgType === "GroupPT" ? 12 : newProgWeeks,
-      daysPerWeek: newProgDays,
-      weekNotes: progWeekNotes,
-      workouts: progWorkouts.map(w => {
-        const exercises = w.exercises.map((e: any) => ({ isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes, coachingNotes: e.coachingNotes }));
-        applyWarmupFireupSupersets(exercises);
-        return {
-          name: w.name,
-          week: w.week,
-          day: w.day,
-          date: w.date,
-          exercises
-        };
-      })
-    };
-    
-    let updated;
-    if (editingProgramId) {
-      updated = programs.map(p => p.id === editingProgramId ? newProg : p);
+    const week1Start = progWeekNotes[1]?.start_date || newProgStartDate || null;
+    if (newProgType === "wow") {
+      const wow = {
+        id: editingProgramId || `wow_${Date.now()}`,
+        name: newProgName,
+        description: newProgDesc,
+        score_type: wowScoreType,
+        scaled_allowed: wowScaledAllowed,
+        week_start: wowWeekStart,
+        exercises: progWorkouts[0]?.exercises?.map((e: any) => ({
+          isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes, coachingNotes: e.coachingNotes
+        })) || []
+      };
+      saveWorkoutOfWeek(wow).then(async (r) => {
+        if (r.success) {
+          toast.success(editingProgramId ? "WOW updated!" : "WOW created!");
+          setWows(await getWorkoutsOfWeek());
+          setEditingProgramId(null);
+          setNewProgName("");
+          setNewProgDesc("");
+          setProgWorkouts([]);
+          setActiveTab("wow");
+        } else {
+          toast.error("Failed to save WOW: " + r.error?.message);
+        }
+      });
     } else {
-      updated = [...programs, newProg];
+      const newProg = {
+        id: editingProgramId || "p_" + Date.now(),
+        name: newProgName,
+        description: newProgDesc,
+        stream: newProgStream,
+        start_date: week1Start,
+        coverImage: newProgCover,
+        type: newProgType,
+        weeks: newProgType === "GroupPT" ? 12 : newProgWeeks,
+        daysPerWeek: newProgType === "program" ? (newProgStream === "Stronger" ? 7 : 5) : newProgDays,
+        weekNotes: progWeekNotes,
+        workouts: progWorkouts.map(w => {
+          const exercises = w.exercises.map((e: any) => ({ isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes, coachingNotes: e.coachingNotes }));
+          applyWarmupFireupSupersets(exercises);
+          return {
+            name: w.name,
+            week: w.week,
+            day: w.day,
+            minDays: w.minDays,
+            dayCounts: w.dayCounts,
+            date: w.date,
+            exercises
+          };
+        })
+      };
+      
+      let updated;
+      if (editingProgramId) {
+        updated = programs.map(p => p.id === editingProgramId ? newProg : p);
+      } else {
+        updated = [...programs, newProg];
+      }
+      
+      setPrograms(updated);
+      const isEdit = !!editingProgramId;
+      savePrograms(updated).then(r => {
+        if (r.success) toast.success(isEdit ? "Program updated!" : "Program added!");
+        else toast.warning("Saved locally — cloud sync failed. It will retry automatically.");
+      });
     }
-    
-    setPrograms(updated);
-    const isEdit = !!editingProgramId;
-    savePrograms(updated).then(r => {
-      if (r.success) toast.success(isEdit ? "Program updated!" : "Program added!");
-      else toast.warning("Saved locally — cloud sync failed. It will retry automatically.");
-    });
     
     setNewProgName("");
     setNewProgDesc("");
-    setNewProgStream("Stronger");
+    setNewProgStream("Foundations");
+    setNewProgStartDate("");
     setNewProgDays(5);
     setNewProgCover("");
     setProgWorkouts([]);
@@ -1012,17 +1124,30 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     setNewProgName(prog.name);
     setNewProgDesc(prog.description || "");
     setNewProgStream(prog.stream || "Fusion");
+    setNewProgStartDate(prog.start_date || "");
     setNewProgCover(prog.coverImage || "");
     setNewProgType((prog.type as "program" | "session_folder" | "GroupPT") || "program");
     setNewProgWeeks(prog.weeks || 4);
     setNewProgDays(prog.daysPerWeek || 3);
-    setProgWeekNotes(prog.weekNotes || {});
+    const loadedNotes = prog.weekNotes || {};
+    const normalizedNotes: Record<number, any> = {};
+    Object.keys(loadedNotes).forEach(k => {
+      const key = Number(k);
+      if (typeof loadedNotes[key] === 'string') {
+        normalizedNotes[key] = { notes: loadedNotes[key] };
+      } else {
+        normalizedNotes[key] = loadedNotes[key] || {};
+      }
+    });
+    setProgWeekNotes(normalizedNotes);
     
     const workouts = prog.workouts?.length ? prog.workouts.map((w: any, idx: number) => ({
       id: `w_${Date.now()}_${idx}`,
       name: w.name,
       week: w.week,
       day: w.day,
+      minDays: w.minDays,
+      dayCounts: w.dayCounts,
       date: w.date,
       exercises: w.exercises.map((e: any, eIdx: number) => ({
         id: Date.now() + eIdx + Math.random(),
@@ -1148,15 +1273,17 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     if (!editingProgramId) {
       setEditingProgramId(progId);
     }
+    const week1Start = progWeekNotes[1]?.start_date || newProgStartDate || null;
     const newProg = {
       id: progId,
       name: newProgName || "Untitled AI Program",
       description: newProgDesc,
       stream: newProgStream,
+      start_date: week1Start,
       coverImage: newProgCover,
       type: newProgType,
       weeks: newProgType === "GroupPT" ? 12 : newProgWeeks,
-      daysPerWeek: newProgDays,
+      daysPerWeek: newProgType === "program" ? (newProgStream === "Stronger" ? 7 : 5) : newProgDays,
       weekNotes: progWeekNotes,
       workouts: workoutsToSave.map(w => {
         const exercises = w.exercises.map((e: any) => ({ isSection: e.isSection, sectionType: e.sectionType || "Normal", description: e.description, blockType: e.blockType || "Strength", name: e.name, sets: e.sets, reps: e.reps, weight: e.weight, distance: e.distance, timeMins: e.timeMins, timeSecs: e.timeSecs, rest: e.rest || 0, linkedToNext: e.linkedToNext, eachSide: e.eachSide, staffNotes: e.staffNotes, coachingNotes: e.coachingNotes }));
@@ -1165,6 +1292,8 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           name: w.name,
           week: w.week,
           day: w.day,
+          minDays: w.minDays,
+          dayCounts: w.dayCounts,
           date: w.date,
           exercises
         };
@@ -1189,20 +1318,32 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     const next = [...grid];
     for (const c of cells) {
       const i = next.findIndex((x) => x.week === c.week && x.day === c.day);
-      if (i !== -1) next[i].exercises = c.exercises;
-      else next.push({ ...c, id: `w_${Date.now()}_${Math.random()}`, name: `Week ${c.week}, Day ${c.day}` });
+      if (i !== -1) {
+        next[i] = {
+          ...next[i],
+          exercises: c.exercises,
+          ...(c.name && { name: c.name }),
+          ...(c.dayCounts && { dayCounts: c.dayCounts }),
+          ...(c.minDays && { minDays: c.minDays })
+        };
+      } else {
+        next.push({ ...c, id: `w_${Date.now()}_${Math.random()}`, name: c.name || `Week ${c.week}, Day ${c.day}` });
+      }
     }
     return next;
   };
 
-  const streamCfg = () => ({ weeks: newProgWeeks, days: newProgDays, stream: newProgStream });
-  const exPayload = () => exercises.map(ex => ({
-    id: ex.id,
-    name: ex.name,
-    category: ex.category,
-    movementType: ex.movementType,
-    equipment: ex.equipment
-  }));
+  const streamCfg = () => ({ weeks: newProgWeeks, days: newProgType === "program" ? 5 : newProgDays, stream: newProgStream });
+  const exPayload = () => {
+    const pool = (newProgStream === "Foundations")
+      ? exercises.filter(ex => String(ex.difficulty || "").toLowerCase() === "beginner")
+      : exercises;
+    return pool.map(ex => ({
+      id: ex.id, name: ex.name, category: ex.category,
+      movementType: ex.movementType, equipment: ex.equipment,
+      difficulty: ex.difficulty
+    }));
+  };
 
   const handleGenerateQuick = async () => {
     setIsGeneratingAI(true);
@@ -1218,7 +1359,12 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         if (error) throw new Error(error.message);
         if (data?.error) throw new Error(data.error);
         const cells = data.workouts || [];
-        cells.forEach((c: any) => c.exercises && applyWarmupFireupSupersets(c.exercises));
+        cells.forEach((c: any) => {
+          if (c.exercises) {
+            c.exercises = ensureCardioWarmup(c.exercises, c.day - 1, exercises);
+            applyWarmupFireupSupersets(c.exercises);
+          }
+        });
         grid = mergeCells(grid, cells);
         previousWeekWorkouts = cells;
         setProgWorkouts([...grid]);
@@ -1248,7 +1394,10 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           if (error) throw new Error(error.message);
           if (data?.error) throw new Error(data.error);
           const cell = (data.workouts || [])[0];
-          if (cell?.exercises) applyWarmupFireupSupersets(cell.exercises);
+          if (cell?.exercises) {
+            cell.exercises = ensureCardioWarmup(cell.exercises, cell.day - 1, exercises);
+            applyWarmupFireupSupersets(cell.exercises);
+          }
           return cell;
         } catch (e) {
           lastErr = e;
@@ -1263,7 +1412,8 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       const previousProgramWorkouts = programs.find((p: any) => p.type !== "GroupPT" && p.id !== editingProgramId)?.workouts || [];
       for (let w = 1; w <= newProgWeeks; w++) {
         const previousWeekWorkouts = w > 1 ? byWeek(w - 1) : [];
-        for (let d = 1; d <= newProgDays; d++) {
+        const daysToGen = newProgType === "program" ? (newProgStream === "Stronger" ? 7 : 5) : newProgDays;
+        for (let d = 1; d <= daysToGen; d++) {
           const existingCell = grid.find((c) => c.week === w && c.day === d);
           if (existingCell && existingCell.exercises && existingCell.exercises.length > 0) {
             continue;
@@ -1316,7 +1466,12 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       if (!data || !data.workouts) throw new Error("No workouts returned from AI");
 
       const workouts = data.workouts;
-      workouts.forEach((c: any) => c.exercises && applyWarmupFireupSupersets(c.exercises));
+      workouts.forEach((c: any) => {
+        if (c.exercises) {
+          c.exercises = ensureCardioWarmup(c.exercises, c.day - 1, exercises);
+          applyWarmupFireupSupersets(c.exercises);
+        }
+      });
 
       setProgWorkouts(workouts);
       await autoSaveProgram(workouts);
@@ -1337,7 +1492,12 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     if (error) throw new Error(error.message);
     if (data?.error) throw new Error(data.error);
     const cells = data.workouts || [];
-    cells.forEach((c: any) => c.exercises && applyWarmupFireupSupersets(c.exercises));
+    cells.forEach((c: any) => {
+      if (c.exercises) {
+        c.exercises = ensureCardioWarmup(c.exercises, c.day - 1, exercises);
+        applyWarmupFireupSupersets(c.exercises);
+      }
+    });
     return cells;
   }
 
@@ -1394,16 +1554,30 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     }
   }
 
+
+
+  const handleDeleteWow = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this Workout of the Week?")) return;
+    const { error } = await supabase.from('workout_of_week').delete().eq('id', id);
+    if (!error) {
+      toast.success("WOW deleted");
+      setWows(await getWorkoutsOfWeek());
+    } else {
+      toast.error(`Failed to delete WOW: ${error.message}`);
+    }
+  };
+
   return (
     <div className="flex-1 space-y-6 p-8 pt-6 max-w-5xl mx-auto w-full">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-4xl font-heading tracking-wider font-bold">Staff Hub</h2>
       </div>
 
-      <Tabs defaultValue="exercises" className="w-full">
-        <TabsList className="grid w-full grid-cols-9 max-w-[1300px]">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="flex w-full max-w-[1300px] overflow-x-auto justify-start h-auto p-1">
           <TabsTrigger value="exercises">Manage Exercises</TabsTrigger>
           <TabsTrigger value="programs">Manage Programs</TabsTrigger>
+          <TabsTrigger value="wow">Workout of the Week</TabsTrigger>
           <TabsTrigger value="calendar">Calendar</TabsTrigger>
           <TabsTrigger value="display">TV Display</TabsTrigger>
           <TabsTrigger value="members">Members</TabsTrigger>
@@ -1521,19 +1695,108 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
             </CardContent>
           </Card>
 
-          <div className="flex items-center gap-4 mt-6 mb-4 flex-wrap">
-            <Input 
-              placeholder="Search exercises to edit or delete..." 
-              value={librarySearch}
-              onChange={e => setLibrarySearch(e.target.value)}
-              className="max-w-md"
-            />
-            {librarySearch && (
-              <Button variant="destructive" onClick={handleBulkDelete}>
-                Delete All Showing ({exercises.filter(ex => ex.name.toLowerCase().includes(librarySearch.toLowerCase())).length})
+          <div className="flex flex-col gap-4 mt-6 mb-4">
+            <div className="flex flex-col sm:flex-row gap-4 items-center flex-wrap">
+              <Input 
+                placeholder="Search exercises to edit or delete..." 
+                value={librarySearch}
+                onChange={e => setLibrarySearch(e.target.value)}
+                className="max-w-md w-full sm:w-auto"
+              />
+              
+              <Select value={catF} onValueChange={setCatF}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {catOpts.map(o => (
+                    <SelectItem key={o} value={o}>{o === "All" ? "All Categories" : o}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={muscleF} onValueChange={setMuscleF}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Muscle Group" />
+                </SelectTrigger>
+                <SelectContent>
+                  {muscleOpts.map(o => (
+                    <SelectItem key={o} value={o}>{o === "All" ? "All Muscles" : o}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={moveF} onValueChange={setMoveF}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Movement Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {moveOpts.map(o => (
+                    <SelectItem key={o} value={o}>{o === "All" ? "All Movements" : o}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={equipF} onValueChange={setEquipF}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Equipment" />
+                </SelectTrigger>
+                <SelectContent>
+                  {equipOpts.map(o => (
+                    <SelectItem key={o} value={o}>{o === "All" ? "All Equipment" : o}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={diffF} onValueChange={setDiffF}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Difficulty" />
+                </SelectTrigger>
+                <SelectContent>
+                  {diffOpts.map(o => (
+                    <SelectItem key={o} value={o}>{o === "All" ? "All Difficulties" : o}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={trackF} onValueChange={setTrackF}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Tracking Style" />
+                </SelectTrigger>
+                <SelectContent>
+                  {trackOpts.map(o => (
+                    <SelectItem key={o} value={o}>{o === "All" ? "All Tracking Styles" : o}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-4 flex-wrap">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setLibrarySearch("");
+                  setCatF("All");
+                  setMuscleF("All");
+                  setMoveF("All");
+                  setEquipF("All");
+                  setDiffF("All");
+                  setTrackF("All");
+                }}
+              >
+                Clear filters
               </Button>
-            )}
-            <div className="flex gap-2 ml-auto">
+              <span className="text-sm text-muted-foreground">
+                Showing {filteredLibrary.length} of {exercises.length} exercises
+              </span>
+              
+              {(librarySearch || catF !== "All" || muscleF !== "All" || moveF !== "All" || equipF !== "All" || diffF !== "All" || trackF !== "All") && (
+                <Button variant="destructive" onClick={handleBulkDelete}>
+                  Delete All Showing ({filteredLibrary.length})
+                </Button>
+              )}
+              
+              <div className="flex gap-2 ml-auto">
               <Button variant="outline" className="gap-2" onClick={() => {
                 const input = document.createElement('input');
                 input.type = 'file';
@@ -1604,11 +1867,12 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
               <Button variant="outline" className="gap-2" onClick={handleExportData}>
                 <Download className="h-4 w-4" /> Backup to CSV
               </Button>
+              </div>
             </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {exercises.filter(ex => ex.name.toLowerCase().includes(librarySearch.toLowerCase())).map((ex) => (
+            {filteredLibrary.map((ex) => (
               <Card key={ex.id} className="bg-muted/50 border-border flex flex-col">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg flex items-center justify-between">
@@ -1720,7 +1984,8 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                     <Label>Tracking Style</Label>
                     <div className="flex flex-wrap gap-4 pt-2">
                       {TRACKING_TYPES.map(t => {
-                        const currentTracking = Array.isArray(editingExercise.trackingType) ? editingExercise.trackingType : (editingExercise.trackingType ? [editingExercise.trackingType] : ["Weight & Reps"]);
+                        const rawTrack = editingExercise.trackingType ?? "Weight & Reps";
+                        const currentTracking = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                         return (
                           <div key={t} className="flex items-center space-x-2">
                             <Checkbox 
@@ -1756,66 +2021,94 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         <TabsContent value="programs" className="space-y-6 mt-6">
           <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle>Create Ready-Made Program</CardTitle>
-              <CardDescription>Build a workout template for members to use.</CardDescription>
+              <CardTitle>{newProgType === "wow" ? (editingProgramId ? "Edit Workout of the Week" : "Create Workout of the Week") : (editingProgramId ? "Edit Ready-Made Program" : "Create Ready-Made Program")}</CardTitle>
+              <CardDescription>{newProgType === "wow" ? "Build a weekly benchmark workout for members." : "Build a workout template for members to use."}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Program Name</Label>
-                    <Input value={newProgName} onChange={e => setNewProgName(e.target.value)} placeholder="e.g. 12-Week Strength" />
+                    <Label>{newProgType === "wow" ? "WOW Name" : "Program Name"}</Label>
+                    <Input value={newProgName} onChange={e => setNewProgName(e.target.value)} placeholder={newProgType === "wow" ? "e.g. Benchmark Test" : "e.g. 12-Week Strength"} />
                   </div>
                   <div className="space-y-2">
                     <Label>Description</Label>
                     <Input value={newProgDesc} onChange={e => setNewProgDesc(e.target.value)} placeholder="Short description" />
                   </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Cover Image (Optional)</Label>
-                    <div className="flex gap-2">
-                      <Input value={newProgCover} onChange={e => setNewProgCover(e.target.value)} placeholder="e.g. https://example.com/image.jpg" className="flex-1" />
-                      <div className="relative">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageUpload}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                          disabled={isUploadingImage}
-                          title="Upload image"
-                        />
-                        <Button type="button" variant="outline" disabled={isUploadingImage} className="gap-2 w-[110px]">
-                          {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                          {isUploadingImage ? "Uploading" : "Upload"}
-                        </Button>
+                  {newProgType !== "wow" && (
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Cover Image (Optional)</Label>
+                      <div className="flex gap-2">
+                        <Input value={newProgCover} onChange={e => setNewProgCover(e.target.value)} placeholder="e.g. https://example.com/image.jpg" className="flex-1" />
+                        <div className="relative">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            disabled={isUploadingImage}
+                            title="Upload image"
+                          />
+                          <Button type="button" variant="outline" disabled={isUploadingImage} className="gap-2 w-[110px]">
+                            {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                            {isUploadingImage ? "Uploading" : "Upload"}
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                   <div className="space-y-2 md:col-span-2">
                     <Label>Program Structure</Label>
-                    <Select value={newProgType} onValueChange={(v: "program" | "session_folder" | "GroupPT") => setNewProgType(v)}>
+                    <Select value={newProgType} onValueChange={(v: "program" | "session_folder" | "GroupPT" | "wow") => {
+                      setNewProgType(v);
+                      if (v === "wow") {
+                        setProgWorkouts([{ week: 1, day: 1, date: "", name: "Workout of the Week", exercises: [] }]);
+                      }
+                    }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="program">Structured Program (Weeks/Days)</SelectItem>
                         <SelectItem value="session_folder">Session Folder (Standalone Sessions)</SelectItem>
                         <SelectItem value="GroupPT">Group PT (12-Week Block)</SelectItem>
+                        <SelectItem value="wow">Workout of the Week (WOW)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+                  {newProgType === "wow" && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:col-span-2">
+                      <div className="space-y-2">
+                        <Label>Score Type</Label>
+                        <Select value={wowScoreType} onValueChange={setWowScoreType}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="time">For Time</SelectItem>
+                            <SelectItem value="reps">Total Reps</SelectItem>
+                            <SelectItem value="distance">Distance</SelectItem>
+                            <SelectItem value="calories">Calories</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Week Start Date (Monday)</Label>
+                        <Input type="date" value={wowWeekStart} onChange={e => setWowWeekStart(e.target.value)} />
+                      </div>
+                      <div className="flex items-center space-x-2 pt-8">
+                        <Checkbox id="wowScaled" checked={wowScaledAllowed} onCheckedChange={(c) => setWowScaledAllowed(!!c)} />
+                        <Label htmlFor="wowScaled">Allow Scaled Option</Label>
+                      </div>
+                    </div>
+                  )}
                   {(newProgType === "program" || newProgType === "GroupPT") && (
                     <>
                       {newProgType === "program" && (
                         <div className="space-y-2">
                           <Label>Stream</Label>
-                          <Select value={newProgStream} onValueChange={(val) => {
-                            setNewProgStream(val);
-                            if (val === "Stronger") setNewProgDays(5);
-                            else if (val === "Fusion") setNewProgDays(4);
-                            else if (val === "Performance") setNewProgDays(5);
-                          }}>
+                          <Select value={newProgStream} onValueChange={setNewProgStream}>
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="Foundations">Foundations</SelectItem>
                               <SelectItem value="Stronger">Stronger</SelectItem>
                               <SelectItem value="Fusion">Fusion</SelectItem>
                               <SelectItem value="Performance">Performance</SelectItem>
@@ -1823,6 +2116,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                           </Select>
                         </div>
                       )}
+
                       <div className="space-y-2">
                         <Label>Length (Weeks)</Label>
                         <Input 
@@ -1834,10 +2128,12 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                           disabled={newProgType === "GroupPT"}
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Days per Week</Label>
-                        <Input type="number" min="1" max="7" value={newProgDays} onChange={e => setNewProgDays(parseInt(e.target.value) || 1)} />
-                      </div>
+                      {newProgType !== "program" && (
+                        <div className="space-y-2">
+                          <Label>Days per Week</Label>
+                          <Input type="number" min="1" max="7" value={newProgDays} onChange={e => setNewProgDays(parseInt(e.target.value) || 1)} />
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -1903,6 +2199,24 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                       </div>
                     )}
                     
+                    {progWorkouts.length > 0 && (newProgType === "program" || newProgType === "GroupPT") && (
+                      <div className="bg-muted/40 p-3 rounded-md border border-border text-sm flex flex-col gap-2">
+                        <div className="flex items-center gap-2 font-bold text-foreground/80">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          How members see this week
+                        </div>
+                        <p className="text-muted-foreground text-xs leading-relaxed">
+                          {newProgStream === "Stronger" ? (
+                            <>2 days → Full Body A + B &middot; 3 days → Push/Pull/Legs &middot; 4 days → + Mobility & Cardio &middot; 5 days → + Full Body. Each session's badge shows which plans include it.</>
+                          ) : newProgStream === "Foundations" ? (
+                            <>2 days → Full Body A + B &middot; 3 days → + Full Body C &middot; 4 days → + Strength + Easy Cardio &middot; 5 days → + Move & Recover. Each session's badge shows which plans include it.</>
+                          ) : (
+                            <>Sessions are filtered by the member's preferred training frequency (2-5 days). The badge on each session shows which plans include it.</>
+                          )}
+                        </p>
+                      </div>
+                    )}
+
                     {progViewMode === "full" && (newProgType === "program" || newProgType === "GroupPT") ? (
                       <div className="space-y-8">
                         {Array.from({ length: newProgType === "GroupPT" ? 12 : newProgWeeks }).map((_, wIdx) => {
@@ -1911,7 +2225,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                             <div key={weekNum} className="space-y-4">
                               <h4 className="font-bold text-lg border-b pb-2">Week {weekNum}</h4>
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                                {Array.from({ length: newProgDays }).map((_, dIdx) => {
+                                {Array.from({ length: newProgType === "program" ? (newProgStream === "Stronger" ? 7 : 5) : newProgDays }).map((_, dIdx) => {
                                   const dayNum = dIdx + 1;
                                   const workout = progWorkouts.find(w => w.week === weekNum && w.day === dayNum);
                                   return (
@@ -1924,9 +2238,42 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                       window.scrollTo({ top: 0, behavior: 'smooth' });
                                     }}>
                                       <CardHeader className="p-3 pb-2">
-                                        <CardTitle className="text-sm">Day {dayNum}</CardTitle>
+                                        <div className="flex justify-between items-start gap-2">
+                                          <CardTitle className="text-sm">Day {dayNum}</CardTitle>
+                                          {(() => {
+                                            const dayCounts = workout?.dayCounts;
+                                            const minDays = workout?.minDays;
+                                            if (!dayCounts && !minDays) return null;
+                                            
+                                            let label = "";
+                                            let isTwoDay = false;
+                                            if (dayCounts) {
+                                              const counts = [...dayCounts].sort((a,b) => a-b);
+                                              if (counts.length === 1 && counts[0] === 2) { label = "2-DAY PLAN"; isTwoDay = true; }
+                                              else if (counts.length === 1) label = `${counts[0]}-DAY ONLY`;
+                                              else if (counts.length === 4 && counts[0] === 2 && counts[3] === 5) label = "ALL PLANS";
+                                              else if (counts.length > 1 && counts[counts.length-1] - counts[0] === counts.length - 1) label = `${counts[0]}-${counts[counts.length-1]} DAY`;
+                                              else label = counts.join(",") + " DAY";
+                                            } else if (minDays) {
+                                              if (minDays === 2) label = "ALL PLANS";
+                                              else if (minDays === 5) label = "5-DAY ONLY";
+                                              else label = `${minDays}-5 DAY`;
+                                            }
+
+                                            return (
+                                              <Badge variant={isTwoDay ? "default" : "outline"} className={cn("text-[8px] px-1 py-0 h-4 uppercase whitespace-nowrap", isTwoDay ? "bg-primary/20 text-primary border-primary/30" : "text-muted-foreground")}>
+                                                {label}
+                                              </Badge>
+                                            );
+                                          })()}
+                                        </div>
                                       </CardHeader>
-                                      <CardContent className="p-3 pt-0 flex-1">
+                                      <CardContent className="p-3 pt-0 flex-1 flex flex-col">
+                                        {workout?.dayCounts?.length === 1 && workout?.dayCounts[0] === 2 && (
+                                          <div className="text-[10px] text-primary font-medium mb-2 leading-tight bg-primary/5 p-1.5 rounded border border-primary/10">
+                                            Done instead of Push/Pull/Legs
+                                          </div>
+                                        )}
                                         {workout?.exercises?.length > 0 ? (
                                           <div className="space-y-1 text-xs">
                                             {workout.exercises.map((ex: any, i: number) => {
@@ -1992,7 +2339,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                               ))}
                             </div>
                             <div className="flex gap-2 overflow-x-auto pb-2">
-                              {Array.from({ length: newProgDays }).map((_, i) => (
+                              {Array.from({ length: newProgType === "program" ? (newProgStream === "Stronger" ? 7 : 5) : newProgDays }).map((_, i) => (
                                 <Button 
                                   key={`day-${i+1}`} 
                                   variant={selectedDay === i + 1 ? "default" : "secondary"}
@@ -2020,9 +2367,11 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                 {w.name}
                               </Button>
                             ))}
-                            <Button variant="outline" onClick={handleAddSession} className="whitespace-nowrap gap-2">
-                              <Plus className="h-4 w-4" /> Add Session
-                            </Button>
+                            {newProgType !== "wow" && (
+                              <Button variant="outline" onClick={handleAddSession} className="whitespace-nowrap gap-2">
+                                <Plus className="h-4 w-4" /> Add Session
+                              </Button>
+                            )}
                           </div>
                         )}
 
@@ -2047,24 +2396,79 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                   </Select>
                                 </div>
                               </div>
-                              <div className="space-y-2">
-                                <Label>Week Notes (Staff Only)</Label>
-                                <Input 
-                                  placeholder="e.g. Focus on eccentric control this week..." 
-                                  value={progWeekNotes[selectedWeek] || ""}
-                                  onChange={e => setProgWeekNotes({...progWeekNotes, [selectedWeek]: e.target.value})}
-                                />
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label>Week Start Date</Label>
+                                  <Input 
+                                    type="date"
+                                    value={progWeekNotes[selectedWeek]?.start_date || ""}
+                                    onChange={e => {
+                                      const newDate = e.target.value;
+                                      setProgWeekNotes({...progWeekNotes, [selectedWeek]: { ...progWeekNotes[selectedWeek], start_date: newDate }});
+                                    }}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Week Notes (Staff Only)</Label>
+                                  <Input 
+                                    placeholder="e.g. Focus on eccentric control this week..." 
+                                    value={progWeekNotes[selectedWeek]?.notes || ""}
+                                    onChange={e => setProgWeekNotes({...progWeekNotes, [selectedWeek]: { ...progWeekNotes[selectedWeek], notes: e.target.value }})}
+                                  />
+                                </div>
                               </div>
                             </div>
                           )}
 
                           <div className="flex items-center justify-between flex-wrap gap-4">
-                            <div className="flex items-center gap-4">
-                              <h3 className="font-heading tracking-wider text-xl">{progWorkouts[selectedWorkoutIndex]?.name}</h3>
-                              <div className="flex items-center gap-2">
-                                <Label className="whitespace-nowrap text-xs text-muted-foreground uppercase">Scheduled Date</Label>
-                                <Input 
-                                  type="date" 
+                            <div className="flex items-center gap-4 flex-wrap">
+                              {newProgType !== "wow" && (
+                                <div className="flex items-center gap-2">
+                                  <Label className="whitespace-nowrap text-xs text-muted-foreground uppercase">Session Name / Theme</Label>
+                                  <Input 
+                                    value={progWorkouts[selectedWorkoutIndex]?.name || ""} 
+                                    onChange={(e) => {
+                                      const updatedWorkouts = [...progWorkouts];
+                                      updatedWorkouts[selectedWorkoutIndex] = { ...updatedWorkouts[selectedWorkoutIndex], name: e.target.value };
+                                      setProgWorkouts(updatedWorkouts);
+                                    }}
+                                    className="w-[200px] h-8 text-sm font-heading tracking-wider"
+                                    placeholder={`Day ${progWorkouts[selectedWorkoutIndex]?.day || 1}`}
+                                  />
+                                {(() => {
+                                  const workout = progWorkouts[selectedWorkoutIndex];
+                                  const dayCounts = workout?.dayCounts;
+                                  const minDays = workout?.minDays;
+                                  if (!dayCounts && !minDays) return null;
+                                  
+                                  let label = "";
+                                  let isTwoDay = false;
+                                  if (dayCounts) {
+                                    const counts = [...dayCounts].sort((a,b) => a-b);
+                                    if (counts.length === 1 && counts[0] === 2) { label = "2-DAY PLAN"; isTwoDay = true; }
+                                    else if (counts.length === 1) label = `${counts[0]}-DAY ONLY`;
+                                    else if (counts.length === 4 && counts[0] === 2 && counts[3] === 5) label = "ALL PLANS";
+                                    else if (counts.length > 1 && counts[counts.length-1] - counts[0] === counts.length - 1) label = `${counts[0]}-${counts[counts.length-1]} DAY`;
+                                    else label = counts.join(",") + " DAY";
+                                  } else if (minDays) {
+                                    if (minDays === 2) label = "ALL PLANS";
+                                    else if (minDays === 5) label = "5-DAY ONLY";
+                                    else label = `${minDays}-5 DAY`;
+                                  }
+
+                                  return (
+                                    <Badge variant={isTwoDay ? "default" : "outline"} className={cn("text-[10px] px-2 py-0.5 h-6 uppercase whitespace-nowrap", isTwoDay ? "bg-primary/20 text-primary border-primary/30" : "text-muted-foreground")}>
+                                      {label}
+                                    </Badge>
+                                  );
+                                  })()}
+                                </div>
+                              )}
+                              {newProgType !== "wow" && (
+                                <div className="flex items-center gap-2">
+                                  <Label className="whitespace-nowrap text-xs text-muted-foreground uppercase">Scheduled Date</Label>
+                                  <Input 
+                                    type="date" 
                                   value={progWorkouts[selectedWorkoutIndex]?.date || ""} 
                                   onChange={(e) => {
                                     const updatedWorkouts = [...progWorkouts];
@@ -2072,8 +2476,31 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                     setProgWorkouts(updatedWorkouts);
                                   }}
                                   className="w-[140px] h-8 text-sm"
-                                />
-                              </div>
+                                  />
+                                </div>
+                              )}
+                              {newProgType !== "wow" && (
+                                <div className="flex items-center gap-2">
+                                <Label className="whitespace-nowrap text-xs text-muted-foreground uppercase">Min Days</Label>
+                                <Select 
+                                  value={progWorkouts[selectedWorkoutIndex]?.minDays?.toString() || "0"} 
+                                  onValueChange={(v) => {
+                                    const updatedWorkouts = [...progWorkouts];
+                                    updatedWorkouts[selectedWorkoutIndex] = { ...updatedWorkouts[selectedWorkoutIndex], minDays: parseInt(v, 10) || undefined };
+                                    setProgWorkouts(updatedWorkouts);
+                                  }}
+                                >
+                                  <SelectTrigger className="w-[100px] h-8 text-sm"><SelectValue placeholder="All" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="0">All</SelectItem>
+                                    <SelectItem value="2">2 Days</SelectItem>
+                                    <SelectItem value="3">3 Days</SelectItem>
+                                    <SelectItem value="4">4 Days</SelectItem>
+                                    <SelectItem value="5">5 Days</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                </div>
+                              )}
                             </div>
                             <div className="flex gap-2">
                               {selectedWorkoutIndex > 0 && (
@@ -2085,7 +2512,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                 <Select onValueChange={(v) => handleDuplicateDayTo(selectedWeek, parseInt(v))}>
                                   <SelectTrigger className="w-[160px] h-9"><SelectValue placeholder="Duplicate To Day..." /></SelectTrigger>
                                   <SelectContent>
-                                    {Array.from({ length: newProgDays }).map((_, i) => (
+                                    {Array.from({ length: newProgType === "program" ? (newProgStream === "Stronger" ? 7 : 5) : newProgDays }).map((_, i) => (
                                       i + 1 !== selectedDay && <SelectItem key={`dup-d-${i+1}`} value={(i + 1).toString()}>Day {i + 1}</SelectItem>
                                     ))}
                                   </SelectContent>
@@ -2094,17 +2521,19 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                               <Button variant="outline" size="sm" onClick={handleShuffleAll}>
                                 Shuffle All
                               </Button>
-                              <Button 
-                                variant="default" 
-                                size="sm" 
-                                className="gap-2 bg-primary text-primary-foreground"
-                                onClick={() => newProgType === "GroupPT" ? regenerateGroupCell(selectedWorkoutIndex) : handleEdgeFunctionAI(selectedWorkoutIndex, "regenerate")}
-                                disabled={isGeneratingAI}
-                              >
-                                {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                                Regenerate
-                              </Button>
-                              {newProgType !== "GroupPT" && (
+                              {newProgType !== "wow" && (
+                                <Button 
+                                  variant="default" 
+                                  size="sm" 
+                                  className="gap-2 bg-primary text-primary-foreground"
+                                  onClick={() => newProgType === "GroupPT" ? regenerateGroupCell(selectedWorkoutIndex) : handleEdgeFunctionAI(selectedWorkoutIndex, "regenerate")}
+                                  disabled={isGeneratingAI}
+                                >
+                                  {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                  Regenerate
+                                </Button>
+                              )}
+                              {newProgType !== "GroupPT" && newProgType !== "wow" && (
                                 <Button 
                                   variant="outline" 
                                   size="sm" 
@@ -2127,18 +2556,20 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                     <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-border rounded-lg bg-muted/20">
                                       <Dumbbell className="h-12 w-12 text-muted-foreground mb-4 opacity-20" />
                                       <p className="text-muted-foreground mb-4">No exercises added yet.</p>
-                                      <Button 
-                                        onClick={() => newProgType === "GroupPT" ? regenerateGroupCell(selectedWorkoutIndex) : handleEdgeFunctionAI(selectedWorkoutIndex, "generate")} 
-                                        className="gap-2 bg-primary text-primary-foreground"
-                                        disabled={isGeneratingAI}
-                                      >
-                                        {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                                        Generate Workout with AI
-                                      </Button>
+                                      {newProgType !== "wow" && (
+                                        <Button 
+                                          onClick={() => newProgType === "GroupPT" ? regenerateGroupCell(selectedWorkoutIndex) : handleEdgeFunctionAI(selectedWorkoutIndex, "generate")} 
+                                          className="gap-2 bg-primary text-primary-foreground"
+                                          disabled={isGeneratingAI}
+                                        >
+                                          {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                          Generate Workout with AI
+                                        </Button>
+                                      )}
                                     </div>
                                   ) : (
                                     (progWorkouts[selectedWorkoutIndex]?.exercises || []).map((pe: any, index: number) => (
-                                    <Draggable key={pe.id.toString()} draggableId={pe.id.toString()} index={index}>
+                                    <Draggable key={pe.id?.toString() || `ex-${index}`} draggableId={pe.id?.toString() || `ex-${index}`} index={index}>
                                       {(provided) => (
                                         <div
                                           ref={provided.innerRef}
@@ -2274,9 +2705,11 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                   <div className="flex flex-wrap items-center gap-4">
                                                     {(() => {
                                                       const libEx = exercises.find(e => String(e.id) === String(pe.name));
-                                                      const trackType = libEx?.trackingType || ["Weight & Reps"];
-                                                      const trackingArray = Array.isArray(trackType) ? trackType : [trackType];
-                                                      
+                                                      const rawTrack = libEx?.trackingType ?? "Weight & Reps";
+                                                      const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/))
+                                                        .map((s) => s.trim())
+                                                        .filter(Boolean);
+
                                                       const canWR = trackingArray.includes('Weight & Reps');
                                                       const canTime = trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time');
                                                       const canDist = trackingArray.includes('Distance & Time');
@@ -2432,7 +2865,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
               </div>
               <div className="flex gap-2 mt-6 pt-6 border-t border-border">
                 <Button onClick={handleAddProgram} className="flex-1 gap-2">
-                  <Dumbbell className="h-4 w-4" /> {editingProgramId ? "Update Program" : "Save Program"}
+                  <Dumbbell className="h-4 w-4" /> {editingProgramId ? (newProgType === "wow" ? "Update WOW" : "Update Program") : (newProgType === "wow" ? "Save WOW" : "Save Program")}
                 </Button>
                 {editingProgramId && (
                   <Button variant="outline" onClick={() => {
@@ -2440,6 +2873,9 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                     setNewProgName("");
                     setNewProgDesc("");
                     setProgWorkouts([]);
+                    if (newProgType === "wow") {
+                      setActiveTab("wow");
+                    }
                   }}>
                     Cancel
                   </Button>
@@ -2515,6 +2951,56 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
             ))}
           </div>
         </TabsContent>
+        <TabsContent value="wow" className="space-y-6 mt-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="font-heading text-2xl uppercase">Workout of the Week</h3>
+            <Button onClick={() => {
+              setEditingProgramId(null);
+              setNewProgType("wow");
+              setNewProgName("");
+              setNewProgDesc("");
+              setWowScoreType("time");
+              setWowScaledAllowed(true);
+              setWowWeekStart("");
+              setProgWorkouts([{ week: 1, day: 1, date: "", name: "Workout of the Week", exercises: [] }]);
+              setActiveTab("programs");
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }} className="gap-2">
+              <Plus className="h-4 w-4" /> Create New WOW
+            </Button>
+          </div>
+
+          <h3 className="font-heading text-2xl uppercase mt-8 mb-4">Past WOWs</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {wows.map(w => (
+              <Card key={w.id} className="bg-card border-border">
+                <CardContent className="p-4 flex justify-between items-center">
+                  <div>
+                    <h4 className="font-bold">{w.name}</h4>
+                    <p className="text-sm text-muted-foreground">W/C {new Date(w.week_start).toLocaleDateString()}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => {
+                      setEditingProgramId(w.id);
+                      setNewProgType("wow");
+                      setNewProgName(w.name);
+                      setNewProgDesc(w.description || "");
+                      setWowScoreType(w.score_type || "time");
+                      setWowScaledAllowed(w.scaled_allowed ?? true);
+                      setWowWeekStart(w.week_start || "");
+                      setProgWorkouts([{ week: 1, day: 1, date: "", name: "Workout of the Week", exercises: w.exercises || [] }]);
+                      // Switch to programs tab
+                      setActiveTab("programs");
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}>Edit in Builder</Button>
+                    <Button variant="destructive" size="sm" onClick={() => handleDeleteWow(w.id)}>Delete</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
 
         <TabsContent value="members" className="space-y-6 mt-6">
           <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -2536,7 +3022,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                 <div className="space-y-2">
                   <Label>Allowed Access</Label>
                   <div className="flex flex-wrap gap-4">
-                    {["Stronger", "Fusion", "Performance", "Group PT"].map(acc => (
+                    {["Foundations", "Stronger", "Fusion", "Performance", "Group PT"].map(acc => (
                       <div key={acc} className="flex items-center space-x-2">
                         <Checkbox 
                           id={`inv-${acc}`} 
@@ -2589,7 +3075,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                   <div className="space-y-2 flex-1">
                     <Label className="text-xs text-muted-foreground">Access</Label>
                     <div className="grid grid-cols-2 gap-2">
-                      {["Stronger", "Fusion", "Performance", "Group PT"].map(acc => {
+                      {["Foundations", "Stronger", "Fusion", "Performance", "Group PT"].map(acc => {
                         const hasAccess = (member.allowed_access || []).includes(acc);
                         return (
                           <div key={acc} className="flex items-center space-x-2">
@@ -2758,7 +3244,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                               </SelectTrigger>
                               <SelectContent>
                                 {nutritionHabits.map((h: any) => (
-                                  <SelectItem key={h.id} value={h.id.toString()}>{h.name}</SelectItem>
+                                  <SelectItem key={h.id} value={h.id?.toString() || ""}>{h.name}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -2870,12 +3356,58 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                       {phaseHabits.map(habit => (
                         <Card key={habit.id} className="bg-card border-border overflow-hidden">
                           <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                            <div className="flex-1 min-w-0">
+                            <div className="flex-1 min-w-0 space-y-2">
                               <h5 className="font-bold text-lg">{habit.name}</h5>
                               <p className="text-xs text-muted-foreground line-clamp-1">{habit.coaching_cue}</p>
+                              
+                              <div className="grid grid-cols-2 gap-4 mt-2">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] uppercase">Check-in Type</Label>
+                                  <Select 
+                                    defaultValue={habit.checkin_type || "tick"} 
+                                    onValueChange={(v) => handleUpdateHabit(habit.id, { checkin_type: v })}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="tick">Tick (Once)</SelectItem>
+                                      <SelectItem value="count">Count (Multiple)</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] uppercase">Days to Graduate</Label>
+                                  <Input 
+                                    type="number" 
+                                    className="h-8 text-xs" 
+                                    defaultValue={habit.days_to_graduate || 21}
+                                    onBlur={(e) => handleUpdateHabit(habit.id, { days_to_graduate: parseInt(e.target.value) || 21 })}
+                                  />
+                                </div>
+                                {habit.checkin_type === 'count' && (
+                                  <>
+                                    <div className="space-y-1">
+                                      <Label className="text-[10px] uppercase">Count Target</Label>
+                                      <Input 
+                                        type="number" 
+                                        className="h-8 text-xs" 
+                                        defaultValue={habit.count_target || 1}
+                                        onBlur={(e) => handleUpdateHabit(habit.id, { count_target: parseInt(e.target.value) || 1 })}
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Label className="text-[10px] uppercase">Count Unit</Label>
+                                      <Input 
+                                        className="h-8 text-xs" 
+                                        defaultValue={habit.count_unit || "times"}
+                                        onBlur={(e) => handleUpdateHabit(habit.id, { count_unit: e.target.value })}
+                                      />
+                                    </div>
+                                  </>
+                                )}
+                              </div>
                             </div>
                             
-                            <div className="flex items-center gap-2 w-full md:w-auto">
+                            <div className="flex items-center gap-2 w-full md:w-auto mt-4 md:mt-0">
                               <div className="relative flex-1 md:w-72">
                                 <Input 
                                   placeholder="Video URL (Vimeo/YouTube)" 

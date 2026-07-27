@@ -81,7 +81,7 @@ export default function Nutrition() {
   const [macroForm, setMacroForm] = useState({
     sex: 'male', age: '', height: '', activity: '1.2', goal: 'maintain', weight: ''
   });
-  const [todayMacros, setTodayMacros] = useState({ protein: 0, calories: 0, carbs: 0, fat: 0 });
+  const [todayMacros, setTodayMacros] = useState({ hit_protein: false, hit_calories: false });
 
   useEffect(() => {
     loadData();
@@ -112,9 +112,9 @@ export default function Nutrition() {
       const today = new Date().toISOString().split('T')[0];
       const todaysLog = mLogs.find((l: any) => l.date === today);
       if (todaysLog) {
-        setTodayMacros({ protein: todaysLog.protein || 0, calories: todaysLog.calories || 0, carbs: todaysLog.carbs || 0, fat: todaysLog.fat || 0 });
+        setTodayMacros({ hit_protein: todaysLog.hit_protein || false, hit_calories: todaysLog.hit_calories || false });
       } else {
-        setTodayMacros({ protein: 0, calories: 0, carbs: 0, fat: 0 });
+        setTodayMacros({ hit_protein: false, hit_calories: false });
       }
 
       const { data: { user } } = await supabase.auth.getUser();
@@ -179,22 +179,17 @@ export default function Nutrition() {
       const habit = habitsLibrary.find(h => h.id === mHabit.habit_id);
       if (!habit) continue;
 
-      const last7Days = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        return d.toISOString().split('T')[0];
-      });
+      const checkinType = habit.checkin_type || 'tick';
+      const countTarget = checkinType === 'count' ? (habit.count_target || 1) : 1;
+      const daysToGraduate = habit.days_to_graduate || 21;
 
-      const doneDays = last7Days.filter(date => {
-        const checkin = chks.find(c => c.date === date && c.habit_id === mHabit.habit_id);
-        if (!checkin) return false;
-        if (habit.checkin_type === 'tick') return checkin.done;
-        return (checkin.count_value || 0) >= (habit.count_target || 0);
+      const goodDays = chks.filter(c => {
+        if (c.habit_id !== habit.id) return false;
+        if (checkinType === 'tick') return c.done;
+        return (c.count_value || 0) >= countTarget;
       }).length;
 
-      const consistency = (doneDays / 7) * 100;
-
-      if (consistency >= 85) {
+      if (goodDays >= daysToGraduate) {
         const idx = updatedHabits.findIndex(h => h.id === mHabit.id);
         updatedHabits[idx] = { 
           ...mHabit, 
@@ -280,6 +275,9 @@ export default function Nutrition() {
     else updatedCheckins.push(checkin);
     setCheckins(updatedCheckins);
     await saveHabitCheckin(checkin);
+    if (nutrition && memberHabits.length > 0) {
+      checkProgression(nutrition, memberHabits, updatedCheckins);
+    }
   };
 
   const calculateMacros = async () => {
@@ -357,16 +355,14 @@ export default function Nutrition() {
     }
   };
 
-  const logTodayMacros = async (field: string, value: number) => {
+  const logTodayMacros = async (field: string, value: boolean) => {
     const updated = { ...todayMacros, [field]: value };
     setTodayMacros(updated);
     const today = new Date().toISOString().split('T')[0];
     const log = {
       date: today,
-      protein: updated.protein,
-      calories: updated.calories,
-      carbs: updated.carbs,
-      fat: updated.fat
+      hit_protein: updated.hit_protein,
+      hit_calories: updated.hit_calories
     };
     const res = await saveMacroLog(log);
     if (res.success) {
@@ -394,7 +390,7 @@ export default function Nutrition() {
           if (diff > 1) break;
         }
       }
-      if (log.protein >= macros.protein_target) {
+      if (log.hit_protein) {
         streak++;
         currentDate.setDate(currentDate.getDate() - 1);
       } else {
@@ -559,12 +555,6 @@ export default function Nutrition() {
           <p className="text-sm text-muted-foreground uppercase tracking-widest font-medium">Phase {nutrition.phase} · {nutrition.goal.replace('_', ' ')}</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex gap-1 bg-muted rounded-lg p-1">
-            <Button variant={activeTab === 'habits' ? 'default' : 'ghost'} size="sm" className="text-[10px] h-8" onClick={() => setActiveTab('habits')}>Habits</Button>
-            <Button variant={activeTab === 'progress' ? 'default' : 'ghost'} size="sm" className="text-[10px] h-8" onClick={() => setActiveTab('progress')}>Progress</Button>
-            <Button variant={activeTab === 'roadmap' ? 'default' : 'ghost'} size="sm" className="text-[10px] h-8" onClick={() => setActiveTab('roadmap')}>Roadmap</Button>
-          </div>
-          
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
@@ -610,29 +600,117 @@ export default function Nutrition() {
         />
       )}
 
-      <AnimatePresence>
-        {activeTab === 'habits' && (
-          <motion.div key="habits" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
-            <HabitsHome activeMemberHabits={activeMemberHabits} habitsLibrary={habitsLibrary} checkins={checkins} handleCheckin={handleCheckin} today={today} memberHabits={memberHabits} coachNotes={coachNotes} nutrition={nutrition} recordCoachingInterest={recordCoachingInterest} macros={macros} macroForm={macroForm} setMacroForm={setMacroForm} showMacroCalc={showMacroCalc} setShowMacroCalc={setShowMacroCalc} calculateMacros={calculateMacros} toggleMacroTracking={toggleMacroTracking} todayMacros={todayMacros} logTodayMacros={logTodayMacros} getProteinStreak={getProteinStreak} bodyweight={bodyweight} />
-          </motion.div>
-        )}
-        {activeTab === 'progress' && (
-          <motion.div key="progress" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
-            <NutritionProgress consistencyData={consistencyData} measurements={measurements} photos={photos} bodyweight={bodyweight} onAddMeasurement={handleAddMeasurement} newMeasurement={newMeasurement} setNewMeasurement={setNewMeasurement} onPhotoUpload={() => photoInputRef.current?.click()} onLogWeight={handleLogWeight} isUploading={isUploading} />
-          </motion.div>
-        )}
-        {activeTab === 'roadmap' && (
-          <motion.div key="roadmap" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
-            <RoadmapView nutrition={nutrition} memberHabits={memberHabits} habitsLibrary={habitsLibrary} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div className="space-y-12">
+        <HabitsHome activeMemberHabits={activeMemberHabits} habitsLibrary={habitsLibrary} checkins={checkins} handleCheckin={handleCheckin} today={today} memberHabits={memberHabits} nutrition={nutrition} macros={macros} macroForm={macroForm} setMacroForm={setMacroForm} showMacroCalc={showMacroCalc} setShowMacroCalc={setShowMacroCalc} calculateMacros={calculateMacros} toggleMacroTracking={toggleMacroTracking} todayMacros={todayMacros} logTodayMacros={logTodayMacros} getProteinStreak={getProteinStreak} bodyweight={bodyweight} />
+        
+        <div className="space-y-4">
+          <h2 className="text-2xl font-heading uppercase">Roadmap</h2>
+          <RoadmapView nutrition={nutrition} memberHabits={memberHabits} habitsLibrary={habitsLibrary} />
+        </div>
+
+        <div className="space-y-4">
+          <h2 className="text-2xl font-heading uppercase">Progress</h2>
+          <NutritionProgress consistencyData={consistencyData} measurements={measurements} photos={photos} bodyweight={bodyweight} onAddMeasurement={handleAddMeasurement} newMeasurement={newMeasurement} setNewMeasurement={setNewMeasurement} onPhotoUpload={() => photoInputRef.current?.click()} onLogWeight={handleLogWeight} isUploading={isUploading} />
+        </div>
+
+        <div className="space-y-4">
+          <h2 className="text-2xl font-heading uppercase">Coach Accountability</h2>
+          <CoachUpsellSection nutrition={nutrition} coachNotes={coachNotes} recordCoachingInterest={recordCoachingInterest} activeMemberHabits={activeMemberHabits} habitsLibrary={habitsLibrary} checkins={checkins} />
+        </div>
+      </div>
       <input type="file" ref={photoInputRef} className="hidden" accept="image/*" onChange={handlePhotoUpload} />
     </div>
   );
 }
 
-function HabitsHome({ activeMemberHabits, habitsLibrary, checkins, handleCheckin, today, memberHabits, coachNotes, nutrition, recordCoachingInterest, macros, macroForm, setMacroForm, showMacroCalc, setShowMacroCalc, calculateMacros, toggleMacroTracking, todayMacros, logTodayMacros, getProteinStreak, bodyweight }: any) {
+function CoachUpsellSection({ nutrition, coachNotes, recordCoachingInterest, activeMemberHabits, habitsLibrary, checkins }: any) {
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    return d.toISOString().split('T')[0];
+  });
+  const totalPossible = last7Days.length * activeMemberHabits.length;
+  let totalDone = 0;
+  if (totalPossible > 0) {
+    last7Days.forEach(date => {
+      activeMemberHabits.forEach((mh: any) => {
+        const habit = habitsLibrary.find((h: any) => h.id === mh.habit_id);
+        const checkin = checkins.find((c: any) => c.date === date && c.habit_id === mh.habit_id);
+        if (checkin && habit) {
+          if (habit.checkin_type === 'tick' && checkin.done) totalDone++;
+          else if (habit.checkin_type === 'count' && (checkin.count_value || 0) >= (habit.count_target || 0)) totalDone++;
+        }
+      });
+    });
+  }
+  const consistency = totalPossible > 0 ? Math.round((totalDone / totalPossible) * 100) : 0;
+  let streak = 0;
+  let currentDay = 0;
+  while (true) {
+    const d = new Date();
+    d.setDate(d.getDate() - currentDay);
+    const dateStr = d.toISOString().split('T')[0];
+    const allDone = activeMemberHabits.every((mh: any) => {
+      const habit = habitsLibrary.find((h: any) => h.id === mh.habit_id);
+      const checkin = checkins.find((c: any) => c.date === dateStr && c.habit_id === mh.habit_id);
+      if (!checkin || !habit) return false;
+      if (habit.checkin_type === 'tick') return checkin.done;
+      return (checkin.count_value || 0) >= (habit.count_target || 0);
+    });
+    if (allDone && activeMemberHabits.length > 0) { streak++; currentDay++; } else break;
+  }
+
+  let upsellMessage = null;
+  if (!nutrition?.coached) {
+    if (streak >= 7) {
+      upsellMessage = "You're smashing this. A coach will push you further.";
+    } else if (consistency < 50 && activeMemberHabits.length > 0) {
+      upsellMessage = "Stuck? This is exactly where a coach breaks you through.";
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {upsellMessage && (
+        <Card className="bg-primary/10 border-primary/20">
+          <CardContent className="p-4 flex items-center justify-between gap-4">
+            <p className="text-sm font-medium">{upsellMessage}</p>
+            <Button size="sm" onClick={recordCoachingInterest}>Upgrade</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="border-border">
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+            <Info className="h-4 w-4" /> Coach's Note
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          {nutrition?.coached ? (
+            coachNotes?.length > 0 ? (
+              <div className="space-y-1">
+                <p className="text-sm italic">"{coachNotes[0].note}"</p>
+                <p className="text-[10px] text-muted-foreground uppercase">{new Date(coachNotes[0].created_at).toLocaleDateString()}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">No notes from your coach yet.</p>
+            )
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground italic">Your coach's note appears here — upgrade to 1-1 coaching.</p>
+              <Button variant="outline" size="sm" className="w-full text-xs h-8" onClick={recordCoachingInterest}>
+                Learn about 1-1 Coaching
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function HabitsHome({ activeMemberHabits, habitsLibrary, checkins, handleCheckin, today, memberHabits, nutrition, macros, macroForm, setMacroForm, showMacroCalc, setShowMacroCalc, calculateMacros, toggleMacroTracking, todayMacros, logTodayMacros, getProteinStreak, bodyweight }: any) {
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
@@ -671,25 +749,142 @@ function HabitsHome({ activeMemberHabits, habitsLibrary, checkins, handleCheckin
   const nextQueuedHabit = memberHabits.filter((h: any) => h.status === 'queued').sort((a: any, b: any) => a.position - b.position)[0];
   const nextHabitName = nextQueuedHabit ? habitsLibrary.find((h: any) => h.id === nextQueuedHabit.habit_id)?.name : "Journey Complete";
 
-  let upsellMessage = null;
-  if (!nutrition?.coached) {
-    if (streak >= 7) {
-      upsellMessage = "You're smashing this. A coach will push you further.";
-    } else if (consistency < 50 && activeMemberHabits.length > 0) {
-      upsellMessage = "Stuck? This is exactly where a coach breaks you through.";
-    }
-  }
+
 
   return (
     <div className="space-y-6">
-      {upsellMessage && (
-        <Card className="bg-primary/10 border-primary/20">
-          <CardContent className="p-4 flex items-center justify-between gap-4">
-            <p className="text-sm font-medium">{upsellMessage}</p>
-            <Button size="sm" onClick={recordCoachingInterest}>Upgrade</Button>
-          </CardContent>
-        </Card>
-      )}
+      <div className="space-y-4">
+        <h2 className="text-2xl font-heading uppercase">Today's Habit</h2>
+        {activeMemberHabits.length > 0 ? activeMemberHabits.map((mh: any) => {
+          const habit = habitsLibrary.find((h: any) => String(h.id) === String(mh.habit_id));
+
+          if (!habit) return null;
+          const checkin = checkins.find((c: any) => c.date === today && c.habit_id === mh.habit_id);
+          
+          const checkinType = habit.checkin_type || 'tick';
+          const countTarget = checkinType === 'count' ? (habit.count_target || 1) : 1;
+          const todayCount = checkinType === 'tick' ? (checkin?.done ? 1 : 0) : (checkin?.count_value || 0);
+          const isDone = todayCount >= countTarget;
+          
+          const daysToGraduate = habit.days_to_graduate || 21;
+          
+          // Calculate total good days
+          const goodDays = checkins.filter((c: any) => {
+            if (c.habit_id !== habit.id) return false;
+            if (checkinType === 'tick') return c.done;
+            return (c.count_value || 0) >= countTarget;
+          }).length;
+
+          const innerProgress = Math.min(1, todayCount / countTarget);
+          const outerProgress = Math.min(1, goodDays / daysToGraduate);
+
+          const radius = 80;
+          const stroke = 12;
+          const normalizedRadius = radius - stroke * 2;
+          const circumference = normalizedRadius * 2 * Math.PI;
+          const innerRadius = normalizedRadius - stroke * 1.5;
+          const innerCircumference = innerRadius * 2 * Math.PI;
+
+          return (
+            <div key={mh.id} className="flex flex-col items-center text-center space-y-6 bg-card border border-border rounded-xl p-6 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4">
+                <Badge variant="outline" className="text-[10px] uppercase bg-background/50 backdrop-blur-sm">{habit.category}</Badge>
+              </div>
+              
+              <div className="space-y-2 max-w-[280px]">
+                <h3 className="text-3xl font-heading uppercase text-foreground">{habit.name}</h3>
+                <p className="text-sm text-muted-foreground">{habit.coaching_cue}</p>
+              </div>
+
+              <div className="relative flex items-center justify-center" style={{ width: radius * 2, height: radius * 2 }}>
+                <svg height={radius * 2} width={radius * 2} className="transform -rotate-90">
+                  <circle stroke="currentColor" fill="transparent" strokeWidth={stroke} r={normalizedRadius} cx={radius} cy={radius} className="text-muted/30" />
+                  <circle
+                    stroke="currentColor"
+                    fill="transparent"
+                    strokeWidth={stroke}
+                    strokeDasharray={circumference + ' ' + circumference}
+                    style={{ strokeDashoffset: circumference - outerProgress * circumference }}
+                    strokeLinecap="round"
+                    r={normalizedRadius}
+                    cx={radius}
+                    cy={radius}
+                    className="transition-all duration-1000 ease-out text-primary"
+                  />
+                  
+                  <circle stroke="currentColor" fill="transparent" strokeWidth={stroke * 0.8} r={innerRadius} cx={radius} cy={radius} className="text-muted/30" />
+                  <circle
+                    stroke="currentColor"
+                    fill="transparent"
+                    strokeWidth={stroke * 0.8}
+                    strokeDasharray={innerCircumference + ' ' + innerCircumference}
+                    style={{ strokeDashoffset: innerCircumference - innerProgress * innerCircumference }}
+                    strokeLinecap="round"
+                    r={innerRadius}
+                    cx={radius}
+                    cy={radius}
+                    className="transition-all duration-1000 ease-out text-primary/60"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                  <span className="text-2xl font-bold font-heading text-foreground leading-none">{goodDays} <span className="text-sm text-muted-foreground">/ {daysToGraduate}</span></span>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold mt-1">Days</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center gap-4 w-full">
+                <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                  <Info className="h-4 w-4 text-primary" /> {habit.practice_label}
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  {checkinType === 'tick' ? (
+                    <Button size="lg" variant={isDone ? "default" : "outline"} className={`h-16 w-16 rounded-full p-0 transition-all ${isDone ? 'bg-primary text-primary-foreground scale-110 shadow-lg shadow-primary/20' : ''}`} onClick={() => handleCheckin(habit.id, { done: !isDone, count_value: !isDone ? 1 : 0 })}>
+                      <Check className={`h-8 w-8 transition-transform duration-500 ${isDone ? 'scale-125' : 'scale-100'}`} />
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-4 bg-muted rounded-full p-2">
+                      <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full hover:bg-background bg-background shadow-sm" onClick={() => handleCheckin(habit.id, { count_value: Math.max(0, todayCount - 1), done: todayCount - 1 >= countTarget })}>
+                        <Minus className="h-5 w-5" />
+                      </Button>
+                      <div className="flex flex-col items-center min-w-[60px]">
+                        <span className="text-2xl font-bold leading-none">{todayCount} <span className="text-sm text-muted-foreground">/ {countTarget}</span></span>
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground">{habit.count_unit}</span>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full hover:bg-background bg-background shadow-sm" onClick={() => handleCheckin(habit.id, { count_value: Math.min(countTarget, todayCount + 1), done: todayCount + 1 >= countTarget })}>
+                        <Plus className="h-5 w-5" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {habit.video_url && (
+                  <Dialog>
+                    <RadixDialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="mt-2 gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-primary">
+                        <Play className="h-4 w-4 fill-current" /> Watch Lesson
+                      </Button>
+                    </RadixDialogTrigger>
+                    <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden bg-black border-none">
+                      <DialogHeader className="p-4 absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent">
+                        <DialogTitle className="text-white">{habit.name}</DialogTitle>
+                      </DialogHeader>
+                      <div className="aspect-video w-full mt-10">
+                        <iframe src={getEmbedUrl(habit.video_url)} className="w-full h-full" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+            </div>
+          );
+        }) : (
+          <div className="text-center py-12 space-y-4">
+            <Trophy className="h-12 w-12 text-muted-foreground mx-auto opacity-20" />
+            <p className="text-sm text-muted-foreground">All habits graduated! Check the roadmap for next steps.</p>
+          </div>
+        )}
+      </div>
       
       <div className="flex items-center justify-between px-1">
         <h2 className="text-lg font-heading uppercase">Macros & Calories</h2>
@@ -770,10 +965,10 @@ function HabitsHome({ activeMemberHabits, habitsLibrary, checkins, handleCheckin
             </Card>
           ) : (
             <Card>
-              <CardContent className="p-4 space-y-4">
-                <div className="flex justify-between items-center mb-2">
+              <CardContent className="p-4 space-y-6">
+                <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-heading uppercase text-lg">Today's Intake</h3>
+                    <h3 className="font-heading uppercase text-lg">Your Daily Targets</h3>
                     {macros?.coach_set && <Badge variant="secondary" className="text-[10px]">Coach Set</Badge>}
                   </div>
                   {!macros?.coach_set && <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => {
@@ -783,61 +978,38 @@ function HabitsHome({ activeMemberHabits, habitsLibrary, checkins, handleCheckin
                       height: macros?.height_cm?.toString() || '',
                       activity: macros?.activity_level?.toString() || '1.2',
                       goal: macros?.macro_goal || 'maintain',
-                      weight: bodyweight.length > 0 ? bodyweight[bodyweight.length - 1].weight.toString() : ''
+                      weight: bodyweight.length > 0 ? (bodyweight[bodyweight.length - 1].weight?.toString() || '') : ''
                     });
                     setShowMacroCalc(true);
                   }}>Recalculate</Button>}
                 </div>
                 
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-end">
-                      <Label className="text-sm font-bold flex items-center gap-2">
-                        Protein
-                        {getProteinStreak() > 0 && <Badge variant="secondary" className="text-[10px] bg-primary/20 text-primary border-none"><Flame className="h-3 w-3 mr-1" />{getProteinStreak()}</Badge>}
-                      </Label>
-                      <span className="text-xs font-medium">{todayMacros.protein} / {macros.protein_target}g</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <Progress value={Math.min(100, (todayMacros.protein / macros.protein_target) * 100)} className="h-2 flex-1" />
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => logTodayMacros('protein', Math.max(0, todayMacros.protein - 5))}><Minus className="h-3 w-3" /></Button>
-                        <Input type="number" value={todayMacros.protein || ''} onChange={e => logTodayMacros('protein', parseInt(e.target.value) || 0)} className="w-16 h-8 text-center px-1" />
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => logTodayMacros('protein', todayMacros.protein + 5)}><Plus className="h-3 w-3" /></Button>
-                      </div>
-                    </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                      Protein Target
+                      {getProteinStreak() > 0 && <Badge variant="secondary" className="text-[10px] bg-primary/20 text-primary border-none py-0 h-4"><Flame className="h-3 w-3 mr-1" />{getProteinStreak()}</Badge>}
+                    </p>
+                    <p className="text-3xl font-heading text-primary">{macros.protein_target}g</p>
                   </div>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-end">
-                      <Label className="text-sm font-bold">Calories</Label>
-                      <span className="text-xs font-medium">{todayMacros.calories} / {macros.calorie_target} kcal</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <Progress value={Math.min(100, (todayMacros.calories / macros.calorie_target) * 100)} className="h-2 flex-1" />
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => logTodayMacros('calories', Math.max(0, todayMacros.calories - 50))}><Minus className="h-3 w-3" /></Button>
-                        <Input type="number" value={todayMacros.calories || ''} onChange={e => logTodayMacros('calories', parseInt(e.target.value) || 0)} className="w-16 h-8 text-center px-1" />
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => logTodayMacros('calories', todayMacros.calories + 50)}><Plus className="h-3 w-3" /></Button>
-                      </div>
-                    </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Calorie Target</p>
+                    <p className="text-3xl font-heading">{macros.calorie_target} <span className="text-sm">kcal</span></p>
                   </div>
+                </div>
 
-                  <div className="grid grid-cols-2 gap-4 pt-2">
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Carbs</span>
-                        <span className="font-medium">{todayMacros.carbs}/{macros.carb_target}g</span>
-                      </div>
-                      <Input type="number" value={todayMacros.carbs || ''} onChange={e => logTodayMacros('carbs', parseInt(e.target.value) || 0)} className="h-8 text-center" placeholder="Carbs (g)" />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Fat</span>
-                        <span className="font-medium">{todayMacros.fat}/{macros.fat_target}g</span>
-                      </div>
-                      <Input type="number" value={todayMacros.fat || ''} onChange={e => logTodayMacros('fat', parseInt(e.target.value) || 0)} className="h-8 text-center" placeholder="Fat (g)" />
-                    </div>
+                <div className="space-y-3 pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-bold cursor-pointer" onClick={() => logTodayMacros('hit_protein', !todayMacros.hit_protein)}>Did you hit your protein today?</Label>
+                    <Button size="icon" variant={todayMacros.hit_protein ? "default" : "outline"} className={`h-10 w-10 rounded-full p-0 transition-all ${todayMacros.hit_protein ? 'bg-primary text-primary-foreground scale-110 shadow-lg shadow-primary/20' : ''}`} onClick={() => logTodayMacros('hit_protein', !todayMacros.hit_protein)}>
+                      <Check className={`h-5 w-5 transition-transform duration-500 ${todayMacros.hit_protein ? 'scale-125' : 'scale-100'}`} />
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-bold cursor-pointer" onClick={() => logTodayMacros('hit_calories', !todayMacros.hit_calories)}>Did you stick to your calories today?</Label>
+                    <Button size="icon" variant={todayMacros.hit_calories ? "default" : "outline"} className={`h-10 w-10 rounded-full p-0 transition-all ${todayMacros.hit_calories ? 'bg-primary text-primary-foreground scale-110 shadow-lg shadow-primary/20' : ''}`} onClick={() => logTodayMacros('hit_calories', !todayMacros.hit_calories)}>
+                      <Check className={`h-5 w-5 transition-transform duration-500 ${todayMacros.hit_calories ? 'scale-125' : 'scale-100'}`} />
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -846,137 +1018,6 @@ function HabitsHome({ activeMemberHabits, habitsLibrary, checkins, handleCheckin
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
-        <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-            <span className="text-3xl font-heading text-primary">{consistency}%</span>
-            <span className="text-[10px] uppercase font-bold text-muted-foreground">7-Day Consistency</span>
-          </CardContent>
-        </Card>
-        <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-            <div className="flex items-center gap-1">
-              <Flame className="h-5 w-5 text-primary fill-primary" />
-              <span className="text-3xl font-heading text-primary">{streak}</span>
-            </div>
-            <span className="text-[10px] uppercase font-bold text-muted-foreground">Day Streak</span>
-          </CardContent>
-        </Card>
-      </div>
-      <Card className="overflow-hidden border-primary/20">
-        <CardContent className="p-4 space-y-2">
-          <div className="flex justify-between items-end">
-            <div className="space-y-1">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground">Roadmap Progress</span>
-              <p className="text-xs font-bold">Next: <span className="text-primary">{nextHabitName}</span></p>
-            </div>
-            <span className="text-[10px] font-bold text-primary">85% TO UNLOCK</span>
-          </div>
-          <Progress value={consistency} className="h-2" />
-        </CardContent>
-      </Card>
-
-      <Card className="border-border">
-        <CardHeader className="p-4 pb-2">
-          <CardTitle className="text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-            <Info className="h-4 w-4" /> Coach's Note
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 pt-0">
-          {nutrition?.coached ? (
-            coachNotes?.length > 0 ? (
-              <div className="space-y-1">
-                <p className="text-sm italic">"{coachNotes[0].note}"</p>
-                <p className="text-[10px] text-muted-foreground uppercase">{new Date(coachNotes[0].created_at).toLocaleDateString()}</p>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">No notes from your coach yet.</p>
-            )
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground italic">Your coach's note appears here — upgrade to 1-1 coaching.</p>
-              <Button variant="outline" size="sm" className="w-full text-xs h-8" onClick={recordCoachingInterest}>
-                Learn about 1-1 Coaching
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="space-y-4">
-        <h2 className="text-xl font-heading uppercase">Today's Habits</h2>
-        {activeMemberHabits.length > 0 ? activeMemberHabits.map((mh: any) => {
-          const habit = habitsLibrary.find((h: any) => String(h.id) === String(mh.habit_id));
-
-          if (!habit) return null;
-          const checkin = checkins.find((c: any) => c.date === today && c.habit_id === mh.habit_id);
-          const isDone = habit.checkin_type === 'tick' ? checkin?.done : (checkin?.count_value || 0) >= (habit.count_target || 0);
-          return (
-            <Card key={mh.id} className={`transition-all duration-300 ${isDone ? 'border-primary bg-primary/5' : 'border-border'}`}>
-              <CardHeader className="p-4 pb-0">
-                <div className="flex justify-between items-start">
-                  <div className="space-y-1">
-                    <CardTitle className="text-lg font-bold">{habit.name}</CardTitle>
-                    <CardDescription className="text-xs">{habit.coaching_cue}</CardDescription>
-                    
-                    {habit.video_url && (
-                      <Dialog>
-                        <RadixDialogTrigger asChild>
-                          <Button variant="outline" size="sm" className="mt-2 gap-2 w-full justify-start text-xs h-8">
-                            <Play className="h-3 w-3 fill-primary text-primary" /> Watch the lesson
-                          </Button>
-                        </RadixDialogTrigger>
-                        <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden bg-black border-none">
-                          <DialogHeader className="p-4 absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent">
-                            <DialogTitle className="text-white">{habit.name}</DialogTitle>
-                          </DialogHeader>
-                          <div className="aspect-video w-full mt-10">
-                            <iframe
-                              src={getEmbedUrl(habit.video_url)}
-                              className="w-full h-full"
-                              allow="autoplay; fullscreen; picture-in-picture"
-                              allowFullScreen
-                            />
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    )}
-                  </div>
-                  <Badge variant="outline" className="text-[10px] uppercase">{habit.category}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="p-4 pt-4 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground italic">
-                  <Info className="h-3 w-3" /> {habit.practice_label}
-                </div>
-                {habit.checkin_type === 'tick' ? (
-                  <Button size="lg" variant={isDone ? "default" : "outline"} className={`h-14 w-14 rounded-full p-0 transition-all ${isDone ? 'bg-primary text-primary-foreground scale-110 shadow-lg shadow-primary/20' : ''}`} onClick={() => handleCheckin(habit.id, { done: !isDone })}>
-                    <Check className={`h-6 w-6 transition-transform duration-500 ${isDone ? 'scale-125' : 'scale-100'}`} />
-                  </Button>
-                ) : (
-                  <div className="flex items-center gap-3 bg-muted rounded-full p-1">
-                    <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-background" onClick={() => handleCheckin(habit.id, { count_value: Math.max(0, (checkin?.count_value || 0) - 1) })}>
-                      <Minus className="h-4 w-4" />
-                    </Button>
-                    <div className="flex flex-col items-center min-w-[40px]">
-                      <span className="text-lg font-bold">{(checkin?.count_value || 0)}</span>
-                      <span className="text-[8px] uppercase font-bold text-muted-foreground">{habit.count_unit}</span>
-                    </div>
-                    <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-background" onClick={() => handleCheckin(habit.id, { count_value: (checkin?.count_value || 0) + 1 })}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        }) : (
-          <div className="text-center py-12 space-y-4">
-            <Trophy className="h-12 w-12 text-muted-foreground mx-auto opacity-20" />
-            <p className="text-sm text-muted-foreground">All habits graduated! Check the roadmap for next steps.</p>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
