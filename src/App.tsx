@@ -16,6 +16,7 @@ import Feed from "./pages/Feed";
 import Education from "./pages/Education";
 import Nutrition from "./pages/Nutrition";
 import TVDisplay from "./pages/TVDisplay";
+import CheckIn from "./pages/CheckIn";
 
 import { useEffect, useState } from "react";
 import { syncFromSupabase, syncProfile } from "./lib/store";
@@ -79,9 +80,10 @@ const AppRoutes = () => {
             <Route path="/progress" element={<Progress />} />
             <Route path="/nutrition" element={<Nutrition />} />
             <Route path="/education" element={<Education />} />
+            <Route path="/tv/:programId/:workoutIndex" element={<TVDisplay />} />
+            <Route path="/checkin" element={<CheckIn />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/admin" element={<Admin />} />
-            <Route path="/tv/:programId/:workoutIndex" element={<TVDisplay />} />
             <Route path="/auth/callback" element={<Index />} />
             <Route path="/auth/confirm" element={<Index />} />
             <Route path="*" element={<NotFound />} />

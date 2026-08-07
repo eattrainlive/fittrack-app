@@ -822,7 +822,7 @@ const Workouts = () => {
                 </CardDescription>
                 <div className="flex items-center gap-2 mt-4 text-sm font-medium">
                   <Badge variant="outline" className="bg-background">
-                    {currentWow.score_type === 'time' ? 'For Time' : currentWow.score_type === 'reps' ? 'Total Reps' : currentWow.score_type === 'distance' ? 'Distance' : 'Calories'}
+                    {currentWow.score_type === 'time' ? 'For Time' : currentWow.score_type === 'reps' ? 'Total Reps' : currentWow.score_type === 'distance' ? 'For Distance/Metres' : 'For Calories'}
                   </Badge>
                   <span className="text-muted-foreground">{wowResults.length} logged</span>
                 </div>
@@ -1298,15 +1298,17 @@ const Workouts = () => {
                     const rawTrack = libEx?.trackingType ?? "Weight & Reps";
                     const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                     let details = [];
-                    if (trackingArray.includes('Weight & Reps')) details.push(`${firstSet.reps || 0} reps`);
                     if (trackingArray.includes('Distance & Time') && firstSet.distance) details.push(`${firstSet.distance}m`);
-                    if (trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) {
+                    if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (firstSet.timeMins || firstSet.timeSecs)) {
                       const m = firstSet.timeMins || 0;
                       const s = firstSet.timeSecs || 0;
                       if (m || s) details.push(`${m ? m + 'm ' : ''}${s ? s + 's' : ''}`.trim());
                     }
                     if (trackingArray.includes('Calories') && firstSet.calories) details.push(`${firstSet.calories} cals`);
-                    const detailStr = details.length > 0 ? details.join(', ') : '';
+                    if (details.length === 0 || trackingArray.includes('Weight & Reps')) {
+                      details.push(`${firstSet.reps || 0} reps`);
+                    }
+                    const detailStr = details.join(', ');
                     return (
                       <div key={idx} className="p-4 rounded-xl border border-border bg-card flex justify-between items-center">
                         <div className="font-bold">{libEx ? libEx.name : (ex.name || "Unknown")}</div>
@@ -1343,7 +1345,7 @@ const Workouts = () => {
                 </h2>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium mt-1">
                   <Badge variant="outline" className="bg-background">
-                    {currentWow.score_type === 'time' ? 'For Time' : currentWow.score_type === 'reps' ? 'Total Reps' : currentWow.score_type === 'distance' ? 'Distance' : 'Calories'}
+                    {currentWow.score_type === 'time' ? 'For Time' : currentWow.score_type === 'reps' ? 'Total Reps' : currentWow.score_type === 'distance' ? 'For Distance/Metres' : 'For Calories'}
                   </Badge>
                   <span>·</span>
                   <span>{wowResults.length} logged</span>
@@ -1388,10 +1390,22 @@ const Workouts = () => {
                         {sec.exercises.map((ex: any, exIdx: number) => {
                           const libEx = exerciseLibrary.find(e => String(e.id) === String(ex.name));
                           
+                          const rawTrack = libEx?.trackingType ?? "Weight & Reps";
+                          const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
+                          
+                          let metrics = [];
+                          if (trackingArray.includes('Distance & Time') && ex.distance) metrics.push(`${ex.distance}m`);
+                          if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (ex.timeMins || ex.timeSecs)) {
+                            metrics.push(`${ex.timeMins ? ex.timeMins + 'm ' : ''}${ex.timeSecs ? ex.timeSecs + 's' : ''}`.trim());
+                          }
+                          if (trackingArray.includes('Calories') && ex.calories) metrics.push(`${ex.calories} cals`);
+                          
                           let detailText = "";
-                          if (ex.sets && ex.reps) detailText = `${ex.sets}x${ex.reps}`;
-                          else if (ex.timeMins || ex.timeSecs) detailText = `${ex.timeMins || 0}m ${ex.timeSecs || 0}s`;
-                          else if (ex.distance) detailText = `${ex.distance}m`;
+                          if (metrics.length > 0) {
+                            detailText = ex.sets && ex.sets > 1 ? `${ex.sets} × ${metrics.join(', ')}` : metrics.join(', ');
+                          } else {
+                            detailText = `${ex.sets || 1} × ${ex.reps || 0}`;
+                          }
 
                           const isSupersetItem = ex.linkedToNext || (exIdx > 0 && sec.exercises[exIdx - 1].linkedToNext);
 
@@ -1521,22 +1535,17 @@ const Workouts = () => {
                           const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                           
                           let details = [];
-                          if (trackingArray.includes('Weight & Reps')) {
-                            details.push(`${firstSet.reps || 0} reps`);
-                          }
-                          if (trackingArray.includes('Distance & Time')) {
-                            if (firstSet.distance) details.push(`${firstSet.distance}m`);
-                          }
-                          if (trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) {
+                          if (trackingArray.includes('Distance & Time') && firstSet.distance) details.push(`${firstSet.distance}m`);
+                          if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (firstSet.timeMins || firstSet.timeSecs)) {
                             const m = firstSet.timeMins || 0;
                             const s = firstSet.timeSecs || 0;
                             if (m || s) details.push(`${m ? m + 'm ' : ''}${s ? s + 's' : ''}`.trim());
                           }
-                          if (trackingArray.includes('Calories')) {
-                            if (firstSet.calories) details.push(`${firstSet.calories} cals`);
+                          if (trackingArray.includes('Calories') && firstSet.calories) details.push(`${firstSet.calories} cals`);
+                          if (details.length === 0 || trackingArray.includes('Weight & Reps')) {
+                            details.push(`${firstSet.reps || 0} reps`);
                           }
-                          
-                          const detailStr = details.length > 0 ? details.join(', ') : '';
+                          const detailStr = details.join(', ');
 
                           return (
                             <div key={exIdx} className="flex justify-between items-center">
@@ -1648,22 +1657,18 @@ const Workouts = () => {
                           const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                           
                           let details = [];
-                          if (trackingArray.includes('Weight & Reps')) {
-                            details.push(`${firstSet.reps || 0} reps`);
-                          }
-                          if (trackingArray.includes('Distance & Time')) {
-                            if (firstSet.distance) details.push(`${firstSet.distance}m`);
-                          }
-                          if (trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) {
+                          if (trackingArray.includes('Distance & Time') && firstSet.distance) details.push(`${firstSet.distance}m`);
+                          if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (firstSet.timeMins || firstSet.timeSecs)) {
                             const m = firstSet.timeMins || 0;
                             const s = firstSet.timeSecs || 0;
                             if (m || s) details.push(`${m ? m + 'm ' : ''}${s ? s + 's' : ''}`.trim());
                           }
-                          if (trackingArray.includes('Calories')) {
-                            if (firstSet.calories) details.push(`${firstSet.calories} cals`);
+                          if (trackingArray.includes('Calories') && firstSet.calories) details.push(`${firstSet.calories} cals`);
+                          if (details.length === 0 || trackingArray.includes('Weight & Reps')) {
+                            details.push(`${firstSet.reps || 0} reps`);
                           }
                           
-                          const detailStr = details.length > 0 ? details.join(', ') : '';
+                          const detailStr = details.join(', ');
                           
                           sectionExercises.push({
                             id: ex.id || i,

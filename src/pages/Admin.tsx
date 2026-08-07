@@ -13,9 +13,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn, getEmbedUrl } from "@/lib/utils";
-import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification, getAnthropicKey, saveAnthropicKey, getVimeoToken, getHabits, getWorkoutsOfWeek, saveWorkoutOfWeek } from "@/lib/store";
+import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification, getAnthropicKey, saveAnthropicKey, getVimeoToken, getHabits, getWorkoutsOfWeek, saveWorkoutOfWeek, importMemberships, getMemberFlags, getFlagRules, saveFlagRule, recomputeFlags, overrideFlag, exportAttendanceData } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar as CalendarIcon, Bell, Send, Download, Link2, Link2Off, Heading, Upload, Sparkles, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar as CalendarIcon, Bell, Send, Download, Link2, Link2Off, Heading, Upload, Sparkles, Check, ChevronsUpDown, QrCode } from "lucide-react";
 import JSZip from "jszip";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
@@ -197,6 +197,17 @@ const Admin = () => {
   // Export State
   const [isZipping, setIsZipping] = useState(false);
 
+  // Attendance State
+  const [attendanceView, setAttendanceView] = useState<"sync" | "report" | "rules" | "export">("sync");
+  const [activeCsv, setActiveCsv] = useState("");
+  const [endedCsv, setEndedCsv] = useState("");
+  const [importResult, setImportResult] = useState<any>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [memberFlags, setMemberFlags] = useState<any[]>([]);
+  const [flagRules, setFlagRules] = useState<any[]>([]);
+  const [isRecomputing, setIsRecomputing] = useState(false);
+  const [attendanceMembers, setAttendanceMembers] = useState<any[]>([]);
+  const [flagFilter, setFlagFilter] = useState("all");
   // Calendar State
   const [scheduledEvents, setScheduledEvents] = useState<any[]>(() => {
     const saved = localStorage.getItem('fittrack_scheduled_events');
@@ -291,11 +302,118 @@ const Admin = () => {
     loadNutritionMembers();
     loadHabitLibrary();
     getHabits().then(setNutritionHabits);
+    loadAttendanceData();
 
     window.addEventListener('fittrack_synced', handleSync);
     return () => window.removeEventListener('fittrack_synced', handleSync);
   }, []);
 
+  // Attendance loaders
+  const loadAttendanceData = async () => {
+    const [flags, rules] = await Promise.all([getMemberFlags(), getFlagRules()]);
+    setMemberFlags(flags);
+    setFlagRules(rules);
+    const { data: gm } = await supabase.from('gym_members').select('*').order('full_name');
+    if (gm) setAttendanceMembers(gm);
+  };
+
+  const handleImportCsv = async () => {
+    if (!activeCsv) return;
+    setIsImporting(true);
+    try {
+      const parseCsv = (text: string) => {
+        const rows = text.split('\n').map(r => r.split(',').map(c => c.trim().replace(/^"|"$/g, '')));
+        const headers = rows[0].map(h => h.toLowerCase());
+        const emailIdx = headers.indexOf('email');
+        const nameIdx = headers.indexOf('name') !== -1 ? headers.indexOf('name') : headers.indexOf('full_name');
+        const productIdx = headers.indexOf('product');
+        const joinedIdx = headers.indexOf('joined_on');
+        const endedIdx = headers.indexOf('ended_on');
+        if (emailIdx === -1) throw new Error("CSV must have an 'email' column");
+        return rows.slice(1).filter(r => r.length > emailIdx && r[emailIdx]).map(r => ({
+          email: r[emailIdx],
+          full_name: nameIdx !== -1 ? r[nameIdx] : undefined,
+          product: productIdx !== -1 ? r[productIdx] : undefined,
+          joined_on: joinedIdx !== -1 ? r[joinedIdx] : undefined,
+          ended_on: endedIdx !== -1 ? r[endedIdx] : undefined,
+        }));
+      };
+
+      const activeRows = parseCsv(activeCsv);
+      const endedRows = endedCsv ? parseCsv(endedCsv) : [];
+
+      const result = await importMemberships(activeRows, endedRows);
+      setImportResult(result.results);
+      toast.success(`Sync complete: ${result.results.matched} matched, ${result.results.unmatched} unmatched, ${result.results.flagged} flagged`);
+      loadAttendanceData();
+    } catch (e: any) {
+      toast.error(`Import failed: ${e.message}`);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleRecomputeFlags = async () => {
+    setIsRecomputing(true);
+    try {
+      const { success } = await recomputeFlags();
+      if (success) {
+        toast.success("Flags recomputed");
+        loadAttendanceData();
+      } else {
+        toast.error("Recompute failed — ensure compute_member_flags() is deployed");
+      }
+    } finally {
+      setIsRecomputing(false);
+    }
+  };
+
+  const handleOverrideFlag = async (flagId: string) => {
+    const note = prompt("Override note (why is this flag being dismissed?):");
+    if (note === null) return;
+    const { success } = await overrideFlag(flagId, note);
+    if (success) {
+      toast.success("Flag overridden");
+      loadAttendanceData();
+    } else {
+      toast.error("Failed to override flag");
+    }
+  };
+
+  const handleSaveFlagRule = async (rule: any) => {
+    const { success } = await saveFlagRule(rule);
+    if (success) {
+      toast.success("Rule updated");
+      loadAttendanceData();
+    } else {
+      toast.error("Failed to update rule");
+    }
+  };
+
+  const handleExportAttendance = async () => {
+    try {
+      const data = await exportAttendanceData();
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "fittrack_attendance_export.json";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Attendance data exported");
+    } catch (e: any) {
+      toast.error(`Export failed: ${e.message}`);
+    }
+  };
+
+  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>, setter: (v: string) => void) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setter(reader.result as string);
+    reader.readAsText(file);
+  };
   const manageMembers = async (body: any) => {
     const { data, error } = await supabase.functions.invoke("manage-members", { body });
     if (error) throw new Error(error.message);
@@ -1582,11 +1700,11 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           <TabsTrigger value="display">TV Display</TabsTrigger>
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="nutrition">Nutrition</TabsTrigger>
+          <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
-        
         <TabsContent value="exercises" className="space-y-6 mt-6">
           <Card className="bg-card border-border">
             <CardHeader>
@@ -3862,6 +3980,224 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <TabsContent value="attendance" className="space-y-6 mt-6">
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="pt-6 flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <h3 className="font-heading text-xl">Reception Check-In Kiosk</h3>
+                <p className="text-sm text-muted-foreground">Open the check-in screen on a reception tablet. Scan barcodes or tap members from the roster.</p>
+              </div>
+              <a href="/checkin" target="_blank" rel="noopener noreferrer">
+                <Button size="lg" className="gap-2">
+<QrCode className="h-5 w-5" />
+                  Open Check-In
+                </Button>
+              </a>
+            </CardContent>
+          </Card>
+
+          <div className="flex gap-2 flex-wrap">
+            <Button variant={attendanceView === "sync" ? "default" : "outline"} size="sm" onClick={() => setAttendanceView("sync")}>Membership Sync</Button>
+            <Button variant={attendanceView === "report" ? "default" : "outline"} size="sm" onClick={() => { setAttendanceView("report"); loadAttendanceData(); }}>At-Risk Report</Button>
+            <Button variant={attendanceView === "rules" ? "default" : "outline"} size="sm" onClick={() => { setAttendanceView("rules"); loadAttendanceData(); }}>Flag Rules</Button>
+            <Button variant={attendanceView === "export" ? "default" : "outline"} size="sm" onClick={handleExportAttendance} className="gap-2">
+              <Download className="h-4 w-4" /> Export Data
+            </Button>
+          </div>
+
+          {attendanceView === "sync" && (
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle>Weekly Membership Sync</CardTitle>
+                <CardDescription>
+                  Upload Active and Ended CSVs from GymOS. Members are matched by email.
+                  Missing members are flagged for review — never auto-deactivated.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Active Memberships CSV</Label>
+                  <Input type="file" accept=".csv" onChange={(e) => handleCsvUpload(e, setActiveCsv)} />
+                  {activeCsv && <p className="text-xs text-primary">Loaded — {activeCsv.split('\n').length - 1} rows</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label>Ended / Cancelled CSV (optional)</Label>
+                  <Input type="file" accept=".csv" onChange={(e) => handleCsvUpload(e, setEndedCsv)} />
+                  {endedCsv && <p className="text-xs text-primary">Loaded — {endedCsv.split('\n').length - 1} rows</p>}
+                </div>
+                <Button onClick={handleImportCsv} disabled={isImporting || !activeCsv} className="gap-2">
+                  {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  {isImporting ? "Syncing..." : "Run Sync"}
+                </Button>
+
+                {importResult && (
+                  <div className="rounded-lg border border-border p-4 space-y-2">
+                    <p className="font-bold">Sync Results</p>
+                    <p className="text-sm">Matched: {importResult.matched}</p>
+                    <p className="text-sm">Unmatched (not in app): {importResult.unmatched}</p>
+                    <p className="text-sm text-destructive">Flagged for review: {importResult.flagged}</p>
+                    {importResult.unmatchedEmails?.length > 0 && (
+                      <div className="pt-2">
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Unmatched emails (need manual link):</p>
+                        <div className="flex flex-wrap gap-1">
+                          {importResult.unmatchedEmails.map((e: string) => (
+                            <span key={e} className="text-xs bg-muted px-2 py-0.5 rounded">{e}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="pt-4 border-t border-border">
+                  <p className="text-sm text-muted-foreground">
+                    <strong>Membership status is mirrored from GymOS only.</strong> No manual status editing.
+                    A member missing from the Active upload is flagged as "pending_review" — never auto-cancelled.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {attendanceView === "report" && (
+            <Card className="border-border">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>At-Risk Report</CardTitle>
+                    <CardDescription>Members flagged by the attendance engine. Flags are baseline-relative per product.</CardDescription>
+                  </div>
+                  <Button onClick={handleRecomputeFlags} disabled={isRecomputing} size="sm" className="gap-2">
+                    {isRecomputing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    Recompute Now
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex gap-2 flex-wrap">
+                  {["all", "attendance_drop", "no_show", "win_back"].map(f => (
+                    <Button
+                      key={f}
+                      variant={flagFilter === f ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setFlagFilter(f)}
+                    >
+                      {f === "all" ? "All" : f.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                    </Button>
+                  ))}
+                </div>
+
+                {memberFlags.filter(f => flagFilter === "all" || f.flag_type === flagFilter).length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No flags. Run "Recompute Now" to evaluate, or no members are currently at-risk.
+                  </p>
+                )}
+
+                {memberFlags
+                  .filter(f => flagFilter === "all" || f.flag_type === flagFilter)
+                  .map((flag) => (
+                    <div key={flag.id} className={`rounded-lg border p-4 space-y-2 ${
+                      flag.status === 'overridden' ? 'opacity-50 border-muted' :
+                      flag.severity === 'high' ? 'border-destructive/40 bg-destructive/5' :
+                      'border-border'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{flag.gym_members?.full_name || 'Unknown'}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {flag.gym_members?.product} · {flag.flag_type.replace(/_/g, ' ')}
+                            {flag.status === 'overridden' && ' · OVERRIDDEN'}
+                          </p>
+                        </div>
+                        <div className="text-right text-xs text-muted-foreground">
+                          {flag.baseline_freq != null && <p>Baseline: {Number(flag.baseline_freq).toFixed(1)}/wk</p>}
+                          {flag.recent_freq != null && <p>Recent: {Number(flag.recent_freq).toFixed(1)}/wk</p>}
+                          {flag.last_seen && <p>Last seen: {flag.last_seen}</p>}
+                        </div>
+                      </div>
+                      {flag.override_note && (
+                        <p className="text-xs italic text-muted-foreground">Override: {flag.override_note}</p>
+                      )}
+                      {flag.status !== 'overridden' && (
+                        <Button size="sm" variant="outline" onClick={() => handleOverrideFlag(flag.id)}>
+                          Override Flag
+                        </Button>
+                      )}
+                    </div>
+                  ))
+                }
+              </CardContent>
+            </Card>
+          )}
+
+          {attendanceView === "rules" && (
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle>Flag Rules</CardTitle>
+                <CardDescription>
+                  Editable thresholds per membership product. The engine uses these to flag at-risk members.
+                  Adjust after a couple of months of data to tune sensitivity.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {flagRules.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No rules loaded. Ensure the flag_rules table is seeded (see attendance_retention_schema.sql).
+                  </p>
+                )}
+                {flagRules.map((rule) => (
+                  <div key={rule.id} className="rounded-lg border border-border p-4 space-y-3">
+                    <p className="font-medium">{rule.product}</p>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Baseline Weeks</Label>
+                        <Input
+                          type="number"
+                          value={rule.baseline_weeks}
+                          onChange={(e) => setFlagRules(flagRules.map(r => r.id === rule.id ? { ...r, baseline_weeks: parseInt(e.target.value) } : r))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Recent Weeks</Label>
+                        <Input
+                          type="number"
+                          value={rule.recent_weeks}
+                          onChange={(e) => setFlagRules(flagRules.map(r => r.id === rule.id ? { ...r, recent_weeks: parseInt(e.target.value) } : r))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Drop %</Label>
+                        <Input
+                          type="number"
+                          value={rule.drop_pct}
+                          onChange={(e) => setFlagRules(flagRules.map(r => r.id === rule.id ? { ...r, drop_pct: parseInt(e.target.value) } : r))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Min Visits</Label>
+                        <Input
+                          type="number"
+                          value={rule.min_baseline_visits}
+                          onChange={(e) => setFlagRules(flagRules.map(r => r.id === rule.id ? { ...r, min_baseline_visits: parseInt(e.target.value) } : r))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Tenure Grace (days)</Label>
+                        <Input
+                          type="number"
+                          value={rule.tenure_grace_days}
+                          onChange={(e) => setFlagRules(flagRules.map(r => r.id === rule.id ? { ...r, tenure_grace_days: parseInt(e.target.value) } : r))}
+                        />
+                      </div>
+                    </div>
+                    <Button size="sm" onClick={() => handleSaveFlagRule(rule)}>Save Rule</Button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
       </Tabs>
     </div>
   );

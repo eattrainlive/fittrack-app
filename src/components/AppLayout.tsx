@@ -1,4 +1,4 @@
-import { Dumbbell, LayoutDashboard, LineChart, User, Users, Bell, LogIn, Download, Loader2, Apple, CloudOff, Cloud, CheckCircle2 } from "lucide-react";
+import { Dumbbell, LayoutDashboard, LineChart, User, Users, Bell, LogIn, Download, Loader2, Apple, CloudOff, Cloud, CheckCircle2, QrCode } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -125,6 +125,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 {syncStatus === 'saved' && 'Saved'}
               </span>
             </div>
+          )}
+          {isStaff && (
+            <a href="/checkin" target="_blank" rel="noopener noreferrer" className="hidden sm:block">
+              <Button variant="outline" size="sm" className="gap-2 border-primary text-primary hover:bg-primary/10">
+<QrCode className="h-4 w-4" />
+                Check-In
+              </Button>
+            </a>
           )}
           <Button variant="outline" size="sm" onClick={handleDownloadSource} disabled={isZipping} className="gap-2 hidden sm:flex border-primary text-primary hover:bg-primary/10">
             {isZipping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}

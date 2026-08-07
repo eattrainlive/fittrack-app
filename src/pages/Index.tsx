@@ -162,7 +162,7 @@ const Index = () => {
             </div>
             <div className="flex items-center gap-2 mt-2 text-xs font-medium">
               <Badge variant="outline" className="bg-background">
-                {currentWow.score_type === 'time' ? 'For Time' : currentWow.score_type === 'reps' ? 'Total Reps' : currentWow.score_type === 'distance' ? 'Distance' : 'Calories'}
+                {currentWow.score_type === 'time' ? 'For Time' : currentWow.score_type === 'reps' ? 'Total Reps' : currentWow.score_type === 'distance' ? 'For Distance/Metres' : 'For Calories'}
               </Badge>
             </div>
           </CardHeader>

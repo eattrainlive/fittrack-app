@@ -5,14 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Save, LogOut, CloudUpload, CloudDownload, BookOpen } from "lucide-react";
+import { Save, LogOut, CloudUpload, CloudDownload, BookOpen, QrCode } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
-import { migrateLocalToSupabase, syncFromSupabase, getPreferredDays, savePreferredDays } from "@/lib/store";
+import { migrateLocalToSupabase, syncFromSupabase, getPreferredDays, savePreferredDays, getMyScanToken, getMyGymMember } from "@/lib/store";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-
 const Profile = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
@@ -20,6 +19,8 @@ const Profile = () => {
   const [passcode, setPasscode] = useState("");
   const [isStaff, setIsStaff] = useState(() => localStorage.getItem("fittrack_is_staff") === "true");
   const [preferredDays, setPreferredDays] = useState(3);
+  const [scanToken, setScanToken] = useState<string | null>(null);
+  const [gymMember, setGymMember] = useState<any | null>(null);
 
   useEffect(() => {
     setPreferredDays(getPreferredDays());
@@ -28,6 +29,18 @@ const Profile = () => {
     return () => window.removeEventListener('fittrack_synced', handleSync);
   }, []);
 
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (user) {
+        setUser(user);
+        setName(user.user_metadata?.full_name || "John Doe");
+        const gm = await getMyGymMember();
+        setGymMember(gm);
+        const token = await getMyScanToken();
+        setScanToken(token);
+      }
+    });
+  }, []);
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
@@ -159,6 +172,38 @@ const Profile = () => {
         </Card>
 
         <div className="space-y-6">
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="font-heading text-2xl tracking-wider flex items-center gap-2">
+                <QrCode className="h-5 w-5" /> Gym Check-In QR
+              </CardTitle>
+              <CardDescription>Scan at reception to check in and keep your streak alive.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center gap-4">
+              {scanToken ? (
+                <>
+                  <div className="rounded-xl border-2 border-primary/30 bg-white p-4">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(scanToken)}`}
+                      alt="Check-in QR code"
+                      className="h-48 w-48"
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground text-center">
+                    {gymMember?.barcode
+                      ? <>Linked to your GymOS barcode.<br />Membership: <span className="font-semibold text-primary">{gymMember.status === 'active' ? 'Active' : gymMember.status}</span> — source GymOS</>
+                      : "Show this at reception. Your barcode will be linked on first scan."}
+                  </p>
+                  {gymMember?.last_import_at && (
+                    <p className="text-xs text-muted-foreground">As of {new Date(gymMember.last_import_at).toLocaleDateString()}</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">QR code will appear once you're linked to a gym membership.</p>
+              )}
+            </CardContent>
+          </Card>
+
           <Card className="border-border">
             <CardHeader>
               <CardTitle className="font-heading text-2xl tracking-wider">Coaching & Privacy</CardTitle>

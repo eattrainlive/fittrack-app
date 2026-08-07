@@ -49,6 +49,9 @@ export const flushRetryQueue = async () => {
 
   for (const item of q) {
     if (item.store === 'programs') {
+      // Only staff can write to the shared programme library
+      const isStaff = localStorage.getItem('fittrack_is_staff') === 'true';
+      if (!isStaff) { dequeue('programs'); clearDirty('programs'); continue; }
       const local = localStorage.getItem('fittrack_programs');
       if (local) { await savePrograms(JSON.parse(local)); }
     } else if (item.store === 'exercises') {
@@ -419,7 +422,7 @@ export const saveExercises = async (exercises: any[]): Promise<{ success: boolea
 
 export const getPrograms = () => {
   const stored = localStorage.getItem('fittrack_programs');
-  return stored ? JSON.parse(stored) : defaultPrograms;
+  return stored ? JSON.parse(stored) : [];
 };
 
 export const savePrograms = async (programs: any[]): Promise<{ success: boolean; error?: any }> => {
@@ -840,7 +843,7 @@ export const syncFromSupabase = async () => {
 
   const [ex, prg, hist, bw, prs, nut, mhab, chk, meas, phot, habLib, mac, mlogs, wows, wowRes] = await Promise.all([
     supabase.from('exercises').select('*').eq('user_id', user.id),
-    supabase.from('programs').select('*').eq('user_id', user.id),
+    supabase.from('programs').select('*').is('is_deleted', null),
     supabase.from('workout_history').select('*').eq('user_id', user.id),
     supabase.from('bodyweight_history').select('*').eq('user_id', user.id),
     supabase.from('personal_records').select('*').eq('user_id', user.id),
@@ -853,7 +856,7 @@ export const syncFromSupabase = async () => {
     supabase.from('member_macros').select('*').eq('member_id', user.id).maybeSingle(),
     supabase.from('macro_logs').select('*').eq('member_id', user.id),
     supabase.from('workout_of_week').select('*').order('week_start', { ascending: false }),
-    supabase.from('wow_results').select('*')
+    supabase.from('wow_results').select('*').eq('member_id', user.id)
   ]);
 
   const { data: settings } = await supabase.from('user_settings').select('*').eq('user_id', user.id);
@@ -880,8 +883,20 @@ export const syncFromSupabase = async () => {
     }
     localStorage.setItem('fittrack_programs', JSON.stringify(activePrg));
   } else if (isDirty('programs')) {
-    const local = localStorage.getItem('fittrack_programs');
-    if (local) savePrograms(JSON.parse(local));
+    // Only staff should re-push programmes to the shared library.
+    // For members, just clear the dirty flag and load from cloud.
+    const isStaff = localStorage.getItem('fittrack_is_staff') === 'true';
+    if (isStaff) {
+      const local = localStorage.getItem('fittrack_programs');
+      if (local) savePrograms(JSON.parse(local));
+    } else {
+      clearDirty('programs');
+      dequeue('programs');
+      if (prg.data && prg.data.length > 0) {
+        const activePrg = prg.data.filter((p: any) => p.is_deleted !== true);
+        localStorage.setItem('fittrack_programs', JSON.stringify(activePrg));
+      }
+    }
   }
 
   if (hist.data && hist.data.length > 0 && !isDirty('history')) {
@@ -1001,4 +1016,257 @@ export const saveWowResult = async (result: any): Promise<{ success: boolean; er
     setSyncStatus('error');
     return { success: false, error: e };
   }
+};
+
+// ── Attendance & Retention ─────────────────────────────────────────────────
+
+const normEmail = (e: string) => e.toLowerCase().trim();
+
+// Get the current member's gym_members row
+export const getMyGymMember = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase.from('gym_members').select('*').eq('member_id', user.id).maybeSingle();
+  return data;
+};
+
+// Get or create the member's scan_token (QR fallback)
+export const getMyScanToken = async () => {
+  let gm = await getMyGymMember();
+  if (gm?.scan_token) return gm.scan_token;
+  // Generate a token from user id
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const token = `ft_${user.id.slice(0, 8)}`;
+  // Try to update gym_members, or just return the token for QR display
+  if (gm) {
+    await supabase.from('gym_members').update({ scan_token: token }).eq('id', gm.id);
+  }
+  return token;
+};
+
+// Record a scan event (check-in)
+export const recordScanEvent = async (site: string, rawCode: string, gymMemberId?: string | null) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  const deviceTs = new Date().toISOString();
+
+  // Queue locally for offline support
+  const queue = JSON.parse(localStorage.getItem('fittrack_scan_queue') || '[]');
+  queue.push({ site, raw_code: rawCode, gym_member_id: gymMemberId || null, member_id: user?.id || null, device_ts: deviceTs });
+  localStorage.setItem('fittrack_scan_queue', JSON.stringify(queue));
+
+  try {
+    const { data, error } = await supabase.from('scan_events').insert({
+      site,
+      raw_code: rawCode,
+      gym_member_id: gymMemberId || null,
+      member_id: user?.id || null,
+      device_ts: deviceTs,
+      result: gymMemberId ? 'granted' : 'unknown_code',
+    }).select().single();
+
+    if (error) throw error;
+
+    // Remove from local queue on success
+    const remaining = queue.filter((_: any, i: number) => i !== 0);
+    localStorage.setItem('fittrack_scan_queue', JSON.stringify(remaining));
+
+    return { success: true, data };
+  } catch (e) {
+    return { success: false, error: e };
+  }
+};
+
+// Flush queued scans when back online
+export const flushScanQueue = async () => {
+  const queue = JSON.parse(localStorage.getItem('fittrack_scan_queue') || '[]');
+  if (!queue.length) return;
+  const remaining = [];
+  for (const scan of queue) {
+    try {
+      const { error } = await supabase.from('scan_events').insert({
+        ...scan,
+        result: scan.gym_member_id ? 'granted' : 'unknown_code',
+      });
+      if (error) remaining.push(scan);
+    } catch {
+      remaining.push(scan);
+    }
+  }
+  localStorage.setItem('fittrack_scan_queue', JSON.stringify(remaining));
+};
+
+// Resolve a barcode or scan_token to a gym_member
+export const resolveScanCode = async (code: string) => {
+  const { data } = await supabase.from('gym_members')
+    .select('*')
+    .or(`barcode.eq.${code},scan_token.eq.${code}`)
+    .maybeSingle();
+  return data;
+};
+
+// Link a barcode to a gym_member (first scan of unknown barcode)
+export const linkBarcode = async (gymMemberId: string, barcode: string) => {
+  const { data, error } = await supabase.from('gym_members')
+    .update({ barcode, updated_at: new Date().toISOString() })
+    .eq('id', gymMemberId)
+    .select()
+    .single();
+  if (error) return { success: false, error };
+  return { success: true, data };
+};
+
+// ── Membership Sync (staff import) ─────────────────────────────────────────
+
+export const importMemberships = async (
+  activeRows: { email: string; full_name?: string; product?: string; joined_on?: string }[],
+  endedRows: { email: string; full_name?: string; product?: string; ended_on?: string }[]
+) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Not authenticated' };
+
+  const results = { matched: 0, unmatched: 0, flagged: 0, unmatchedEmails: [] as string[] };
+
+  // Fetch existing gym_members
+  const { data: existingMembers } = await supabase.from('gym_members').select('*');
+  const existingByEmail = new Map((existingMembers || []).map((m: any) => [normEmail(m.email), m]));
+
+  const activeEmails = new Set(activeRows.map(r => normEmail(r.email)));
+  const endedEmails = new Set(endedRows.map(r => normEmail(r.email)));
+
+  // Process active rows
+  for (const row of activeRows) {
+    const email = normEmail(row.email);
+    const existing = existingByEmail.get(email);
+
+    if (existing) {
+      // Update to active
+      const { error } = await supabase.from('gym_members').update({
+        status: 'active',
+        product: row.product || existing.product,
+        full_name: row.full_name || existing.full_name,
+        joined_on: row.joined_on || existing.joined_on,
+        last_import_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', existing.id);
+
+      if (!error) {
+        results.matched++;
+        // Write status history if status changed
+        if (existing.status !== 'active') {
+          await supabase.from('membership_status_history').insert({
+            gym_member_id: existing.id,
+            status: 'active',
+            effective_date: new Date().toISOString().split('T')[0],
+            product: row.product || existing.product,
+          });
+        }
+      }
+    } else {
+      // Not in app — flag as new
+      results.unmatched++;
+      results.unmatchedEmails.push(row.email);
+    }
+  }
+
+  // Process ended rows
+  for (const row of endedRows) {
+    const email = normEmail(row.email);
+    const existing = existingByEmail.get(email);
+
+    if (existing) {
+      const { error } = await supabase.from('gym_members').update({
+        status: 'cancelled',
+        ended_on: row.ended_on || new Date().toISOString().split('T')[0],
+        last_import_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', existing.id);
+
+      if (!error) {
+        results.matched++;
+        if (existing.status !== 'cancelled') {
+          await supabase.from('membership_status_history').insert({
+            gym_member_id: existing.id,
+            status: 'cancelled',
+            effective_date: row.ended_on || new Date().toISOString().split('T')[0],
+            product: row.product || existing.product,
+          });
+        }
+      }
+    }
+  }
+
+  // Flag members in app + active before, but absent from Active upload and not in Ended
+  for (const [email, member] of existingByEmail) {
+    if (member.status === 'active' && !activeEmails.has(email) && !endedEmails.has(email)) {
+      await supabase.from('gym_members').update({
+        status: 'pending_review',
+        updated_at: new Date().toISOString(),
+      }).eq('id', member.id);
+      results.flagged++;
+    }
+  }
+
+  // Record the import batch
+  await supabase.from('import_batches').insert({
+    matched_count: results.matched,
+    unmatched_count: results.unmatched,
+    flagged_count: results.flagged,
+  });
+
+  return { success: true, results };
+};
+
+// ── At-Risk Reports ────────────────────────────────────────────────────────
+
+export const getMemberFlags = async () => {
+  const { data, error } = await supabase.from('member_flags')
+    .select('*, gym_members(*)')
+    .order('computed_at', { ascending: false });
+  if (error) return [];
+  return data || [];
+};
+
+export const getFlagRules = async () => {
+  const { data, error } = await supabase.from('flag_rules').select('*').order('product');
+  if (error) return [];
+  return data || [];
+};
+
+export const saveFlagRule = async (rule: any) => {
+  const { error } = await supabase.from('flag_rules').upsert({
+    ...rule,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'product' });
+  return { success: !error, error };
+};
+
+export const recomputeFlags = async () => {
+  const { error } = await supabase.rpc('compute_member_flags');
+  return { success: !error, error };
+};
+
+export const overrideFlag = async (flagId: string, note: string) => {
+  const { error } = await supabase.from('member_flags')
+    .update({ status: 'overridden', override_note: note })
+    .eq('id', flagId);
+  return { success: !error, error };
+};
+
+// ── Export (GDPR) ──────────────────────────────────────────────────────────
+
+export const exportAttendanceData = async () => {
+  const [members, scans, history, flags] = await Promise.all([
+    supabase.from('gym_members').select('*'),
+    supabase.from('scan_events').select('*').order('created_at', { ascending: false }),
+    supabase.from('membership_status_history').select('*'),
+    supabase.from('member_flags').select('*'),
+  ]);
+
+  return {
+    members: members.data || [],
+    scan_events: scans.data || [],
+    status_history: history.data || [],
+    flags: flags.data || [],
+  };
 };
