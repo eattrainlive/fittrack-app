@@ -298,11 +298,12 @@ const Workouts = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     
-    const { data: profile } = await supabase.from('members').select('name, gender').eq('id', user.id).maybeSingle();
+    const { data: profile } = await supabase.from('members').select('full_name').eq('id', user.id).maybeSingle();
     const { data: macros } = await supabase.from('member_macros').select('sex').eq('member_id', user.id).maybeSingle();
     
-    const displayName = profile?.name?.split(' ')[0] || "Member";
-    const gender = profile?.gender || macros?.sex || "unknown";
+    const fullName = profile?.full_name || (user.user_metadata as any)?.full_name || "";
+    const displayName = fullName.trim().split(' ')[0] || "Member";
+    const gender = macros?.sex || "unknown";
 
     const result = {
       id: `wow_res_${Date.now()}`,
