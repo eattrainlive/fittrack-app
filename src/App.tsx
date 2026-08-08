@@ -69,7 +69,7 @@ const AppRoutes = () => {
           initial="initial"
           animate="animate"
           exit="exit"
-          className="absolute inset-0 overflow-y-auto overflow-x-hidden pb-[calc(env(safe-area-inset-bottom)+64px)] bg-background"
+          className="absolute inset-0 overflow-y-auto overflow-x-hidden pb-16 bg-background"
         >
           <Routes location={location}>
             <Route path="/" element={<Index />} />

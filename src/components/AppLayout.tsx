@@ -152,7 +152,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-[100dvh] w-full bg-background font-sans flex-col overflow-hidden">
-      <header className="border-b border-border flex items-center justify-between px-4 bg-background sticky top-0 z-30 shrink-0 select-none pt-[env(safe-area-inset-top)] h-[calc(env(safe-area-inset-top)+64px)]">
+      <header className="h-16 border-b border-border flex items-center justify-between px-4 bg-background sticky top-0 z-30 shrink-0 select-none">
         <div className="flex items-center gap-2">
           <Dumbbell className="h-6 w-6 text-primary" />
           <span className="font-heading text-xl text-foreground uppercase tracking-wider mt-1">FitTrack</span>
