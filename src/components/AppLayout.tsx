@@ -241,7 +241,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-<nav className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border flex items-center justify-around h-[calc(env(safe-area-inset-bottom)+56px)] select-none">
+<nav className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border flex items-center justify-around h-16 select-none">
         <NavItem to="/" icon={<LayoutDashboard className="h-6 w-6" />} label="Home" active={location.pathname === "/"} />
         <NavItem to="/workouts" icon={<Dumbbell className="h-6 w-6" />} label="Workouts" active={location.pathname === "/workouts"} />
         <NavItem to="/progress" icon={<LineChart className="h-6 w-6" />} label="Progress" active={location.pathname === "/progress"} />
