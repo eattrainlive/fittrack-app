@@ -55,6 +55,9 @@ export const flushRetryQueue = async () => {
       const local = localStorage.getItem('fittrack_programs');
       if (local) { await savePrograms(JSON.parse(local)); }
     } else if (item.store === 'exercises') {
+      // Only staff can write to the shared exercise library
+      const isStaff = localStorage.getItem('fittrack_is_staff') === 'true';
+      if (!isStaff) { dequeue('exercises'); clearDirty('exercises'); continue; }
       const local = localStorage.getItem('fittrack_exercises');
       if (local) { await saveExercises(JSON.parse(local)); }
     } else if (item.store === 'history') {
@@ -375,7 +378,7 @@ export const defaultPrograms = [
 
 export const getExercises = () => {
   const stored = localStorage.getItem('fittrack_exercises');
-  return stored ? JSON.parse(stored) : defaultExercises;
+  return stored ? JSON.parse(stored) : [];
 };
 
 export const saveExercises = async (exercises: any[]): Promise<{ success: boolean; error?: any }> => {
@@ -651,16 +654,21 @@ export const deletePersonalRecord = (id: string) => {
 };
 
 export const getLastExerciseStats = (exerciseName: string) => {
-  const history = getWorkoutHistory();
+  const history = getWorkoutHistory(); // newest first
   for (const workout of history) {
     const ex = workout.exercises?.find((e: any) => String(e.name) === String(exerciseName));
     if (!ex) continue;
+    // Derive from setsData (the logged sets), NOT the top-level prescription weight.
     const sets = Array.isArray(ex.setsData) ? ex.setsData : [];
     const done = sets.filter((s: any) => s.completed && (s.weight || 0) > 0);
     const pool = done.length ? done : sets.filter((s: any) => (s.weight || 0) > 0);
     if (pool.length) {
       const top = pool.reduce((a: any, b: any) => (b.weight > a.weight ? b : a));
       return { weight: top.weight, reps: top.reps, date: workout.date };
+    }
+    // Fallback for very old entries that predate setsData: use top-level weight if > 0
+    if ((ex.weight || 0) > 0) {
+      return { weight: ex.weight, reps: ex.reps || 0, date: workout.date };
     }
   }
   return null;
@@ -841,8 +849,8 @@ export const syncFromSupabase = async () => {
   // Flush any pending queued writes BEFORE syncing (push local → cloud first)
   await flushRetryQueue();
 
-  const [ex, prg, hist, bw, prs, nut, mhab, chk, meas, phot, habLib, mac, mlogs, wows, wowRes] = await Promise.all([
-    supabase.from('exercises').select('*').eq('user_id', user.id),
+  const [ex, prg, hist, bw, prs, nut, mhab, chk, meas, phot, habLib, mac, mlogs, wows, wowRes, eduFolders, eduVideos] = await Promise.all([
+    supabase.from('exercises').select('*'),
     supabase.from('programs').select('*').is('is_deleted', null),
     supabase.from('workout_history').select('*').eq('user_id', user.id),
     supabase.from('bodyweight_history').select('*').eq('user_id', user.id),
@@ -856,7 +864,9 @@ export const syncFromSupabase = async () => {
     supabase.from('member_macros').select('*').eq('member_id', user.id).maybeSingle(),
     supabase.from('macro_logs').select('*').eq('member_id', user.id),
     supabase.from('workout_of_week').select('*').order('week_start', { ascending: false }),
-    supabase.from('wow_results').select('*').eq('member_id', user.id)
+    supabase.from('wow_results').select('*').eq('member_id', user.id),
+    supabase.from('education_folders').select('*'),
+    supabase.from('education_videos').select('*')
   ]);
 
   const { data: settings } = await supabase.from('user_settings').select('*').eq('user_id', user.id);
@@ -866,9 +876,19 @@ export const syncFromSupabase = async () => {
     const activeEx = ex.data.filter((e: any) => e.is_deleted !== true);
     localStorage.setItem('fittrack_exercises', JSON.stringify(activeEx));
   } else if (isDirty('exercises')) {
-    // Re-push local to cloud instead
-    const local = localStorage.getItem('fittrack_exercises');
-    if (local) saveExercises(JSON.parse(local));
+    // Only staff should re-push the shared exercise library.
+    const isStaff = localStorage.getItem('fittrack_is_staff') === 'true';
+    if (isStaff) {
+      const local = localStorage.getItem('fittrack_exercises');
+      if (local) saveExercises(JSON.parse(local));
+    } else {
+      clearDirty('exercises');
+      dequeue('exercises');
+      if (ex.data && ex.data.length > 0) {
+        const activeEx = ex.data.filter((e: any) => e.is_deleted !== true);
+        localStorage.setItem('fittrack_exercises', JSON.stringify(activeEx));
+      }
+    }
   }
 
   if (prg.data && prg.data.length > 0 && !isDirty('programs')) {
@@ -938,6 +958,9 @@ export const syncFromSupabase = async () => {
       for (const log of logs) saveMacroLog(log);
     }
   }
+
+  if (eduFolders.data && eduFolders.data.length > 0) localStorage.setItem('fittrack_education_folders', JSON.stringify(eduFolders.data));
+  if (eduVideos.data && eduVideos.data.length > 0) localStorage.setItem('fittrack_education_videos', JSON.stringify(eduVideos.data));
 
   if (settings) {
     const active = settings.find(s => s.key === 'active_program');
@@ -1022,99 +1045,24 @@ export const saveWowResult = async (result: any): Promise<{ success: boolean; er
 
 const normEmail = (e: string) => e.toLowerCase().trim();
 
-// Get the current member's gym_members row
+// Get the current member's gym_members row — matched by email (Quoox/GymOS webhook
+// writes rows keyed on GymOS id + email, never sets member_id to the FitTrack auth id).
 export const getMyGymMember = async () => {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data } = await supabase.from('gym_members').select('*').eq('member_id', user.id).maybeSingle();
-  return data;
-};
-
-// Get or create the member's scan_token (QR fallback)
-export const getMyScanToken = async () => {
-  let gm = await getMyGymMember();
-  if (gm?.scan_token) return gm.scan_token;
-  // Generate a token from user id
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const token = `ft_${user.id.slice(0, 8)}`;
-  // Try to update gym_members, or just return the token for QR display
-  if (gm) {
-    await supabase.from('gym_members').update({ scan_token: token }).eq('id', gm.id);
-  }
-  return token;
-};
-
-// Record a scan event (check-in)
-export const recordScanEvent = async (site: string, rawCode: string, gymMemberId?: string | null) => {
-  const { data: { user } } = await supabase.auth.getUser();
-  const deviceTs = new Date().toISOString();
-
-  // Queue locally for offline support
-  const queue = JSON.parse(localStorage.getItem('fittrack_scan_queue') || '[]');
-  queue.push({ site, raw_code: rawCode, gym_member_id: gymMemberId || null, member_id: user?.id || null, device_ts: deviceTs });
-  localStorage.setItem('fittrack_scan_queue', JSON.stringify(queue));
-
-  try {
-    const { data, error } = await supabase.from('scan_events').insert({
-      site,
-      raw_code: rawCode,
-      gym_member_id: gymMemberId || null,
-      member_id: user?.id || null,
-      device_ts: deviceTs,
-      result: gymMemberId ? 'granted' : 'unknown_code',
-    }).select().single();
-
-    if (error) throw error;
-
-    // Remove from local queue on success
-    const remaining = queue.filter((_: any, i: number) => i !== 0);
-    localStorage.setItem('fittrack_scan_queue', JSON.stringify(remaining));
-
-    return { success: true, data };
-  } catch (e) {
-    return { success: false, error: e };
-  }
-};
-
-// Flush queued scans when back online
-export const flushScanQueue = async () => {
-  const queue = JSON.parse(localStorage.getItem('fittrack_scan_queue') || '[]');
-  if (!queue.length) return;
-  const remaining = [];
-  for (const scan of queue) {
-    try {
-      const { error } = await supabase.from('scan_events').insert({
-        ...scan,
-        result: scan.gym_member_id ? 'granted' : 'unknown_code',
-      });
-      if (error) remaining.push(scan);
-    } catch {
-      remaining.push(scan);
-    }
-  }
-  localStorage.setItem('fittrack_scan_queue', JSON.stringify(remaining));
-};
-
-// Resolve a barcode or scan_token to a gym_member
-export const resolveScanCode = async (code: string) => {
-  const { data } = await supabase.from('gym_members')
+  if (!user?.email) return null;
+  const { data: rows } = await supabase
+    .from('gym_members')
     .select('*')
-    .or(`barcode.eq.${code},scan_token.eq.${code}`)
-    .maybeSingle();
-  return data;
+    .ilike('email', user.email.toLowerCase());
+  if (!rows?.length) return null;
+  // Prefer active, then paused, then the most recently ended row
+  return rows.find((r: any) => r.status === 'active')
+      ?? rows.find((r: any) => r.status === 'paused')
+      ?? rows.sort((a: any, b: any) =>
+          new Date(b.ended_on || 0).getTime() - new Date(a.ended_on || 0).getTime())[0];
 };
 
-// Link a barcode to a gym_member (first scan of unknown barcode)
-export const linkBarcode = async (gymMemberId: string, barcode: string) => {
-  const { data, error } = await supabase.from('gym_members')
-    .update({ barcode, updated_at: new Date().toISOString() })
-    .eq('id', gymMemberId)
-    .select()
-    .single();
-  if (error) return { success: false, error };
-  return { success: true, data };
-};
+
 
 // ── Membership Sync (staff import) ─────────────────────────────────────────
 
@@ -1253,19 +1201,50 @@ export const overrideFlag = async (flagId: string, note: string) => {
   return { success: !error, error };
 };
 
+// ── Membership Access Gate ─────────────────────────────────────────────────
+
+export const getMembershipAccess = async (): Promise<{ allowed: boolean; reason: string }> => {
+  // Staff always in
+  if (localStorage.getItem('fittrack_is_staff') === 'true') return { allowed: true, reason: 'staff' };
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) return { allowed: true, reason: 'no-user' }; // fail-open
+
+  const email = user.email.toLowerCase();
+  const { data: rows, error } = await supabase
+    .from('gym_members')
+    .select('status, ended_on')
+    .ilike('email', email);
+
+  if (error) return { allowed: true, reason: 'lookup-error' };      // fail-open on error
+  if (!rows || rows.length === 0) return { allowed: true, reason: 'unmatched' }; // not synced yet → allow
+
+  // Active or paused anywhere = allowed
+  if (rows.some((r: any) => r.status === 'active')) return { allowed: true, reason: 'active' };
+  if (rows.some((r: any) => r.status === 'paused')) return { allowed: true, reason: 'paused' };
+
+  // Otherwise cancelled/expired only — check 7-day grace on most recent ended_on
+  const latestEnd = rows.reduce((max: number, r: any) => {
+    const t = r.ended_on ? new Date(r.ended_on).getTime() : 0;
+    return t > max ? t : max;
+  }, 0);
+  const GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+  if (latestEnd && Date.now() - latestEnd < GRACE_MS) return { allowed: true, reason: 'grace' };
+
+  return { allowed: false, reason: 'cancelled' };
+};
+
 // ── Export (GDPR) ──────────────────────────────────────────────────────────
 
 export const exportAttendanceData = async () => {
-  const [members, scans, history, flags] = await Promise.all([
+  const [members, history, flags] = await Promise.all([
     supabase.from('gym_members').select('*'),
-    supabase.from('scan_events').select('*').order('created_at', { ascending: false }),
     supabase.from('membership_status_history').select('*'),
     supabase.from('member_flags').select('*'),
   ]);
 
   return {
     members: members.data || [],
-    scan_events: scans.data || [],
     status_history: history.data || [],
     flags: flags.data || [],
   };

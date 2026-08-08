@@ -173,7 +173,7 @@ const TVDisplay = () => {
                         </td>
                         <td className="py-1.5 md:py-2 px-2 text-center font-bold text-sm md:text-base tabular-nums">{ex.sets > 0 ? ex.sets : "-"}</td>
                         <td className="py-1.5 md:py-2 px-2 text-center font-bold text-sm md:text-base tabular-nums">{displayReps || "-"}</td>
-                        <td className="py-1.5 md:py-2 pl-2 text-center font-bold text-sm md:text-base tabular-nums">{ex.rest > 0 ? ex.rest : "0"}</td>
+                        <td className="py-1.5 md:py-2 pl-2 text-center font-bold text-sm md:text-base tabular-nums">{ex.linkedToNext ? "—" : (ex.rest > 0 ? ex.rest : "0")}</td>
                       </tr>
                     );
                   })}

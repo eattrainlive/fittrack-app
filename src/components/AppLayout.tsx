@@ -1,8 +1,8 @@
-import { Dumbbell, LayoutDashboard, LineChart, User, Users, Bell, LogIn, Download, Loader2, Apple, CloudOff, Cloud, CheckCircle2, QrCode } from "lucide-react";
+import { Dumbbell, LayoutDashboard, LineChart, User, Users, Bell, LogIn, Download, Loader2, Apple, CloudOff, Cloud, CheckCircle2, Lock } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getNotifications, markNotificationRead, subscribeSyncStatus, getSyncStatus, flushRetryQueue, type SyncStatus } from "@/lib/store";
+import { getNotifications, markNotificationRead, subscribeSyncStatus, getSyncStatus, flushRetryQueue, getMembershipAccess, type SyncStatus } from "@/lib/store";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -18,9 +18,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isZipping, setIsZipping] = useState(false);
   const [syncStatus, setSyncStatusLocal] = useState<SyncStatus>(getSyncStatus());
+  const [membershipAllowed, setMembershipAllowed] = useState<boolean | null>(null);
 
   const handleDownloadSource = () => {
     downloadSourceCode(setIsZipping);
+  };
+
+  const checkMembership = async () => {
+    const result = await getMembershipAccess();
+    setMembershipAllowed(result.allowed);
+    return result;
   };
 
   const loadNotifications = async () => {
@@ -33,13 +40,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      if (session?.user) loadNotifications();
+      if (session?.user) {
+        loadNotifications();
+        checkMembership();
+      } else {
+        setMembershipAllowed(null);
+      }
       setIsAuthLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      if (session?.user) loadNotifications();
+      if (session?.user) {
+        loadNotifications();
+        checkMembership();
+      } else {
+        setMembershipAllowed(null);
+      }
       setIsAuthLoading(false);
     });
 
@@ -97,6 +114,42 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return <div className="min-h-screen bg-background font-sans">{children}</div>;
   }
 
+  // Membership gate — show lock screen if access is denied (not while pending)
+  if (user && membershipAllowed === false) {
+    const handleSignOut = async () => {
+      await supabase.auth.signOut();
+      navigate("/auth");
+    };
+    return (
+      <div className="flex h-[100dvh] w-full bg-background font-sans flex-col items-center justify-center px-6 text-center">
+        <div className="max-w-sm space-y-6">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
+              <Lock className="h-8 w-8 text-destructive" />
+            </div>
+            <h1 className="font-heading text-3xl tracking-wider uppercase text-foreground">Membership Inactive</h1>
+          </div>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            We can't see an active membership for your account. If you've just renewed, give it a few minutes. Otherwise, get in touch and we'll sort it.
+          </p>
+          <div className="flex flex-col gap-2">
+            <a href="mailto:michael@eattrainlivesmart.co.uk">
+              <Button className="w-full gap-2">
+                Contact Us
+              </Button>
+            </a>
+            <Button variant="outline" className="w-full" onClick={() => checkMembership()}>
+              Re-check
+            </Button>
+            <Button variant="ghost" className="w-full text-muted-foreground" onClick={handleSignOut}>
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-[100dvh] w-full bg-background font-sans flex-col overflow-hidden">
       <header className="h-16 border-b border-border flex items-center justify-between px-4 bg-background sticky top-0 z-30 shrink-0 select-none">
@@ -126,14 +179,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </span>
             </div>
           )}
-          {isStaff && (
-            <a href="/checkin" target="_blank" rel="noopener noreferrer" className="hidden sm:block">
-              <Button variant="outline" size="sm" className="gap-2 border-primary text-primary hover:bg-primary/10">
-<QrCode className="h-4 w-4" />
-                Check-In
-              </Button>
-            </a>
-          )}
+
           <Button variant="outline" size="sm" onClick={handleDownloadSource} disabled={isZipping} className="gap-2 hidden sm:flex border-primary text-primary hover:bg-primary/10">
             {isZipping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             Download Source

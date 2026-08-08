@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Dumbbell, Plus, Minus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw, Link2, Link2Off, Heading, List, Check, Search, ArrowLeft, RefreshCw, Trophy, CheckCircle2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dumbbell, Plus, Minus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw, Link2, Link2Off, Heading, List, Check, Search, ArrowLeft, RefreshCw, Trophy, CheckCircle2, ArrowRight, ArrowLeft as ArrowLeftIcon } from "lucide-react";
 import React, { useState, useEffect, useMemo } from "react";
 import { getExercises, getPrograms, saveWorkoutToHistory, getLastExerciseStats, getActiveProgram, saveActiveProgram, getHabits, detectAndSavePBs, saveCommunityPost, getPersonalRecords, getPreferredDays, savePreferredDays, getWorkoutHistory, getWorkoutsOfWeek, getWowResults, saveWowResult } from "@/lib/store";
 import { getEmbedUrl } from "@/lib/utils";
@@ -216,6 +217,7 @@ const Workouts = () => {
   const [lastSeenSectionId, setLastSeenSectionId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [activeWorkoutMeta, setActiveWorkoutMeta] = useState<{programId?: string, week?: number, day?: number, stream?: string}>({});
   const isActiveWorkout = useMemo(() => {
     if (activeProgram) return true;
@@ -1988,9 +1990,12 @@ const Workouts = () => {
                                             updateExercise(exercise.id, "setsData", newSets);
                                             if (isCompleting) {
                                               if (navigator.vibrate) navigator.vibrate(10);
-                                              const restTime = exercise.rest || 0;
-                                              if (restTime > 0) {
-                                                startTimer(restTime);
+                                              // No rest between superset movements — only after the last exercise in the group
+                                              if (!exercise.linkedToNext) {
+                                                const restTime = exercise.rest || 0;
+                                                if (restTime > 0) {
+                                                  startTimer(restTime);
+                                                }
                                               }
                                             }
                                           }} 
@@ -2030,31 +2035,43 @@ const Workouts = () => {
                       </div>
 
                       <div className="flex flex-col gap-3 pt-6 mt-4 border-t border-border">
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            className="flex-1 font-bold tracking-wider h-14 text-lg"
+                        {/* Primary navigation: Next is the prominent CTA */}
+                        {currentBlockIndex < blocks.length - 1 ? (
+                          <Button
+                            className="w-full gap-2 text-primary-foreground font-bold tracking-wide h-16 text-xl shadow-lg"
+                            onClick={() => setCurrentBlockIndex(prev => Math.min(blocks.length - 1, prev + 1))}
+                          >
+                            Next <ArrowRight className="h-5 w-5" />
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={handleSaveWorkout}
+                            disabled={isSaving}
+                            className="w-full gap-2 text-primary-foreground font-bold tracking-wide h-16 text-xl shadow-lg"
+                          >
+                            <Check className="h-5 w-5" /> {isSaving ? "Saving..." : "Finish Workout"}
+                          </Button>
+                        )}
+                        {/* Secondary navigation: Previous + subtle End */}
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            className="flex-1 font-medium tracking-wider h-12"
                             disabled={currentBlockIndex === 0}
                             onClick={() => setCurrentBlockIndex(prev => Math.max(0, prev - 1))}
                           >
-                            Previous
+                            <ArrowLeftIcon className="h-4 w-4" /> Previous
                           </Button>
-                          <Button 
-                            variant="outline" 
-                            className="flex-1 font-bold tracking-wider h-14 text-lg"
-                            disabled={currentBlockIndex === blocks.length - 1}
-                            onClick={() => setCurrentBlockIndex(prev => Math.min(blocks.length - 1, prev + 1))}
+                          <span className="text-xs text-muted-foreground px-1">
+                            {currentBlockIndex + 1} / {blocks.length}
+                          </span>
+                          <button
+                            onClick={() => setShowEndConfirm(true)}
+                            className="text-sm text-muted-foreground hover:text-destructive font-medium px-3 py-2 transition-colors"
                           >
-                            Next
-                          </Button>
+                            End workout
+                          </button>
                         </div>
-                        <Button 
-                          onClick={handleSaveWorkout} 
-                          disabled={isSaving} 
-                          className="w-full gap-2 text-primary-foreground font-bold tracking-wide h-14 text-lg shadow-lg"
-                        >
-                          <Check className="h-5 w-5" /> {isSaving ? "Saving..." : "Finish Workout"}
-                        </Button>
                       </div>
                     </div>
                   );
@@ -2091,6 +2108,25 @@ const Workouts = () => {
         </div>
       )}
 
+      <AlertDialog open={showEndConfirm} onOpenChange={setShowEndConfirm}>
+        <AlertDialogContent className="sm:max-w-md bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-heading tracking-wider">End workout?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You've logged {currentBlockIndex + 1} of {blocks.length} exercises. Finishing now will save your progress.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row gap-3">
+            <AlertDialogCancel className="flex-1 h-12 font-bold tracking-wide">Keep going</AlertDialogCancel>
+            <AlertDialogAction
+              className="flex-1 h-12 font-bold tracking-wide bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleSaveWorkout}
+            >
+              Finish & save
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={!!rewardModal} onOpenChange={(open) => !open && setRewardModal(null)}>
         <DialogContent className="sm:max-w-md text-center bg-card border-border">
