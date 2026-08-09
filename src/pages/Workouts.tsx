@@ -5,16 +5,37 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Dumbbell, Plus, Minus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw, Link2, Link2Off, Heading, List, Check, Search, ArrowLeft, RefreshCw, Trophy, CheckCircle2, ArrowRight, ArrowLeft as ArrowLeftIcon } from "lucide-react";
+import { Dumbbell, Plus, Minus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw, Link2, Link2Off, Heading, List, Check, Search, ArrowLeft, RefreshCw, Trophy, CheckCircle2, ArrowRight, ArrowLeft as ArrowLeftIcon, ChevronDown, Repeat } from "lucide-react";
 import React, { useState, useEffect, useMemo } from "react";
-import { getExercises, getPrograms, saveWorkoutToHistory, getLastExerciseStats, getActiveProgram, saveActiveProgram, getHabits, detectAndSavePBs, saveCommunityPost, getPersonalRecords, getPreferredDays, savePreferredDays, getWorkoutHistory, getWorkoutsOfWeek, getWowResults, saveWowResult } from "@/lib/store";
+import { getExercises, getPrograms, saveWorkoutToHistory, getLastExerciseStats, getActiveProgram, saveActiveProgram, getHabits, detectAndSavePBs, saveCommunityPost, getPersonalRecords, getPreferredDays, savePreferredDays, getWorkoutHistory, getWorkoutsOfWeek, getWowResults, saveWowResult, getExerciseHistory } from "@/lib/store";
 import { getEmbedUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { supabase } from "@/lib/supabase";
+
+const PROGRESSION_OPTIONS = [
+  {
+    key: 'tempo',
+    label: 'Slower tempo',
+    icon: <Timer className="h-4 w-4 text-primary" />,
+    cue: "Keep the same weight and slow it down — around 3 seconds lowering, 1 second lifting. You work harder and build control without adding load. Great when the weight feels right but you want more challenge.",
+  },
+  {
+    key: 'reps',
+    label: 'Max reps on last set',
+    icon: <Repeat className="h-4 w-4 text-primary" />,
+    cue: "Keep your weight the same. On your final set only, aim for as many clean reps as you can and try to beat last time. Stop the set the moment form slips — quality over numbers.",
+  },
+  {
+    key: 'weight',
+    label: 'Small weight increase',
+    icon: <Plus className="h-4 w-4 text-primary" />,
+    cue: "Only if last session felt strong and every rep was clean: add a little — about 2.5kg, or 2kg on dumbbells. Small jumps keep progress steady and safe. If in doubt, stay where you are for another week.",
+  },
+];
 
 
 const REWARD_ITEMS = [
@@ -218,6 +239,8 @@ const Workouts = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [pastLiftsModal, setPastLiftsModal] = useState<{ name: string } | null>(null);
+  const [openProg, setOpenProg] = useState<string | null>(null);
   const [activeWorkoutMeta, setActiveWorkoutMeta] = useState<{programId?: string, week?: number, day?: number, stream?: string}>({});
   const isActiveWorkout = useMemo(() => {
     if (activeProgram) return true;
@@ -1019,7 +1042,7 @@ const Workouts = () => {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24"
+className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
           >
           <div className="relative overflow-hidden rounded-2xl aspect-[4/3] shadow-md -mx-4 -mt-6 rounded-t-none md:mx-0 md:mt-0 md:rounded-t-2xl">
              <img src={getCoverImage(selectedTemplate)} alt={selectedTemplate.name} className="w-full h-full object-cover" />
@@ -1764,8 +1787,7 @@ const Workouts = () => {
                       <div className="space-y-6">
                         {currentBlock.exercises.map((exercise: any, exIdx: number) => {
                           const libraryExercise = exerciseLibrary.find(e => String(e.id) === String(exercise.name));
-                          const lastStats = exercise.name ? getLastExerciseStats(exercise.name) : null;
-                          const pbStats = exercise.name ? getPersonalRecords().find((p: any) => String(p.exercise) === String(exercise.name) || String(p.exerciseId) === String(exercise.name)) : null;
+
                           const cols = columnsFor(exercise, exerciseLibrary);
                           
                           return (
@@ -1893,46 +1915,12 @@ const Workouts = () => {
                                     </div>
                                   )}
                                   
-                                  {exercise.name && lastStats && (
-                                    <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap bg-muted/30 p-2 rounded-md border border-border/50">
-                                      <div className="flex items-center gap-1">
-                                        <History className="h-3 w-3" /> 
-                                        Last: {lastStats.weight}kg &times; {lastStats.reps}
-                                      </div>
-                                      {pbStats && (
-                                        <>
-                                          <span className="opacity-50">&middot;</span>
-                                          <div className="flex items-center gap-1 text-primary">
-                                            <Trophy className="h-3 w-3" />
-                                            PB: {pbStats.weight}kg
-                                          </div>
-                                        </>
-                                      )}
-                                      {(() => {
-                                        const expectedReps = parseInt(String(exercise.reps || "0").split("/")[0]) || 0;
-                                        if (expectedReps > 0 && lastStats.reps >= expectedReps) {
-                                          const isDumbbell = String(libraryExercise?.equipment || "").toLowerCase() === "dumbbell";
-                                          const inc = isDumbbell ? 2 : 2.5;
-                                          return (
-                                            <>
-                                              <span className="opacity-50">&middot;</span>
-                                              <div className="flex items-center gap-1 font-medium">
-                                                Try: {lastStats.weight + inc}kg
-                                              </div>
-                                            </>
-                                          );
-                                        } else if (expectedReps > 0) {
-                                          return (
-                                            <>
-                                              <span className="opacity-50">&middot;</span>
-                                              <div className="flex items-center gap-1 font-medium">
-                                                Try: {lastStats.weight}kg
-                                              </div>
-                                            </>
-                                          );
-                                        }
-                                        return null;
-                                      })()}
+                                  {exercise.name && (
+                                    <div className="mt-1">
+                                      <Button variant="outline" size="sm" className="gap-2 text-xs h-8"
+                                              onClick={() => setPastLiftsModal({ name: exercise.name })}>
+                                        <History className="h-3 w-3" /> Past Lifts
+                                      </Button>
                                     </div>
                                   )}
                                 </div>
@@ -2130,7 +2118,7 @@ const Workouts = () => {
       </AlertDialog>
 
       <Dialog open={!!rewardModal} onOpenChange={(open) => !open && setRewardModal(null)}>
-        <DialogContent className="sm:max-w-md text-center bg-card border-border">
+<DialogContent className="w-[92vw] max-w-sm text-center bg-card border-border overflow-hidden">
           <DialogHeader>
             <DialogTitle className="text-2xl font-heading tracking-wider text-center">Workout Complete!</DialogTitle>
           </DialogHeader>
@@ -2140,7 +2128,7 @@ const Workouts = () => {
               <h3 className="text-2xl font-bold text-primary">
                 You lifted {rewardModal.count && rewardModal.count > 1 ? `${rewardModal.count.toLocaleString()} ` : 'a '}{rewardModal.displayName || rewardModal.name}!
               </h3>
-              <p className="text-muted-foreground text-lg">
+<p className="text-muted-foreground text-lg break-words">
                 Your total volume this session was <strong className="text-foreground">{rewardModal.volume.toLocaleString()} kg</strong>.
                 <br/>That's roughly the weight of {rewardModal.count && rewardModal.count > 1 ? `${rewardModal.count.toLocaleString()} ${(rewardModal.displayName || rewardModal.name).toLowerCase()}` : `a ${(rewardModal.name).toLowerCase()}`}!
               </p>
@@ -2151,7 +2139,7 @@ const Workouts = () => {
       </Dialog>
 
       <Dialog open={!!pbModal} onOpenChange={(open) => !open && setPbModal(null)}>
-        <DialogContent className="sm:max-w-md text-center bg-card border-border">
+<DialogContent className="w-[92vw] max-w-sm text-center bg-card border-border overflow-hidden">
           <DialogHeader>
             <DialogTitle className="text-2xl font-heading tracking-wider text-center">🏆 New Personal Record!</DialogTitle>
           </DialogHeader>
@@ -2190,7 +2178,7 @@ const Workouts = () => {
       </Dialog>
 
       <Dialog open={!!templateForChooser} onOpenChange={(open) => !open && setTemplateForChooser(null)}>
-        <DialogContent className="sm:max-w-md bg-card border-border">
+<DialogContent className="w-[92vw] max-w-sm bg-card border-border overflow-hidden">
           <DialogHeader>
             <DialogTitle className="font-heading tracking-wider text-2xl uppercase">How many days a week can you train?</DialogTitle>
           </DialogHeader>
@@ -2214,7 +2202,7 @@ const Workouts = () => {
       </Dialog>
 
       <Dialog open={showWowLogger} onOpenChange={setShowWowLogger}>
-        <DialogContent className="sm:max-w-md bg-card border-border">
+<DialogContent className="w-[92vw] max-w-sm bg-card border-border overflow-hidden">
           <DialogHeader>
             <DialogTitle className="font-heading tracking-wider text-2xl uppercase">Log Your Score</DialogTitle>
           </DialogHeader>
@@ -2250,7 +2238,7 @@ const Workouts = () => {
       </Dialog>
 
       <Dialog open={showWowLeaderboard} onOpenChange={setShowWowLeaderboard}>
-        <DialogContent className="sm:max-w-md bg-card border-border max-h-[80vh] flex flex-col">
+<DialogContent className="w-[92vw] max-w-sm bg-card border-border max-h-[80vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="font-heading tracking-wider text-2xl uppercase">Leaderboard</DialogTitle>
           </DialogHeader>
@@ -2359,6 +2347,64 @@ const Workouts = () => {
             <h3 className="font-heading text-xl uppercase tracking-wider">{videoTitle}</h3>
             <Button variant="ghost" size="sm" onClick={() => setVideoTutorial(null)}>Close</Button>
           </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!pastLiftsModal} onOpenChange={(open) => { if (!open) { setPastLiftsModal(null); setOpenProg(null); } }}>
+        <DialogContent className="w-[92vw] max-w-sm bg-card border-border overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-heading tracking-wider">{pastLiftsModal?.name}</DialogTitle>
+            <DialogDescription>Your previous lifts and ways to progress.</DialogDescription>
+          </DialogHeader>
+
+          {pastLiftsModal && (() => {
+            const hist = getExerciseHistory(pastLiftsModal.name);
+            return (
+              <div className="space-y-4">
+                {/* History */}
+                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                  {hist.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">No previous lifts logged yet — this is your baseline. 💪</p>
+                  )}
+                  {hist.map((h, i) => (
+                    <div key={i} className="bg-muted/40 border border-border/50 rounded-md p-2">
+                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
+                        {new Date(h.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {h.sets.map((s, j) => (
+                          <span key={j} className={`text-xs px-2 py-0.5 rounded-full border ${s.weight === h.top.weight ? 'border-primary text-primary font-semibold' : 'border-border text-foreground'}`}>
+                            {s.weight}kg × {s.reps}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Ways to progress — guidance only */}
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">Ways to progress</p>
+                  <div className="space-y-2">
+                    {PROGRESSION_OPTIONS.map(opt => (
+                      <div key={opt.key} className="border border-border rounded-md overflow-hidden">
+                        <button
+                          className="w-full flex items-center justify-between px-3 py-2 text-left text-sm font-medium"
+                          onClick={() => setOpenProg(openProg === opt.key ? null : opt.key)}>
+                          <span className="flex items-center gap-2">{opt.icon} {opt.label}</span>
+                          <ChevronDown className={`h-4 w-4 transition-transform ${openProg === opt.key ? 'rotate-180' : ''}`} />
+                        </button>
+                        {openProg === opt.key && (
+                          <p className="px-3 pb-3 text-xs text-muted-foreground leading-relaxed">{opt.cue}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Button className="w-full h-11 font-bold" onClick={() => { setPastLiftsModal(null); setOpenProg(null); }}>Close</Button>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

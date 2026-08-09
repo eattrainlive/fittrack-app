@@ -66,7 +66,10 @@ export const flushRetryQueue = async () => {
         const history = JSON.parse(local);
         if (history.length > 0) {
           const latest = history[0];
-          await supabase.from('workout_history').upsert({ ...latest, user_id: user.id }, { onConflict: 'id' });
+          await supabase.from('workout_history').upsert(
+            { id: latest.id, user_id: user.id, date: latest.date, data: latest },
+            { onConflict: 'id' }
+          );
         }
       }
     } else if (item.store === 'bodyweight') {
@@ -559,7 +562,10 @@ export const saveWorkoutToHistory = async (workout: any): Promise<{ success: boo
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const { error } = await supabase.from('workout_history').upsert({ ...newWorkout, user_id: user.id }, { onConflict: 'id' });
+      const { error } = await supabase.from('workout_history').upsert(
+        { id: newWorkout.id, user_id: user.id, date: newWorkout.date, data: newWorkout },
+        { onConflict: 'id' }
+      );
       if (error) {
         enqueue('history');
         setSyncStatus('error');
@@ -672,6 +678,25 @@ export const getLastExerciseStats = (exerciseName: string) => {
     }
   }
   return null;
+};
+
+// All past logged sessions for an exercise (newest first), with each session's sets.
+export const getExerciseHistory = (exerciseName: string) => {
+  const history = getWorkoutHistory(); // newest first
+  const out: { date: string; sets: { weight: number; reps: number }[]; top: { weight: number; reps: number } }[] = [];
+  for (const workout of history) {
+    const ex = workout.exercises?.find((e: any) => String(e.name) === String(exerciseName));
+    if (!ex) continue;
+    const raw = Array.isArray(ex.setsData) ? ex.setsData : [];
+    let sets = raw
+      .filter((s: any) => (s.weight || 0) > 0 || (s.reps || 0) > 0)
+      .map((s: any) => ({ weight: s.weight || 0, reps: s.reps || 0 }));
+    if (!sets.length && (ex.weight || 0) > 0) sets = [{ weight: ex.weight, reps: ex.reps || 0 }];
+    if (!sets.length) continue;
+    const top = sets.reduce((a, b) => (b.weight > a.weight ? b : a));
+    out.push({ date: workout.date, sets, top });
+  }
+  return out; // newest first
 };
 
 export const getBodyweightHistory = () => {
@@ -809,7 +834,7 @@ export const getMembers = async () => {
 
 export const getMemberActivity = async (memberId: string) => {
   const { data } = await supabase.from('workout_history').select('*').eq('user_id', memberId).order('date', { ascending: false });
-  return data || [];
+  return (data || []).map((r: any) => r.data ?? r);
 };
 
 export const sendNotification = async (userId: string, title: string, message: string) => {
@@ -920,7 +945,8 @@ export const syncFromSupabase = async () => {
   }
 
   if (hist.data && hist.data.length > 0 && !isDirty('history')) {
-    localStorage.setItem('fittrack_history', JSON.stringify(hist.data));
+    const rows = hist.data.map((r: any) => r.data ?? r);
+    localStorage.setItem('fittrack_history', JSON.stringify(rows));
   }
   
   if (bw.data && bw.data.length > 0 && !isDirty('bodyweight')) {
