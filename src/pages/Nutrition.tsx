@@ -30,6 +30,7 @@ import {
   DialogTrigger as RadixDialogTrigger,
 } from "@/components/ui/dialog";
 import { getEmbedUrl } from "@/lib/utils";
+import { ResourcesSection } from "@/components/ResourcesSection";
 import { 
   getHabits, 
   getMemberNutrition, 
@@ -50,11 +51,24 @@ import {
   getMemberMacros,
   saveMemberMacros,
   getMacroLogs,
-  saveMacroLog
+  saveMacroLog,
+  getAppSettings,
 } from "@/lib/store";
 import { motion, AnimatePresence } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { supabase } from "@/lib/supabase";
+
+function ComingSoon({ title }: { title: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 space-y-4 text-center">
+      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+        <Info className="h-8 w-8 text-primary" />
+      </div>
+      <h2 className="text-2xl font-heading uppercase tracking-wider">{title}</h2>
+      <p className="text-sm text-muted-foreground max-w-xs">Coming soon — we're adding this shortly.</p>
+    </div>
+  );
+}
 
 export default function Nutrition() {
   const [nutrition, setNutrition] = useState<any>(null);
@@ -73,6 +87,10 @@ export default function Nutrition() {
   const [isUploading, setIsUploading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
+  // Hub section router
+  const [nutSection, setNutSection] = useState<string | null>(null);
+  const [flags, setFlags] = useState<any>(null);
+
   const [newMeasurement, setNewMeasurement] = useState({
     waist: '', hips: '', chest: '', thigh: '', arm: '', notes: ''
   });
@@ -85,6 +103,7 @@ export default function Nutrition() {
 
   useEffect(() => {
     loadData();
+    getAppSettings().then(setFlags);
   }, []);
 
   const loadData = async () => {
@@ -547,14 +566,28 @@ export default function Nutrition() {
     };
   });
 
-  return (
-    <div className="p-6 space-y-6 pb-24">
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-heading text-foreground uppercase tracking-tighter">Nutrition</h1>
-          <p className="text-sm text-muted-foreground uppercase tracking-widest font-medium">Phase {nutrition.phase} · {nutrition.goal.replace('_', ' ')}</p>
-        </div>
-        <div className="flex items-center gap-2">
+  const TILES = [
+    { key: 'calculator', flag: 'nutrition_calculator', name: 'Calorie Calculator', icon: '🔥', desc: 'Protein & calorie targets' },
+    { key: 'habits',     flag: 'nutrition_habits',     name: 'Habit Tracking',     icon: '✅', desc: 'Daily habits, streaks & graduation' },
+    { key: 'recipes',    flag: 'nutrition_recipes',    name: 'Recipes',            icon: '🥗', desc: 'Recipe books & ideas' },
+    { key: 'meal_plans', flag: 'nutrition_meal_plans', name: 'Meal Plans',         icon: '📋', desc: 'Structured weekly plans' },
+    { key: 'education',  flag: 'nutrition_education',  name: 'Education',          icon: '🎥', desc: 'Nutrition videos & guides' },
+    { key: 'progress',   flag: 'nutrition_progress',   name: 'Progress',           icon: '📈', desc: 'Weight, measurements & photos' },
+  ];
+
+  const isFlagOn = (flag: string) => flags ? flags[flag] === true : false;
+  const currentTile = TILES.find(t => t.key === nutSection);
+  const sectionOff = nutSection && currentTile && !isFlagOn(currentTile.flag);
+
+  // ── Hub view (no section selected) ──────────────────────────────────────
+  if (!nutSection) {
+    return (
+      <div className="p-6 space-y-6 pb-24">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-heading text-foreground uppercase tracking-tighter">Nutrition</h1>
+            <p className="text-sm text-muted-foreground uppercase tracking-widest font-medium">Phase {nutrition.phase} · {nutrition.goal.replace('_', ' ')}</p>
+          </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
@@ -580,44 +613,99 @@ export default function Nutrition() {
             </AlertDialogContent>
           </AlertDialog>
         </div>
-      </div>
 
-      {showSeasonReview && (
-        <SeasonReviewFlow 
-          nutrition={nutrition}
-          memberHabits={memberHabits}
-          habitsLibrary={habitsLibrary}
-          checkins={checkins}
-          measurements={measurements}
-          bodyweight={bodyweight}
-          onComplete={handleSeasonReviewSubmit}
-          onCancel={() => setShowSeasonReview(false)}
-          onPhotoUpload={() => photoInputRef.current?.click()}
-          onAddMeasurement={handleAddMeasurement}
-          newMeasurement={newMeasurement}
-          setNewMeasurement={setNewMeasurement}
-          recordCoachingInterest={recordCoachingInterest}
-        />
-      )}
+        {showSeasonReview && (
+          <SeasonReviewFlow 
+            nutrition={nutrition}
+            memberHabits={memberHabits}
+            habitsLibrary={habitsLibrary}
+            checkins={checkins}
+            measurements={measurements}
+            bodyweight={bodyweight}
+            onComplete={handleSeasonReviewSubmit}
+            onCancel={() => setShowSeasonReview(false)}
+            onPhotoUpload={() => photoInputRef.current?.click()}
+            onAddMeasurement={handleAddMeasurement}
+            newMeasurement={newMeasurement}
+            setNewMeasurement={setNewMeasurement}
+            recordCoachingInterest={recordCoachingInterest}
+          />
+        )}
 
-      <div className="space-y-12">
-        <HabitsHome activeMemberHabits={activeMemberHabits} habitsLibrary={habitsLibrary} checkins={checkins} handleCheckin={handleCheckin} today={today} memberHabits={memberHabits} nutrition={nutrition} macros={macros} macroForm={macroForm} setMacroForm={setMacroForm} showMacroCalc={showMacroCalc} setShowMacroCalc={setShowMacroCalc} calculateMacros={calculateMacros} toggleMacroTracking={toggleMacroTracking} todayMacros={todayMacros} logTodayMacros={logTodayMacros} getProteinStreak={getProteinStreak} bodyweight={bodyweight} />
-        
-        <div className="space-y-4">
-          <h2 className="text-2xl font-heading uppercase">Roadmap</h2>
-          <RoadmapView nutrition={nutrition} memberHabits={memberHabits} habitsLibrary={habitsLibrary} />
+        <div className="grid grid-cols-2 gap-4">
+          {TILES.map(t => {
+            const on = isFlagOn(t.flag);
+            return (
+              <button
+                key={t.key}
+                disabled={!on}
+                onClick={() => on && setNutSection(t.key)}
+                className={`flex flex-col gap-3 p-4 rounded-xl border text-left transition-all ${
+                  on
+                    ? 'bg-card border-border hover:border-primary/40 active:scale-[0.98]'
+                    : 'bg-muted/30 border-border/50 opacity-60'
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${on ? 'bg-primary/15' : 'bg-muted'}`}>
+                  {t.icon}
+                </div>
+                <div className="space-y-0.5">
+                  <p className="font-heading text-lg uppercase tracking-wider leading-none">{t.name}</p>
+                  <p className="text-xs text-muted-foreground leading-tight">{t.desc}</p>
+                </div>
+                {on ? (
+                  <span className="text-xs font-bold text-primary mt-auto">Open ›</span>
+                ) : (
+                  <span className="text-[10px] font-bold uppercase text-muted-foreground mt-auto bg-muted px-2 py-0.5 rounded-full inline-block w-fit">Coming soon</span>
+                )}
+              </button>
+            );
+          })}
         </div>
+        <input type="file" ref={photoInputRef} className="hidden" accept="image/*" onChange={handlePhotoUpload} />
+      </div>
+    );
+  }
 
-        <div className="space-y-4">
-          <h2 className="text-2xl font-heading uppercase">Progress</h2>
+  // ── Section view ─────────────────────────────────────────────────────────
+
+  return (
+    <div className="p-6 space-y-6 pb-24">
+      <button onClick={() => setNutSection(null)} className="flex items-center gap-1 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors">
+        <ChevronLeft className="h-4 w-4" /> Nutrition
+      </button>
+
+      {sectionOff ? (
+        <ComingSoon title={currentTile?.name || 'Section'} />
+      ) : nutSection === 'calculator' ? (
+        <div className="space-y-8">
+          <CalculatorSection macros={macros} macroForm={macroForm} setMacroForm={setMacroForm} showMacroCalc={showMacroCalc} setShowMacroCalc={setShowMacroCalc} calculateMacros={calculateMacros} toggleMacroTracking={toggleMacroTracking} todayMacros={todayMacros} logTodayMacros={logTodayMacros} getProteinStreak={getProteinStreak} bodyweight={bodyweight} nutrition={nutrition} />
+        </div>
+      ) : nutSection === 'habits' ? (
+        <div className="space-y-12">
+          <HabitsHome activeMemberHabits={activeMemberHabits} habitsLibrary={habitsLibrary} checkins={checkins} handleCheckin={handleCheckin} today={today} memberHabits={memberHabits} nutrition={nutrition} />
+          <div className="space-y-4">
+            <h2 className="text-2xl font-heading uppercase">Roadmap</h2>
+            <RoadmapView nutrition={nutrition} memberHabits={memberHabits} habitsLibrary={habitsLibrary} />
+          </div>
+          <div className="space-y-4">
+            <h2 className="text-2xl font-heading uppercase">Coach Accountability</h2>
+            <CoachUpsellSection nutrition={nutrition} coachNotes={coachNotes} recordCoachingInterest={recordCoachingInterest} activeMemberHabits={activeMemberHabits} habitsLibrary={habitsLibrary} checkins={checkins} />
+          </div>
+        </div>
+      ) : nutSection === 'progress' ? (
+        <div className="space-y-8">
           <NutritionProgress consistencyData={consistencyData} measurements={measurements} photos={photos} bodyweight={bodyweight} onAddMeasurement={handleAddMeasurement} newMeasurement={newMeasurement} setNewMeasurement={setNewMeasurement} onPhotoUpload={() => photoInputRef.current?.click()} onLogWeight={handleLogWeight} isUploading={isUploading} />
         </div>
-
-        <div className="space-y-4">
-          <h2 className="text-2xl font-heading uppercase">Coach Accountability</h2>
-          <CoachUpsellSection nutrition={nutrition} coachNotes={coachNotes} recordCoachingInterest={recordCoachingInterest} activeMemberHabits={activeMemberHabits} habitsLibrary={habitsLibrary} checkins={checkins} />
-        </div>
-      </div>
+      ) : nutSection === 'recipes' ? (
+        <ResourcesSection page="recipes" heading="Recipes" blurb="Recipe books and ideas from your coach." />
+      ) : nutSection === 'meal_plans' ? (
+        <ResourcesSection page="meal_plans" heading="Meal Plans" blurb="Structured weekly plans from your coach." />
+      ) : nutSection === 'education' ? (
+        <ResourcesSection page="nutrition_education" heading="Education" blurb="Nutrition videos and guides." />
+      ) : (
+        <ComingSoon title={currentTile?.name || 'Section'} />
+      )}
       <input type="file" ref={photoInputRef} className="hidden" accept="image/*" onChange={handlePhotoUpload} />
     </div>
   );
@@ -710,7 +798,7 @@ function CoachUpsellSection({ nutrition, coachNotes, recordCoachingInterest, act
   );
 }
 
-function HabitsHome({ activeMemberHabits, habitsLibrary, checkins, handleCheckin, today, memberHabits, nutrition, macros, macroForm, setMacroForm, showMacroCalc, setShowMacroCalc, calculateMacros, toggleMacroTracking, todayMacros, logTodayMacros, getProteinStreak, bodyweight }: any) {
+function HabitsHome({ activeMemberHabits, habitsLibrary, checkins, handleCheckin, today, memberHabits, nutrition }: any) {
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
@@ -885,7 +973,15 @@ function HabitsHome({ activeMemberHabits, habitsLibrary, checkins, handleCheckin
           </div>
         )}
       </div>
-      
+    </div>
+  );
+}
+
+// ── CalculatorSection (Calorie Calculator hub tile) ────────────────────────
+
+function CalculatorSection({ macros, macroForm, setMacroForm, showMacroCalc, setShowMacroCalc, calculateMacros, toggleMacroTracking, todayMacros, logTodayMacros, getProteinStreak, bodyweight, nutrition }: any) {
+  return (
+    <div className="space-y-6">
       <div className="flex items-center justify-between px-1">
         <h2 className="text-lg font-heading uppercase">Macros & Calories</h2>
         <div className="flex items-center gap-2">
@@ -1018,6 +1114,9 @@ function HabitsHome({ activeMemberHabits, habitsLibrary, checkins, handleCheckin
         </div>
       )}
 
+      <div className="pt-4">
+        <ResourcesSection page="calculator" heading="Tips & Resources" blurb="Videos and guides to help you hit your targets." />
+      </div>
     </div>
   );
 }

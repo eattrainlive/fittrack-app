@@ -1263,18 +1263,68 @@ export const getMembershipAccess = async (): Promise<{ allowed: boolean; reason:
   return { allowed: false, reason: 'cancelled' };
 };
 
-// ── Export (GDPR) ──────────────────────────────────────────────────────────
+// ── App settings (shared feature flags) ────────────────────────────────────
 
-export const exportAttendanceData = async () => {
-  const [members, history, flags] = await Promise.all([
-    supabase.from('gym_members').select('*'),
-    supabase.from('membership_status_history').select('*'),
-    supabase.from('member_flags').select('*'),
-  ]);
+// ── Resources (sections + items per page) ───────────────────────────────────
 
-  return {
-    members: members.data || [],
-    status_history: history.data || [],
-    flags: flags.data || [],
-  };
+export const getResourceSections = async (page: string) => {
+  const { data } = await supabase.from('resource_sections').select('*').eq('page', page).order('sort_order').order('created_at');
+  return data || [];
+};
+
+export const addResourceSection = async (page: string, name: string) => {
+  const { error } = await supabase.from('resource_sections').insert({ page, name });
+  return { error };
+};
+
+export const deleteResourceSection = async (id: string) => {
+  const { error } = await supabase.from('resource_sections').delete().eq('id', id);
+  return { error };
+};
+
+export const getResources = async (page: string) => {
+  const { data } = await supabase.from('resources').select('*').eq('page', page).order('sort_order').order('created_at');
+  return data || [];
+};
+
+export const addResource = async (r: { page: string; section_id: string | null; title: string; url: string; type: string; description?: string }) => {
+  const { error } = await supabase.from('resources').insert(r);
+  return { error };
+};
+
+export const deleteResource = async (id: string) => {
+  const { error } = await supabase.from('resources').delete().eq('id', id);
+  return { error };
+};
+
+export const uploadResourceFile = async (file: File): Promise<string | null> => {
+  const path = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+  const { error } = await supabase.storage.from('resources').upload(path, file, { upsert: false });
+  if (error) { console.error(error); return null; }
+  return supabase.storage.from('resources').getPublicUrl(path).data.publicUrl;
+};
+
+export const getAppSettings = async () => {
+  const cached = localStorage.getItem('fittrack_app_settings');
+  let cachedData: any = null;
+  try { cachedData = cached ? JSON.parse(cached) : null; } catch {}
+
+  const { data } = await supabase.from('app_settings').select('*').eq('id', 1).maybeSingle();
+  if (data) {
+    localStorage.setItem('fittrack_app_settings', JSON.stringify(data));
+    return data;
+  }
+  return cachedData;
+};
+
+export const saveAppSettings = async (patch: Record<string, boolean>) => {
+  const { error } = await supabase
+    .from('app_settings')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', 1);
+  if (!error) {
+    const cur = JSON.parse(localStorage.getItem('fittrack_app_settings') || '{}');
+    localStorage.setItem('fittrack_app_settings', JSON.stringify({ ...cur, ...patch }));
+  }
+  return { error };
 };

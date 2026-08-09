@@ -9,11 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn, getEmbedUrl } from "@/lib/utils";
-import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification, getAnthropicKey, saveAnthropicKey, getVimeoToken, getHabits, getWorkoutsOfWeek, saveWorkoutOfWeek } from "@/lib/store";
+import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification, getAnthropicKey, saveAnthropicKey, getVimeoToken, getHabits, getWorkoutsOfWeek, saveWorkoutOfWeek, getAppSettings, saveAppSettings } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar as CalendarIcon, Bell, Send, Download, Link2, Link2Off, Heading, Upload, Sparkles, Check, ChevronsUpDown } from "lucide-react";
 import JSZip from "jszip";
@@ -171,6 +172,16 @@ const Admin = () => {
 
   // Members State
   const [activeTab, setActiveTab] = useState("exercises");
+
+  // Nutrition section flags
+  const [appFlags, setAppFlags] = useState<any>(null);
+  useEffect(() => { getAppSettings().then(setAppFlags); }, []);
+  const toggleFlag = async (flag: string, value: boolean) => {
+    const { error } = await saveAppSettings({ [flag]: value });
+    if (error) { toast.error("Couldn't save setting"); return; }
+    setAppFlags((prev: any) => ({ ...prev, [flag]: value }));
+    toast.success(value ? "Section enabled" : "Section hidden");
+  };
 
   const [members, setMembers] = useState<any[]>([]);
   const [selectedMember, setSelectedMember] = useState<any | null>(null);
@@ -3112,6 +3123,30 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         </TabsContent>
 
         <TabsContent value="nutrition" className="space-y-6 mt-6">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-lg">Nutrition Sections</CardTitle>
+              <CardDescription>Switch a section on when it's ready — members see it instantly.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {[
+                { flag: 'nutrition_calculator', label: 'Calorie Calculator' },
+                { flag: 'nutrition_progress',   label: 'Progress' },
+                { flag: 'nutrition_habits',      label: 'Habit Tracking' },
+                { flag: 'nutrition_recipes',     label: 'Recipes' },
+                { flag: 'nutrition_meal_plans',  label: 'Meal Plans' },
+                { flag: 'nutrition_education',   label: 'Education' },
+              ].map(s => (
+                <div key={s.flag} className="flex items-center justify-between gap-2 p-3 rounded-lg border border-border bg-muted/30">
+                  <Label className="text-sm font-bold cursor-pointer">{s.label}</Label>
+                  <Switch
+                    checked={appFlags?.[s.flag] ?? false}
+                    onCheckedChange={(v) => toggleFlag(s.flag, v)}
+                  />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <h3 className="text-2xl font-heading tracking-wider">Nutrition</h3>
