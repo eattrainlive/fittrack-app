@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, PlayCircle, FileText, Loader2 } from "lucide-react";
+import { Plus, Trash2, PlayCircle, FileText, Loader2, ImageIcon, ChevronUp, ChevronDown, Upload, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,12 @@ import {
   getResources,
   addResource,
   deleteResource,
+  updateResource,
   uploadResourceFile,
+  makePdfCover,
+  processPdf,
+  reorderResources,
+  reorderSections,
 } from "@/lib/store";
 import { getEmbedUrl } from "@/lib/utils";
 
@@ -39,6 +44,7 @@ interface Resource {
   url: string;
   type: string;
   description?: string;
+  thumbnail_url?: string | null;
 }
 
 export function ResourcesSection({
@@ -68,7 +74,11 @@ export function ResourcesSection({
     section_id: "other",
   });
   const [resFile, setResFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Resource | null>(null);
+  const [editFile, setEditFile] = useState<File | null>(null);
 
   const load = useCallback(async () => {
     const [secs, res] = await Promise.all([
@@ -124,6 +134,7 @@ export function ResourcesSection({
     setSaving(true);
     let url = resForm.url;
     let type = "link";
+    let thumbnail_url: string | null = null;
 
     if (resFile) {
       const uploaded = await uploadResourceFile(resFile);
@@ -134,12 +145,24 @@ export function ResourcesSection({
       }
       url = uploaded;
       type = "file";
+      // Auto-generate cover for PDFs; use image directly for image uploads
+      if (resFile.type === "application/pdf") {
+        thumbnail_url = await makePdfCover(resFile);
+      } else if (resFile.type.startsWith("image/")) {
+        thumbnail_url = url;
+      }
     } else if (!url) {
       toast.error("Please paste a URL or upload a file");
       setSaving(false);
       return;
     } else if (isVideo(url)) {
       type = "video";
+    }
+
+    // Manual cover override (takes precedence over auto-generated)
+    if (coverFile) {
+      const coverUrl = await uploadResourceFile(coverFile);
+      if (coverUrl) thumbnail_url = coverUrl;
     }
 
     const section_id =
@@ -152,6 +175,7 @@ export function ResourcesSection({
       url,
       type,
       description: resForm.description.trim() || undefined,
+      thumbnail_url,
     });
 
     if (error) {
@@ -163,6 +187,7 @@ export function ResourcesSection({
     toast.success("Resource added");
     setResForm({ title: "", url: "", description: "", section_id: "other" });
     setResFile(null);
+    setCoverFile(null);
     setShowAddResource(false);
     setSaving(false);
     load();
@@ -178,7 +203,80 @@ export function ResourcesSection({
     load();
   };
 
-  const renderResource = (r: Resource) => (
+  const saveEdit = async () => {
+    if (!editing) return;
+    let thumbnail_url = editing.thumbnail_url || null;
+    if (editFile) {
+      const up = await uploadResourceFile(editFile);
+      if (up) thumbnail_url = up;
+    }
+    const { error } = await updateResource(editing.id, {
+      title: editing.title,
+      description: editing.description ?? null,
+      section_id: editing.section_id ?? null,
+      thumbnail_url,
+    });
+    if (error) {
+      toast.error("Couldn't save changes");
+      return;
+    }
+    toast.success("Resource updated");
+    setEditing(null);
+    setEditFile(null);
+    load();
+  };
+
+  const moveResource = async (sectionItems: Resource[], index: number, dir: -1 | 1) => {
+    const next = index + dir;
+    if (next < 0 || next >= sectionItems.length) return;
+    const reordered = [...sectionItems];
+    [reordered[index], reordered[next]] = [reordered[next], reordered[index]];
+    // Optimistic: update local state immediately
+    setResources((prev) => {
+      const updated = [...prev];
+      for (const r of reordered) {
+        const idx = updated.findIndex((u) => u.id === r.id);
+        if (idx >= 0) updated[idx] = r;
+      }
+      return updated;
+    });
+    await reorderResources(reordered.map((r) => r.id));
+    await load();
+  };
+
+  const moveSection = async (index: number, dir: -1 | 1) => {
+    const next = index + dir;
+    if (next < 0 || next >= sections.length) return;
+    const reordered = [...sections];
+    [reordered[index], reordered[next]] = [reordered[next], reordered[index]];
+    // Optimistic
+    setSections(reordered);
+    await reorderSections(reordered.map((s) => s.id));
+    await load();
+  };
+
+  const handleBulk = async (files: File[], section_id: string | null) => {
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      setProgress(`Uploading ${i + 1} of ${files.length}…`);
+      const url = await uploadResourceFile(f);
+      if (!url) continue; // skip failures, keep going
+      let title = f.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || "Untitled";
+      let thumbnail_url: string | null = null;
+      if (f.type === "application/pdf") {
+        const r = await processPdf(f);
+        title = r.title;
+        thumbnail_url = r.thumbnail_url;
+      } else if (f.type.startsWith("image/")) {
+        thumbnail_url = url; // image is its own cover
+      }
+      await addResource({ page, section_id, title, url, type: "file", thumbnail_url });
+    }
+    setProgress(null);
+    await load();
+  };
+
+  const renderResource = (r: Resource, sectionItems: Resource[], index: number) => (
     <div
       key={r.id}
       className="w-full flex items-center gap-3 border border-border rounded-xl p-3 text-left active:scale-[0.99] transition"
@@ -187,12 +285,10 @@ export function ResourcesSection({
         className="flex items-center gap-3 flex-1 min-w-0 text-left"
         onClick={() => openResource(r)}
       >
-        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-          {isVideo(r.url) ? (
-            <PlayCircle className="w-5 h-5 text-primary" />
-          ) : (
-            <FileText className="w-5 h-5 text-primary" />
-          )}
+        <div className="w-12 h-12 rounded-lg overflow-hidden bg-primary/10 flex items-center justify-center shrink-0">
+          {r.thumbnail_url
+            ? <img src={r.thumbnail_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+            : (isVideo(r.url) ? <PlayCircle className="w-5 h-5 text-primary" /> : <FileText className="w-5 h-5 text-primary" />)}
         </div>
         <div className="min-w-0">
           <p className="font-bold text-sm truncate">{r.title}</p>
@@ -204,12 +300,34 @@ export function ResourcesSection({
         </div>
       </button>
       {isStaff && (
-        <button
-          onClick={() => handleDeleteResource(r.id)}
-          className="shrink-0 p-1.5 text-muted-foreground hover:text-destructive transition-colors"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button
+            disabled={index === 0}
+            onClick={() => moveResource(sectionItems, index, -1)}
+            className="p-1 text-muted-foreground hover:text-primary disabled:opacity-30 transition-colors"
+          >
+            <ChevronUp className="h-4 w-4" />
+          </button>
+          <button
+            disabled={index === sectionItems.length - 1}
+            onClick={() => moveResource(sectionItems, index, 1)}
+            className="p-1 text-muted-foreground hover:text-primary disabled:opacity-30 transition-colors"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setEditing(r)}
+            className="p-1.5 text-muted-foreground hover:text-primary transition-colors"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => handleDeleteResource(r.id)}
+            className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       )}
     </div>
   );
@@ -255,6 +373,7 @@ export function ResourcesSection({
                   section_id: sections.length > 0 ? sections[0].id : "other",
                 });
                 setResFile(null);
+                setCoverFile(null);
                 setShowAddResource(true);
               }}
             >
@@ -264,6 +383,12 @@ export function ResourcesSection({
         )}
       </div>
 
+      {progress && (
+        <div className="flex items-center gap-2 text-sm text-primary font-bold py-2">
+          <Loader2 className="h-4 w-4 animate-spin" /> {progress}
+        </div>
+      )}
+
       {sections.length === 0 && uncategorised.length === 0 ? (
         <p className="text-sm text-muted-foreground py-4">
           {isStaff
@@ -272,7 +397,7 @@ export function ResourcesSection({
         </p>
       ) : (
         <div className="space-y-6">
-          {sections.map((sec) => {
+          {sections.map((sec, secIdx) => {
             const items = resources.filter(
               (r) => r.section_id === sec.id
             );
@@ -284,7 +409,21 @@ export function ResourcesSection({
                     {sec.name}
                   </h3>
                   {isStaff && (
-                    <div className="flex gap-1">
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        disabled={secIdx === 0}
+                        onClick={() => moveSection(secIdx, -1)}
+                        className="p-1 text-muted-foreground hover:text-primary disabled:opacity-30 transition-colors"
+                      >
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        disabled={secIdx === sections.length - 1}
+                        onClick={() => moveSection(secIdx, 1)}
+                        className="p-1 text-muted-foreground hover:text-primary disabled:opacity-30 transition-colors"
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
                       <button
                         onClick={() => {
                           setResForm({
@@ -294,12 +433,28 @@ export function ResourcesSection({
                             section_id: sec.id,
                           });
                           setResFile(null);
+                          setCoverFile(null);
                           setShowAddResource(true);
                         }}
                         className="p-1 text-muted-foreground hover:text-primary"
                       >
                         <Plus className="h-3.5 w-3.5" />
                       </button>
+                      <label className="p-1 text-muted-foreground hover:text-primary cursor-pointer" title="Bulk upload">
+                        <Upload className="h-3.5 w-3.5" />
+                        <input
+                          type="file"
+                          multiple
+                          accept=".pdf,.png,.jpg,.jpeg,.webp"
+                          className="hidden"
+                          disabled={!!progress}
+                          onChange={(e) => {
+                            const files = Array.from(e.target.files || []);
+                            if (files.length) handleBulk(files, sec.id);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
                       <button
                         onClick={() => handleDeleteSection(sec.id)}
                         className="p-1 text-muted-foreground hover:text-destructive"
@@ -315,7 +470,7 @@ export function ResourcesSection({
                       No resources in this section yet.
                     </p>
                   ) : (
-                    items.map(renderResource)
+                    items.map((r, i) => renderResource(r, items, i))
                   )}
                 </div>
               </div>
@@ -328,7 +483,7 @@ export function ResourcesSection({
                 Other
               </h3>
               <div className="space-y-2">
-                {uncategorised.map(renderResource)}
+                {uncategorised.map((r, i) => renderResource(r, uncategorised, i))}
               </div>
             </div>
           )}
@@ -419,6 +574,15 @@ export function ResourcesSection({
               />
             </div>
             <div className="space-y-2">
+              <Label className="flex items-center gap-1.5"><ImageIcon className="h-3.5 w-3.5" /> Cover image (optional)</Label>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setCoverFile(e.target.files?.[0] || null)}
+              />
+              <p className="text-[10px] text-muted-foreground">Overrides the auto-generated cover for PDFs/videos/links.</p>
+            </div>
+            <div className="space-y-2">
               <Label>Description (optional)</Label>
               <Textarea
                 value={resForm.description}
@@ -441,6 +605,60 @@ export function ResourcesSection({
               )}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Resource dialog */}
+      <Dialog open={!!editing} onOpenChange={(o) => { if (!o) { setEditing(null); setEditFile(null); } }}>
+        <DialogContent className="w-[92vw] max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit resource</DialogTitle>
+          </DialogHeader>
+          {editing && (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>Title</Label>
+                <Input
+                  value={editing.title}
+                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                  placeholder="Resource title"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Section</Label>
+                <select
+                  value={editing.section_id || ""}
+                  onChange={(e) => setEditing({ ...editing, section_id: e.target.value || null })}
+                  className="w-full border border-border rounded-md h-10 px-2 text-sm bg-background"
+                >
+                  <option value="">Other (no section)</option>
+                  {sections.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5"><ImageIcon className="h-3.5 w-3.5" /> Replace cover image (optional)</Label>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setEditFile(e.target.files?.[0] ?? null)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Description (optional)</Label>
+                <Textarea
+                  value={editing.description || ""}
+                  onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+                  placeholder="Short description"
+                  rows={2}
+                />
+              </div>
+              <Button className="w-full" onClick={saveEdit}>
+                Save changes
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

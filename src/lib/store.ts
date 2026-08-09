@@ -1,4 +1,7 @@
+import * as pdfjsLib from 'pdfjs-dist';
 import { supabase } from "./supabase";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 // ── Dirty flag helpers ─────────────────────────────────────────────────────
 // A "dirty" store has local writes that haven't confirmed to Supabase yet.
@@ -1287,7 +1290,7 @@ export const getResources = async (page: string) => {
   return data || [];
 };
 
-export const addResource = async (r: { page: string; section_id: string | null; title: string; url: string; type: string; description?: string }) => {
+export const addResource = async (r: { page: string; section_id: string | null; title: string; url: string; type: string; description?: string; thumbnail_url?: string | null }) => {
   const { error } = await supabase.from('resources').insert(r);
   return { error };
 };
@@ -1297,11 +1300,80 @@ export const deleteResource = async (id: string) => {
   return { error };
 };
 
+export const updateResource = async (id: string, patch: {
+  title?: string; description?: string; section_id?: string | null; url?: string; type?: string; thumbnail_url?: string | null;
+}) => {
+  const { error } = await supabase.from('resources').update(patch).eq('id', id);
+  return { error };
+};
+
+export const reorderResources = async (orderedIds: string[]) => {
+  await Promise.all(orderedIds.map((id, i) =>
+    supabase.from('resources').update({ sort_order: i }).eq('id', id)));
+};
+
+export const reorderSections = async (orderedIds: string[]) => {
+  await Promise.all(orderedIds.map((id, i) =>
+    supabase.from('resource_sections').update({ sort_order: i }).eq('id', id)));
+};
+
+async function uploadBlob(blob: Blob, name: string): Promise<string | null> {
+  const path = `${Date.now()}-${name}`;
+  const { error } = await supabase.storage.from('resources').upload(path, blob, { upsert: false });
+  if (error) { console.error(error); return null; }
+  return supabase.storage.from('resources').getPublicUrl(path).data.publicUrl;
+}
+
 export const uploadResourceFile = async (file: File): Promise<string | null> => {
   const path = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
   const { error } = await supabase.storage.from('resources').upload(path, file, { upsert: false });
   if (error) { console.error(error); return null; }
   return supabase.storage.from('resources').getPublicUrl(path).data.publicUrl;
+};
+
+// Render PDF page 1 → JPEG thumbnail (~500px wide). Returns a public URL or null.
+export const makePdfCover = async (file: File): Promise<string | null> => {
+  try {
+    const data = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data }).promise;
+    const page = await pdf.getPage(1);
+    const base = page.getViewport({ scale: 1 });
+    const scale = 500 / base.width;
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width; canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d')!, viewport }).promise;
+    const blob: Blob | null = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.82));
+    return blob ? uploadBlob(blob, 'cover.jpg') : null;
+  } catch (e) { console.warn('PDF cover failed', e); return null; }
+};
+
+// Returns { title, thumbnail_url } from a PDF in a single parse — title from
+// embedded metadata (fallback to filename), cover from page 1 rendered to JPEG.
+export const processPdf = async (file: File): Promise<{ title: string; thumbnail_url: string | null }> => {
+  const cleanName = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'Untitled';
+  try {
+    const data = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data }).promise;
+    const meta = await pdf.getMetadata().catch(() => null);
+    const metaTitle = (meta?.info as any)?.Title;
+    const title = metaTitle && String(metaTitle).trim() ? String(metaTitle).trim() : cleanName;
+
+    const page = await pdf.getPage(1);
+    const base = page.getViewport({ scale: 1 });
+    const viewport = page.getViewport({ scale: 500 / base.width });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width; canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d')!, viewport }).promise;
+    const blob: Blob | null = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.82));
+    let thumbnail_url: string | null = null;
+    if (blob) {
+      const path = `${Date.now()}-cover.jpg`;
+      const { error } = await supabase.storage.from('resources').upload(path, blob, { upsert: false });
+      if (!error) thumbnail_url = supabase.storage.from('resources').getPublicUrl(path).data.publicUrl;
+    }
+    return { title, thumbnail_url };
+  } catch (e) { console.warn('processPdf failed', e); return { title: cleanName, thumbnail_url: null }; }
 };
 
 export const getAppSettings = async () => {
@@ -1327,4 +1399,100 @@ export const saveAppSettings = async (patch: Record<string, boolean>) => {
     localStorage.setItem('fittrack_app_settings', JSON.stringify({ ...cur, ...patch }));
   }
   return { error };
+};
+
+// ── Recipes ─────────────────────────────────────────────────────────────────
+
+export const getRecipes = async (meal?: string) => {
+  let query = supabase.from('recipes').select('*').order('band').order('calories');
+  if (meal) query = query.eq('meal', meal);
+  const { data } = await query;
+  if (data) {
+    localStorage.setItem('fittrack_recipes', JSON.stringify(data));
+    return data;
+  }
+  const local = localStorage.getItem('fittrack_recipes');
+  if (local) {
+    const all = JSON.parse(local);
+    return meal ? all.filter((r: any) => r.meal === meal) : all;
+  }
+  return [];
+};
+
+export const saveRecipe = async (recipe: any): Promise<{ success: boolean; error?: any }> => {
+  try {
+    const { error } = await supabase.from('recipes').upsert(recipe);
+    if (error) return { success: false, error };
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e };
+  }
+};
+
+export const deleteRecipe = async (id: string): Promise<{ success: boolean; error?: any }> => {
+  try {
+    const { error } = await supabase.from('recipes').delete().eq('id', id);
+    if (error) return { success: false, error };
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e };
+  }
+};
+
+export const uploadRecipeImage = async (file: File): Promise<string | null> => {
+  const path = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+  const { error } = await supabase.storage.from('recipe-images').upload(path, file, { upsert: false });
+  if (error) { console.error(error); return null; }
+  return supabase.storage.from('recipe-images').getPublicUrl(path).data.publicUrl;
+};
+
+// ── Food Diary (saved, dated food log) ───────────────────────────────────────
+
+export const getDiary = async (date: string) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data } = await supabase.from('food_diary').select('*')
+    .eq('member_id', user.id).eq('date', date).order('created_at');
+  return data || [];
+};
+
+export const addDiaryItem = async (item: {
+  date: string; meal?: string; source: 'recipe' | 'custom'; recipe_id?: string | null;
+  name: string; calories: number; protein: number; carbs: number; fats: number;
+}) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { error } = await supabase.from('food_diary').insert({ ...item, member_id: user.id });
+  if (error) console.error('addDiaryItem error:', error);
+};
+
+export const removeDiaryItem = async (id: string) => {
+  const { error } = await supabase.from('food_diary').delete().eq('id', id);
+  if (error) console.error('removeDiaryItem error:', error);
+};
+
+// ── Open Food Facts search (free, no API key, CORS-enabled) ──────────────────
+
+export const searchFoods = async (q: string) => {
+  if (!q || q.trim().length < 2) return [];
+  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}`
+            + `&search_simple=1&json=1&page_size=20`
+            + `&fields=product_name,brands,nutriments,serving_size,image_small_url`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    return (data.products || [])
+      .filter((p: any) => p.product_name && p.nutriments?.['energy-kcal_100g'] != null)
+      .map((p: any) => ({
+        name: p.product_name + (p.brands ? ` · ${p.brands.split(',')[0].trim()}` : ''),
+        per100: {
+          cal: Math.round(p.nutriments['energy-kcal_100g'] || 0),
+          protein: Math.round(p.nutriments['proteins_100g'] || 0),
+          carbs: Math.round(p.nutriments['carbohydrates_100g'] || 0),
+          fats: Math.round(p.nutriments['fat_100g'] || 0),
+        },
+        serving: p.serving_size || null,
+        image: p.image_small_url || null,
+      }));
+  } catch { return []; }
 };

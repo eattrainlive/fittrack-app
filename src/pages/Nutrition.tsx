@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { getEmbedUrl } from "@/lib/utils";
 import { ResourcesSection } from "@/components/ResourcesSection";
+import { RecipeCards } from "@/components/RecipeCards";
 import { 
   getHabits, 
   getMemberNutrition, 
@@ -700,7 +701,7 @@ export default function Nutrition() {
       ) : nutSection === 'recipes' ? (
         <ResourcesSection page="recipes" heading="Recipes" blurb="Recipe books and ideas from your coach." />
       ) : nutSection === 'meal_plans' ? (
-        <ResourcesSection page="meal_plans" heading="Meal Plans" blurb="Structured weekly plans from your coach." />
+        <MealPlansPage />
       ) : nutSection === 'education' ? (
         <ResourcesSection page="nutrition_education" heading="Education" blurb="Nutrition videos and guides." />
       ) : (
@@ -1413,6 +1414,50 @@ function SeasonReviewFlow({ nutrition, memberHabits, habitsLibrary, checkins, me
           </motion.div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Meal Plans (Ready-Made + Build Your Own) ────────────────────────────────
+
+function MealPlansPage() {
+  const [tab, setTab] = useState<'plans' | 'build'>('plans');
+  const [target, setTarget] = useState<number | null>(null);
+
+  useEffect(() => {
+    const m = getMemberMacros();
+    setTarget(m?.calorie_target ?? null);
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex bg-muted rounded-lg p-1">
+        <button
+          onClick={() => setTab('plans')}
+          className={`flex-1 text-sm font-bold py-2 rounded-md transition-all ${tab === 'plans' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+        >
+          Ready-Made Plans
+        </button>
+        <button
+          onClick={() => setTab('build')}
+          className={`flex-1 text-sm font-bold py-2 rounded-md transition-all ${tab === 'build' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+        >
+          Build Your Own
+        </button>
+      </div>
+
+      {tab === 'plans' ? (
+        <ResourcesSection page="meal_plans" heading="Ready-Made Plans" blurb="Full plans you can follow as-is." />
+      ) : (
+        <div className="space-y-4">
+          {target && (
+            <div className="rounded-xl bg-primary/10 border border-primary/30 p-3 text-sm">
+              <span className="font-bold">Your target: {target} kcal/day.</span> Pick meals from the options below to hit it.
+            </div>
+          )}
+          <RecipeCards targetCalories={target} />
+        </div>
+      )}
     </div>
   );
 }
