@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Dumbbell, Plus, Minus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw, Link2, Link2Off, Heading, List, Check, Search, ArrowLeft, RefreshCw, Trophy, CheckCircle2, ArrowRight, ArrowLeft as ArrowLeftIcon, ChevronDown, Repeat } from "lucide-react";
+import { Dumbbell, Plus, Minus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw, Link2, Link2Off, Heading, List, Check, Search, ArrowLeft, RefreshCw, Trophy, CheckCircle2, ArrowRight, ArrowLeft as ArrowLeftIcon, ChevronDown, ChevronRight, Repeat } from "lucide-react";
 import React, { useState, useEffect, useMemo } from "react";
 import { getExercises, getPrograms, saveWorkoutToHistory, getLastExerciseStats, getActiveProgram, saveActiveProgram, getHabits, detectAndSavePBs, saveCommunityPost, getPersonalRecords, getPreferredDays, savePreferredDays, getWorkoutHistory, getWorkoutsOfWeek, getWowResults, saveWowResult, getExerciseHistory } from "@/lib/store";
 import { getEmbedUrl } from "@/lib/utils";
@@ -826,83 +826,56 @@ const Workouts = () => {
             className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24"
           >
           <div className="flex items-center justify-between">
-            <h2 className="text-3xl font-heading tracking-wider font-bold uppercase">Browse</h2>
+            <h2 className="text-3xl font-heading tracking-wider uppercase">Browse</h2>
           </div>
 
-          {currentWow && activeTab === "All" && !searchQuery && (
-            <Card className="bg-primary/10 border-primary overflow-hidden relative">
-              <div className="absolute top-0 right-0 p-4 opacity-10">
-                <Trophy className="w-24 h-24" />
-              </div>
-              <CardHeader className="relative z-10 pb-2">
-                <div className="flex justify-between items-start">
-                  <div className="space-y-1">
-                    <span className="text-primary font-bold text-xs tracking-wider uppercase bg-primary/20 px-2 py-0.5 rounded-full">
-                      Workout of the Week
-                    </span>
-                    <CardTitle className="text-3xl font-heading uppercase tracking-wider">{currentWow.name}</CardTitle>
+          {/* Compact strips at top: Resume + WOW */}
+          <div className="space-y-3">
+            {activeProgram && allowedAccess && allowedAccess.includes(bucketOf(activeProgram)) && (
+              <button
+                onClick={resumeActiveProgram}
+                className="w-full flex items-center gap-3 bg-card border border-border border-l-4 border-l-primary rounded-xl p-3 text-left shadow-sm active:scale-[0.99] transition">
+                <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                  <Play className="w-5 h-5 text-primary fill-current" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-primary">Resume</p>
+                  <p className="font-heading text-xl tracking-wider uppercase leading-none">{activeProgram.stream || activeProgram.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">Workout {activeProgram.currentIndex + 1} of {activeProgram.workouts.length}</p>
+                </div>
+                <span className="shrink-0 inline-flex items-center gap-1 bg-primary text-primary-foreground font-bold text-xs px-3 py-2 rounded-lg">Resume</span>
+              </button>
+            )}
+
+            {currentWow && activeTab === "All" && !searchQuery && (() => {
+              const myScore = wowResults.find(r => r.member_id === localStorage.getItem('fittrack_current_uid'));
+              const sorted = [...wowResults].sort((a, b) => currentWow.score_type === 'time' ? a.score - b.score : b.score - a.score);
+              const myRank = sorted.findIndex(r => r.member_id === localStorage.getItem('fittrack_current_uid')) + 1;
+              const typeLabel = currentWow.score_type === 'time' ? 'For Time' : currentWow.score_type === 'reps' ? 'Total Reps' : currentWow.score_type === 'distance' ? 'For Distance' : 'For Calories';
+              const scoreText = myScore ? (currentWow.score_type === 'time' ? `${Math.floor((myScore.score||0)/60)}:${((myScore.score||0)%60).toString().padStart(2,'0')}` : `${myScore.score}`) : null;
+              return (
+                <button
+                  onClick={() => setViewMode('wow-detail')}
+                  className="w-full flex items-center gap-3 bg-[#14170f] border border-[#23291b] rounded-xl p-3 text-left shadow-sm active:scale-[0.99] transition">
+                  <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                    <Trophy className="w-5 h-5 text-primary" />
                   </div>
-                </div>
-                <CardDescription className="text-foreground/80 mt-2 whitespace-pre-wrap">
-                  {currentWow.description}
-                </CardDescription>
-                <div className="flex items-center gap-2 mt-4 text-sm font-medium">
-                  <Badge variant="outline" className="bg-background">
-                    {currentWow.score_type === 'time' ? 'For Time' : currentWow.score_type === 'reps' ? 'Total Reps' : currentWow.score_type === 'distance' ? 'For Distance/Metres' : 'For Calories'}
-                  </Badge>
-                  <span className="text-muted-foreground">{wowResults.length} logged</span>
-                </div>
-              </CardHeader>
-              <CardContent className="relative z-10">
-                {(() => {
-                  const myScore = wowResults.find(r => r.member_id === localStorage.getItem('fittrack_current_uid'));
-                  const sorted = [...wowResults].sort((a, b) => currentWow.score_type === 'time' ? a.score - b.score : b.score - a.score);
-                  const myRank = sorted.findIndex(r => r.member_id === localStorage.getItem('fittrack_current_uid')) + 1;
-                  const top3 = sorted.slice(0, 3);
-                  
-                  return (
-                    <div className="flex flex-col gap-3 mt-2">
-                      {top3.length > 0 && (
-                        <div className="bg-background/50 rounded-lg border border-border p-3 space-y-2">
-                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Top 3 Leaderboard</p>
-                          {top3.map((r, i) => (
-                            <div key={r.id} className="flex justify-between items-center text-sm">
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-primary w-4">{i + 1}.</span>
-                                <span>{r.display_name}</span>
-                                {r.scaled && <Badge variant="outline" className="text-[8px] px-1 h-4">Scaled</Badge>}
-                              </div>
-                              <span className="font-medium">
-                                {currentWow.score_type === 'time' ? `${Math.floor((r.score || 0) / 60)}:${((r.score || 0) % 60).toString().padStart(2, '0')}` : r.score}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {myScore ? (
-                        <div className="flex items-center justify-between bg-background/50 p-3 rounded-lg border border-border">
-                          <div>
-                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Your Score (Rank {myRank})</p>
-                            <p className="text-xl font-heading text-primary">
-                              {currentWow.score_type === 'time' ? `${Math.floor((myScore.score || 0) / 60)}:${((myScore.score || 0) % 60).toString().padStart(2, '0')}` : myScore.score}
-                              {myScore.scaled && <span className="ml-2 text-xs text-muted-foreground uppercase">(Scaled)</span>}
-                            </p>
-                          </div>
-                          <Button variant="outline" size="sm" onClick={() => setShowWowLogger(true)}>Update</Button>
-                        </div>
-                      ) : (
-                        <Button className="w-full font-bold" onClick={() => setShowWowLogger(true)}>Log Your Score</Button>
-                      )}
-                      <div className="flex gap-2">
-                        <Button className="flex-1 font-bold" onClick={() => setViewMode('wow-detail')}>View Workout</Button>
-                        <Button variant="secondary" className="flex-1 font-bold" onClick={() => setShowWowLeaderboard(true)}>Leaderboard</Button>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </CardContent>
-            </Card>
-          )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-primary">Workout of the Week</p>
+                    <p className="font-heading text-xl tracking-wider uppercase leading-none text-white">
+                      {currentWow.name.replace(/^workout of the week\s*/i, '').trim() || currentWow.name}
+                    </p>
+                    <p className="text-xs text-neutral-400 truncate">
+                      {typeLabel}{myScore ? ` · Rank ${myRank} · ${scoreText}` : ` · ${wowResults.length} logged · tap to view`}
+                    </p>
+                  </div>
+                  <span className="shrink-0 inline-flex items-center gap-1 border border-primary/50 text-primary font-bold text-xs px-3 py-2 rounded-lg">
+                    {myScore ? 'View' : 'Log'} <ChevronRight className="w-3.5 h-3.5" />
+                  </span>
+                </button>
+              );
+            })()}
+          </div>
 
           <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
             {["All", "Workouts", "Programs"].map(tab => (
@@ -1023,14 +996,7 @@ const Workouts = () => {
             })()}
           </div>
           
-          {activeProgram && allowedAccess && allowedAccess.includes(bucketOf(activeProgram)) && (
 
-            <div className="pt-4">
-              <Button onClick={resumeActiveProgram} className="w-full gap-2 font-bold tracking-wide h-14 text-lg rounded-xl">
-                Resume {activeProgram.name}
-              </Button>
-            </div>
-          )}
         </motion.div>
         )}
 
@@ -1055,7 +1021,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
              </div>
              
              <div className="absolute bottom-4 left-4 right-4 z-10">
-               <h2 className="text-3xl font-heading tracking-wider font-bold uppercase text-white leading-tight">{selectedTemplate.name}</h2>
+               <h2 className="text-3xl font-heading tracking-wider uppercase text-white leading-tight">{selectedTemplate.name}</h2>
              </div>
           </div>
 
@@ -1323,17 +1289,18 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                     const firstSet = ex.setsData?.[0] || ex || {};
                     const rawTrack = libEx?.trackingType ?? "Weight & Reps";
                     const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
+                    const dist = firstSet.distance || ex.distance || 0;
+                    const mins = firstSet.timeMins || ex.timeMins || 0;
+                    const secs = firstSet.timeSecs || ex.timeSecs || 0;
+                    const cals = firstSet.calories || ex.calories || 0;
+                    const reps = firstSet.reps || ex.reps || 0;
                     let details = [];
-                    if (trackingArray.includes('Distance & Time') && firstSet.distance) details.push(`${firstSet.distance}m`);
-                    if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (firstSet.timeMins || firstSet.timeSecs)) {
-                      const m = firstSet.timeMins || 0;
-                      const s = firstSet.timeSecs || 0;
-                      if (m || s) details.push(`${m ? m + 'm ' : ''}${s ? s + 's' : ''}`.trim());
-                    }
-                    if (trackingArray.includes('Calories') && firstSet.calories) details.push(`${firstSet.calories} cals`);
-                    if (details.length === 0 || trackingArray.includes('Weight & Reps')) {
-                      details.push(`${firstSet.reps || 0} reps`);
-                    }
+                    if (trackingArray.includes('Distance & Time') && dist) details.push(`${dist}m`);
+                    if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (mins || secs))
+                      details.push(`${mins ? mins + 'm ' : ''}${secs ? secs + 's' : ''}`.trim());
+                    if (trackingArray.includes('Calories') && cals) details.push(`${cals} cals`);
+                    if (trackingArray.includes('Weight & Reps') && reps) details.push(`${reps} reps`);
+                    if (details.length === 0 && reps) details.push(`${reps} reps`);
                     const detailStr = details.join(', ');
                     return (
                       <div key={idx} className="p-4 rounded-xl border border-border bg-card flex justify-between items-center">
@@ -1356,7 +1323,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
             initial="initial"
             animate="animate"
             exit="exit"
-            className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24"
+            className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
           >
             <div className="flex flex-col gap-2">
               <Button variant="ghost" size="sm" onClick={() => setViewMode('browse')} className="w-fit -ml-4 text-muted-foreground">
@@ -1367,7 +1334,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                   Workout of the Week
                 </span>
                 <h2 className="text-4xl font-heading tracking-wider uppercase text-foreground leading-none">
-                  {currentWow.name}
+                  {currentWow.name.replace(/^workout of the week\s*/i, '').trim() || currentWow.name}
                 </h2>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium mt-1">
                   <Badge variant="outline" className="bg-background">
@@ -1404,14 +1371,24 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                 return sections.map((sec, idx) => (
                   <Card key={idx} className="bg-card border-border overflow-hidden">
                     <CardContent className="p-0">
-                      <div className="bg-muted/50 p-3 border-b border-border flex justify-between items-center">
-                        <span className="font-bold text-sm tracking-wider uppercase">
-                          {sec.section ? sec.section.name : `Block ${idx + 1}`}
-                        </span>
-                        <span className="text-xs text-muted-foreground font-medium">
-                          {sec.exercises.length} exercises
-                        </span>
+<div className="bg-muted/50 p-3 border-b border-border">
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="font-bold text-sm tracking-wider uppercase">
+                            {sec.section ? sec.section.name : `Block ${idx + 1}`}
+                          </span>
+                          {sec.exercises.length > 0 && (
+                            <span className="text-xs text-muted-foreground font-medium shrink-0">
+                              {sec.exercises.length} {sec.exercises.length === 1 ? 'exercise' : 'exercises'}
+                            </span>
+                          )}
+                        </div>
+                        {sec.section?.description && (
+                          <p className="text-sm text-muted-foreground mt-1.5 whitespace-pre-wrap leading-relaxed">
+                            {sec.section.description}
+                          </p>
+                        )}
                       </div>
+                      {sec.exercises.length > 0 && (
                       <div className="p-3 space-y-3">
                         {sec.exercises.map((ex: any, exIdx: number) => {
                           const libEx = exerciseLibrary.find(e => String(e.id) === String(ex.name));
@@ -1419,18 +1396,26 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                           const rawTrack = libEx?.trackingType ?? "Weight & Reps";
                           const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                           
+                          const dist = ex.distance || 0;
+                          const mins = ex.timeMins || 0;
+                          const secs = ex.timeSecs || 0;
+                          const cals = ex.calories || 0;
+                          const reps = ex.reps || 0;
+                          
                           let metrics = [];
-                          if (trackingArray.includes('Distance & Time') && ex.distance) metrics.push(`${ex.distance}m`);
-                          if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (ex.timeMins || ex.timeSecs)) {
-                            metrics.push(`${ex.timeMins ? ex.timeMins + 'm ' : ''}${ex.timeSecs ? ex.timeSecs + 's' : ''}`.trim());
-                          }
-                          if (trackingArray.includes('Calories') && ex.calories) metrics.push(`${ex.calories} cals`);
+                          if (trackingArray.includes('Distance & Time') && dist) metrics.push(`${dist}m`);
+                          if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (mins || secs))
+                            metrics.push(`${mins ? mins + 'm ' : ''}${secs ? secs + 's' : ''}`.trim());
+                          if (trackingArray.includes('Calories') && cals) metrics.push(`${cals} cals`);
+                          if (trackingArray.includes('Weight & Reps') && reps) metrics.push(`${reps} reps`);
                           
                           let detailText = "";
                           if (metrics.length > 0) {
                             detailText = ex.sets && ex.sets > 1 ? `${ex.sets} × ${metrics.join(', ')}` : metrics.join(', ');
+                          } else if (reps) {
+                            detailText = `${ex.sets || 1} × ${reps}`;
                           } else {
-                            detailText = `${ex.sets || 1} × ${ex.reps || 0}`;
+                            detailText = `${ex.sets || 1} sets`;
                           }
 
                           const isSupersetItem = ex.linkedToNext || (exIdx > 0 && sec.exercises[exIdx - 1].linkedToNext);
@@ -1471,11 +1456,87 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                           );
                         })}
                       </div>
+                      )}
                     </CardContent>
                   </Card>
                 ));
               })()}
             </div>
+
+            {/* Leaderboard block */}
+            <div className="space-y-3">
+              {(() => {
+                const uid = localStorage.getItem('fittrack_current_uid');
+                const genderOf = (r: any) => (r.gender || '').toLowerCase();
+                const filtered = wowResults.filter(r =>
+                  wowLeaderboardFilter === 'Overall' ? true : genderOf(r) === wowLeaderboardFilter.toLowerCase());
+                const sorted = [...filtered].sort((a, b) => currentWow.score_type === 'time' ? a.score - b.score : b.score - a.score);
+                const fmt = (s: number) => currentWow.score_type === 'time'
+                  ? `${Math.floor((s || 0) / 60)}:${((s || 0) % 60).toString().padStart(2, '0')}` : `${s}`;
+                const myIndex = sorted.findIndex(r => r.member_id === uid);
+                const top = sorted.slice(0, 5);
+                const showMeSeparately = myIndex >= 5;
+                return (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-heading text-xl tracking-wider uppercase">Leaderboard</h3>
+                      <span className="text-xs text-muted-foreground">{filtered.length} logged</span>
+                    </div>
+
+                    <div className="flex gap-2">
+                      {(['Overall', 'Male', 'Female'] as const).map(f => (
+                        <button key={f} onClick={() => setWowLeaderboardFilter(f)}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-full border transition ${
+                            wowLeaderboardFilter === f ? 'bg-[#14170f] text-primary border-[#14170f]' : 'border-border text-muted-foreground'}`}>
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="border border-border rounded-xl overflow-hidden">
+                      {top.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No scores yet — be the first.</p>}
+                      {top.map((r, i) => (
+                        <div key={r.id} className={`flex items-center justify-between px-3 py-2.5 text-sm border-b border-border last:border-b-0 ${r.member_id === uid ? 'bg-primary/10' : ''}`}>
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="font-heading text-lg text-primary w-5 shrink-0">{i + 1}</span>
+                            <span className="truncate">{r.display_name}{r.member_id === uid && ' (You)'}</span>
+                            {r.scaled && <Badge variant="outline" className="text-[8px] px-1 h-4 shrink-0">Scaled</Badge>}
+                          </div>
+                          <span className="font-bold tabular-nums shrink-0">{fmt(r.score)}</span>
+                        </div>
+                      ))}
+                      {showMeSeparately && (
+                        <div className="flex items-center justify-between px-3 py-2.5 text-sm bg-primary/10 border-t border-border">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="font-heading text-lg text-primary w-5 shrink-0">{myIndex + 1}</span>
+                            <span className="truncate">{sorted[myIndex].display_name} (You)</span>
+                          </div>
+                          <span className="font-bold tabular-nums shrink-0">{fmt(sorted[myIndex].score)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {filtered.length > top.length && (
+                      <button onClick={() => setShowWowLeaderboard(true)} className="w-full text-center text-xs font-bold text-primary py-2">
+                        View all {filtered.length} ›
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* Sticky bottom CTA */}
+            {(() => {
+              const mine = wowResults.find(r => r.member_id === localStorage.getItem('fittrack_current_uid'));
+              return (
+                <div className="sticky bottom-0 -mx-4 md:-mx-8 px-4 md:px-8 py-3 bg-background/95 backdrop-blur border-t border-border">
+                  <Button className="w-full h-12 font-bold tracking-wide rounded-xl" onClick={() => setShowWowLogger(true)}>
+                    {mine ? 'Update Your Score' : 'Log Your Score'}
+                  </Button>
+                </div>
+              );
+            })()}
           </motion.div>
         )}
 
@@ -1560,17 +1621,19 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                           const rawTrack = libEx?.trackingType ?? "Weight & Reps";
                           const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                           
+                          const dist = firstSet.distance || ex.distance || 0;
+                          const mins = firstSet.timeMins || ex.timeMins || 0;
+                          const secs = firstSet.timeSecs || ex.timeSecs || 0;
+                          const cals = firstSet.calories || ex.calories || 0;
+                          const reps = firstSet.reps || ex.reps || 0;
+                          
                           let details = [];
-                          if (trackingArray.includes('Distance & Time') && firstSet.distance) details.push(`${firstSet.distance}m`);
-                          if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (firstSet.timeMins || firstSet.timeSecs)) {
-                            const m = firstSet.timeMins || 0;
-                            const s = firstSet.timeSecs || 0;
-                            if (m || s) details.push(`${m ? m + 'm ' : ''}${s ? s + 's' : ''}`.trim());
-                          }
-                          if (trackingArray.includes('Calories') && firstSet.calories) details.push(`${firstSet.calories} cals`);
-                          if (details.length === 0 || trackingArray.includes('Weight & Reps')) {
-                            details.push(`${firstSet.reps || 0} reps`);
-                          }
+                          if (trackingArray.includes('Distance & Time') && dist) details.push(`${dist}m`);
+                          if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (mins || secs))
+                            details.push(`${mins ? mins + 'm ' : ''}${secs ? secs + 's' : ''}`.trim());
+                          if (trackingArray.includes('Calories') && cals) details.push(`${cals} cals`);
+                          if (trackingArray.includes('Weight & Reps') && reps) details.push(`${reps} reps`);
+                          if (details.length === 0 && reps) details.push(`${reps} reps`);
                           const detailStr = details.join(', ');
 
                           return (
@@ -1613,51 +1676,24 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
             exit="exit"
             className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24"
           >
-          <div className="flex items-center justify-between space-y-2">
-            <h2 className="text-3xl font-heading tracking-wider font-bold uppercase">Log Workout</h2>
-            <Button variant="ghost" size="sm" onClick={() => setViewMode('browse')} className="text-muted-foreground">
+          <div className="sticky top-0 z-20 -mx-4 px-4 py-2 bg-background/95 backdrop-blur-md border-b border-border/50 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-heading tracking-wider uppercase text-sm truncate">{workoutName || 'Workout'}</p>
+              {activeProgram && (
+                <p className="text-[11px] text-muted-foreground truncate">
+                  Workout {activeProgram.currentIndex + 1} of {activeProgram.workouts.length}
+                </p>
+              )}
+            </div>
+            <Button variant="ghost" size="sm" className="text-muted-foreground shrink-0"
+                    onClick={() => setViewMode('browse')}>
               Cancel
             </Button>
           </div>
 
-          {activeProgram && (!allowedAccess || allowedAccess.includes(activeProgram.type === 'GroupPT' ? 'Group PT' : (activeProgram.stream || 'Foundations'))) && (
-            <Card className="bg-primary/10 border-primary">
-              <CardHeader>
-                <CardTitle className="font-heading tracking-wider flex justify-between items-center">
-                  <span>{activeProgram.name}</span>
-                  <Button variant="outline" size="sm" onClick={() => { setActiveProgram(null); saveActiveProgram(null); setWorkoutName(""); setExercises([{ id: Date.now(), name: "", setsData: [{ id: Date.now().toString(), reps: 10, weight: 0, distance: 0, timeMins: 0, timeSecs: 0, completed: false }], linkedToNext: false, eachSide: false }]); setViewMode('browse'); }}>
-                    Leave
-                  </Button>
-                </CardTitle>
-                <CardDescription>
-                  Progress: Workout {activeProgram.currentIndex + 1} of {activeProgram.workouts.length} ({activeProgram.workouts[activeProgram.currentIndex].name})
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          )}
-
           <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="font-heading text-2xl tracking-wider">Current Session</CardTitle>
-              <CardDescription>Record your sets, reps, and weights.</CardDescription>
-            </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="workout-name">Workout Name</Label>
-                <Input 
-                  id="workout-name" 
-                  placeholder="e.g. Upper Body Power" 
-                  value={workoutName}
-                  readOnly
-                  className="bg-muted/50 cursor-not-allowed focus-visible:ring-0"
-                  onChange={(e) => setWorkoutName(e.target.value)}
-                />
-              </div>
-
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium">Exercises</h3>
-                </div>
 
 
 
@@ -1678,22 +1714,22 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                           
                           const setsCount = ex.setsData?.length || ex.sets || 3;
                           const firstSet = ex.setsData?.[0] || ex || {};
+                          const dist = firstSet.distance || ex.distance || 0;
+                          const mins = firstSet.timeMins || ex.timeMins || 0;
+                          const secs = firstSet.timeSecs || ex.timeSecs || 0;
+                          const cals = firstSet.calories || ex.calories || 0;
+                          const reps = firstSet.reps || ex.reps || 0;
                           
                           const rawTrack = libEx?.trackingType ?? "Weight & Reps";
                           const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                           
                           let details = [];
-                          if (trackingArray.includes('Distance & Time') && firstSet.distance) details.push(`${firstSet.distance}m`);
-                          if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (firstSet.timeMins || firstSet.timeSecs)) {
-                            const m = firstSet.timeMins || 0;
-                            const s = firstSet.timeSecs || 0;
-                            if (m || s) details.push(`${m ? m + 'm ' : ''}${s ? s + 's' : ''}`.trim());
-                          }
-                          if (trackingArray.includes('Calories') && firstSet.calories) details.push(`${firstSet.calories} cals`);
-                          if (details.length === 0 || trackingArray.includes('Weight & Reps')) {
-                            details.push(`${firstSet.reps || 0} reps`);
-                          }
-                          
+                          if (trackingArray.includes('Distance & Time') && dist) details.push(`${dist}m`);
+                          if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (mins || secs))
+                            details.push(`${mins ? mins + 'm ' : ''}${secs ? secs + 's' : ''}`.trim());
+                          if (trackingArray.includes('Calories') && cals) details.push(`${cals} cals`);
+                          if (trackingArray.includes('Weight & Reps') && reps) details.push(`${reps} reps`);
+                          if (details.length === 0 && reps) details.push(`${reps} reps`);
                           const detailStr = details.join(', ');
                           
                           sectionExercises.push({
@@ -1707,56 +1743,45 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                     }
 
                     return (
-                      <div className="flex flex-col min-h-[60vh] space-y-6 animate-in fade-in zoom-in-95 duration-300">
-                        <div className="space-y-2 text-center pt-8">
-                          <span className="text-primary font-bold tracking-wider uppercase text-sm">Entering Section</span>
-                          <h2 className="text-5xl font-heading uppercase tracking-wider text-foreground leading-none">{currentBlock.section.name}</h2>
-                          <div className="text-muted-foreground font-medium text-sm flex items-center justify-center gap-2">
-                            <span>{sectionExercises.length} exercises</span>
-                            <span>·</span>
-                            <span>{currentBlock.type === 'superset' ? 'Superset' : 'Regular'}</span>
+                      <div className="flex flex-col min-h-[70vh] animate-in fade-in duration-300">
+                        <div className="pt-6">
+                          <span className="text-primary font-bold tracking-widest uppercase text-[11px]">
+                            Up Next
+                          </span>
+                          <h2 className="font-heading uppercase tracking-wider text-foreground leading-[0.9] text-4xl mt-1">
+                            {currentBlock.section.name}
+                          </h2>
+                          <div className="flex gap-2 flex-wrap mt-3">
+                            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-primary/10 text-primary">{sectionExercises.length} exercises</span>
+                            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full border border-border text-muted-foreground">{currentBlock.type === 'superset' ? 'Superset' : 'Regular'}</span>
                           </div>
                         </div>
 
                         {currentBlock.section.description && (
-                          <p className="text-muted-foreground text-center px-4 whitespace-pre-wrap">{currentBlock.section.description}</p>
+                          <p className="text-muted-foreground text-sm whitespace-pre-wrap mt-4 leading-relaxed">{currentBlock.section.description}</p>
                         )}
 
                         {sectionExercises.length > 0 && (
-                          <div className="space-y-3 mt-4">
+                          <div className="mt-5">
                             {sectionExercises.map((item, i) => (
-                              <div key={item.id} className="flex items-center gap-4 bg-card border border-border p-4 rounded-xl">
-                                <div className="h-12 w-12 bg-muted rounded-md flex items-center justify-center shrink-0">
-                                  <Dumbbell className="h-6 w-6 text-muted-foreground/50" />
-                                </div>
-                                <div className="flex flex-col flex-1">
-                                  <span className="font-bold text-base leading-tight">{item.name}</span>
-                                  <span className="text-sm text-muted-foreground">
-                                    {item.sets} sets {item.details ? `× ${item.details}` : ''}
-                                  </span>
-                                </div>
+                              <div key={item.id} className="grid grid-cols-[26px_1fr_auto] items-center gap-3 py-3 border-t border-border last:border-b">
+                                <span className="font-heading text-lg text-muted-foreground">{i + 1}</span>
+                                <span className="font-bold text-sm leading-tight">{item.name}</span>
+                                <span className="text-xs text-muted-foreground font-semibold tabular-nums">
+                                  {item.sets}{item.details ? ` × ${item.details}` : ' sets'}
+                                </span>
                               </div>
                             ))}
                           </div>
                         )}
 
-                        <div className="pt-8 flex flex-col gap-4 mt-auto">
-                          <Button 
-                            size="lg" 
-                            className="w-full font-bold tracking-wide text-lg h-14 bg-primary text-primary-foreground shadow-lg"
-                            onClick={() => setShowSectionSlide(false)}
-                          >
+                        <div className="mt-auto pt-8 flex flex-col gap-3">
+                          <Button size="lg" className="w-full font-bold tracking-wide text-lg h-14" onClick={() => setShowSectionSlide(false)}>
                             <Play className="h-5 w-5 mr-2 fill-current" /> Start Section
                           </Button>
                           {currentBlockIndex > 0 && (
-                            <Button 
-                              variant="ghost" 
-                              className="text-muted-foreground h-14 text-lg font-bold"
-                              onClick={() => {
-                                setShowSectionSlide(false);
-                                setCurrentBlockIndex(prev => Math.max(0, prev - 1));
-                              }}
-                            >
+                            <Button variant="ghost" className="text-muted-foreground h-11 font-bold"
+                              onClick={() => { setShowSectionSlide(false); setCurrentBlockIndex(prev => Math.max(0, prev - 1)); }}>
                               Go Back
                             </Button>
                           )}
@@ -1784,150 +1809,144 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                         )}
                       </div>
                       
-                      <div className="space-y-6">
+                      <div className={currentBlock.type === 'superset' ? "border-l-2 border-primary pl-3 space-y-4" : "space-y-4"}>
+                        {currentBlock.type === 'superset' && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary px-2 py-0.5 rounded-full">Superset</span>
+                        )}
                         {currentBlock.exercises.map((exercise: any, exIdx: number) => {
                           const libraryExercise = exerciseLibrary.find(e => String(e.id) === String(exercise.name));
-
                           const cols = columnsFor(exercise, exerciseLibrary);
                           
                           return (
-                            <Card key={exercise.id} className="bg-card border-border overflow-hidden">
-                              <CardContent className="p-4 flex flex-col gap-4">
-                                <div className="space-y-2 w-full">
-                                  <div className="flex justify-between items-start mb-1">
-                                    <div className="flex flex-col gap-1">
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <span className="font-heading text-xl tracking-wide leading-none uppercase">
-                                          {libraryExercise ? libraryExercise.name : (exercise.name || "Select Exercise")}
-                                        </span>
-                                        {exercise.blockType && (
-                                          <span className="text-[10px] uppercase bg-primary/20 text-primary px-2 py-0.5 rounded-full font-bold">
-                                            {exercise.blockType}
-                                          </span>
-                                        )}
-                                        {libraryExercise && (
-                                          <Dialog>
-                                            <DialogTrigger asChild>
-                                              <Button variant="outline" size="sm" className="h-6 px-2 text-[10px] uppercase tracking-wider gap-1 rounded-full">
-                                                <RefreshCw className="h-3 w-3" /> Swap
-                                              </Button>
-                                            </DialogTrigger>
-                                            <DialogContent className="sm:max-w-[400px] bg-card border-border max-h-[80vh] overflow-y-auto">
-                                              <DialogHeader>
-                                                <DialogTitle className="font-heading tracking-wider">Alternative Exercises</DialogTitle>
-                                              </DialogHeader>
-                                              <div className="mt-4 space-y-2">
-                                                {(() => {
-                                                  const norm = (v: any) => Array.isArray(v)
-                                                    ? v.map((s: any) => String(s).trim()).filter(Boolean)
-                                                    : String(v || "").split(",").map((s: string) => s.trim()).filter(Boolean);
-
-                                                  const origCat = norm(libraryExercise.category);
-                                                  const origMv  = norm(libraryExercise.movementType);
-                                                  const origTt  = norm(libraryExercise.trackingType).join();
-
-                                                  const alternatives = exerciseLibrary
-                                                    .filter((ex) => {
-                                                      if (String(ex.id) === String(libraryExercise.id)) return false;
-                                                      if (origCat.length && !norm(ex.category).some((c: string) => origCat.includes(c))) return false; // same block type
-                                                      return true;
-                                                    })
-                                                    .map((ex) => {
-                                                      let s = 0;
-                                                      if ((ex.muscle || "") === (libraryExercise.muscle || "")) s += 3;
-                                                      if (norm(ex.movementType).some((m: string) => origMv.includes(m)))  s += 3;
-                                                      if (norm(ex.trackingType).join() === origTt)                s += 2;
-                                                      if ((ex.difficulty || "") === (libraryExercise.difficulty || "")) s += 1;
-                                                      if ((ex.equipment  || "") === (libraryExercise.equipment  || "")) s += 1;
-                                                      return { ex, s };
-                                                    })
-                                                    .filter((x) => x.s > 0)
-                                                    .sort((a, b) => b.s - a.s)
-                                                    .slice(0, 8)
-                                                    .map((x) => x.ex);
-
-                                                  if (alternatives.length === 0) {
-                                                    return <p className="text-sm text-muted-foreground text-center py-4">No close alternatives found.</p>;
-                                                  }
-                                                  
-                                                  return alternatives.map((alt, altIdx) => (
-                                                    <div key={alt.id} className="flex items-center justify-between p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors">
-                                                      <div className="flex flex-col gap-1">
-                                                        <div className="flex items-center gap-2">
-                                                          <span className="font-bold text-sm">{alt.name}</span>
-                                                          {altIdx === 0 && (
-                                                            <span className="bg-primary/20 text-primary px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                                                              Best match
-                                                            </span>
-                                                          )}
-                                                        </div>
-                                                        <span className="text-xs text-muted-foreground">{alt.equipment || "Any equipment"}</span>
-                                                      </div>
-                                                      <Button 
-                                                        size="sm" 
-                                                        variant="secondary"
-                                                        onClick={() => {
-                                                          updateExercise(exercise.id, "name", alt.id);
-                                                          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-                                                        }}
-                                                      >
-                                                        Select
-                                                      </Button>
-                                                    </div>
-                                                  ));
-                                                })()}
-                                              </div>
-                                            </DialogContent>
-                                          </Dialog>
-                                        )}
-                                      </div>
-                                      {exercise.eachSide && (
-                                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Each Side</span>
-                                      )}
-                                    </div>
-                                    {libraryExercise?.videoUrl && (
-                                      <Dialog>
-                                        <DialogTrigger asChild>
-                                          <Button variant="outline" size="icon" className="shrink-0 h-8 w-8 rounded-full" title="Watch Tutorial">
-                                            <PlayCircle className="h-4 w-4" />
-                                          </Button>
-                                        </DialogTrigger>
-                                        <DialogContent className="sm:max-w-[600px] bg-card border-border">
-                                          <DialogHeader>
-                                            <DialogTitle className="font-heading tracking-wider">{libraryExercise.name} Tutorial</DialogTitle>
-                                          </DialogHeader>
-                                          <div className="aspect-video mt-4 rounded-md overflow-hidden bg-muted">
-                                            <iframe 
-                                              src={getEmbedUrl(libraryExercise.videoUrl)} 
-                                              className="w-full h-full" 
-                                              allow="autoplay; fullscreen; picture-in-picture" 
-                                              allowFullScreen
-                                            ></iframe>
-                                          </div>
-                                        </DialogContent>
-                                      </Dialog>
-                                    )}
-                                  </div>
-                                  
-                                  {exercise.coachingNotes && (
-                                    <div className="text-sm text-muted-foreground italic border-l-2 border-primary/50 pl-2 py-0.5">
-                                      {exercise.coachingNotes}
-                                    </div>
+                            <div key={exercise.id} className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3">
+                              <div className="space-y-2 w-full">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-heading text-2xl tracking-wide leading-none uppercase">
+                                    {libraryExercise ? libraryExercise.name : (exercise.name || "Select Exercise")}
+                                  </span>
+                                  {exercise.blockType && (
+                                    <span className="text-[10px] uppercase bg-primary/20 text-primary px-2 py-0.5 rounded-full font-bold">
+                                      {exercise.blockType}
+                                    </span>
                                   )}
-                                  
-                                  {exercise.name && (
-                                    <div className="mt-1">
-                                      <Button variant="outline" size="sm" className="gap-2 text-xs h-8"
-                                              onClick={() => setPastLiftsModal({ name: exercise.name })}>
-                                        <History className="h-3 w-3" /> Past Lifts
-                                      </Button>
-                                    </div>
+                                  {exercise.eachSide && (
+                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Each Side</span>
                                   )}
                                 </div>
+                                
+<div className="flex items-center gap-1.5 mb-3 flex-nowrap">
+                                  {libraryExercise?.videoUrl && (
+                                    <Dialog>
+<DialogTrigger asChild>
+                                        <button aria-label="Watch video" className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-primary/40 text-primary shrink-0">
+                                          <PlayCircle className="h-4 w-4" />
+                                        </button>
+                                      </DialogTrigger>
+                                      <DialogContent className="sm:max-w-[600px] bg-card border-border">
+                                        <DialogHeader>
+                                          <DialogTitle className="font-heading tracking-wider">{libraryExercise.name} Tutorial</DialogTitle>
+                                        </DialogHeader>
+                                        <div className="aspect-video mt-4 rounded-md overflow-hidden bg-muted">
+                                          <iframe 
+                                            src={getEmbedUrl(libraryExercise.videoUrl)} 
+                                            className="w-full h-full" 
+                                            allow="autoplay; fullscreen; picture-in-picture" 
+                                            allowFullScreen
+                                          ></iframe>
+                                        </div>
+                                      </DialogContent>
+                                    </Dialog>
+                                  )}
+                                  {libraryExercise && (
+                                    <Dialog>
+<DialogTrigger asChild>
+                                        <button className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-border text-xs font-bold shrink-0">
+                                          <RefreshCw className="h-3.5 w-3.5" /> Swap
+                                        </button>
+                                      </DialogTrigger>
+                                      <DialogContent className="sm:max-w-[400px] bg-card border-border max-h-[80vh] overflow-y-auto">
+                                        <DialogHeader>
+                                          <DialogTitle className="font-heading tracking-wider">Alternative Exercises</DialogTitle>
+                                        </DialogHeader>
+                                        <div className="mt-4 space-y-2">
+                                          {(() => {
+                                            const norm = (v: any) => Array.isArray(v)
+                                              ? v.map((s: any) => String(s).trim()).filter(Boolean)
+                                              : String(v || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+                                            const origCat = norm(libraryExercise.category);
+                                            const origMv  = norm(libraryExercise.movementType);
+                                            const origTt  = norm(libraryExercise.trackingType).join();
+                                            const alternatives = exerciseLibrary
+                                              .filter((ex) => {
+                                                if (String(ex.id) === String(libraryExercise.id)) return false;
+                                                if (origCat.length && !norm(ex.category).some((c: string) => origCat.includes(c))) return false;
+                                                return true;
+                                              })
+                                              .map((ex) => {
+                                                let s = 0;
+                                                if ((ex.muscle || "") === (libraryExercise.muscle || "")) s += 3;
+                                                if (norm(ex.movementType).some((m: string) => origMv.includes(m)))  s += 3;
+                                                if (norm(ex.trackingType).join() === origTt)                s += 2;
+                                                if ((ex.difficulty || "") === (libraryExercise.difficulty || "")) s += 1;
+                                                if ((ex.equipment  || "") === (libraryExercise.equipment  || "")) s += 1;
+                                                return { ex, s };
+                                              })
+                                              .filter((x) => x.s > 0)
+                                              .sort((a, b) => b.s - a.s)
+                                              .slice(0, 8)
+                                              .map((x) => x.ex);
+                                            if (alternatives.length === 0) {
+                                              return <p className="text-sm text-muted-foreground text-center py-4">No close alternatives found.</p>;
+                                            }
+                                            return alternatives.map((alt, altIdx) => (
+                                              <div key={alt.id} className="flex items-center justify-between p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors">
+                                                <div className="flex flex-col gap-1">
+                                                  <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-sm">{alt.name}</span>
+                                                    {altIdx === 0 && (
+                                                      <span className="bg-primary/20 text-primary px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                                                        Best match
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  <span className="text-xs text-muted-foreground">{alt.equipment || "Any equipment"}</span>
+                                                </div>
+                                                <Button 
+                                                  size="sm" 
+                                                  variant="secondary"
+                                                  onClick={() => {
+                                                    updateExercise(exercise.id, "name", alt.id);
+                                                    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+                                                  }}
+                                                >
+                                                  Select
+                                                </Button>
+                                              </div>
+                                            ));
+                                          })()}
+                                        </div>
+                                      </DialogContent>
+                                    </Dialog>
+                                  )}
+                                  {exercise.name && (
+<button
+                                      className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-border text-xs font-bold shrink-0"
+                                      onClick={() => setPastLiftsModal({ name: exercise.name })}>
+                                      <History className="h-3.5 w-3.5" /> Past Lifts
+                                    </button>
+                                  )}
+                                </div>
+                                
+                                {exercise.coachingNotes && (
+                                  <div className="text-sm text-muted-foreground italic border-l-2 border-primary/50 pl-2 py-0.5">
+                                    {exercise.coachingNotes}
+                                  </div>
+                                )}
+                              </div>
 
-                                <div className="w-full mt-2">
-                                  <div className="grid items-center gap-y-2 gap-x-1"
-                                       style={{ gridTemplateColumns:`28px repeat(${cols.length}, minmax(0,1fr)) 40px` }}>
+                              <div className="w-full">
+                                <div className="grid items-center gap-y-2 gap-x-1"
+                                     style={{ gridTemplateColumns:`28px repeat(${cols.length}, minmax(0,1fr)) 40px` }}>
                                     
                                     <div className="text-center font-bold text-[10px] text-muted-foreground uppercase tracking-wider">Set</div>
                                     {cols.map((c: any, i: number) => (
@@ -2017,8 +2036,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                                     <Plus className="h-4 w-4 mr-1" /> Add Set
                                   </Button>
                                 </div>
-                              </CardContent>
-                            </Card>
+                              </div>
                           );
                         })}
                       </div>
@@ -2078,7 +2096,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
             <Timer className="h-5 w-5" />
             <div className="flex flex-col">
               <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">Rest Timer</span>
-              <span className="text-xl font-heading font-bold tabular-nums tracking-wider leading-none">
+              <span className="text-xl font-heading tabular-nums tracking-wider leading-none">
                 {formatTime(currentRemaining)}
               </span>
             </div>

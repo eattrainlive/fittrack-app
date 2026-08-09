@@ -85,7 +85,7 @@ const Feed = () => {
   return (
     <div className="flex-1 space-y-6 p-8 pt-6 max-w-2xl mx-auto">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-4xl font-heading tracking-wider font-bold">Community Feed</h2>
+        <h2 className="text-4xl font-heading tracking-wider">Community Feed</h2>
       </div>
 
       {isStaff && (

@@ -86,7 +86,7 @@ const Profile = () => {
   return (
     <div className="flex-1 space-y-6 p-8 pt-6 max-w-4xl mx-auto w-full">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-4xl font-heading tracking-wider font-bold">Profile Settings</h2>
+        <h2 className="text-4xl font-heading tracking-wider">Profile Settings</h2>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => navigate('/education')} className="gap-2">
             <BookOpen className="h-4 w-4" /> Education

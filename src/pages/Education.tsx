@@ -95,7 +95,7 @@ const Education = () => {
               <ChevronLeft className="h-6 w-6" />
             </Button>
           )}
-          <h2 className="text-4xl font-heading tracking-wider font-bold">
+          <h2 className="text-4xl font-heading tracking-wider">
             {selectedFolder ? selectedFolder.name : "Education Hub"}
           </h2>
         </div>

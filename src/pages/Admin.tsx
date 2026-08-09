@@ -1572,7 +1572,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
   return (
     <div className="flex-1 space-y-6 p-8 pt-6 max-w-5xl mx-auto w-full">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-4xl font-heading tracking-wider font-bold">Staff Hub</h2>
+        <h2 className="text-4xl font-heading tracking-wider">Staff Hub</h2>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

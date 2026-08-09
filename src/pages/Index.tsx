@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Flame, TrendingUp, Users, Scale, Play, Trophy } from "lucide-react";
+import { Activity, Flame, TrendingUp, Users, Scale, Play, Trophy, Dumbbell, ChevronRight } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, LineChart, Line } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
@@ -139,121 +139,109 @@ const Index = () => {
 
   return (
     <div className="flex-1 space-y-6 p-4 md:p-8 pt-6 pb-24">
-      <div className="flex flex-col space-y-1 mb-6">
-        <h2 className="text-3xl font-heading tracking-wider font-bold uppercase">
-          {getGreeting()}, {userName || "there"}
-        </h2>
-        <p className="text-muted-foreground">Ready to crush your goals today?</p>
+      <div className="flex flex-col mb-6">
+        <span className="text-sm font-medium text-muted-foreground">{getGreeting()},</span>
+        <h2 className="text-3xl font-heading tracking-wider uppercase leading-none">{userName || "there"}</h2>
+        <p className="text-muted-foreground text-sm mt-1">Ready to crush your goals today?</p>
       </div>
 
-      {currentWow && (
-        <Card className="bg-primary/10 border-primary overflow-hidden relative mb-6 cursor-pointer" onClick={() => navigate('/workouts?wow=true')}>
-          <div className="absolute top-0 right-0 p-4 opacity-10">
-            <Trophy className="w-16 h-16" />
-          </div>
-          <CardHeader className="relative z-10 pb-2">
-            <div className="flex justify-between items-start">
-              <div className="space-y-1">
-                <span className="text-primary font-bold text-[10px] tracking-wider uppercase bg-primary/20 px-2 py-0.5 rounded-full">
-                  Workout of the Week
-                </span>
-                <CardTitle className="text-xl font-heading uppercase tracking-wider">{currentWow.name}</CardTitle>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 mt-2 text-xs font-medium">
-              <Badge variant="outline" className="bg-background">
-                {currentWow.score_type === 'time' ? 'For Time' : currentWow.score_type === 'reps' ? 'Total Reps' : currentWow.score_type === 'distance' ? 'For Distance/Metres' : 'For Calories'}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="relative z-10">
-            {(() => {
-              const myScore = wowResults.find(r => r.member_id === localStorage.getItem('fittrack_current_uid'));
-              const sorted = [...wowResults].sort((a, b) => currentWow.score_type === 'time' ? a.score - b.score : b.score - a.score);
-              const myRank = sorted.findIndex(r => r.member_id === localStorage.getItem('fittrack_current_uid')) + 1;
-              return (
-                <div className="flex items-center justify-between bg-background/50 p-3 rounded-lg border border-border mt-1">
-                  {myScore ? (
-                    <div>
-                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Your Score (Rank {myRank})</p>
-                      <p className="text-lg font-heading text-primary">
-                        {currentWow.score_type === 'time' ? `${Math.floor((myScore.score || 0) / 60)}:${((myScore.score || 0) % 60).toString().padStart(2, '0')}` : myScore.score}
-                        {myScore.scaled && <span className="ml-1 text-[10px] text-muted-foreground uppercase">(Scaled)</span>}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm font-bold text-foreground">Log your score</p>
-                  )}
-                  <Button size="sm" variant={myScore ? "outline" : "default"}>{myScore ? "Update" : "Log Score"}</Button>
-                </div>
-              );
-            })()}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Active Program / Today's Workout */}
-      {activeProgram && allowedAccess && allowedAccess.includes(bucketOf(activeProgram)) ? (() => {
-
-        const localToday = () => {
-          const d = new Date();
-          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        };
-        const today = localToday();
-        const dated = activeProgram.workouts?.filter((c: any) => c.date) || [];
-        
-        let targetWorkout = activeProgram.workouts[activeProgram.currentIndex];
-        let targetIndex = activeProgram.currentIndex;
-        let isRestDay = false;
-        
-        if (dated.length > 0) {
-          const todays = dated.filter((c: any) => c.date === today);
-          if (todays.length > 0) {
-            targetWorkout = todays[0];
-            targetIndex = activeProgram.workouts.indexOf(todays[0]);
-          } else {
-            isRestDay = true;
+      <div className="space-y-3">
+        {/* Up Next programme strip (lime) */}
+        {activeProgram && allowedAccess && allowedAccess.includes(bucketOf(activeProgram)) ? (() => {
+          const localToday = () => {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          };
+          const today = localToday();
+          const dated = activeProgram.workouts?.filter((c: any) => c.date) || [];
+          
+          let targetWorkout = activeProgram.workouts[activeProgram.currentIndex];
+          let targetIndex = activeProgram.currentIndex;
+          let isRestDay = false;
+          
+          if (dated.length > 0) {
+            const todays = dated.filter((c: any) => c.date === today);
+            if (todays.length > 0) {
+              targetWorkout = todays[0];
+              targetIndex = activeProgram.workouts.indexOf(todays[0]);
+            } else {
+              isRestDay = true;
+            }
           }
-        }
 
-        return (
-          <Card className="bg-card border-border shadow-md overflow-hidden relative">
-            <div className="absolute top-0 left-0 w-1 h-full bg-primary"></div>
-            <CardHeader className="pb-3">
-              <CardDescription className="text-primary font-bold uppercase tracking-wider text-xs">Up Next</CardDescription>
-              <CardTitle className="font-heading text-2xl tracking-wider uppercase">
-                {activeProgram.name}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-4">
-                {isRestDay ? (
-                  <p className="font-bold text-lg">Rest Day</p>
-                ) : (
-                  <p className="font-bold text-lg">{targetWorkout?.name}</p>
-                )}
-                {!isRestDay && <p className="text-sm text-muted-foreground">Workout {targetIndex + 1} of {activeProgram.workouts.length}</p>}
+          return (
+            <button
+              onClick={() => navigate('/workouts')}
+              className="w-full flex items-center gap-3 bg-card border border-border border-l-4 border-l-primary rounded-xl p-3 text-left shadow-sm active:scale-[0.99] transition">
+              <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                <Dumbbell className="w-5 h-5 text-primary" />
               </div>
-              <Button onClick={() => navigate('/workouts')} className="w-full gap-2 font-bold tracking-wide h-14 text-lg rounded-xl">
-                <Play className="h-5 w-5 fill-current" /> {isRestDay ? "View Programme" : "Start Workout"}
-              </Button>
-            </CardContent>
-          </Card>
-        );
-      })() : (
-        <Card className="bg-card border-border shadow-md overflow-hidden relative">
-          <div className="absolute top-0 left-0 w-1 h-full bg-muted"></div>
-          <CardHeader className="pb-3">
-            <CardTitle className="font-heading text-xl tracking-wider uppercase text-muted-foreground">No Active Program</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">Browse the library to find your next program or start a quick workout.</p>
-            <Button onClick={() => navigate('/workouts')} variant="outline" className="w-full gap-2 font-bold tracking-wide h-12 rounded-xl">
-              Browse Library
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-primary">Up Next</p>
+                <p className="font-heading text-xl tracking-wider uppercase leading-none">{activeProgram.stream || activeProgram.name}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {isRestDay ? 'Rest Day' : `${targetWorkout?.name} · Workout ${targetIndex + 1} of ${activeProgram.workouts.length}`}
+                </p>
+              </div>
+              <span className="shrink-0 inline-flex items-center gap-1 bg-primary text-primary-foreground font-bold text-xs px-3 py-2 rounded-lg">
+                <Play className="w-3.5 h-3.5 fill-current" /> {isRestDay ? 'View' : 'Start'}
+              </span>
+            </button>
+          );
+        })() : (
+          <button
+            onClick={() => navigate('/workouts')}
+            className="w-full flex items-center gap-3 bg-card border border-border border-l-4 border-l-muted rounded-xl p-3 text-left shadow-sm active:scale-[0.99] transition">
+            <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+              <Dumbbell className="w-5 h-5 text-muted-foreground" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">No Active Program</p>
+              <p className="font-heading text-xl tracking-wider uppercase leading-none text-muted-foreground">Browse Library</p>
+              <p className="text-xs text-muted-foreground truncate">Find your next program</p>
+            </div>
+            <span className="shrink-0 inline-flex items-center gap-1 bg-muted text-muted-foreground font-bold text-xs px-3 py-2 rounded-lg">
+              Browse
+            </span>
+          </button>
+        )}
+
+        {/* Workout of the Week strip (gold) */}
+        {currentWow && (() => {
+          const myScore = wowResults.find(r => r.member_id === localStorage.getItem('fittrack_current_uid'));
+          const sorted = [...wowResults].sort((a, b) => currentWow.score_type === 'time' ? a.score - b.score : b.score - a.score);
+          const myRank = sorted.findIndex(r => r.member_id === localStorage.getItem('fittrack_current_uid')) + 1;
+          const typeLabel = currentWow.score_type === 'time' ? 'For Time'
+            : currentWow.score_type === 'reps' ? 'Total Reps'
+            : currentWow.score_type === 'distance' ? 'For Distance' : 'For Calories';
+          const scoreText = myScore
+            ? (currentWow.score_type === 'time'
+                ? `${Math.floor((myScore.score || 0) / 60)}:${((myScore.score || 0) % 60).toString().padStart(2, '0')}`
+                : `${myScore.score}`)
+            : null;
+          return (
+            <button
+              onClick={() => navigate('/workouts?wow=true')}
+              className="w-full flex items-center gap-3 bg-[#14170f] border border-[#23291b] rounded-xl p-3 text-left shadow-sm active:scale-[0.99] transition">
+              <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                <Trophy className="w-5 h-5 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-primary">Workout of the Week</p>
+                <p className="font-heading text-xl tracking-wider uppercase leading-none text-white">
+                  {currentWow.name.replace(/^workout of the week\s*/i, '').trim() || currentWow.name}
+                </p>
+                <p className="text-xs text-neutral-400 truncate">
+                  {typeLabel}{myScore ? ` · Rank ${myRank} · ${scoreText}` : ' · Tap to log your score'}
+                </p>
+              </div>
+              <span className="shrink-0 inline-flex items-center gap-1 border border-primary/50 text-primary font-bold text-xs px-3 py-2 rounded-lg">
+                {myScore ? 'View' : 'Log'} <ChevronRight className="w-3.5 h-3.5" />
+              </span>
+            </button>
+          );
+        })()}
+      </div>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card className="bg-card border-border">

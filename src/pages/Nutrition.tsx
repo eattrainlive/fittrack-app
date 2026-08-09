@@ -827,7 +827,7 @@ function HabitsHome({ activeMemberHabits, habitsLibrary, checkins, handleCheckin
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                  <span className="text-2xl font-bold font-heading text-foreground leading-none">{goodDays} <span className="text-sm text-muted-foreground">/ {daysToGraduate}</span></span>
+                  <span className="text-2xl font-heading tracking-wider text-foreground leading-none">{goodDays} <span className="text-sm text-muted-foreground">/ {daysToGraduate}</span></span>
                   <span className="text-[10px] text-muted-foreground uppercase font-bold mt-1">Days</span>
                 </div>
               </div>

@@ -99,10 +99,10 @@ const TVDisplay = () => {
     >
       <div className="flex items-start justify-between mb-4 md:mb-6">
         <div>
-          <h1 className="text-3xl md:text-4xl font-heading font-bold uppercase tracking-wide text-white drop-shadow-md leading-none">
+          <h1 className="text-3xl md:text-4xl font-heading uppercase tracking-wide text-white drop-shadow-md leading-none">
             {displayDate}
           </h1>
-          <h2 className="text-xl md:text-2xl font-heading font-bold uppercase tracking-wide text-primary drop-shadow-md mt-1">
+          <h2 className="text-xl md:text-2xl font-heading uppercase tracking-wide text-primary drop-shadow-md mt-1">
             {weekText}
           </h2>
         </div>
@@ -110,7 +110,7 @@ const TVDisplay = () => {
           {/* Logo placeholder */}
           <div className="flex items-center gap-2">
             <div className="text-right">
-              <div className="font-heading font-bold text-2xl tracking-tighter leading-none">ETL</div>
+              <div className="font-heading text-2xl tracking-tighter leading-none">ETL</div>
               <div className="text-[9px] font-bold tracking-widest uppercase">Eat Train Live</div>
             </div>
             <div className="w-1.5 h-6 bg-primary"></div>
@@ -126,7 +126,7 @@ const TVDisplay = () => {
           <div key={sIdx} className="rounded-lg overflow-hidden shadow-2xl flex flex-col border border-primary/20 bg-[#1a1a1a]">
             {/* Section Header */}
             <div className="bg-primary px-3 py-2 md:px-4 md:py-2">
-              <h3 className="text-lg md:text-xl font-heading font-bold text-black uppercase tracking-wide">
+              <h3 className="text-lg md:text-xl font-heading text-black uppercase tracking-wide">
                 {section.name}
               </h3>
             </div>

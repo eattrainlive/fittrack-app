@@ -52,7 +52,7 @@ const Exercises = () => {
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-4xl font-heading tracking-wider font-bold">Exercise Library</h2>
+        <h2 className="text-4xl font-heading tracking-wider">Exercise Library</h2>
       </div>
 
       <div className="flex flex-col gap-4 mb-6">

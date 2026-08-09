@@ -696,7 +696,10 @@ export const getExerciseHistory = (exerciseName: string) => {
     const top = sets.reduce((a, b) => (b.weight > a.weight ? b : a));
     out.push({ date: workout.date, sets, top });
   }
-  return out; // newest first
+  // Drop sessions where no weight was actually logged (junk 0kg entries),
+  // but keep bodyweight exercises that have never had a weighted session.
+  const hasAnyWeighted = out.some(h => h.top.weight > 0);
+  return hasAnyWeighted ? out.filter(h => h.top.weight > 0) : out;
 };
 
 export const getBodyweightHistory = () => {

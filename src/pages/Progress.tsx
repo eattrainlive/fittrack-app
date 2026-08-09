@@ -133,7 +133,7 @@ const Progress = () => {
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-4xl font-heading tracking-wider font-bold">Progress Charts</h2>
+        <h2 className="text-4xl font-heading tracking-wider">Progress Charts</h2>
         <Select defaultValue="month">
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select timeframe" />
@@ -386,7 +386,7 @@ const Progress = () => {
                           <p className="text-sm text-muted-foreground">{new Date(pr.date).toLocaleDateString()}</p>
                         </div>
                         <div className="flex items-center gap-4">
-                          <span className="text-2xl font-heading font-bold text-primary">{pr.weight}kg</span>
+                          <span className="text-2xl font-heading text-primary">{pr.weight}kg</span>
                           <Button 
                             variant="ghost" 
                             size="icon" 
