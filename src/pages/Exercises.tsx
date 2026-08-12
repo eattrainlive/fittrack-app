@@ -19,7 +19,7 @@ const Exercises = () => {
   const [difficultyFilter, setDifficultyFilter] = useState("All");
   const [trackingFilter, setTrackingFilter] = useState("All");
 
-  const MOVEMENT_TYPES = ["Warm Up", "Knee", "Hip", "Push", "Pull", "Conditioning", "Core", "Carries", "Fire Up", "Accessory"];
+  const MOVEMENT_TYPES = ["Warm Up", "Knee", "Hip", "Push", "Horizontal Push", "Vertical Push", "Pull", "Horizontal Pull", "Vertical Pull", "Conditioning", "Core", "Carries", "Fire Up", "Accessory"];
 
   useEffect(() => {
     const loadExercises = async () => setExerciseLibrary(await getExercises());

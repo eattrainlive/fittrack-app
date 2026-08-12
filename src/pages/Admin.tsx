@@ -105,7 +105,7 @@ const Admin = () => {
   const [newExMovement, setNewExMovement] = useState<string[]>(["Push"]);
   const [newExTracking, setNewExTracking] = useState<string[]>(["Weight & Reps"]);
 
-  const MOVEMENT_TYPES = ["Warm Up", "Knee", "Hip", "Push", "Pull", "Conditioning", "Core", "Carries", "Fire Up", "Accessory"];
+  const MOVEMENT_TYPES = ["Warm Up", "Knee", "Hip", "Push", "Horizontal Push", "Vertical Push", "Pull", "Horizontal Pull", "Vertical Pull", "Conditioning", "Core", "Carries", "Fire Up", "Accessory"];
   const TRACKING_TYPES = ["Weight & Reps", "Reps Only", "Time Only", "Distance & Time", "Weight & Distance", "Calories"];
 
   // Search State for Program Builder
