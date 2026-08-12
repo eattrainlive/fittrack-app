@@ -586,7 +586,21 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
                 {selected.method && (
                   <div className="space-y-2">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Method</h4>
-                    <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{selected.method}</p>
+                    <ol className="space-y-2 pl-0 list-none">
+                      {String(selected.method)
+                        .split("\n")
+                        .map(s => s.trim())
+                        .filter(Boolean)
+                        .map((step, i) => {
+                          const text = step.replace(/^\d+\.\s*/, "");
+                          return (
+                            <li key={i} className="flex gap-2 text-sm leading-relaxed">
+                              <span className="shrink-0 font-medium text-muted-foreground w-5">{i + 1}.</span>
+                              <span>{text}</span>
+                            </li>
+                          );
+                        })}
+                    </ol>
                   </div>
                 )}
               </div>

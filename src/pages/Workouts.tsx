@@ -158,18 +158,20 @@ const columnsFor = (ex: any, exerciseLibrary: any[]) => {
   const usedDist = sets.some((s: any) => (+s.distance || 0) > 0);
 
   const canWR   = t.includes("Weight & Reps");
+  const canWD   = t.includes("Weight & Distance");
+  const canRepsOnly = t.includes("Reps Only");
   const canTime = t.includes("Time Only") || t.includes("Distance & Time");
-  const canDist = t.includes("Distance & Time");
+  const canDist = t.includes("Distance & Time") || canWD;
   const canCals = t.includes("Calories");
+  const canWeight = canWR || canWD;
 
   const cols: any[] = [];
-  if (canWR && (usedReps || (!canTime && !canDist))) {
-    if (!isBodyweight) cols.push({ field: "weight", label: "KG", step: 2.5, decimal: true });
-    cols.push({ field: "reps", label: "REPS", step: 1 });
-  }
-  if (canDist && usedDist) cols.push({ field: "distance", label: "DIST", step: 0.1, decimal: true });
-  if (canTime && (usedTime || (!canWR && !usedDist))) cols.push({ field: "time", label: "TIME", isTime: true });
+  if (canWeight && !isBodyweight) cols.push({ field: "weight", label: "KG", step: 2.5, decimal: true });
+  if (canWR && (usedReps || (!canTime && !canDist && !canWD))) cols.push({ field: "reps", label: "REPS", step: 1 });
+  if (canDist && (usedDist || canWD)) cols.push({ field: "distance", label: "DIST", step: 0.1, decimal: true });
+  if (canTime && (usedTime || (!canWR && !canWD && !usedDist))) cols.push({ field: "time", label: "TIME", isTime: true });
   if (canCals) cols.push({ field: "calories", label: "CALS", step: 1 });
+  if (canRepsOnly) cols.push({ field: "reps", label: "REPS", step: 1 });
 
   return cols.length ? cols : [{ field: "reps", label: "REPS", step: 1 }];
 };
@@ -1295,6 +1297,8 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                     const cals = firstSet.calories || ex.calories || 0;
                     const reps = firstSet.reps || ex.reps || 0;
                     let details = [];
+                    if (trackingArray.includes('Weight & Distance') && (firstSet.weight || ex.weight || 0) > 0) details.push(`${firstSet.weight || ex.weight}kg`);
+                    if (trackingArray.includes('Weight & Distance') && dist) details.push(`${dist}m`);
                     if (trackingArray.includes('Distance & Time') && dist) details.push(`${dist}m`);
                     if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (mins || secs))
                       details.push(`${mins ? mins + 'm ' : ''}${secs ? secs + 's' : ''}`.trim());
@@ -1403,6 +1407,8 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                           const reps = ex.reps || 0;
                           
                           let metrics = [];
+                          if (trackingArray.includes('Weight & Distance') && (ex.weight || 0) > 0) metrics.push(`${ex.weight}kg`);
+                          if (trackingArray.includes('Weight & Distance') && dist) metrics.push(`${dist}m`);
                           if (trackingArray.includes('Distance & Time') && dist) metrics.push(`${dist}m`);
                           if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (mins || secs))
                             metrics.push(`${mins ? mins + 'm ' : ''}${secs ? secs + 's' : ''}`.trim());
@@ -1628,6 +1634,8 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                           const reps = firstSet.reps || ex.reps || 0;
                           
                           let details = [];
+                          if (trackingArray.includes('Weight & Distance') && (firstSet.weight || ex.weight || 0) > 0) details.push(`${firstSet.weight || ex.weight}kg`);
+                          if (trackingArray.includes('Weight & Distance') && dist) details.push(`${dist}m`);
                           if (trackingArray.includes('Distance & Time') && dist) details.push(`${dist}m`);
                           if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (mins || secs))
                             details.push(`${mins ? mins + 'm ' : ''}${secs ? secs + 's' : ''}`.trim());
@@ -1724,6 +1732,8 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                           const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                           
                           let details = [];
+                          if (trackingArray.includes('Weight & Distance') && (firstSet.weight || ex.weight || 0) > 0) details.push(`${firstSet.weight || ex.weight}kg`);
+                          if (trackingArray.includes('Weight & Distance') && dist) details.push(`${dist}m`);
                           if (trackingArray.includes('Distance & Time') && dist) details.push(`${dist}m`);
                           if ((trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time')) && (mins || secs))
                             details.push(`${mins ? mins + 'm ' : ''}${secs ? secs + 's' : ''}`.trim());

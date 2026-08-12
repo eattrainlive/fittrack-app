@@ -106,7 +106,7 @@ const Admin = () => {
   const [newExTracking, setNewExTracking] = useState<string[]>(["Weight & Reps"]);
 
   const MOVEMENT_TYPES = ["Warm Up", "Knee", "Hip", "Push", "Pull", "Conditioning", "Core", "Carries", "Fire Up", "Accessory"];
-  const TRACKING_TYPES = ["Weight & Reps", "Time Only", "Distance & Time", "Calories"];
+  const TRACKING_TYPES = ["Weight & Reps", "Reps Only", "Time Only", "Distance & Time", "Weight & Distance", "Calories"];
 
   // Search State for Program Builder
   const [exerciseSearch, setExerciseSearch] = useState("");
@@ -2724,14 +2724,18 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                         .filter(Boolean);
 
                                                       const canWR = trackingArray.includes('Weight & Reps');
+                                                      const canWD = trackingArray.includes('Weight & Distance');
+                                                      const canRepsOnly = trackingArray.includes('Reps Only');
                                                       const canTime = trackingArray.includes('Time Only') || trackingArray.includes('Distance & Time');
-                                                      const canDist = trackingArray.includes('Distance & Time');
+                                                      const canDist = trackingArray.includes('Distance & Time') || canWD;
                                                       const canCals = trackingArray.includes('Calories');
 
                                                       const hasBoth = canWR && canTime;
                                                       const activeMode = pe.trackingMode || (canWR ? 'reps' : canTime ? 'time' : 'reps');
 
                                                       const showWR = canWR && (!hasBoth || activeMode === 'reps');
+                                                      const showWD = canWD;
+                                                      const showRepsOnly = canRepsOnly;
                                                       const showTime = canTime && (!hasBoth || activeMode === 'time');
 
                                                       return (
@@ -2768,9 +2772,21 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                               <Input type="number" className="h-8 text-center" value={pe.reps} onChange={(e) => updateProgExercise(pe.id, "reps", parseInt(e.target.value) || 0)} />
                                                             </div>
                                                           )}
+                                                          {showWD && (
+                                                            <div className="flex flex-col gap-1.5 w-16">
+                                                              <Label className="text-[10px] uppercase text-muted-foreground font-bold">KG</Label>
+                                                              <Input type="number" className="h-8 text-center" value={pe.weight || 0} onChange={(e) => updateProgExercise(pe.id, "weight", parseFloat(e.target.value) || 0)} />
+                                                            </div>
+                                                          )}
+                                                          {showRepsOnly && (
+                                                            <div className="flex flex-col gap-1.5 w-16">
+                                                              <Label className="text-[10px] uppercase text-muted-foreground font-bold">Reps</Label>
+                                                              <Input type="number" className="h-8 text-center" value={pe.reps} onChange={(e) => updateProgExercise(pe.id, "reps", parseInt(e.target.value) || 0)} />
+                                                            </div>
+                                                          )}
                                                           {canDist && (
                                                             <div className="flex flex-col gap-1.5 w-20">
-                                                              <Label className="text-[10px] uppercase text-muted-foreground font-bold">Metres</Label>
+                                                              <Label className="text-[10px] uppercase text-muted-foreground font-bold">Metre</Label>
                                                               <Input type="number" className="h-8 text-center" value={pe.distance || 0} onChange={(e) => updateProgExercise(pe.id, "distance", parseInt(e.target.value) || 0)} />
                                                             </div>
                                                           )}

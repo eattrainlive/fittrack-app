@@ -153,7 +153,9 @@ const TVDisplay = () => {
                     const rawTrack = libEx?.trackingType ?? "Weight & Reps";
                     const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                     
-                    if (trackingArray.includes('Distance & Time') && ex.distance > 0) {
+                    if (trackingArray.includes('Weight & Distance') && (ex.weight || 0) > 0) {
+                      displayReps = `${ex.weight}kg · ${ex.distance || 0}m`;
+                    } else if (trackingArray.includes('Distance & Time') && ex.distance > 0) {
                       displayReps = `${ex.distance}m`;
                     } else if ((trackingArray.includes('Distance & Time') || trackingArray.includes('Time Only')) && (ex.timeMins > 0 || ex.timeSecs > 0)) {
                       displayReps = `${ex.timeMins > 0 ? `${ex.timeMins}m ` : ''}${ex.timeSecs > 0 ? `${ex.timeSecs}sec` : ''}`;
