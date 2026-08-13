@@ -25,33 +25,74 @@ import { supabase } from "@/lib/supabase";
 
 
 const CARDIO_WARMUP = ["Bike Erg", "Ski-Erg", "Rower", "Air Bike", "Run"];
+const WARMUP_MOBILITY_COUNT = 3;
 
-function ensureCardioWarmup(exercises: any[], dayIndex: number, exerciseLibrary: any[]) {
-  const i = exercises.findIndex(e => e.isSection && /warm ?up/i.test(e.name || ""));
+function fixWarmup(exercises: any[], dayIndex: number, exerciseLibrary: any[]) {
+  const i = exercises.findIndex((e: any) => e.isSection && /warm ?up/i.test(e.name || ""));
   if (i === -1) return exercises;
-  const first = exercises[i + 1];
-  
+
+  // Find the end of the warm-up section (next section header)
+  let end = exercises.findIndex((e: any, k: number) => k > i && e.isSection);
+  if (end === -1) end = exercises.length;
+
+  let items = exercises.slice(i + 1, end);
+
+  const toArr = (v: any) => Array.isArray(v) ? v : (v ? String(v).split(/[;,]/).map((s: string) => s.trim()).filter(Boolean) : []);
+
   const isCardioMachine = (ex: any) => {
-     if (!ex || !ex.name) return false;
-     const libEx = exerciseLibrary.find(le => String(le.id) === String(ex.name));
-     if (!libEx) return false;
-     return CARDIO_WARMUP.some(m => String(libEx.name).toLowerCase().includes(m.toLowerCase()) || String(libEx.id).toLowerCase().includes(m.toLowerCase().replace(/\s+/g, '-')));
+    if (!ex || !ex.name || ex.isSection) return false;
+    const libEx = exerciseLibrary.find((le: any) => String(le.id) === String(ex.name));
+    if (!libEx) return false;
+    return CARDIO_WARMUP.some(m =>
+      String(libEx.name).toLowerCase().includes(m.toLowerCase()) ||
+      String(libEx.id).toLowerCase().includes(m.toLowerCase().replace(/\s+/g, '-'))
+    );
   };
 
-  const already = first && !first.isSection && isCardioMachine(first);
-  if (already) return exercises;
-  
+  const isMobilityDrill = (ex: any) => {
+    if (!ex || !ex.name || ex.isSection) return false;
+    const libEx = exerciseLibrary.find((le: any) => String(le.id) === String(ex.name));
+    if (!libEx) return false;
+    const mv = toArr(libEx.movementType).map((s: string) => s.toLowerCase());
+    const cat = toArr(libEx.category).map((s: string) => s.toLowerCase());
+    return mv.some((t: string) => ["warm up", "fire up", "mobility", "activation", "soft tissue", "potentiation", "soft-tissue"].some(k => t.includes(k)))
+      || cat.some((t: string) => ["warm up", "mobility", "soft tissue", "soft-tissue", "activation"].some(k => t.includes(k)));
+  };
+
+  // (a) Strip anything that isn't a cardio machine or a mobility drill
+  items = items.filter((e: any) => isCardioMachine(e) || isMobilityDrill(e));
+
+  // (b) Ensure exactly ONE cardio machine from the palette, varied by day
+  const machines = items.filter(isCardioMachine);
+  const mobility = items.filter((e: any) => !isCardioMachine(e));
+
   const targetName = CARDIO_WARMUP[dayIndex % CARDIO_WARMUP.length];
-  let machineEx = exerciseLibrary.find(le => String(le.name).toLowerCase() === targetName.toLowerCase() || String(le.id) === targetName.toLowerCase().replace(/\s+/g, '-'));
-  
-  if (!machineEx) {
-    machineEx = exerciseLibrary.find(le => CARDIO_WARMUP.some(m => String(le.name).toLowerCase().includes(m.toLowerCase())));
+  let machineEx = exerciseLibrary.find((le: any) =>
+    String(le.name).toLowerCase() === targetName.toLowerCase() ||
+    String(le.id) === targetName.toLowerCase().replace(/\s+/g, '-')
+  );
+  if (!machineEx) machineEx = exerciseLibrary.find((le: any) =>
+    CARDIO_WARMUP.some(m => String(le.name).toLowerCase().includes(m.toLowerCase()))
+  );
+
+  let machineItem: any = null;
+  if (machineEx) {
+    machineItem = {
+      id: Date.now() + Math.random(),
+      name: machineEx.id,
+      timeMins: 3, timeSecs: 0, sets: 1,
+      staffNotes: "3 min easy — build gently",
+      trackingType: ["Time Only"],
+      isSection: false,
+    };
   }
-  
-  if (!machineEx) return exercises;
-  
-  const item = { id: Date.now() + Math.random(), name: machineEx.id, timeMins: 3, timeSecs: 0, sets: 1, staffNotes: "3 min easy — build gently", trackingType: ["Time Only"], isSection: false };
-  exercises.splice(i + 1, 0, item);
+
+  // (c) Trim mobility to exactly 3
+  const trimmedMobility = mobility.slice(0, WARMUP_MOBILITY_COUNT);
+
+  // Rebuild: 1 machine + up to 3 mobility drills
+  const rebuilt = machineItem ? [machineItem, ...trimmedMobility] : trimmedMobility;
+  exercises.splice(i + 1, end - (i + 1), ...rebuilt);
   return exercises;
 }
 
@@ -1374,7 +1415,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         const cells = data.workouts || [];
         cells.forEach((c: any) => {
           if (c.exercises) {
-            c.exercises = ensureCardioWarmup(c.exercises, c.day - 1, exercises);
+            c.exercises = fixWarmup(c.exercises, c.day - 1, exercises);
             applyWarmupFireupSupersets(c.exercises);
           }
         });
@@ -1408,7 +1449,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           if (data?.error) throw new Error(data.error);
           const cell = (data.workouts || [])[0];
           if (cell?.exercises) {
-            cell.exercises = ensureCardioWarmup(cell.exercises, cell.day - 1, exercises);
+            cell.exercises = fixWarmup(cell.exercises, cell.day - 1, exercises);
             applyWarmupFireupSupersets(cell.exercises);
           }
           return cell;
@@ -1481,7 +1522,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       const workouts = data.workouts;
       workouts.forEach((c: any) => {
         if (c.exercises) {
-          c.exercises = ensureCardioWarmup(c.exercises, c.day - 1, exercises);
+          c.exercises = fixWarmup(c.exercises, c.day - 1, exercises);
           applyWarmupFireupSupersets(c.exercises);
         }
       });
@@ -1507,7 +1548,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     const cells = data.workouts || [];
     cells.forEach((c: any) => {
       if (c.exercises) {
-        c.exercises = ensureCardioWarmup(c.exercises, c.day - 1, exercises);
+        c.exercises = fixWarmup(c.exercises, c.day - 1, exercises);
         applyWarmupFireupSupersets(c.exercises);
       }
     });

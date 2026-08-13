@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Dumbbell, Plus, Minus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw, Link2, Link2Off, Heading, List, Check, Search, ArrowLeft, RefreshCw, Trophy, CheckCircle2, ArrowRight, ArrowLeft as ArrowLeftIcon, ChevronDown, ChevronRight, Repeat } from "lucide-react";
+import { Dumbbell, Plus, Minus, Trash2, PlayCircle, History, Timer, X, Play, Pause, RotateCcw, Link2, Link2Off, Heading, List, Check, Search, ArrowLeft, RefreshCw, Trophy, CheckCircle2, ArrowRight, ArrowLeft as ArrowLeftIcon, ChevronDown, ChevronRight, Repeat, SlidersHorizontal } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import React, { useState, useEffect, useMemo } from "react";
-import { getExercises, getPrograms, saveWorkoutToHistory, getLastExerciseStats, getActiveProgram, saveActiveProgram, getHabits, detectAndSavePBs, saveCommunityPost, getPersonalRecords, getPreferredDays, savePreferredDays, getWorkoutHistory, getWorkoutsOfWeek, getWowResults, saveWowResult, getExerciseHistory } from "@/lib/store";
+import { getExercises, getExerciseEnrichment, getPrograms, saveWorkoutToHistory, getLastExerciseStats, getActiveProgram, saveActiveProgram, getHabits, detectAndSavePBs, saveCommunityPost, getPersonalRecords, getPreferredDays, savePreferredDays, getWorkoutHistory, getWorkoutsOfWeek, getWowResults, saveWowResult, getExerciseHistory } from "@/lib/store";
 import { getEmbedUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -176,6 +177,35 @@ const columnsFor = (ex: any, exerciseLibrary: any[]) => {
   return cols.length ? cols : [{ field: "reps", label: "REPS", step: 1 }];
 };
 
+const fmtLastTime = (s: any, tracking: string[]) => {
+  if (!s) return "";
+  const t = (x: string) => tracking.includes(x);
+  const time = (s.timeMins||0) || (s.timeSecs||0) ? `${s.timeMins? s.timeMins+'m ':''}${s.timeSecs? s.timeSecs+'s':''}`.trim() : "";
+  if (t("Calories") && s.calories)            return `${s.calories} cals`;
+  if (t("Weight & Distance") && (s.weight||s.distance)) return `${s.weight}kg · ${s.distance}m`;
+  if (t("Distance & Time"))                   return [s.distance? s.distance+'m':'', time].filter(Boolean).join(' in ');
+  if (t("Time Only") && time)                 return time;
+  if (t("Reps Only") && s.reps)               return `${s.reps} reps`;
+  return s.weight ? `${s.weight}kg × ${s.reps}` : (s.reps ? `${s.reps} reps` : "");
+};
+
+const fmtSet = (s: any, tracking: string[]) => {
+  if (!s) return "";
+  const t = (x: string) => tracking.includes(x);
+  const time = (s.timeMins||0) || (s.timeSecs||0) ? `${s.timeMins? s.timeMins+'m ':''}${s.timeSecs? s.timeSecs+'s':''}`.trim() : "";
+  if (t("Calories") && (s.calories||0))        return `${s.calories} cals`;
+  if (t("Weight & Distance") && ((s.weight||0) || (s.distance||0))) return `${s.weight||0}kg · ${s.distance||0}m`;
+  if (t("Distance & Time")) {
+    const parts = [(s.distance||0) ? s.distance+'m':'', time].filter(Boolean);
+    if (parts.length) return parts.join(' in ');
+  }
+  if (t("Time Only") && time)                 return time;
+  if (t("Reps Only") && (s.reps||0))           return `${s.reps} reps`;
+  if ((s.weight||0) > 0)                        return `${s.weight}kg × ${s.reps||0}`;
+  if ((s.reps||0) > 0)                          return `${s.reps} reps`;
+  return "";
+};
+
 const weekLabel = (program: any, week: number) => {
   const wc = program?.weekNotes?.[week]?.start_date;
   if (!wc) return `Week ${week}`;
@@ -223,11 +253,13 @@ const Workouts = () => {
   const [workoutName, setWorkoutName] = useState("");
   const [exercises, setExercises] = useState<any[]>([{ id: 1, blockType: "Strength", name: "", setsData: [{ id: '1', reps: 10, weight: 0, distance: 0, timeMins: 0, timeSecs: 0, completed: false }, { id: '2', reps: 10, weight: 0, distance: 0, timeMins: 0, timeSecs: 0, completed: false }, { id: '3', reps: 10, weight: 0, distance: 0, timeMins: 0, timeSecs: 0, completed: false }], rest: 0, linkedToNext: false, eachSide: false }]);
   const [exerciseLibrary, setExerciseLibrary] = useState<any[]>([]);
+  const [enrichment, setEnrichment] = useState<Record<string, any>>({});
   const [workoutTemplates, setWorkoutTemplates] = useState<any[]>([]);
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
   const [pausedTimeLeft, setPausedTimeLeft] = useState<number | null>(null);
   const [now, setNow] = useState<number>(Date.now());
   const [exerciseSearch, setExerciseSearch] = useState("");
+  const [altSearch, setAltSearch] = useState("");
   const [activeProgram, setActiveProgram] = useState<any>(null);
   const [rewardModal, setRewardModal] = useState<{name: string, emoji: string, volume: number, count?: number, displayName?: string} | null>(null);
   const [pbModal, setPbModal] = useState<any[] | null>(null);
@@ -374,7 +406,8 @@ const Workouts = () => {
 
   useEffect(() => {
     const loadLibrary = async () => {
-      setExerciseLibrary(getExercises());
+       setExerciseLibrary(getExercises());
+       setEnrichment(await getExerciseEnrichment());
       setWorkoutTemplates(getPrograms());
       setActiveProgram(getActiveProgram());
       setPreferredDays(getPreferredDays());
@@ -760,7 +793,8 @@ const Workouts = () => {
     if (success) {
       toast.success("Workout saved successfully!");
     } else {
-      toast.warning("Saved locally — cloud sync failed");
+      // Failure must be unmissable — do NOT advance to Up Next automatically
+      toast.error("Saved on device — will retry syncing");
       console.error("Cloud sync error:", error);
     }
 
@@ -770,16 +804,17 @@ const Workouts = () => {
     } else if (earnedReward && totalVolume > 0) {
       setRewardModal({ ...earnedReward, volume: totalVolume });
     }
-    
-    if (activeProgram) {
+
+    if (success && activeProgram) {
       const nextIndex = activeProgram.currentIndex + 1;
       if (nextIndex < activeProgram.workouts.length) {
         const updatedProgram = { ...activeProgram, currentIndex: nextIndex };
         setActiveProgram(updatedProgram);
         saveActiveProgram(updatedProgram);
-        toast.info(`Up next: ${activeProgram.workouts[nextIndex].name}`);
+        // Delay the Up Next toast so it doesn't cover the save result
+        setTimeout(() => toast.info(`Up next: ${activeProgram.workouts[nextIndex].name}`), 1400);
       } else {
-        toast.success(`Congratulations! You completed ${activeProgram.name}!`);
+        setTimeout(() => toast.success(`Congratulations! You completed ${activeProgram.name}!`), 1400);
         setActiveProgram(null);
         saveActiveProgram(null);
       }
@@ -1289,7 +1324,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                     const libEx = exerciseLibrary.find(e => String(e.id) === String(ex.name));
                     const setsCount = ex.setsData?.length || ex.sets || 3;
                     const firstSet = ex.setsData?.[0] || ex || {};
-                    const rawTrack = libEx?.trackingType ?? "Weight & Reps";
+                    const rawTrack = ex.trackingType ?? libEx?.trackingType ?? "Weight & Reps";
                     const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                     const dist = firstSet.distance || ex.distance || 0;
                     const mins = firstSet.timeMins || ex.timeMins || 0;
@@ -1304,6 +1339,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                       details.push(`${mins ? mins + 'm ' : ''}${secs ? secs + 's' : ''}`.trim());
                     if (trackingArray.includes('Calories') && cals) details.push(`${cals} cals`);
                     if (trackingArray.includes('Weight & Reps') && reps) details.push(`${reps} reps`);
+                    if (trackingArray.includes('Reps Only') && reps) details.push(`${reps} reps`);
                     if (details.length === 0 && reps) details.push(`${reps} reps`);
                     const detailStr = details.join(', ');
                     return (
@@ -1397,7 +1433,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                         {sec.exercises.map((ex: any, exIdx: number) => {
                           const libEx = exerciseLibrary.find(e => String(e.id) === String(ex.name));
                           
-                          const rawTrack = libEx?.trackingType ?? "Weight & Reps";
+                          const rawTrack = ex.trackingType ?? libEx?.trackingType ?? "Weight & Reps";
                           const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                           
                           const dist = ex.distance || 0;
@@ -1414,6 +1450,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                             metrics.push(`${mins ? mins + 'm ' : ''}${secs ? secs + 's' : ''}`.trim());
                           if (trackingArray.includes('Calories') && cals) metrics.push(`${cals} cals`);
                           if (trackingArray.includes('Weight & Reps') && reps) metrics.push(`${reps} reps`);
+                          if (trackingArray.includes('Reps Only') && reps) metrics.push(`${reps} reps`);
                           
                           let detailText = "";
                           if (metrics.length > 0) {
@@ -1624,7 +1661,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                           const setsCount = ex.setsData?.length || ex.sets || 3;
                           const firstSet = ex.setsData?.[0] || ex || {};
                           
-                          const rawTrack = libEx?.trackingType ?? "Weight & Reps";
+                          const rawTrack = ex.trackingType ?? libEx?.trackingType ?? "Weight & Reps";
                           const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                           
                           const dist = firstSet.distance || ex.distance || 0;
@@ -1641,6 +1678,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                             details.push(`${mins ? mins + 'm ' : ''}${secs ? secs + 's' : ''}`.trim());
                           if (trackingArray.includes('Calories') && cals) details.push(`${cals} cals`);
                           if (trackingArray.includes('Weight & Reps') && reps) details.push(`${reps} reps`);
+                          if (trackingArray.includes('Reps Only') && reps) details.push(`${reps} reps`);
                           if (details.length === 0 && reps) details.push(`${reps} reps`);
                           const detailStr = details.join(', ');
 
@@ -1728,7 +1766,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                           const cals = firstSet.calories || ex.calories || 0;
                           const reps = firstSet.reps || ex.reps || 0;
                           
-                          const rawTrack = libEx?.trackingType ?? "Weight & Reps";
+                          const rawTrack = ex.trackingType ?? libEx?.trackingType ?? "Weight & Reps";
                           const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                           
                           let details = [];
@@ -1739,6 +1777,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                             details.push(`${mins ? mins + 'm ' : ''}${secs ? secs + 's' : ''}`.trim());
                           if (trackingArray.includes('Calories') && cals) details.push(`${cals} cals`);
                           if (trackingArray.includes('Weight & Reps') && reps) details.push(`${reps} reps`);
+                          if (trackingArray.includes('Reps Only') && reps) details.push(`${reps} reps`);
                           if (details.length === 0 && reps) details.push(`${reps} reps`);
                           const detailStr = details.join(', ');
                           
@@ -1830,25 +1869,24 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                           return (
                             <div key={exercise.id} className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3">
                               <div className="space-y-2 w-full">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-heading text-2xl tracking-wide leading-none uppercase">
-                                    {libraryExercise ? libraryExercise.name : (exercise.name || "Select Exercise")}
-                                  </span>
-                                  {exercise.blockType && (
-                                    <span className="text-[10px] uppercase bg-primary/20 text-primary px-2 py-0.5 rounded-full font-bold">
-                                      {exercise.blockType}
+<div className="flex items-center justify-between gap-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-heading text-2xl tracking-wide leading-none uppercase">
+                                      {libraryExercise ? libraryExercise.name : (exercise.name || "Select Exercise")}
                                     </span>
-                                  )}
-                                  {exercise.eachSide && (
-                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Each Side</span>
-                                  )}
-                                </div>
-                                
-<div className="flex items-center gap-1.5 mb-3 flex-nowrap">
+                                    {exercise.blockType && (
+                                      <span className="text-[10px] uppercase bg-primary/20 text-primary px-2 py-0.5 rounded-full font-bold">
+                                        {exercise.blockType}
+                                      </span>
+                                    )}
+                                    {exercise.eachSide && (
+                                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Each Side</span>
+                                    )}
+                                  </div>
                                   {libraryExercise?.videoUrl && (
                                     <Dialog>
-<DialogTrigger asChild>
-                                        <button aria-label="Watch video" className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-primary/40 text-primary shrink-0">
+                                      <DialogTrigger asChild>
+                                        <button aria-label="Watch video" className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-primary/40 text-primary shrink-0">
                                           <PlayCircle className="h-4 w-4" />
                                         </button>
                                       </DialogTrigger>
@@ -1867,85 +1905,172 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                                       </DialogContent>
                                     </Dialog>
                                   )}
-                                  {libraryExercise && (
-                                    <Dialog>
-<DialogTrigger asChild>
-                                        <button className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-border text-xs font-bold shrink-0">
-                                          <RefreshCw className="h-3.5 w-3.5" /> Swap
-                                        </button>
-                                      </DialogTrigger>
-                                      <DialogContent className="sm:max-w-[400px] bg-card border-border max-h-[80vh] overflow-y-auto">
-                                        <DialogHeader>
-                                          <DialogTitle className="font-heading tracking-wider">Alternative Exercises</DialogTitle>
-                                        </DialogHeader>
-                                        <div className="mt-4 space-y-2">
-                                          {(() => {
-                                            const norm = (v: any) => Array.isArray(v)
-                                              ? v.map((s: any) => String(s).trim()).filter(Boolean)
-                                              : String(v || "").split(",").map((s: string) => s.trim()).filter(Boolean);
-                                            const origCat = norm(libraryExercise.category);
-                                            const origMv  = norm(libraryExercise.movementType);
-                                            const origTt  = norm(libraryExercise.trackingType).join();
-                                            const alternatives = exerciseLibrary
-                                              .filter((ex) => {
-                                                if (String(ex.id) === String(libraryExercise.id)) return false;
-                                                if (origCat.length && !norm(ex.category).some((c: string) => origCat.includes(c))) return false;
-                                                return true;
-                                              })
-                                              .map((ex) => {
-                                                let s = 0;
-                                                if ((ex.muscle || "") === (libraryExercise.muscle || "")) s += 3;
-                                                if (norm(ex.movementType).some((m: string) => origMv.includes(m)))  s += 3;
-                                                if (norm(ex.trackingType).join() === origTt)                s += 2;
-                                                if ((ex.difficulty || "") === (libraryExercise.difficulty || "")) s += 1;
-                                                if ((ex.equipment  || "") === (libraryExercise.equipment  || "")) s += 1;
-                                                return { ex, s };
-                                              })
-                                              .filter((x) => x.s > 0)
-                                              .sort((a, b) => b.s - a.s)
-                                              .slice(0, 8)
-                                              .map((x) => x.ex);
-                                            if (alternatives.length === 0) {
-                                              return <p className="text-sm text-muted-foreground text-center py-4">No close alternatives found.</p>;
-                                            }
-                                            return alternatives.map((alt, altIdx) => (
-                                              <div key={alt.id} className="flex items-center justify-between p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors">
-                                                <div className="flex flex-col gap-1">
-                                                  <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-sm">{alt.name}</span>
-                                                    {altIdx === 0 && (
-                                                      <span className="bg-primary/20 text-primary px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                                                        Best match
-                                                      </span>
-                                                    )}
-                                                  </div>
-                                                  <span className="text-xs text-muted-foreground">{alt.equipment || "Any equipment"}</span>
-                                                </div>
-                                                <Button 
-                                                  size="sm" 
-                                                  variant="secondary"
-                                                  onClick={() => {
-                                                    updateExercise(exercise.id, "name", alt.id);
-                                                    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-                                                  }}
-                                                >
-                                                  Select
-                                                </Button>
-                                              </div>
-                                            ));
-                                          })()}
-                                        </div>
-                                      </DialogContent>
-                                    </Dialog>
-                                  )}
-                                  {exercise.name && (
-<button
-                                      className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-border text-xs font-bold shrink-0"
-                                      onClick={() => setPastLiftsModal({ name: exercise.name })}>
-                                      <History className="h-3.5 w-3.5" /> Past Lifts
-                                    </button>
-                                  )}
                                 </div>
+                                
+<div className="flex flex-wrap items-center gap-2 mt-2 mb-3">
+                                   {libraryExercise && (
+                                     <Dialog onOpenChange={(open) => { if (!open) setAltSearch(""); }}>
+                                       <DialogTrigger asChild>
+                                         <button className="inline-flex items-center gap-1 h-8 px-2.5 rounded-full border border-border text-xs font-bold shrink-0">
+                                           <RefreshCw className="h-3.5 w-3.5" /> Swap
+                                         </button>
+                                       </DialogTrigger>
+                                       <DialogContent className="sm:max-w-[400px] bg-card border-border max-h-[80vh] overflow-y-auto">
+                                         <DialogHeader>
+                                           <DialogTitle className="font-heading tracking-wider">Alternative Exercises</DialogTitle>
+                                         </DialogHeader>
+                                         {(() => {
+                                           const REASONS: [string, string][] = [
+                                             ["alt_regress", "Easier"],
+                                             ["alt_progress", "Harder"],
+                                             ["alt_joint_friendly", "Joint-friendly"],
+                                             ["alt_equipment", "Different kit"],
+                                             ["alt_home", "At home"],
+                                             ["alt_same_pattern", "Similar"],
+                                           ];
+                                           const byName: Record<string, any> = {};
+                                           exerciseLibrary.forEach(e => { byName[String(e.name).toLowerCase().trim()] = e; });
+                                           const resolveAlts = (cell: string) =>
+                                             String(cell || "").split(/[,/]| or /i).map(s => s.trim()).filter(Boolean)
+                                               .map(tok => byName[tok.toLowerCase()]).filter(Boolean);
+                                           const STRENGTH_BLOCKLIST = [/back squat/i,/front squat/i,/deadlift/i,/bench press/i,/overhead press/i,/push press/i,/clean|snatch|jerk/i,/nordic/i,/ghd/i,/pull ?up|chin ?up|muscle ?up/i,/pistol/i,/renegade/i,/box jump/i,/get ?up/i,/sled/i];
+                                           const beginnerSafe = (ex:any) => String(ex.difficulty||"").toLowerCase()==="beginner" && !STRENGTH_BLOCKLIST.some(rx=>rx.test(ex.name));
+                                           const isFoundations = activeProgram?.stream === "Foundations";
+                                           const row = enrichment[String(libraryExercise.id)];
+                                           const seen = new Set<string>([String(libraryExercise.id)]);
+                                           let suggestions = row
+                                             ? REASONS.flatMap(([col, label]) =>
+                                                 resolveAlts(row[col]).map(ex => ({ ex, label }))
+                                               ).filter(s => !seen.has(String(s.ex.id)) && seen.add(String(s.ex.id)))
+                                             : [];
+                                           if (isFoundations) {
+                                             suggestions = suggestions.filter(s => s.label !== "Harder" && beginnerSafe(s.ex));
+                                           }
+                                           // Fallback heuristic if no enrichment suggestions
+                                           if (suggestions.length === 0) {
+                                             const norm = (v: any) => Array.isArray(v)
+                                               ? v.map((s: any) => String(s).trim()).filter(Boolean)
+                                               : String(v || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+                                             const origCat = norm(libraryExercise.category);
+                                             const origMv  = norm(libraryExercise.movementType);
+                                             const origTt  = norm(libraryExercise.trackingType).join();
+                                             const heur = exerciseLibrary
+                                               .filter((ex) => {
+                                                 if (String(ex.id) === String(libraryExercise.id)) return false;
+                                                 if (isFoundations && !beginnerSafe(ex)) return false;
+                                                 if (origCat.length && !norm(ex.category).some((c: string) => origCat.includes(c))) return false;
+                                                 return true;
+                                               })
+                                               .map((ex) => {
+                                                 let s = 0;
+                                                 if ((ex.muscle || "") === (libraryExercise.muscle || "")) s += 3;
+                                                 if (norm(ex.movementType).some((m: string) => origMv.includes(m)))  s += 3;
+                                                 if (norm(ex.trackingType).join() === origTt)                s += 2;
+                                                 if ((ex.difficulty || "") === (libraryExercise.difficulty || "")) s += 1;
+                                                 if ((ex.equipment  || "") === (libraryExercise.equipment  || "")) s += 1;
+                                                 return { ex, s };
+                                               })
+                                               .filter((x) => x.s > 0)
+                                               .sort((a, b) => b.s - a.s)
+                                               .slice(0, 8)
+                                               .map((x) => ({ ex: x.ex, label: "Similar" }));
+                                             suggestions = heur;
+                                           }
+                                           return (
+                                             <>
+                                               <div className="mt-4 space-y-2">
+                                                 {suggestions.length === 0 && (
+                                                   <p className="text-sm text-muted-foreground text-center py-4">No close alternatives found.</p>
+                                                 )}
+                                                 {suggestions.map(({ ex: alt, label }) => (
+                                                   <div key={alt.id} className="flex items-center justify-between p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors">
+                                                     <div className="flex flex-col gap-1">
+                                                       <div className="flex items-center gap-2">
+                                                         <span className="font-bold text-sm">{alt.name}</span>
+                                                         <span className="bg-primary/15 text-primary px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                                                           {label}
+                                                         </span>
+                                                       </div>
+                                                       <span className="text-xs text-muted-foreground">{alt.equipment || "Any equipment"}{alt.difficulty ? ` · ${alt.difficulty}` : ""}</span>
+                                                     </div>
+                                                     <Button
+                                                       size="sm"
+                                                       variant="secondary"
+                                                       onClick={() => {
+                                                         updateExercise(exercise.id, "name", alt.id);
+                                                         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+                                                       }}
+                                                     >
+                                                       Select
+                                                     </Button>
+                                                   </div>
+                                                 ))}
+                                               </div>
+                                               <div className="pt-4 mt-2 border-t border-border">
+                                                 <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Or search all exercises</p>
+                                                 <div className="relative">
+                                                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                   <Input value={altSearch} onChange={e=>setAltSearch(e.target.value)} placeholder="Search exercises…" className="pl-9" />
+                                                 </div>
+                                                 <div className="mt-2 max-h-[40vh] overflow-y-auto space-y-1">
+                                                   {exerciseLibrary
+                                                     .filter(e => String(e.id)!==String(libraryExercise.id))
+                                                     .filter(e => !altSearch || e.name.toLowerCase().includes(altSearch.toLowerCase()))
+                                                     .slice(0, 40)
+                                                     .map(e => (
+                                                       <div key={e.id} className="flex items-center justify-between p-2 border border-border rounded-lg hover:bg-muted/50">
+                                                         <div className="flex flex-col">
+                                                           <span className="font-bold text-sm">{e.name}</span>
+                                                           <span className="text-xs text-muted-foreground">{e.equipment || "Any equipment"}{e.difficulty ? ` · ${e.difficulty}` : ""}</span>
+                                                         </div>
+                                                         <Button size="sm" variant="secondary" onClick={()=>{ updateExercise(exercise.id,"name",e.id); document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); }}>Select</Button>
+                                                       </div>
+                                                     ))}
+                                                 </div>
+                                               </div>
+                                             </>
+                                           );
+                                         })()}
+                                       </DialogContent>
+                                     </Dialog>
+                                   )}
+                                   {libraryExercise && (() => {
+                                     const TRACKING_TYPES = ["Weight & Reps", "Reps Only", "Time Only", "Distance & Time", "Weight & Distance", "Calories"];
+                                     const SHORT: Record<string,string> = {
+                                       "Weight & Reps":"W×R", "Reps Only":"Reps", "Time Only":"Time",
+                                       "Distance & Time":"Dist", "Weight & Distance":"W×D", "Calories":"Cals"
+                                     };
+                                     const currentTracking = trackingOf(exercise, exerciseLibrary).join(", ");
+                                     return (
+                                       <DropdownMenu>
+                                         <DropdownMenuTrigger asChild>
+                                           <button className="inline-flex items-center gap-1 h-8 px-2.5 rounded-full border border-border text-xs font-bold shrink-0">
+                                             <SlidersHorizontal className="h-3.5 w-3.5" /> {SHORT[currentTracking] ?? currentTracking}
+                                           </button>
+                                         </DropdownMenuTrigger>
+                                         <DropdownMenuContent align="start">
+                                           {TRACKING_TYPES.map(tt => (
+                                             <DropdownMenuItem key={tt} onClick={() => updateExercise(exercise.id, "trackingType", [tt])}>
+                                               {tt}{currentTracking === tt && <Check className="h-3 w-3 ml-auto" />}
+                                             </DropdownMenuItem>
+                                           ))}
+                                           <DropdownMenuItem onClick={() => updateExercise(exercise.id, "trackingType", undefined)}>
+                                             Reset to default
+                                           </DropdownMenuItem>
+                                         </DropdownMenuContent>
+                                       </DropdownMenu>
+                                     );
+                                   })()}
+                                   {exercise.name && (
+                                     <button
+                                       className="inline-flex items-center gap-1 h-8 px-2.5 rounded-full border border-border text-xs font-bold shrink-0"
+                                       onClick={() => setPastLiftsModal({ name: exercise.name })}>
+                                       <History className="h-3.5 w-3.5" /> Past Lifts
+                                     </button>
+                                   )}
+                                 </div>
+
+
                                 
                                 {exercise.coachingNotes && (
                                   <div className="text-sm text-muted-foreground italic border-l-2 border-primary/50 pl-2 py-0.5">
@@ -2386,6 +2511,8 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
 
           {pastLiftsModal && (() => {
             const hist = getExerciseHistory(pastLiftsModal.name);
+            const libEx = exerciseLibrary.find(e => String(e.id) === String(pastLiftsModal.name));
+            const effTrack = (Array.isArray(libEx?.trackingType) ? libEx?.trackingType : String(libEx?.trackingType || "Weight & Reps").split(/[;,]/)).map((s:string) => s.trim()).filter(Boolean);
             return (
               <div className="space-y-4">
                 {/* History */}
@@ -2399,11 +2526,15 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                         {new Date(h.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </div>
                       <div className="flex flex-wrap gap-1">
-                        {h.sets.map((s, j) => (
-                          <span key={j} className={`text-xs px-2 py-0.5 rounded-full border ${s.weight === h.top.weight ? 'border-primary text-primary font-semibold' : 'border-border text-foreground'}`}>
-                            {s.weight}kg × {s.reps}
-                          </span>
-                        ))}
+                        {h.sets.map((s, j) => {
+                          const label = fmtSet(s, effTrack);
+                          const isTop = s.weight > 0 && s.weight === h.top.weight;
+                          return (
+                            <span key={j} className={`text-xs px-2 py-0.5 rounded-full border ${isTop ? 'border-primary text-primary font-semibold' : 'border-border text-foreground'}`}>
+                              {label || `${s.weight}kg × ${s.reps}`}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}

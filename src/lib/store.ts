@@ -66,13 +66,15 @@ export const flushRetryQueue = async () => {
     } else if (item.store === 'history') {
       const local = localStorage.getItem('fittrack_history');
       if (local) {
-        const history = JSON.parse(local);
-        if (history.length > 0) {
-          const latest = history[0];
-          await supabase.from('workout_history').upsert(
-            { id: latest.id, user_id: user.id, date: latest.date, data: latest },
-            { onConflict: 'id' }
-          );
+        const allHistory = JSON.parse(local);
+        // Push every local row to the cloud, not just the newest one.
+        for (const w of allHistory) {
+          await supabase.from('workout_history').upsert({
+            id: w.id, user_id: user.id, date: w.date,
+            name: w.name ?? null, exercises: w.exercises ?? [],
+            volume: w.volume ?? 0, reward: w.reward ?? null,
+            duration: w.duration ?? null, data: w,
+          }, { onConflict: 'id' });
         }
       }
     } else if (item.store === 'bodyweight') {
@@ -387,6 +389,13 @@ export const getExercises = () => {
   return stored ? JSON.parse(stored) : [];
 };
 
+export const getExerciseEnrichment = async () => {
+  const { data } = await supabase.from('exercise_enrichment').select('*');
+  const map: Record<string, any> = {};
+  (data || []).forEach((r: any) => { map[String(r.exercise_id)] = r; });
+  return map;
+};
+
 export const saveExercises = async (exercises: any[]): Promise<{ success: boolean; error?: any }> => {
   localStorage.setItem('fittrack_exercises', JSON.stringify(exercises));
   markDirty('exercises');
@@ -564,16 +573,37 @@ export const saveWorkoutToHistory = async (workout: any): Promise<{ success: boo
   setSyncStatus('saving');
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { error } = await supabase.from('workout_history').upsert(
-        { id: newWorkout.id, user_id: user.id, date: newWorkout.date, data: newWorkout },
-        { onConflict: 'id' }
-      );
-      if (error) {
-        enqueue('history');
-        setSyncStatus('error');
-        return { success: false, error, workout: newWorkout };
-      }
+    if (!user) {
+      enqueue('history');
+      setSyncStatus('error');
+      return { success: false, error: 'not-authenticated', workout: newWorkout };
+    }
+    // Write top-level columns (matching the existing table shape) AND keep data in sync.
+    const { data: rows, error } = await supabase
+      .from('workout_history')
+      .upsert({
+        id: newWorkout.id,
+        user_id: user.id,
+        date: newWorkout.date,
+        name: newWorkout.name ?? null,
+        exercises: newWorkout.exercises ?? [],
+        volume: newWorkout.volume ?? 0,
+        reward: newWorkout.reward ?? null,
+        duration: newWorkout.duration ?? null,
+        data: newWorkout,
+      }, { onConflict: 'id' })
+      .select();
+
+    if (error) {
+      enqueue('history');
+      setSyncStatus('error');
+      return { success: false, error, workout: newWorkout };
+    }
+    if (!rows || rows.length === 0) {
+      // Upsert returned nothing → RLS/policy silently dropped it
+      enqueue('history');
+      setSyncStatus('error');
+      return { success: false, error: 'no-row-persisted (check RLS insert/update policy)', workout: newWorkout };
     }
     clearDirty('history');
     dequeue('history');
@@ -667,18 +697,24 @@ export const getLastExerciseStats = (exerciseName: string) => {
   for (const workout of history) {
     const ex = workout.exercises?.find((e: any) => String(e.name) === String(exerciseName));
     if (!ex) continue;
-    // Derive from setsData (the logged sets), NOT the top-level prescription weight.
     const sets = Array.isArray(ex.setsData) ? ex.setsData : [];
-    const done = sets.filter((s: any) => s.completed && (s.weight || 0) > 0);
-    const pool = done.length ? done : sets.filter((s: any) => (s.weight || 0) > 0);
-    if (pool.length) {
-      const top = pool.reduce((a: any, b: any) => (b.weight > a.weight ? b : a));
-      return { weight: top.weight, reps: top.reps, date: workout.date };
-    }
-    // Fallback for very old entries that predate setsData: use top-level weight if > 0
-    if ((ex.weight || 0) > 0) {
-      return { weight: ex.weight, reps: ex.reps || 0, date: workout.date };
-    }
+    const hasVal = sets.some((s: any) =>
+      (+s.weight||0)>0 || (+s.reps||0)>0 || (+s.distance||0)>0 || (+s.calories||0)>0 || (+s.timeMins||0)>0 || (+s.timeSecs||0)>0);
+    if (!hasVal) continue;
+
+    const top = (key: string) => sets.reduce((m: number, s: any) => Math.max(m, +s[key] || 0), 0);
+    const bestWeightSet = sets.filter((s:any)=>(+s.weight||0)>0).sort((a:any,b:any)=>(+b.weight)-(+a.weight))[0] || {};
+    return {
+      date: workout.date,
+      trackingType: ex.trackingType || null,
+      weight: +bestWeightSet.weight || 0,
+      reps: +bestWeightSet.reps || 0,
+      calories: top('calories'),
+      distance: top('distance'),
+      timeMins: top('timeMins'),
+      timeSecs: top('timeSecs'),
+      sets: sets.length,
+    };
   }
   return null;
 };
@@ -686,15 +722,15 @@ export const getLastExerciseStats = (exerciseName: string) => {
 // All past logged sessions for an exercise (newest first), with each session's sets.
 export const getExerciseHistory = (exerciseName: string) => {
   const history = getWorkoutHistory(); // newest first
-  const out: { date: string; sets: { weight: number; reps: number }[]; top: { weight: number; reps: number } }[] = [];
+  const out: { date: string; sets: { weight: number; reps: number; distance: number; calories: number; timeMins: number; timeSecs: number }[]; top: { weight: number; reps: number } }[] = [];
   for (const workout of history) {
     const ex = workout.exercises?.find((e: any) => String(e.name) === String(exerciseName));
     if (!ex) continue;
     const raw = Array.isArray(ex.setsData) ? ex.setsData : [];
     let sets = raw
-      .filter((s: any) => (s.weight || 0) > 0 || (s.reps || 0) > 0)
-      .map((s: any) => ({ weight: s.weight || 0, reps: s.reps || 0 }));
-    if (!sets.length && (ex.weight || 0) > 0) sets = [{ weight: ex.weight, reps: ex.reps || 0 }];
+      .filter((s: any) => (s.weight || 0) > 0 || (s.reps || 0) > 0 || (s.distance || 0) > 0 || (s.calories || 0) > 0 || (s.timeMins || 0) > 0 || (s.timeSecs || 0) > 0)
+      .map((s: any) => ({ weight: s.weight || 0, reps: s.reps || 0, distance: s.distance || 0, calories: s.calories || 0, timeMins: s.timeMins || 0, timeSecs: s.timeSecs || 0 }));
+    if (!sets.length && (ex.weight || 0) > 0) sets = [{ weight: ex.weight, reps: ex.reps || 0, distance: 0, calories: 0, timeMins: 0, timeSecs: 0 }];
     if (!sets.length) continue;
     const top = sets.reduce((a, b) => (b.weight > a.weight ? b : a));
     out.push({ date: workout.date, sets, top });
@@ -950,9 +986,23 @@ export const syncFromSupabase = async () => {
     }
   }
 
-  if (hist.data && hist.data.length > 0 && !isDirty('history')) {
-    const rows = hist.data.map((r: any) => r.data ?? r);
-    localStorage.setItem('fittrack_history', JSON.stringify(rows));
+  if (hist.data && hist.data.length > 0) {
+    const cloudRows = hist.data.map((r: any) => r.data ?? r);
+    if (!isDirty('history')) {
+      // Not dirty → cloud is source of truth, but still merge to preserve any local-only rows
+      const localRows = JSON.parse(localStorage.getItem('fittrack_history') || '[]');
+      const byId = new Map<string, any>();
+      // Cloud rows take priority
+      cloudRows.forEach((r: any) => byId.set(String(r.id), r));
+      // Local-only rows (not in cloud) are preserved and re-enqueued for push
+      const localOnly: any[] = [];
+      localRows.forEach((r: any) => {
+        if (!byId.has(String(r.id))) { byId.set(String(r.id), r); localOnly.push(r); }
+      });
+      if (localOnly.length > 0) enqueue('history');
+      localStorage.setItem('fittrack_history', JSON.stringify(Array.from(byId.values())));
+    }
+    // If dirty, the flushRetryQueue above already pushed everything; don't overwrite local.
   }
   
   if (bw.data && bw.data.length > 0 && !isDirty('bodyweight')) {
