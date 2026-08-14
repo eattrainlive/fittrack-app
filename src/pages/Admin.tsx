@@ -163,6 +163,7 @@ const Admin = () => {
   const [newProgType, setNewProgType] = useState<"program" | "session_folder" | "GroupPT" | "wow">("program");
   const [progWorkouts, setProgWorkouts] = useState<any[]>([]);
   const [progWeekNotes, setProgWeekNotes] = useState<Record<number, any>>({});
+  const weekLabel = (n: number) => (progWeekNotes[n]?.label || "").trim() || `Week ${n}`;
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(0);
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [selectedDay, setSelectedDay] = useState(1);
@@ -2388,7 +2389,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                   }}
                                   className="whitespace-nowrap"
                                 >
-                                  Week {i + 1}
+                                  {weekLabel(i + 1)}
                                 </Button>
                               ))}
                             </div>
@@ -2433,7 +2434,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                           {(newProgType === "program" || newProgType === "GroupPT") && (
                             <div className="space-y-4 mb-6 pb-4 border-b border-border">
                               <div className="flex items-center justify-between">
-                                <h3 className="font-heading tracking-wider text-xl">Week {selectedWeek} Settings</h3>
+                                <h3 className="font-heading tracking-wider text-xl">{weekLabel(selectedWeek)} Settings</h3>
                                 <div className="flex gap-2">
                                   {selectedWeek > 1 && (
                                     <Button variant="outline" size="sm" onClick={handleCopyWeekFromPrevious} className="gap-2">
@@ -2444,13 +2445,23 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                     <SelectTrigger className="w-[160px] h-9"><SelectValue placeholder="Duplicate To..." /></SelectTrigger>
                                     <SelectContent>
                                       {Array.from({ length: newProgType === "GroupPT" ? 12 : newProgWeeks }).map((_, i) => (
-                                        i + 1 !== selectedWeek && <SelectItem key={`dup-w-${i+1}`} value={(i + 1).toString()}>Week {i + 1}</SelectItem>
+                                        i + 1 !== selectedWeek && <SelectItem key={`dup-w-${i+1}`} value={(i + 1).toString()}>{weekLabel(i + 1)}</SelectItem>
                                       ))}
                                     </SelectContent>
                                   </Select>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                  <Label>Week Label</Label>
+                                  <Input
+                                    placeholder={progWeekNotes[selectedWeek]?.start_date
+                                      ? `W/C ${new Date(progWeekNotes[selectedWeek].start_date).toLocaleDateString()}`
+                                      : `Week ${selectedWeek}`}
+                                    value={progWeekNotes[selectedWeek]?.label || ""}
+                                    onChange={e => setProgWeekNotes({...progWeekNotes, [selectedWeek]: { ...progWeekNotes[selectedWeek], label: e.target.value }})}
+                                  />
+                                </div>
                                 <div className="space-y-2">
                                   <Label>Week Start Date</Label>
                                   <Input 
