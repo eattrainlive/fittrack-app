@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn, getEmbedUrl } from "@/lib/utils";
-import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification, getAnthropicKey, saveAnthropicKey, getVimeoToken, getHabits, getWorkoutsOfWeek, saveWorkoutOfWeek, getAppSettings, saveAppSettings } from "@/lib/store";
+import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification, getAnthropicKey, saveAnthropicKey, getVimeoToken, getHabits, getWorkoutsOfWeek, saveWorkoutOfWeek, getAppSettings, saveAppSettings, getExerciseEnrichment } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar as CalendarIcon, Bell, Send, Download, Link2, Link2Off, Heading, Upload, Sparkles, Check, ChevronsUpDown } from "lucide-react";
 import JSZip from "jszip";
@@ -126,6 +126,7 @@ const Admin = () => {
   const [exercises, setExercises] = useState<any[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
   const [wows, setWows] = useState<any[]>([]);
+  const [enrichment, setEnrichment] = useState<Record<string, any>>({});
 
   // WOW State
   const [wowName, setWowName] = useState("");
@@ -163,7 +164,14 @@ const Admin = () => {
   const [newProgType, setNewProgType] = useState<"program" | "session_folder" | "GroupPT" | "wow">("program");
   const [progWorkouts, setProgWorkouts] = useState<any[]>([]);
   const [progWeekNotes, setProgWeekNotes] = useState<Record<number, any>>({});
-  const weekLabel = (n: number) => (progWeekNotes[n]?.label || "").trim() || `Week ${n}`;
+  const weekLabel = (n: number) => {
+    const custom = (progWeekNotes[n]?.label || "").trim();
+    if (custom) return custom;
+    const wc = progWeekNotes[n]?.start_date;
+    if (!wc) return `Week ${n}`;
+    const d = new Date(wc + 'T00:00:00');
+    return `W/C ${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+  };
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(0);
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [selectedDay, setSelectedDay] = useState(1);
@@ -338,6 +346,7 @@ const Admin = () => {
       setExercises(await getExercises());
       setPrograms(await getPrograms());
       setWows(await getWorkoutsOfWeek());
+      setEnrichment(await getExerciseEnrichment());
     };
 
     handleSync();
@@ -901,6 +910,43 @@ const Admin = () => {
     toast.success(`Copied Week ${selectedWeek} to Week ${targetWeek}!`);
   };
 
+  // ── Rules-based shuffle pool (enrichment alternates first, then tightened fallback) ──
+  const norm = (s: string) => String(s || "").toLowerCase().trim();
+  const mt = (e: any) => Array.isArray(e?.movementType) ? e.movementType : String(e?.movementType || "").split(/[;,]/).map((s: string) => s.trim()).filter(Boolean);
+  const byName = useMemo(() => {
+    const m: Record<string, any> = {}; exercises.forEach(e => { m[norm(e.name)] = e; }); return m;
+  }, [exercises]);
+  const STRENGTH_TAGS = ["Push","Horizontal Push","Vertical Push","Pull","Horizontal Pull","Vertical Pull","Knee","Hip","Core","Carries","Accessory"];
+  const isStrengthMove = (e: any) => mt(e).some((t: string) => STRENGTH_TAGS.includes(t));
+
+  function rulesBasedPool(libEx: any): any[] {
+    const row = enrichment[String(libEx.id)];
+    // (a) coach-picked enrichment alternates — resolve names to real library exercises
+    if (row) {
+      const cols = ["alt_same_pattern","alt_equipment","alt_progress","alt_regress","alt_joint_friendly","alt_home"];
+      const seen = new Set<string>([String(libEx.id)]);
+      const alts: any[] = [];
+      for (const c of cols) {
+        String(row[c] || "").split(/[,/]| or /i).map(norm).filter(Boolean).forEach(tok => {
+          const ex = byName[tok];
+          if (ex && !seen.has(String(ex.id))) { seen.add(String(ex.id)); alts.push(ex); }
+        });
+      }
+      if (alts.length) return alts;
+    }
+    // (b) fallback: same SPECIFIC movement pattern (incl H/V direction) + same muscle, then relax
+    const libTags = mt(libEx);
+    const specific = libTags.find((t: string) => /Horizontal|Vertical/.test(t)) || libTags[0];
+    if (specific) {
+      const origIsStrength = isStrengthMove(libEx);
+      const sameMuscle = exercises.filter(e => e.id !== libEx.id && mt(e).includes(specific) && e.muscle === libEx.muscle && isStrengthMove(e) === origIsStrength);
+      if (sameMuscle.length) return sameMuscle;
+      const samePattern = exercises.filter(e => e.id !== libEx.id && mt(e).includes(specific) && isStrengthMove(e) === origIsStrength);
+      if (samePattern.length) return samePattern;
+    }
+    return [];
+  }
+
   const handleShuffleExercise = (exerciseId: number | string) => {
     const updatedWorkouts = [...progWorkouts];
     const currentEx = updatedWorkouts[selectedWorkoutIndex].exercises.find((e: any) => String(e.id) === String(exerciseId));
@@ -909,14 +955,10 @@ const Admin = () => {
     const libEx = exercises.find(e => String(e.id) === String(currentEx.name));
     if (!libEx) return;
     
-    const matchingExercises = exercises.filter(e => 
-      e.id !== libEx.id && 
-      (Array.isArray(e.category) ? e.category : [e.category]).some((c: string) => (Array.isArray(libEx.category) ? libEx.category : [libEx.category]).includes(c)) &&
-      (Array.isArray(e.movementType) ? e.movementType : [e.movementType]).some((m: string) => (Array.isArray(libEx.movementType) ? libEx.movementType : [libEx.movementType]).includes(m))
-    );
+    const pool = rulesBasedPool(libEx);
     
-    if (matchingExercises.length > 0) {
-      const randomEx = matchingExercises[Math.floor(Math.random() * matchingExercises.length)];
+    if (pool.length > 0) {
+      const randomEx = pool[Math.floor(Math.random() * pool.length)];
       updatedWorkouts[selectedWorkoutIndex] = {
         ...updatedWorkouts[selectedWorkoutIndex],
         exercises: updatedWorkouts[selectedWorkoutIndex].exercises.map((e: any) => String(e.id) === String(exerciseId) ? { ...e, name: randomEx.id } : e)
@@ -976,14 +1018,10 @@ const Admin = () => {
       const libEx = exercises.find(e => String(e.id) === String(currentEx.name));
       if (!libEx) return;
       
-      const matchingExercises = exercises.filter(e => 
-        e.id !== libEx.id && 
-        (Array.isArray(e.category) ? e.category : [e.category]).some((c: string) => (Array.isArray(libEx.category) ? libEx.category : [libEx.category]).includes(c)) &&
-        (Array.isArray(e.movementType) ? e.movementType : [e.movementType]).some((m: string) => (Array.isArray(libEx.movementType) ? libEx.movementType : [libEx.movementType]).includes(m))
-      );
+      const pool = rulesBasedPool(libEx);
       
-      if (matchingExercises.length > 0) {
-        const randomEx = matchingExercises[Math.floor(Math.random() * matchingExercises.length)];
+      if (pool.length > 0) {
+        const randomEx = pool[Math.floor(Math.random() * pool.length)];
         currentEx.name = randomEx.id;
         shuffledCount++;
       }
