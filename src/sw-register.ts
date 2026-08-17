@@ -20,6 +20,7 @@ export function registerServiceWorker() {
     try {
       const registration = await navigator.serviceWorker.register("/sw.js", {
         scope: "/",
+        updateViaCache: "none", // Always revalidate sw.js from network (default can cache up to 24h)
       });
 
       // Watch for new service workers.

@@ -1,6 +1,9 @@
 /// <reference lib="webworker" />
 
-const CACHE_VERSION = 'fittrack-v1';
+// __BUILD_ID__ is replaced at build time (see build.js) so the SW bytes change every deploy,
+// which triggers the browser's update flow (updatefound → skipWaiting → reload).
+const BUILD_ID = '__BUILD_ID__';
+const CACHE_VERSION = `fittrack-${BUILD_ID}`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -17,6 +20,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
+      // Delete ALL caches that don't match the current version (stale builds purged).
       await Promise.all(
         keys
           .filter((key) => key !== STATIC_CACHE && key !== RUNTIME_CACHE)
@@ -64,6 +68,8 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Navigations (HTML pages) → network-first with cache fallback.
+  // On a successful network fetch, purge the static cache so stale hashed assets
+  // from a previous deploy are cleared (prevents 404s → white screen).
   if (request.mode === 'navigate' || NAVIGATE_PATTERN.test(url.pathname)) {
     event.respondWith(
       (async () => {
@@ -71,6 +77,10 @@ self.addEventListener('fetch', (event) => {
           const networkResponse = await fetch(request);
           const cache = await caches.open(RUNTIME_CACHE);
           cache.put(request, networkResponse.clone());
+          // Purge static cache on new shell — forces re-fetch of current hashed assets.
+          const staticCache = await caches.open(STATIC_CACHE);
+          const staticKeys = await staticCache.keys();
+          await Promise.all(staticKeys.map((k) => staticCache.delete(k)));
           return networkResponse;
         } catch {
           const cached = await caches.match(request);

@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AppErrorBoundary, installChunkErrorHandler } from "@/components/AppErrorBoundary";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import { AppLayout } from "./components/AppLayout";
@@ -95,6 +96,7 @@ const AppRoutes = () => {
 
 const AppContent = () => {
   useEffect(() => {
+    installChunkErrorHandler();
     supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         const storedUid = localStorage.getItem('fittrack_current_uid');
@@ -123,14 +125,16 @@ const AppContent = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AppErrorBoundary>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </AppErrorBoundary>
+      </TooltipProvider>
+    </QueryClientProvider>
   );
 };
 

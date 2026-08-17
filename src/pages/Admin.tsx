@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -152,6 +152,8 @@ const Admin = () => {
 
   // Search State for Program Builder
   const [exerciseSearch, setExerciseSearch] = useState("");
+  // Pagination for exercise library cards (render ~60, load more on demand)
+  const [exCardLimit, setExCardLimit] = useState(60);
 
   // New Program State
   const [newProgName, setNewProgName] = useState("");
@@ -341,6 +343,15 @@ const Admin = () => {
     }
   };
 
+  // Track which lazy data has been loaded so we don't refetch (ref avoids stale closures)
+  const loadedTabsRef = useRef<Set<string>>(new Set());
+  const ensureTabData = useCallback((tab: string) => {
+    if (loadedTabsRef.current.has(tab)) return;
+    loadedTabsRef.current.add(tab);
+    if (tab === "members") loadMembers();
+    if (tab === "nutrition") { loadNutritionMembers(); loadHabitLibrary(); getHabits().then(setNutritionHabits); }
+  }, []);
+
   useEffect(() => {
     const handleSync = async () => {
       setExercises(await getExercises());
@@ -350,13 +361,12 @@ const Admin = () => {
     };
 
     handleSync();
-    loadMembers();
-    loadNutritionMembers();
-    loadHabitLibrary();
-    getHabits().then(setNutritionHabits);
+    // Load data for the initially-active tab
+    ensureTabData(activeTab);
 
     window.addEventListener('fittrack_synced', handleSync);
     return () => window.removeEventListener('fittrack_synced', handleSync);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
 
@@ -629,7 +639,7 @@ const Admin = () => {
   const toArr = (v: any) => Array.isArray(v) ? v : (v == null ? [] : String(v).split(/[;,]/).map(s => s.trim()).filter(Boolean));
   const uniq  = (vals: string[]) => ["All", ...Array.from(new Set(vals)).filter(Boolean).sort()];
 
-  const filteredLibrary = exercises.filter(ex => {
+  const filteredLibrary = useMemo(() => exercises.filter(ex => {
     const n = ex.name?.toLowerCase() || "";
     return n.includes(librarySearch.toLowerCase())
       && (catF === "All" || toArr(ex.category).includes(catF))
@@ -638,14 +648,17 @@ const Admin = () => {
       && (equipF === "All" || ex.equipment === equipF)
       && (diffF === "All" || ex.difficulty === diffF)
       && (trackF === "All" || toArr(ex.trackingType).includes(trackF));
-  });
+  }), [exercises, librarySearch, catF, muscleF, moveF, equipF, diffF, trackF]);
 
-  const catOpts    = uniq(exercises.flatMap(ex => toArr(ex.category)));
-  const muscleOpts = uniq(exercises.map(ex => ex.muscle));
-  const moveOpts   = uniq(exercises.flatMap(ex => toArr(ex.movementType)));
-  const equipOpts  = uniq(exercises.map(ex => ex.equipment));
-  const diffOpts   = uniq(exercises.map(ex => ex.difficulty));
-  const trackOpts  = uniq(exercises.flatMap(ex => toArr(ex.trackingType)));
+  // Reset pagination when filters change
+  useEffect(() => { setExCardLimit(60); }, [librarySearch, catF, muscleF, moveF, equipF, diffF, trackF]);
+
+  const catOpts    = useMemo(() => uniq(exercises.flatMap(ex => toArr(ex.category))), [exercises]);
+  const muscleOpts = useMemo(() => uniq(exercises.map(ex => ex.muscle)), [exercises]);
+  const moveOpts   = useMemo(() => uniq(exercises.flatMap(ex => toArr(ex.movementType))), [exercises]);
+  const equipOpts  = useMemo(() => uniq(exercises.map(ex => ex.equipment)), [exercises]);
+  const diffOpts   = useMemo(() => uniq(exercises.map(ex => ex.difficulty)), [exercises]);
+  const trackOpts  = useMemo(() => uniq(exercises.flatMap(ex => toArr(ex.trackingType))), [exercises]);
 
   const handleBulkDelete = () => {
     if (!librarySearch && catF === "All" && muscleF === "All" && moveF === "All" && equipF === "All" && diffF === "All" && trackF === "All") return;
@@ -916,6 +929,12 @@ const Admin = () => {
   const byName = useMemo(() => {
     const m: Record<string, any> = {}; exercises.forEach(e => { m[norm(e.name)] = e; }); return m;
   }, [exercises]);
+  // O(1) exercise lookup by id — replaces repeated .find() calls in render loops
+  const exById = useMemo(() => {
+    const m: Record<string, any> = {}; exercises.forEach(e => { m[String(e.id)] = e; }); return m;
+  }, [exercises]);
+  // Pre-sorted exercise list for the picker dropdowns (avoids re-sorting on every render)
+  const sortedExercises = useMemo(() => [...exercises].sort((a, b) => a.name.localeCompare(b.name)), [exercises]);
   const STRENGTH_TAGS = ["Push","Horizontal Push","Vertical Push","Pull","Horizontal Pull","Vertical Pull","Knee","Hip","Core","Carries","Accessory"];
   const isStrengthMove = (e: any) => mt(e).some((t: string) => STRENGTH_TAGS.includes(t));
 
@@ -952,7 +971,7 @@ const Admin = () => {
     const currentEx = updatedWorkouts[selectedWorkoutIndex].exercises.find((e: any) => String(e.id) === String(exerciseId));
     if (!currentEx || !currentEx.name) return;
     
-    const libEx = exercises.find(e => String(e.id) === String(currentEx.name));
+    const libEx = exById[String(currentEx.name)];
     if (!libEx) return;
     
     const pool = rulesBasedPool(libEx);
@@ -1015,7 +1034,7 @@ const Admin = () => {
     updatedWorkouts[selectedWorkoutIndex].exercises.forEach((currentEx: any) => {
       if (currentEx.isSection || !currentEx.name) return;
       
-      const libEx = exercises.find(e => String(e.id) === String(currentEx.name));
+      const libEx = exById[String(currentEx.name)];
       if (!libEx) return;
       
       const pool = rulesBasedPool(libEx);
@@ -1443,15 +1462,28 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     let grid = [...progWorkouts];
     let previousWeekWorkouts: any[] = [];
     const previousProgramWorkouts = programs.find((p: any) => p.type !== "GroupPT" && p.id !== editingProgramId)?.workouts || [];
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const generateWeekWithRetry = async (w: number, tries = 3): Promise<any[]> => {
+      let lastErr;
+      for (let i = 0; i < tries; i++) {
+        try {
+          const { data, error } = await supabase.functions.invoke("generate-workout", {
+            body: { action: "week", program: streamCfg(), currentWorkouts: [], week: w, exercises: exPayload(), previousWeekWorkouts, previousProgramWorkouts },
+          });
+          if (error) throw new Error(error.message);
+          if (data?.error) throw new Error(data.error);
+          return data.workouts || [];
+        } catch (e) { lastErr = e; await sleep(2000 * (i + 1)); }
+      }
+      throw lastErr;
+    };
     try {
+      const failed: number[] = [];
       for (let w = 1; w <= newProgWeeks; w++) {
         setGenProgress(`Quick draft — week ${w}/${newProgWeeks}…`);
-        const { data, error } = await supabase.functions.invoke("generate-workout", {
-          body: { action: "week", program: streamCfg(), currentWorkouts: [], week: w, exercises: exPayload(), previousWeekWorkouts, previousProgramWorkouts },
-        });
-        if (error) throw new Error(error.message);
-        if (data?.error) throw new Error(data.error);
-        const cells = data.workouts || [];
+        let cells: any[] = [];
+        try { cells = await generateWeekWithRetry(w); }
+        catch { failed.push(w); continue; }
         cells.forEach((c: any) => {
           if (c.exercises) {
             c.exercises = fixWarmup(c.exercises, c.day - 1, exercises);
@@ -1463,7 +1495,8 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         setProgWorkouts([...grid]);
       }
       await autoSaveProgram(grid);
-      toast.success("Quick draft generated!");
+      if (failed.length) toast.warning(`Generated, but weeks ${failed.join(", ")} failed — re-run to fill them.`);
+      else toast.success("Quick draft generated!");
     } catch (e: any) {
       toast.error(`Generation failed: ${e.message}`);
     } finally {
@@ -1544,6 +1577,11 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     setIsGeneratingAI(true);
     const previousProgramWorkouts = programs.find((p: any) => p.type !== "GroupPT" && p.id !== editingProgramId)?.workouts || [];
     try {
+      const t = progWorkouts[workoutIndex ?? -1];
+      const wk = t?.week, dy = t?.day;
+      const previousWeekWorkouts = (wk && wk > 1) ? progWorkouts.filter((c: any) => c.week === wk - 1) : [];
+      const weekSoFar = wk ? progWorkouts.filter((c: any) => c.week === wk && c.day !== dy) : [];
+
       const { data, error } = await supabase.functions.invoke('generate-workout', {
         body: {
           action: "single",
@@ -1551,6 +1589,8 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           targetWorkoutIndex: workoutIndex,
           currentWorkouts: progWorkouts,
           exercises: exPayload(),
+          previousWeekWorkouts,
+          weekSoFar,
           previousProgramWorkouts
         }
       });
@@ -1666,7 +1706,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         <h2 className="text-4xl font-heading tracking-wider">Staff Hub</h2>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); ensureTabData(v); }} className="w-full">
         <TabsList className="flex w-full max-w-[1300px] overflow-x-auto justify-start h-auto p-1">
           <TabsTrigger value="exercises">Manage Exercises</TabsTrigger>
           <TabsTrigger value="programs">Manage Programs</TabsTrigger>
@@ -1965,7 +2005,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredLibrary.map((ex) => (
+            {filteredLibrary.slice(0, exCardLimit).map((ex) => (
               <Card key={ex.id} className="bg-muted/50 border-border flex flex-col">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg flex items-center justify-between">
@@ -1984,6 +2024,13 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
               </Card>
             ))}
           </div>
+          {filteredLibrary.length > exCardLimit && (
+            <div className="flex justify-center pt-4">
+              <Button variant="outline" onClick={() => setExCardLimit(l => l + 60)}>
+                Load more ({filteredLibrary.length - exCardLimit} remaining)
+              </Button>
+            </div>
+          )}
 
           <Dialog open={!!editingExercise} onOpenChange={(open) => !open && setEditingExercise(null)}>
             <DialogContent>
@@ -2385,7 +2432,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                     <>
                                                       <div className="flex items-start gap-1 min-w-0">
                                                         {isSupersetItem && <Link2 className="h-3 w-3 shrink-0 text-primary mt-0.5" />}
-                                                        <span className="truncate">{exercises.find(e => String(e.id) === String(ex.name))?.name || ex.name || "Unknown Exercise"}</span>
+                                                        <span className="truncate">{exById[String(ex.name)]?.name || ex.name || "Unknown Exercise"}</span>
                                                       </div>
                                                       {detailText && (
                                                         <span className="text-[10px] opacity-70 shrink-0 font-medium whitespace-nowrap">
@@ -2754,7 +2801,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                       >
                                                         <span className="truncate">
                                                           {pe.name
-                                                            ? exercises.find((e) => String(e.id) === String(pe.name))?.name || "Select Exercise..."
+                                                            ? exById[String(pe.name)]?.name || "Select Exercise..."
                                                             : "Select Exercise..."}
                                                         </span>
                                                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -2766,14 +2813,13 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                         <CommandList>
                                                           <CommandEmpty>No exercise found.</CommandEmpty>
                                                           <CommandGroup>
-                                                            {exercises
+                                                            {sortedExercises
                                                                 .filter(ex => {
                                                                   if (!pe.blockType) return true;
                                                                   const cats = Array.isArray(ex.category) ? ex.category : [ex.category || "Strength"];
                                                                   const movs = Array.isArray(ex.movementType) ? ex.movementType : [ex.movementType || ""];
                                                                   return cats.includes(pe.blockType) || movs.includes(pe.blockType);
                                                                 })
-                                                              .sort((a, b) => a.name.localeCompare(b.name))
                                                               .map(ex => (
                                                                 <CommandItem
                                                                   key={ex.id}
@@ -2807,7 +2853,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                               <div className="flex flex-wrap items-center gap-x-6 gap-y-3 bg-muted/20 p-3 rounded-md border border-border/50">
                                                   <div className="flex flex-wrap items-center gap-4">
                                                     {(() => {
-                                                      const libEx = exercises.find(e => String(e.id) === String(pe.name));
+                                                      const libEx = exById[String(pe.name)];
                                                       const rawTrack = libEx?.trackingType ?? "Weight & Reps";
                                                       const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/))
                                                         .map((s) => s.trim())
@@ -3059,7 +3105,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                       <ul className="list-disc list-inside">
                         {p.exercises?.map((ex: any, i: number) => {
                           if (ex.isSection) return <li key={i} className="font-bold mt-2 list-none">{ex.name}</li>;
-                          const exerciseName = exercises.find(e => String(e.id) === String(ex.name))?.name || ex.name;
+                          const exerciseName = exById[String(ex.name)]?.name || ex.name;
                           return <li key={i}>{exerciseName} - {ex.sets}x{ex.reps}</li>;
                         })}
                       </ul>
