@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
@@ -24,7 +25,16 @@ import { Navigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
 
-const CARDIO_WARMUP = ["Bike Erg", "Ski-Erg", "Rower", "Air Bike", "Run"];
+// Real cardio machines, by day (varied). Ordered; Day N uses index (N-1) % length.
+const CARDIO_MACHINES = [
+  { name: "Bike Erg", id: "bike-erg" },
+  { name: "Ski Erg", id: "ski-erg" },
+  { name: "Rower", id: "rower" },
+  { name: "Air Bike", id: "air-bike" },
+  { name: "Treadmill Run", id: "treadmill-run" },
+];
+// A genuine cardio machine = the WHOLE name is a machine (so "Burpee Over Rower" is NOT one).
+const MACHINE_RE = /^(bike[- ]?erg|ski[- ]?erg|rower|air[- ]?bike|assault bike|echo bike|treadmill(?: run)?|curved treadmill|stairmaster)$/i;
 const WARMUP_MOBILITY_COUNT = 3;
 
 function fixWarmup(exercises: any[], dayIndex: number, exerciseLibrary: any[]) {
@@ -39,19 +49,16 @@ function fixWarmup(exercises: any[], dayIndex: number, exerciseLibrary: any[]) {
 
   const toArr = (v: any) => Array.isArray(v) ? v : (v ? String(v).split(/[;,]/).map((s: string) => s.trim()).filter(Boolean) : []);
 
+  const libByName = (ex: any) => exerciseLibrary.find((le: any) => String(le.id) === String(ex?.name));
   const isCardioMachine = (ex: any) => {
     if (!ex || !ex.name || ex.isSection) return false;
-    const libEx = exerciseLibrary.find((le: any) => String(le.id) === String(ex.name));
-    if (!libEx) return false;
-    return CARDIO_WARMUP.some(m =>
-      String(libEx.name).toLowerCase().includes(m.toLowerCase()) ||
-      String(libEx.id).toLowerCase().includes(m.toLowerCase().replace(/\s+/g, '-'))
-    );
+    const libEx = libByName(ex);
+    return !!libEx && MACHINE_RE.test(String(libEx.name).trim());
   };
 
   const isMobilityDrill = (ex: any) => {
     if (!ex || !ex.name || ex.isSection) return false;
-    const libEx = exerciseLibrary.find((le: any) => String(le.id) === String(ex.name));
+    const libEx = libByName(ex);
     if (!libEx) return false;
     const mv = toArr(libEx.movementType).map((s: string) => s.toLowerCase());
     const cat = toArr(libEx.category).map((s: string) => s.toLowerCase());
@@ -66,14 +73,12 @@ function fixWarmup(exercises: any[], dayIndex: number, exerciseLibrary: any[]) {
   const machines = items.filter(isCardioMachine);
   const mobility = items.filter((e: any) => !isCardioMachine(e));
 
-  const targetName = CARDIO_WARMUP[dayIndex % CARDIO_WARMUP.length];
-  let machineEx = exerciseLibrary.find((le: any) =>
-    String(le.name).toLowerCase() === targetName.toLowerCase() ||
-    String(le.id) === targetName.toLowerCase().replace(/\s+/g, '-')
-  );
-  if (!machineEx) machineEx = exerciseLibrary.find((le: any) =>
-    CARDIO_WARMUP.some(m => String(le.name).toLowerCase().includes(m.toLowerCase()))
-  );
+  // pick the day's machine, resolving to a real library exercise; fall back to ANY real machine
+  const pref = CARDIO_MACHINES[((dayIndex % CARDIO_MACHINES.length) + CARDIO_MACHINES.length) % CARDIO_MACHINES.length];
+  let machineEx =
+    exerciseLibrary.find((le: any) => String(le.id) === pref.id) ||
+    exerciseLibrary.find((le: any) => String(le.name).toLowerCase() === pref.name.toLowerCase()) ||
+    exerciseLibrary.find((le: any) => MACHINE_RE.test(String(le.name).trim()));   // any genuine machine
 
   let machineItem: any = null;
   if (machineEx) {
@@ -173,6 +178,23 @@ const Admin = () => {
     if (!wc) return `Week ${n}`;
     const d = new Date(wc + 'T00:00:00');
     return `W/C ${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+  };
+  const ordinal = (n: number) => {
+    const s = ["th", "st", "nd", "rd"], v = n % 100;
+    return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+  };
+  const addDaysISO = (iso: string, n: number) => {
+    const d = new Date(iso + "T00:00:00");
+    d.setDate(d.getDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  const sessionDateName = (startISO: string, dayOffset: number) => {
+    const d = new Date(startISO + "T00:00:00");
+    if (isNaN(d.getTime())) return "";
+    d.setDate(d.getDate() + dayOffset);
+    const weekday = d.toLocaleDateString("en-GB", { weekday: "long" });
+    const month = d.toLocaleDateString("en-GB", { month: "long" });
+    return `${weekday} ${ordinal(d.getDate())} ${month}`;
   };
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(0);
   const [selectedWeek, setSelectedWeek] = useState(1);
@@ -1639,24 +1661,40 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     let current = progWorkouts;
     const previousGroupPTProgram = programs.find((p: any) => p.type === "GroupPT" && p.id !== editingProgramId);
     const previousBlock = previousGroupPTProgram?.workouts || [];
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const callGroupGenRetry = async (body: any, tries = 3): Promise<any[]> => {
+      let lastErr;
+      for (let i = 0; i < tries; i++) {
+        try { return await callGroupGen(body); }
+        catch (e) { lastErr = e; await sleep(2500 * (i + 1)); }
+      }
+      throw lastErr;
+    };
 
+    const failed: number[] = [];
     try {
       for (let cw = 1; cw <= 4; cw++) {
         setGenCycle(cw);
-        current = await callGroupGen({
-          action: "week",
-          program: { weeks: GROUP_PT_WEEKS, days: newProgDays },
-          currentWorkouts: current,
-          exercises: exPayload(),
-          cycleWeek: cw,
-          previousBlockWorkouts: previousBlock,
-        });
-        setProgWorkouts([...current]);
+        try {
+          current = await callGroupGenRetry({
+            action: "week",
+            program: { weeks: GROUP_PT_WEEKS, days: newProgDays },
+            currentWorkouts: current,
+            exercises: exPayload(),
+            cycleWeek: cw,
+            previousBlockWorkouts: previousBlock,
+          });
+          setProgWorkouts([...current]);
+          await autoSaveProgram(current);   // save after each template week so nothing is lost
+        } catch (e: any) {
+          failed.push(cw);  // record and carry on to the other template weeks
+        }
       }
-      await autoSaveProgram(current);
-      toast.success("Group PT block generated successfully!");
-    } catch (e: any) {
-      toast.error(`Generation failed on template week ${genCycle}: ${e.message}`);
+      if (failed.length) {
+        toast.warning(`Generated, but template week(s) ${failed.join(", ")} failed — press Generate again to fill the gaps.`);
+      } else {
+        toast.success("Group PT block generated successfully!");
+      }
     } finally {
       setIsGeneratingAI(false);
       setGenCycle(0);
@@ -2555,6 +2593,14 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                     onChange={e => {
                                       const newDate = e.target.value;
                                       setProgWeekNotes({...progWeekNotes, [selectedWeek]: { ...progWeekNotes[selectedWeek], start_date: newDate }});
+                                      // Group PT: auto-name each day of THIS week by its calendar date (Mon->Sat from the start date)
+                                      if (newProgType === "GroupPT" && newDate) {
+                                        setProgWorkouts(prev => prev.map(w =>
+                                          w.week === selectedWeek
+                                            ? { ...w, name: sessionDateName(newDate, (w.day || 1) - 1), scheduled_date: addDaysISO(newDate, (w.day || 1) - 1) }
+                                            : w
+                                        ));
+                                      }
                                     }}
                                   />
                                 </div>
@@ -2567,6 +2613,22 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                   />
                                 </div>
                               </div>
+                              {newProgType === "GroupPT" && (
+                                <Button variant="outline" size="sm" className="gap-2 ml-auto"
+                                  onClick={async () => {
+                                    const wk1 = progWeekNotes[1]?.start_date;
+                                    const updated = progWorkouts.map(w => {
+                                      const start = progWeekNotes[w.week]?.start_date || (wk1 ? addDaysISO(wk1, (w.week - 1) * 7) : null);
+                                      if (!start) return w;
+                                      return { ...w, name: sessionDateName(start, (w.day || 1) - 1), scheduled_date: addDaysISO(start, (w.day || 1) - 1) };
+                                    });
+                                    setProgWorkouts(updated);
+                                    await autoSaveProgram(updated);
+                                    toast.success("All sessions dated from their week start dates.");
+                                  }}>
+                                  <CalendarIcon className="h-4 w-4" /> Apply dates to all sessions
+                                </Button>
+                              )}
                             </div>
                           )}
 
@@ -3081,25 +3143,43 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                     {p.weeks && p.daysPerWeek ? (
                       <div className="space-y-4">
                         <p>{p.weeks} Weeks • {p.daysPerWeek} Days/Week</p>
-                        {p.workouts && p.workouts.length > 0 && (
-                          <div className="space-y-2">
-                            <Label className="text-xs uppercase text-muted-foreground">Workouts (TV Display)</Label>
-                            <div className="grid grid-cols-2 gap-2">
-                              {p.workouts.map((w: any, wIdx: number) => (
-                                <Button 
-                                  key={wIdx} 
-                                  variant="outline" 
-                                  size="sm" 
-                                  className="justify-start gap-2 h-auto py-2"
-                                  onClick={() => window.open(`/tv/${p.id}/${wIdx}`, '_blank')}
-                                >
-                                  <PlayCircle className="h-4 w-4 shrink-0 text-primary" />
-                                  <span className="truncate">{w.name}</span>
-                                </Button>
-                              ))}
+                        {p.workouts && p.workouts.length > 0 && (() => {
+                          const byWeek: Record<number, { w: any; idx: number }[]> = {};
+                          p.workouts.forEach((w: any, idx: number) => {
+                            const wk = w.week || 1;
+                            (byWeek[wk] ||= []).push({ w, idx });
+                          });
+                          const weeks = Object.keys(byWeek).map(Number).sort((a, b) => a - b);
+                          const tvWeekLabel = (wk: number) => {
+                            const n = p.weekNotes?.[wk];
+                            if (n?.label?.trim()) return n.label.trim();
+                            if (n?.start_date) return `W/C ${new Date(n.start_date + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}`;
+                            return `Week ${wk}`;
+                          };
+                          return (
+                            <div className="space-y-2">
+                              <Label className="text-xs uppercase text-muted-foreground">Workouts (TV Display)</Label>
+                              <Accordion type="multiple" className="w-full">
+                                {weeks.map((wk) => (
+                                  <AccordionItem key={wk} value={`tvwk-${wk}`}>
+                                    <AccordionTrigger className="text-sm font-bold">{tvWeekLabel(wk)}</AccordionTrigger>
+                                    <AccordionContent>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        {byWeek[wk].sort((a, b) => (a.w.day || 0) - (b.w.day || 0)).map(({ w, idx }) => (
+                                          <Button key={idx} variant="outline" size="sm" className="justify-start gap-2 h-auto py-2"
+                                            onClick={() => window.open(`/tv/${p.id}/${idx}`, '_blank')}>
+                                            <PlayCircle className="h-4 w-4 shrink-0 text-primary" />
+                                            <span className="truncate">{w.name}</span>
+                                          </Button>
+                                        ))}
+                                      </div>
+                                    </AccordionContent>
+                                  </AccordionItem>
+                                ))}
+                              </Accordion>
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
                       </div>
                     ) : (
                       <ul className="list-disc list-inside">

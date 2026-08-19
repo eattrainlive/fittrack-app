@@ -2510,31 +2510,30 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
           </DialogHeader>
 
           {pastLiftsModal && (() => {
-            const hist = getExerciseHistory(pastLiftsModal.name);
+            const past = getExerciseHistory(pastLiftsModal.name, 3);
             const libEx = exerciseLibrary.find(e => String(e.id) === String(pastLiftsModal.name));
+            // Override-aware: ex.trackingType ?? libEx?.trackingType ?? "Weight & Reps"
             const effTrack = (Array.isArray(libEx?.trackingType) ? libEx?.trackingType : String(libEx?.trackingType || "Weight & Reps").split(/[;,]/)).map((s:string) => s.trim()).filter(Boolean);
             return (
               <div className="space-y-4">
-                {/* History */}
+                {/* History — last 3 sessions, each with per-set breakdown */}
                 <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
-                  {hist.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">No previous lifts logged yet — this is your baseline. 💪</p>
+                  {past.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">No history yet for this exercise.</p>
                   )}
-                  {hist.map((h, i) => (
-                    <div key={i} className="bg-muted/40 border border-border/50 rounded-md p-2">
-                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
-                        {new Date(h.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {h.sets.map((s, j) => {
-                          const label = fmtSet(s, effTrack);
-                          const isTop = s.weight > 0 && s.weight === h.top.weight;
-                          return (
-                            <span key={j} className={`text-xs px-2 py-0.5 rounded-full border ${isTop ? 'border-primary text-primary font-semibold' : 'border-border text-foreground'}`}>
-                              {label || `${s.weight}kg × ${s.reps}`}
-                            </span>
-                          );
-                        })}
+                  {past.map((sess, i) => (
+                    <div key={i} className="border-b border-border py-2 last:border-0">
+                      <p className="text-xs font-bold text-muted-foreground">
+                        {new Date(sess.date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}
+                        {i === 0 && ' · most recent'}
+                      </p>
+                      <div className="mt-1 space-y-0.5">
+                        {sess.sets.map((s: any, j: number) => (
+                          <div key={j} className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Set {j + 1}</span>
+                            <span className="font-medium">{fmtSet(s, effTrack) || '—'}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}

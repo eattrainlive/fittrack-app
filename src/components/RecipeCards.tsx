@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, X, Check, Flame, Loader2, Utensils, ChevronLeft, ChevronRight, Zap, Search, ArrowLeft, ChevronDown } from "lucide-react";
+import { Plus, X, Check, Flame, Loader2, Utensils, ChevronLeft, ChevronRight, Zap, Search, ArrowLeft, ChevronDown, Pencil, BookOpen, Minus, Trash2, Globe, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -10,6 +11,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
@@ -17,7 +19,13 @@ import {
   getDiary,
   addDiaryItem,
   removeDiaryItem,
+  updateDiaryItem,
+  getRecipeById,
   searchFoods,
+  addRecipe,
+  getMyRecipes,
+  updateRecipe,
+  deleteRecipe,
 } from "@/lib/store";
 
 interface Recipe {
@@ -36,6 +44,8 @@ interface Recipe {
   method: string;
   image_url: string;
   sort_order: number;
+  visibility?: 'private' | 'shared';
+  created_by?: string | null;
 }
 
 const MEAL_TYPES = [
@@ -69,6 +79,7 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
   const [loading, setLoading] = useState(true);
   const [activeMeal, setActiveMeal] = useState<string>("Breakfast");
   const [selected, setSelected] = useState<Recipe | null>(null);
+  const [editingItem, setEditingItem] = useState<any | null>(null);
 
   // Diary state
   const [selectedDate, setSelectedDate] = useState(() => fmtDate(new Date()));
@@ -81,10 +92,15 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
   const [fitsMyDay, setFitsMyDay] = useState(false);
   const [openBands, setOpenBands] = useState<Set<string>>(new Set());
   const [limit, setLimit] = useState(20);
+  const [myRecipes, setMyRecipes] = useState<Recipe[]>([]);
+  const [showCreateRecipe, setShowCreateRecipe] = useState(false);
+  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
 
   const loadRecipes = useCallback(async () => {
     const all = await getRecipes();
     setRecipes(all);
+    const mine = await getMyRecipes();
+    setMyRecipes(mine as Recipe[]);
   }, []);
 
   const loadDiary = useCallback(async (date: string) => {
@@ -115,7 +131,7 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
   const mealRecipes = recipes.filter((r) => r.meal === mealQuery(activeMeal));
 
   const handleAddRecipe = async (recipe: Recipe) => {
-    await addDiaryItem({
+    const res = await addDiaryItem({
       date: selectedDate,
       meal: activeMeal, // use the tab name (Lunch/Dinner), not the recipe's stored "Main"
       source: "recipe",
@@ -125,24 +141,47 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
       protein: recipe.protein,
       carbs: recipe.carbs,
       fats: recipe.fats,
+      servings: 1,
     });
-    await loadDiary(selectedDate);
-    toast.success(`${recipe.name} added to your day`);
+    if (res.success) {
+      await loadDiary(selectedDate);
+      toast.success(`${recipe.name} added to your day`);
+    } else {
+      toast.error("Could not log that — try again");
+      console.error(res.error);
+    }
   };
 
   const handleRemoveDiaryItem = async (id: string) => {
-    await removeDiaryItem(id);
-    await loadDiary(selectedDate);
+    const res = await removeDiaryItem(id);
+    if (res.success) {
+      await loadDiary(selectedDate);
+    } else {
+      toast.error("Could not remove — try again");
+      console.error(res.error);
+    }
   };
 
-  // Diary totals for selected date
+  const handleViewRecipe = async (recipeId: string) => {
+    const r = await getRecipeById(recipeId);
+    if (r) {
+      setSelected(r as Recipe);
+    } else {
+      toast.error("Recipe no longer available");
+    }
+  };
+
+  // Diary totals for selected date (servings-aware)
   const dayTotals = diary.reduce(
-    (acc, r) => ({
-      calories: acc.calories + (r.calories || 0),
-      protein: acc.protein + (r.protein || 0),
-      carbs: acc.carbs + (r.carbs || 0),
-      fat: acc.fat + (r.fats || 0),
-    }),
+    (acc, r) => {
+      const m = r.servings || 1;
+      return {
+        calories: acc.calories + Math.round((r.calories || 0) * m),
+        protein: acc.protein + Math.round((r.protein || 0) * m),
+        carbs: acc.carbs + Math.round((r.carbs || 0) * m),
+        fat: acc.fat + Math.round((r.fats || 0) * m),
+      };
+    },
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
 
@@ -207,7 +246,7 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
       for (const d of weekDays) {
         const ds = fmtDate(d);
         const items = await getDiary(ds);
-        totals[ds] = items.reduce((s, i) => s + (i.calories || 0), 0);
+        totals[ds] = items.reduce((s, i) => s + Math.round((i.calories || 0) * (i.servings || 1)), 0);
       }
       setWeekTotals(totals);
     })();
@@ -297,23 +336,51 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
           diaryByMeal.map((group) => (
             <div key={group.meal} className="space-y-1.5">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{group.meal}</p>
-              {group.items.map((item) => (
+              {group.items.map((item) => {
+                const mult = item.servings || 1;
+                const kcal = Math.round((item.calories || 0) * mult);
+                const p = Math.round((item.protein || 0) * mult);
+                const c = Math.round((item.carbs || 0) * mult);
+                const f = Math.round((item.fats || 0) * mult);
+                return (
                 <div key={item.id} className="flex items-center justify-between gap-2 bg-card border border-border rounded-lg p-2.5">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold truncate">{item.name}</p>
+                    <p className="text-sm font-bold truncate">
+                      {item.name}{mult !== 1 ? ` ×${mult}` : ""}
+                      {item.source === "custom" && <span className="ml-1 opacity-60 text-[10px]">(custom)</span>}
+                    </p>
                     <p className="text-[10px] text-muted-foreground">
-                      {item.calories} kcal · P{item.protein} C{item.carbs} F{item.fats}
-                      {item.source === "custom" && <span className="ml-1 opacity-60">(custom)</span>}
+                      {kcal} kcal · P{p} C{c} F{f}
                     </p>
                   </div>
-                  <button
-                    onClick={() => handleRemoveDiaryItem(item.id)}
-                    className="shrink-0 p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {item.source === "recipe" && item.recipe_id && (
+                      <button
+                        onClick={() => handleViewRecipe(item.recipe_id)}
+                        className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary"
+                        title="View recipe"
+                      >
+                        <BookOpen className="h-4 w-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setEditingItem(item)}
+                      className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
+                      title="Edit"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleRemoveDiaryItem(item.id)}
+                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                      title="Remove"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ))
         )}
@@ -378,6 +445,74 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
             </button>
           );
         })}
+      </div>
+
+      {/* ── Add your own recipe + My Recipes ─────────────────────────────── */}
+      <div className="space-y-2">
+        <Button
+          variant="outline"
+          className="w-full h-10 gap-2 border-dashed"
+          onClick={() => setShowCreateRecipe(true)}
+        >
+          <Plus className="h-4 w-4" /> Add your own recipe
+        </Button>
+
+        {myRecipes.filter((r) => r.meal === mealQuery(activeMeal)).length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">My Recipes</p>
+            {myRecipes
+              .filter((r) => r.meal === mealQuery(activeMeal))
+              .map((r) => (
+                <div key={r.id} className="flex items-center gap-2 bg-card border border-border rounded-lg p-2.5">
+                  <button
+                    onClick={() => setSelected(r)}
+                    className="flex-1 flex items-center gap-2.5 min-w-0 text-left"
+                  >
+                    <div className="w-10 h-10 rounded-md bg-muted overflow-hidden shrink-0 flex items-center justify-center">
+                      {r.image_url ? (
+                        <img src={r.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                      ) : (
+                        <Utensils className="h-4 w-4 text-muted-foreground/40" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold truncate flex items-center gap-1.5">
+                        {r.name}
+                        {r.visibility === "private" ? (
+                          <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
+                        ) : (
+                          <Globe className="h-3 w-3 text-primary shrink-0" />
+                        )}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">{r.calories} kcal · P{r.protein} C{r.carbs} F{r.fats}</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setEditingRecipe(r)}
+                    className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground shrink-0"
+                    title="Edit recipe"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const res = await deleteRecipe(r.id);
+                      if (res.success) {
+                        toast.success("Recipe deleted");
+                        await loadRecipes();
+                      } else {
+                        toast.error("Could not delete");
+                      }
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0"
+                    title="Delete recipe"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+          </div>
+        )}
       </div>
 
       {/* ── Sticky filter bar ─────────────────────────────────────────── */}
@@ -618,6 +753,13 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
         </DialogContent>
       </Dialog>
 
+      {/* ── Edit diary item dialog ──────────────────────────────────────── */}
+      <EditDiaryItemDialog
+        item={editingItem}
+        onClose={() => setEditingItem(null)}
+        onSaved={() => { loadDiary(selectedDate); setEditingItem(null); }}
+      />
+
       {/* ── Quick Add dialog ───────────────────────────────────────────── */}
       <QuickAddDialog
         open={showQuickAdd}
@@ -625,6 +767,19 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
         selectedDate={selectedDate}
         defaultMeal={activeMeal}
         onSaved={() => { loadDiary(selectedDate); }}
+      />
+
+      {/* ── Create / Edit recipe dialog ───────────────────────────────── */}
+      <CreateRecipeDialog
+        open={showCreateRecipe}
+        onClose={() => setShowCreateRecipe(false)}
+        defaultMeal={activeMeal}
+        onSaved={() => { loadRecipes(); setShowCreateRecipe(false); }}
+      />
+      <EditRecipeDialog
+        recipe={editingRecipe}
+        onClose={() => setEditingRecipe(null)}
+        onSaved={() => { loadRecipes(); setEditingRecipe(null); }}
       />
     </div>
   );
@@ -693,7 +848,7 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
     if (!picked) return;
     setSaving(true);
     const factor = (parseInt(grams) || 100) / 100;
-    await addDiaryItem({
+    const res = await addDiaryItem({
       date: selectedDate,
       meal,
       source: "custom",
@@ -704,9 +859,14 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
       fats: Math.round(picked.per100.fats * factor),
     });
     setSaving(false);
-    toast.success("Added to your day");
-    onSaved();
-    onClose();
+    if (res.success) {
+      toast.success("Added to your day");
+      onSaved();
+      onClose();
+    } else {
+      toast.error("Could not log that — try again");
+      console.error(res.error);
+    }
   };
 
   const handleSaveManual = async () => {
@@ -715,7 +875,7 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
       return;
     }
     setSaving(true);
-    await addDiaryItem({
+    const res = await addDiaryItem({
       date: selectedDate,
       meal,
       source: "custom",
@@ -726,9 +886,14 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
       fats: parseInt(mFats) || 0,
     });
     setSaving(false);
-    toast.success("Added to your day");
-    onSaved();
-    onClose();
+    if (res.success) {
+      toast.success("Added to your day");
+      onSaved();
+      onClose();
+    } else {
+      toast.error("Could not log that — try again");
+      console.error(res.error);
+    }
   };
 
   if (!open) return null;
@@ -941,6 +1106,518 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
             </Button>
           </div>
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Edit Diary Item dialog (servings stepper + meal picker + custom macro edit) ──
+
+function EditDiaryItemDialog({ item, onClose, onSaved }: {
+  item: any | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [servings, setServings] = useState(1);
+  const [meal, setMeal] = useState("Breakfast");
+  const [name, setName] = useState("");
+  const [calories, setCalories] = useState("");
+  const [protein, setProtein] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [fats, setFats] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (item) {
+      setServings(item.servings || 1);
+      setMeal(item.meal || "Breakfast");
+      setName(item.name || "");
+      setCalories(String(item.calories || ""));
+      setProtein(String(item.protein || ""));
+      setCarbs(String(item.carbs || ""));
+      setFats(String(item.fats || ""));
+    }
+  }, [item]);
+
+  if (!item) return null;
+
+  const isCustom = item.source === "custom";
+  const mult = servings || 1;
+  const previewKcal = Math.round((isCustom ? (parseInt(calories) || 0) : (item.calories || 0)) * mult);
+  const previewP = Math.round((isCustom ? (parseInt(protein) || 0) : (item.protein || 0)) * mult);
+  const previewC = Math.round((isCustom ? (parseInt(carbs) || 0) : (item.carbs || 0)) * mult);
+  const previewF = Math.round((isCustom ? (parseInt(fats) || 0) : (item.fats || 0)) * mult);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const patch: any = { servings, meal };
+    if (isCustom) {
+      patch.name = name.trim();
+      patch.calories = parseInt(calories) || 0;
+      patch.protein = parseInt(protein) || 0;
+      patch.carbs = parseInt(carbs) || 0;
+      patch.fats = parseInt(fats) || 0;
+    }
+    const res = await updateDiaryItem(item.id, patch);
+    setSaving(false);
+    if (res.success) {
+      toast.success("Updated");
+      onSaved();
+    } else {
+      toast.error("Could not update — try again");
+      console.error(res.error);
+    }
+  };
+
+  return (
+    <Dialog open={!!item} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[92vw] max-w-sm bg-card border-border max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-heading uppercase tracking-wider">Edit Item</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Servings stepper */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Servings / Quantity</Label>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 rounded-full"
+                onClick={() => setServings(s => Math.max(0.5, Math.round((s - 0.5) * 10) / 10))}
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+              <span className="text-2xl font-heading tracking-wider w-12 text-center">{servings}</span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 rounded-full"
+                onClick={() => setServings(s => Math.round((s + 0.5) * 10) / 10)}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Meal picker */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Meal</Label>
+            <Select value={meal} onValueChange={setMeal}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {DIARY_MEALS.map((m) => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Custom items: editable name + macros */}
+          {isCustom && (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Name</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Calories</Label>
+                  <Input type="number" value={calories} onChange={(e) => setCalories(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Protein (g)</Label>
+                  <Input type="number" value={protein} onChange={(e) => setProtein(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Carbs (g)</Label>
+                  <Input type="number" value={carbs} onChange={(e) => setCarbs(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Fat (g)</Label>
+                  <Input type="number" value={fats} onChange={(e) => setFats(e.target.value)} />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Live macro preview (scaled by servings) */}
+          <div className="grid grid-cols-4 gap-2 pt-1">
+            <div className="rounded-lg bg-muted/50 p-2 text-center">
+              <p className="text-sm font-heading text-foreground">{previewKcal}</p>
+              <p className="text-[9px] uppercase font-bold text-muted-foreground">kcal</p>
+            </div>
+            <div className="rounded-lg bg-muted/50 p-2 text-center">
+              <p className="text-sm font-heading text-primary">{previewP}g</p>
+              <p className="text-[9px] uppercase font-bold text-muted-foreground">Protein</p>
+            </div>
+            <div className="rounded-lg bg-muted/50 p-2 text-center">
+              <p className="text-sm font-heading text-amber-500">{previewC}g</p>
+              <p className="text-[9px] uppercase font-bold text-muted-foreground">Carbs</p>
+            </div>
+            <div className="rounded-lg bg-muted/50 p-2 text-center">
+              <p className="text-sm font-heading text-orange-400">{previewF}g</p>
+              <p className="text-[9px] uppercase font-bold text-muted-foreground">Fat</p>
+            </div>
+          </div>
+
+          <Button className="w-full h-11 font-bold" onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
+            Save Changes
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Create Recipe dialog (member creates their own recipe) ──────────────────
+
+const RECIPE_MEALS = ["Breakfast", "Lunch", "Dinner", "Side", "Snack", "Dessert"];
+
+function CreateRecipeDialog({ open, onClose, defaultMeal, onSaved }: {
+  open: boolean;
+  onClose: () => void;
+  defaultMeal: string;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [meal, setMeal] = useState(defaultMeal);
+  const [calories, setCalories] = useState("");
+  const [protein, setProtein] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [fats, setFats] = useState("");
+  const [fibre, setFibre] = useState("");
+  const [serves, setServes] = useState("");
+  const [time, setTime] = useState("");
+  const [ingredients, setIngredients] = useState("");
+  const [method, setMethod] = useState("");
+  const [visibility, setVisibility] = useState<'private' | 'shared'>('private');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setName(""); setMeal(defaultMeal); setCalories(""); setProtein("");
+      setCarbs(""); setFats(""); setFibre(""); setServes(""); setTime("");
+      setIngredients(""); setMethod(""); setVisibility('private');
+    }
+  }, [open, defaultMeal]);
+
+  if (!open) return null;
+
+  const handleSave = async () => {
+    if (!name.trim() || !calories) {
+      toast.error("Name and calories are required");
+      return;
+    }
+    setSaving(true);
+    const res = await addRecipe({
+      meal, name: name.trim(),
+      calories: parseInt(calories) || 0,
+      protein: parseInt(protein) || 0,
+      carbs: parseInt(carbs) || 0,
+      fats: parseInt(fats) || 0,
+      fibre: parseInt(fibre) || 0,
+      serves: serves.trim(),
+      time: time.trim(),
+      ingredients: ingredients.trim(),
+      method: method.trim(),
+    }, visibility);
+    setSaving(false);
+    if (res.success) {
+      toast.success(visibility === 'shared' ? 'Recipe saved & shared' : 'Saved to your recipes');
+      onSaved();
+    } else {
+      toast.error('Could not save recipe');
+      console.error(res.error);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[92vw] max-w-sm bg-card border-border max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-heading uppercase tracking-wider">Add Your Own Recipe</DialogTitle>
+          <DialogDescription>Save a recipe for yourself or share it with everyone.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Name *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. My Coffee" autoFocus />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Category</Label>
+            <Select value={meal} onValueChange={setMeal}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {RECIPE_MEALS.map((m) => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Calories *</Label>
+            <Input type="number" value={calories} onChange={(e) => setCalories(e.target.value)} placeholder="0" />
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase text-muted-foreground">Protein (g)</Label>
+              <Input type="number" value={protein} onChange={(e) => setProtein(e.target.value)} placeholder="0" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase text-muted-foreground">Carbs (g)</Label>
+              <Input type="number" value={carbs} onChange={(e) => setCarbs(e.target.value)} placeholder="0" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase text-muted-foreground">Fat (g)</Label>
+              <Input type="number" value={fats} onChange={(e) => setFats(e.target.value)} placeholder="0" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase text-muted-foreground">Serves</Label>
+              <Input value={serves} onChange={(e) => setServes(e.target.value)} placeholder="1" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase text-muted-foreground">Time</Label>
+              <Input value={time} onChange={(e) => setTime(e.target.value)} placeholder="15 min" />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Ingredients (one per line)</Label>
+            <Textarea value={ingredients} onChange={(e) => setIngredients(e.target.value)} placeholder={"1 cup oats\n1 banana\n..."} rows={3} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Method (one step per line)</Label>
+            <Textarea value={method} onChange={(e) => setMethod(e.target.value)} placeholder={"Mix dry ingredients\nAdd wet ingredients\n..."} rows={3} />
+          </div>
+
+          {/* Visibility */}
+          <div className="space-y-2">
+            <Label className="text-xs">Visibility</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setVisibility('private')}
+                className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+                  visibility === 'private' ? 'border-primary bg-primary/5' : 'border-border'
+                }`}
+              >
+                <Lock className="h-4 w-4" />
+                <span className="text-xs font-bold">Just for me</span>
+              </button>
+              <button
+                onClick={() => setVisibility('shared')}
+                className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+                  visibility === 'shared' ? 'border-primary bg-primary/5' : 'border-border'
+                }`}
+              >
+                <Globe className="h-4 w-4" />
+                <span className="text-xs font-bold">Share with everyone</span>
+              </button>
+            </div>
+            {visibility === 'shared' && (
+              <p className="text-[10px] text-muted-foreground">Adds it to the shared recipe library other members can use.</p>
+            )}
+          </div>
+
+          <Button className="w-full h-11 font-bold" onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+            Save Recipe
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Edit Recipe dialog (member edits their own recipe) ─────────────────────
+
+function EditRecipeDialog({ recipe, onClose, onSaved }: {
+  recipe: Recipe | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [meal, setMeal] = useState("Breakfast");
+  const [calories, setCalories] = useState("");
+  const [protein, setProtein] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [fats, setFats] = useState("");
+  const [serves, setServes] = useState("");
+  const [time, setTime] = useState("");
+  const [ingredients, setIngredients] = useState("");
+  const [method, setMethod] = useState("");
+  const [visibility, setVisibility] = useState<'private' | 'shared'>('private');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (recipe) {
+      setName(recipe.name || "");
+      setMeal(recipe.meal || "Breakfast");
+      setCalories(String(recipe.calories || ""));
+      setProtein(String(recipe.protein || ""));
+      setCarbs(String(recipe.carbs || ""));
+      setFats(String(recipe.fats || ""));
+      setServes(recipe.serves || "");
+      setTime(recipe.time || "");
+      setIngredients(recipe.ingredients || "");
+      setMethod(recipe.method || "");
+      setVisibility((recipe as any).visibility || 'private');
+    }
+  }, [recipe]);
+
+  if (!recipe) return null;
+
+  const handleSave = async () => {
+    if (!name.trim() || !calories) {
+      toast.error("Name and calories are required");
+      return;
+    }
+    setSaving(true);
+    const res = await updateRecipe(recipe.id, {
+      name: name.trim(),
+      meal,
+      calories: parseInt(calories) || 0,
+      protein: parseInt(protein) || 0,
+      carbs: parseInt(carbs) || 0,
+      fats: parseInt(fats) || 0,
+      serves: serves.trim(),
+      time: time.trim(),
+      ingredients: ingredients.trim(),
+      method: method.trim(),
+      visibility,
+    });
+    setSaving(false);
+    if (res.success) {
+      toast.success("Recipe updated");
+      onSaved();
+    } else {
+      toast.error("Could not update recipe");
+      console.error(res.error);
+    }
+  };
+
+  const handleDelete = async () => {
+    setSaving(true);
+    const res = await deleteRecipe(recipe.id);
+    setSaving(false);
+    if (res.success) {
+      toast.success("Recipe deleted");
+      onSaved();
+    } else {
+      toast.error("Could not delete recipe");
+    }
+  };
+
+  return (
+    <Dialog open={!!recipe} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[92vw] max-w-sm bg-card border-border max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-heading uppercase tracking-wider">Edit Recipe</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Name *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Category</Label>
+            <Select value={meal} onValueChange={setMeal}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {RECIPE_MEALS.map((m) => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Calories *</Label>
+            <Input type="number" value={calories} onChange={(e) => setCalories(e.target.value)} />
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase text-muted-foreground">Protein (g)</Label>
+              <Input type="number" value={protein} onChange={(e) => setProtein(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase text-muted-foreground">Carbs (g)</Label>
+              <Input type="number" value={carbs} onChange={(e) => setCarbs(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase text-muted-foreground">Fat (g)</Label>
+              <Input type="number" value={fats} onChange={(e) => setFats(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase text-muted-foreground">Serves</Label>
+              <Input value={serves} onChange={(e) => setServes(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase text-muted-foreground">Time</Label>
+              <Input value={time} onChange={(e) => setTime(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Ingredients (one per line)</Label>
+            <Textarea value={ingredients} onChange={(e) => setIngredients(e.target.value)} rows={3} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Method (one step per line)</Label>
+            <Textarea value={method} onChange={(e) => setMethod(e.target.value)} rows={3} />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs">Visibility</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setVisibility('private')}
+                className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+                  visibility === 'private' ? 'border-primary bg-primary/5' : 'border-border'
+                }`}
+              >
+                <Lock className="h-4 w-4" />
+                <span className="text-xs font-bold">Just for me</span>
+              </button>
+              <button
+                onClick={() => setVisibility('shared')}
+                className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+                  visibility === 'shared' ? 'border-primary bg-primary/5' : 'border-border'
+                }`}
+              >
+                <Globe className="h-4 w-4" />
+                <span className="text-xs font-bold">Share with everyone</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1 h-11" onClick={handleDelete} disabled={saving}>
+              <Trash2 className="h-4 w-4 mr-1" /> Delete
+            </Button>
+            <Button className="flex-1 h-11 font-bold" onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
+              Save
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

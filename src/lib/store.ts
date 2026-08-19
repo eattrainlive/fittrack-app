@@ -720,9 +720,10 @@ export const getLastExerciseStats = (exerciseName: string) => {
 };
 
 // All past logged sessions for an exercise (newest first), with each session's sets.
-export const getExerciseHistory = (exerciseName: string) => {
+// `limit` caps how many sessions to return (default 3 for Past Lifts).
+export const getExerciseHistory = (exerciseName: string, limit = 3) => {
   const history = getWorkoutHistory(); // newest first
-  const out: { date: string; sets: { weight: number; reps: number; distance: number; calories: number; timeMins: number; timeSecs: number }[]; top: { weight: number; reps: number } }[] = [];
+  const out: { date: string; trackingType: any; sets: { weight: number; reps: number; distance: number; calories: number; timeMins: number; timeSecs: number }[]; top: { weight: number; reps: number } }[] = [];
   for (const workout of history) {
     const ex = workout.exercises?.find((e: any) => String(e.name) === String(exerciseName));
     if (!ex) continue;
@@ -733,7 +734,8 @@ export const getExerciseHistory = (exerciseName: string) => {
     if (!sets.length && (ex.weight || 0) > 0) sets = [{ weight: ex.weight, reps: ex.reps || 0, distance: 0, calories: 0, timeMins: 0, timeSecs: 0 }];
     if (!sets.length) continue;
     const top = sets.reduce((a, b) => (b.weight > a.weight ? b : a));
-    out.push({ date: workout.date, sets, top });
+    out.push({ date: workout.date, trackingType: ex.trackingType || null, sets, top });
+    if (out.length >= limit) break;
   }
   // Drop sessions where no weight was actually logged (junk 0kg entries),
   // but keep bodyweight exercises that have never had a weighted session.
@@ -1508,18 +1510,63 @@ export const getDiary = async (date: string) => {
 
 export const addDiaryItem = async (item: {
   date: string; meal?: string; source: 'recipe' | 'custom'; recipe_id?: string | null;
-  name: string; calories: number; protein: number; carbs: number; fats: number;
-}) => {
+  name: string; calories: number; protein: number; carbs: number; fats: number; servings?: number;
+}): Promise<{ success: boolean; error?: any }> => {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-  const { error } = await supabase.from('food_diary').insert({ ...item, member_id: user.id });
+  if (!user) return { success: false, error: 'not signed in' };
+  const { error } = await supabase.from('food_diary').insert({ servings: 1, ...item, member_id: user.id });
   if (error) console.error('addDiaryItem error:', error);
+  return { success: !error, error };
 };
 
-export const removeDiaryItem = async (id: string) => {
+export const removeDiaryItem = async (id: string): Promise<{ success: boolean; error?: any }> => {
   const { error } = await supabase.from('food_diary').delete().eq('id', id);
   if (error) console.error('removeDiaryItem error:', error);
+  return { success: !error, error };
 };
+
+export const updateDiaryItem = async (id: string, patch: {
+  servings?: number; name?: string; meal?: string;
+  calories?: number; protein?: number; carbs?: number; fats?: number;
+}): Promise<{ success: boolean; error?: any }> => {
+  const { error } = await supabase.from('food_diary').update(patch).eq('id', id);
+  if (error) console.error('updateDiaryItem error:', error);
+  return { success: !error, error };
+};
+
+export const getRecipeById = async (id: string) => {
+  const { data } = await supabase.from('recipes').select('*').eq('id', id).maybeSingle();
+  return data || null;
+};
+
+// ── Member recipes (private or shared) ──────────────────────────────────────
+
+export const addRecipe = async (r: {
+  meal: string; name: string; calories: number; protein: number; carbs: number; fats: number;
+  fibre?: number; serves?: string; time?: string; ingredients?: string; method?: string; image_url?: string | null;
+}, visibility: 'private' | 'shared'): Promise<{ success: boolean; error?: any; recipe?: any }> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'not signed in' };
+  const { data, error } = await supabase.from('recipes')
+    .insert({ ...r, created_by: user.id, visibility })
+    .select().maybeSingle();
+  if (error) console.error('addRecipe failed', error);
+  return { success: !error, error, recipe: data };
+};
+
+export const getMyRecipes = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data } = await supabase.from('recipes').select('*').eq('created_by', user.id).order('meal');
+  return data || [];
+};
+
+export const updateRecipe = async (id: string, patch: any): Promise<{ success: boolean; error?: any }> => {
+  const { error } = await supabase.from('recipes').update(patch).eq('id', id);
+  return { success: !error, error };
+};
+
+// deleteRecipe already declared above at line 1484
 
 // ── Open Food Facts search (free, no API key, CORS-enabled) ──────────────────
 
