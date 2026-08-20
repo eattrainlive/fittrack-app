@@ -1,0 +1,176 @@
+{
+  "leg-press": {
+    "title": "Leg Press",
+    "exercises": [
+      { "label": "How To Use The Leg Press", "exerciseId": "leg-press" },
+      { "label": "3 Way Leg Press", "exerciseId": "3-way-leg-press" },
+      { "label": "Tempo Leg Press", "exerciseId": "tempo-leg-press" },
+      { "label": "Leg Press Drop Set", "exerciseId": "leg-press-drop-set" },
+      { "label": "Stutter Rep Leg Press", "exerciseId": "stutter-rep-leg-press" },
+      { "label": "Leg Press Calf Raise", "exerciseId": "leg-press-calf-raise" }
+    ]
+  },
+  "lying-leg-curl": {
+    "title": "Lying Leg Curl",
+    "exercises": [
+      { "label": "Lying Leg Curl", "exerciseId": "lying-leg-curl" },
+      { "label": "Single Leg Lying Leg Curl", "exerciseId": null },
+      { "label": "Single Lying Leg Curl Negatives", "exerciseId": "single-leg-negatives-lying-leg-curl" },
+      { "label": "Lying Leg Curl Pyramid", "exerciseId": "lying-leg-curl-pyramid" },
+      { "label": "24Hr Gym Leg Extension/Ham Curl", "exerciseId": null },
+      { "label": "Seated Leg Curl", "exerciseId": null }
+    ]
+  },
+  "hack-squat": {
+    "title": "Hack Squat",
+    "exercises": [
+      { "label": "Front Facing Hack Squat", "exerciseId": "front-facing-hack-squat" },
+      { "label": "Tempo Hack Squat", "exerciseId": "tempo-hack-squat" },
+      { "label": "Reverse Hack Squat", "exerciseId": "reverse-hack-squat" },
+      { "label": "Hack Squat Calf Raise", "exerciseId": "hack-squat-calf-raises" },
+      { "label": "Stutter Rep Hack Squat", "exerciseId": "stutter-rep-hack-squat" },
+      { "label": "Single Leg Hack Squat Calf Raise", "exerciseId": "single-leg-hack-squat-calf-raises" }
+    ]
+  },
+  "adductor-abductor": {
+    "title": "Adductor / Abductor",
+    "exercises": [
+      { "label": "Adductor (Inner Thigh)", "exerciseId": "adductor-machine" },
+      { "label": "Abductor (Outer Thigh)", "exerciseId": "abductor-machine" }
+    ]
+  },
+  "leg-extension": {
+    "title": "Leg Extension",
+    "exercises": [
+      { "label": "Leg Extensions", "exerciseId": "leg-extension" },
+      { "label": "Single Leg Extensions", "exerciseId": "single-leg-extensions" },
+      { "label": "Single Leg Negatives", "exerciseId": "single-leg-negative-extensions" },
+      { "label": "Leg Extension 1 1/2", "exerciseId": "leg-extension-1-1-2" },
+      { "label": "3 Way Leg Extension", "exerciseId": "3-way-leg-extension" },
+      { "label": "24Hr Gym Leg Extension/Ham Curl", "exerciseId": null },
+      { "label": "Dual Leg Extension", "exerciseId": null },
+      { "label": "Leg Curl", "exerciseId": null }
+    ]
+  },
+  "smith-machine": {
+    "title": "Smith Machine",
+    "exercises": [
+      { "label": "How To Use The Smith Machine", "exerciseId": null },
+      { "label": "Smith Machine Squats", "exerciseId": "smith-machine-squats" },
+      { "label": "Smith Machine Split Squat", "exerciseId": "smith-machine-split-squat" },
+      { "label": "Smith Machine Bench Press", "exerciseId": "smith-machine-bench-press" },
+      { "label": "Stutter Rep Narrow Grip Press", "exerciseId": null },
+      { "label": "Tempo Bench Press", "exerciseId": "smith-machine-tempo-bench-press" },
+      { "label": "Smith Machine Z-Press", "exerciseId": "smith-machine-z-press" },
+      { "label": "Narrow Grip Bench Press", "exerciseId": "smith-machine-narrow-grip-bench-press" },
+      { "label": "Smith Machine Shrugs", "exerciseId": "smith-machine-shrugs" }
+    ]
+  },
+  "lat-pulldown": {
+    "title": "Lat Pulldown",
+    "exercises": [
+      { "label": "Lat Pulldowns", "exerciseId": "lat-pulldowns" },
+      { "label": "Close Arm Lat Pulldown", "exerciseId": "close-arm-lat-pulldown" },
+      { "label": "Behind The Neck Pulldown", "exerciseId": "behind-the-neck-pulldowns" },
+      { "label": "Power Grip Lat Pulldown", "exerciseId": "nebula-power-grip-lat-pulldown" },
+      { "label": "Lateral Lat Pulldown", "exerciseId": "lateral-lat-pulldown" },
+      { "label": "Iso Lat Pulldown", "exerciseId": "iso-lat-pulldown" }
+    ]
+  },
+  "seated-cable-row": {
+    "title": "Seated Cable Row",
+    "exercises": [
+      { "label": "Seated Cable Rows", "exerciseId": "seated-cable-rows" },
+      { "label": "Iso Hold Seated Cable Row", "exerciseId": "iso-hold-seated-cable-row" },
+      { "label": "Power Grip Seated Row", "exerciseId": "nebula-power-grip-seated-cable-row" },
+      { "label": "Single Arm Cable Rows", "exerciseId": "single-arm-cable-rows" }
+    ]
+  },
+  "dual-arm-pulley": {
+    "title": "Dual Arm Pulley",
+    "exercises": [
+      { "label": "How To Use Dual Arm Pulley", "exerciseId": null },
+      { "label": "Cable Pallof Press", "exerciseId": "cable-pallof-press" },
+      { "label": "Cable Face Pulls", "exerciseId": "cable-face-pulls" },
+      { "label": "Cable Rope Crunches", "exerciseId": "cable-rope-crunches" },
+      { "label": "1 Arm Cable Tricep Extension", "exerciseId": "single-arm-cable-tricep-extension" },
+      { "label": "1 Arm Rope Tricep Extension", "exerciseId": "single-arm-rope-tricep-extension" },
+      { "label": "Rope Tricep Extension", "exerciseId": null },
+      { "label": "Single Straight Arm Pull Down", "exerciseId": "single-arm-straight-arm-pulldown" },
+      { "label": "Rope Straight Arm Pulldown", "exerciseId": "rope-straight-arm-pull-downs" },
+      { "label": "Single Arm Cable Curl", "exerciseId": "single-arm-cable-curl" },
+      { "label": "High To Low Cable Fly", "exerciseId": "high-to-low-cable-fly" },
+      { "label": "Low To High Cable Fly", "exerciseId": "low-to-high-cable-fly" },
+      { "label": "Incline Cable Chest Fly", "exerciseId": "incline-cable-chest-fly" }
+    ]
+  },
+  "seated-row": {
+    "title": "Seated Row",
+    "exercises": [
+      { "label": "How To Use Seated Row", "exerciseId": "seated-row-machine" },
+      { "label": "Seated Row- High Handle", "exerciseId": "seated-row-machine-high-handle" },
+      { "label": "Seated Row Mid Handle", "exerciseId": "seated-row-machine-mid-handle" },
+      { "label": "Seated Row- Low Handle", "exerciseId": "seated-row-machine-low-handle" }
+    ]
+  },
+  "shoulder-press-machine": {
+    "title": "Shoulder Press Machine",
+    "exercises": [
+      { "label": "Shoulder Burns", "exerciseId": "shoulder-burns" },
+      { "label": "Tempo Shoulder Press", "exerciseId": "tempo-shoulder-press" },
+      { "label": "24Hr Gym Chest/Shoulder Press", "exerciseId": null }
+    ]
+  },
+  "incline-plate-chest-press": {
+    "title": "Incline Plate Chest Press",
+    "exercises": [
+      { "label": "Incline Plate Chest Press", "exerciseId": "incline-plate-loaded-chest-press" },
+      { "label": "Single Arm Plate Chest Press", "exerciseId": "single-arm-plate-loaded-bench-press" },
+      { "label": "Alternate Plate Chest Press", "exerciseId": "alternate-incline-plate-loaded-bench" }
+    ]
+  },
+  "seated-chest-press": {
+    "title": "Seated Chest Press",
+    "exercises": [
+      { "label": "Seated Chest Press", "exerciseId": "seated-chest-press" },
+      { "label": "Narrow Grip Press", "exerciseId": "narrow-grip-chest-press-machine" },
+      { "label": "24Hr Gym Chest/Shoulder Press", "exerciseId": null }
+    ]
+  },
+  "assisted-chin": {
+    "title": "Assisted Chin & Dip",
+    "exercises": [
+      { "label": "Assisted Pull Ups", "exerciseId": "assisted-pull-up" },
+      { "label": "Assisted Dips", "exerciseId": "assisted-dips" }
+    ]
+  },
+  "iso-chest-press": {
+    "title": "Iso Chest Press",
+    "exercises": [
+      { "label": "Iso Chest Press", "exerciseId": "iso-chest-press" },
+      { "label": "Single Arm Iso Chest Press", "exerciseId": "single-arm-iso-chest-press" },
+      { "label": "Alternate Iso Chest Press", "exerciseId": "alternate-iso-chest-press" }
+    ]
+  },
+  "functional-trainer": {
+    "title": "Functional Trainer",
+    "exercises": [
+      { "label": "Facepulls", "exerciseId": "face-pull-functional-trainer" },
+      { "label": "Straight Arm Pulldowns", "exerciseId": "straight-arm-pulldown-functional-trainer" },
+      { "label": "EZ Bar Curl", "exerciseId": "ez-bar-curl-functional-trainer" },
+      { "label": "Rope Curls", "exerciseId": "rope-curls-functional-trainer" },
+      { "label": "EZ Bar Tricep Extensions", "exerciseId": "ez-bar-tricep-extension-functional-trainer" },
+      { "label": "Bent Over Row", "exerciseId": "bent-over-row-functional-trainer" },
+      { "label": "Upright Rows", "exerciseId": "upright-row-functional-trainer" },
+      { "label": "Cable Reverse Flyes", "exerciseId": "cable-reverse-flye-functional-trainer" }
+    ]
+  },
+  "preacher-curl": {
+    "title": "Preacher Curl",
+    "exercises": [
+      { "label": "Preacher Curls", "exerciseId": "preacher-curl" },
+      { "label": "Reverse Preacher Curls", "exerciseId": "reverse-preacher-curl" },
+      { "label": "DB Preacher Curls", "exerciseId": "db-preacher-curl" }
+    ]
+  }
+}

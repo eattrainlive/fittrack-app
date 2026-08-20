@@ -5,12 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dumbbell, Loader2, CheckCircle2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
 const Auth = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   
   const [loading, setLoading] = useState(false);
@@ -29,7 +30,7 @@ const Auth = () => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Success", description: "Logged in successfully!" });
-      navigate("/");
+      navigate(searchParams.get("redirect") || "/");
     }
     setLoading(false);
   };
@@ -52,7 +53,7 @@ const Auth = () => {
     if (data.session) {
       // Email confirmation is off → account is live and signed in. Go straight in.
       toast({ title: "You're all set!", description: `Welcome, ${name || "let's train"} 💪` });
-      navigate("/");
+      navigate(searchParams.get("redirect") || "/");
     } else {
       // Fallback (only happens if "Confirm email" is still ON): show a clear, persistent panel.
       setJustSignedUp(true);

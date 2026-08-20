@@ -960,6 +960,39 @@ const Admin = () => {
   const STRENGTH_TAGS = ["Push","Horizontal Push","Vertical Push","Pull","Horizontal Pull","Vertical Pull","Knee","Hip","Core","Carries","Accessory"];
   const isStrengthMove = (e: any) => mt(e).some((t: string) => STRENGTH_TAGS.includes(t));
 
+  // ── Section-aware shuffle (keep swaps within the role of their block) ──────
+  function enclosingSectionName(items: any[], i: number): string {
+    for (let k = i; k >= 0; k--) { if (items[k]?.isSection) return String(items[k].name || ""); }
+    return "";
+  }
+  function sectionRole(name: string): string {
+    const n = norm(name);
+    if (/warm ?up|mobility|prep/.test(n)) return "warmup";
+    if (/fire ?up|activation|prime/.test(n)) return "activation";
+    if (/\blift\b|strength|main lift|primary/.test(n)) return "lift";
+    if (/burn/.test(n)) return "burn";
+    if (/finisher|core|cardio|conditioning|engine|metcon|burnout/.test(n)) return "finisher";
+    return "any";
+  }
+  const BW_BAND = /bodyweight|band/i;
+  const ALLOWED_BW_PULL = /pull ?up|chin ?up|ring row|inverted row/i;
+  const isLoaded = (e: any) => {
+    const eq = String(e?.equipment || "");
+    return BW_BAND.test(eq) ? ALLOWED_BW_PULL.test(String(e?.name || "")) : true;
+  };
+  const hasTag = (e: any, re: RegExp) => mt(e).some((t: string) => re.test(t));
+  const catOf = (e: any) => String(e?.categories || e?.category || "");
+  function fitsSection(e: any, role: string): boolean {
+    switch (role) {
+      case "warmup":     return hasTag(e, /warm ?up/i) || /mobility/i.test(catOf(e));
+      case "activation": return hasTag(e, /fire ?up|activation/i) || /activation/i.test(catOf(e));
+      case "lift":       return isStrengthMove(e) && isLoaded(e) && !hasTag(e, /accessory/i);
+      case "burn":       return isStrengthMove(e) && isLoaded(e);
+      case "finisher":   return hasTag(e, /accessory|core|conditioning|carries/i) || /cardio|conditioning/i.test(catOf(e));
+      default:           return true;
+    }
+  }
+
   function rulesBasedPool(libEx: any): any[] {
     const row = enrichment[String(libEx.id)];
     // (a) coach-picked enrichment alternates — resolve names to real library exercises
@@ -989,20 +1022,28 @@ const Admin = () => {
   }
 
   const handleShuffleExercise = (exerciseId: number | string) => {
-    const updatedWorkouts = [...progWorkouts];
-    const currentEx = updatedWorkouts[selectedWorkoutIndex].exercises.find((e: any) => String(e.id) === String(exerciseId));
+    const workoutItems = progWorkouts[selectedWorkoutIndex].exercises;
+    const itemIdx = workoutItems.findIndex((e: any) => String(e.id) === String(exerciseId));
+    const currentEx = workoutItems[itemIdx];
     if (!currentEx || !currentEx.name) return;
     
     const libEx = exById[String(currentEx.name)];
     if (!libEx) return;
     
-    const pool = rulesBasedPool(libEx);
+    const role = sectionRole(enclosingSectionName(workoutItems, itemIdx));
+    let pool = rulesBasedPool(libEx).filter((e: any) => fitsSection(e, role));
+    if (!pool.length) {
+      const specific = mt(libEx).find((t: string) => /Horizontal|Vertical/.test(t)) || mt(libEx)[0];
+      pool = exercises.filter((e: any) => e.id !== libEx.id && fitsSection(e, role) && (!specific || mt(e).includes(specific)));
+      if (!pool.length) pool = exercises.filter((e: any) => e.id !== libEx.id && fitsSection(e, role));
+    }
     
     if (pool.length > 0) {
       const randomEx = pool[Math.floor(Math.random() * pool.length)];
+      const updatedWorkouts = [...progWorkouts];
       updatedWorkouts[selectedWorkoutIndex] = {
         ...updatedWorkouts[selectedWorkoutIndex],
-        exercises: updatedWorkouts[selectedWorkoutIndex].exercises.map((e: any) => String(e.id) === String(exerciseId) ? { ...e, name: randomEx.id } : e)
+        exercises: workoutItems.map((e: any) => String(e.id) === String(exerciseId) ? { ...e, name: randomEx.id } : e)
       };
       setProgWorkouts(updatedWorkouts);
       toast.success(`Swapped for ${randomEx.name}`);
@@ -1051,15 +1092,22 @@ const Admin = () => {
 
   const handleShuffleAll = () => {
     const updatedWorkouts = [...progWorkouts];
+    const workoutItems = updatedWorkouts[selectedWorkoutIndex].exercises;
     let shuffledCount = 0;
     
-    updatedWorkouts[selectedWorkoutIndex].exercises.forEach((currentEx: any) => {
+    workoutItems.forEach((currentEx: any, idx: number) => {
       if (currentEx.isSection || !currentEx.name) return;
       
       const libEx = exById[String(currentEx.name)];
       if (!libEx) return;
       
-      const pool = rulesBasedPool(libEx);
+      const role = sectionRole(enclosingSectionName(workoutItems, idx));
+      let pool = rulesBasedPool(libEx).filter((e: any) => fitsSection(e, role));
+      if (!pool.length) {
+        const specific = mt(libEx).find((t: string) => /Horizontal|Vertical/.test(t)) || mt(libEx)[0];
+        pool = exercises.filter((e: any) => e.id !== libEx.id && fitsSection(e, role) && (!specific || mt(e).includes(specific)));
+        if (!pool.length) pool = exercises.filter((e: any) => e.id !== libEx.id && fitsSection(e, role));
+      }
       
       if (pool.length > 0) {
         const randomEx = pool[Math.floor(Math.random() * pool.length)];
@@ -1656,42 +1704,47 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     return cells;
   }
 
+  const _grpSleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+  // Per-day call with retry — each day is a fast ~15-40s call (can't time out).
+  async function genGroupDay(body: any, tries = 3): Promise<any[]> {
+    let lastErr: any;
+    for (let i = 0; i < tries; i++) {
+      try { return await callGroupGen(body); }
+      catch (e: any) { lastErr = e; await _grpSleep(1500 * (i + 1)); }
+    }
+    throw lastErr;
+  }
+
   async function generateGroupBlock() {
     setIsGeneratingAI(true);
-    let current = progWorkouts;
-    const previousGroupPTProgram = programs.find((p: any) => p.type === "GroupPT" && p.id !== editingProgramId);
-    const previousBlock = previousGroupPTProgram?.workouts || [];
-    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-    const callGroupGenRetry = async (body: any, tries = 3): Promise<any[]> => {
-      let lastErr;
-      for (let i = 0; i < tries; i++) {
-        try { return await callGroupGen(body); }
-        catch (e) { lastErr = e; await sleep(2500 * (i + 1)); }
-      }
-      throw lastErr;
-    };
-
-    const failed: number[] = [];
+    let grid = progWorkouts;
+    const previousBlock = programs.find((p: any) => p.type === "GroupPT" && p.id !== editingProgramId)?.workouts || [];
+    const failed: string[] = [];
     try {
       for (let cw = 1; cw <= 4; cw++) {
         setGenCycle(cw);
-        try {
-          current = await callGroupGenRetry({
-            action: "week",
-            program: { weeks: GROUP_PT_WEEKS, days: newProgDays },
-            currentWorkouts: current,
-            exercises: exPayload(),
-            cycleWeek: cw,
-            previousBlockWorkouts: previousBlock,
-          });
-          setProgWorkouts([...current]);
-          await autoSaveProgram(current);   // save after each template week so nothing is lost
-        } catch (e: any) {
-          failed.push(cw);  // record and carry on to the other template weeks
+        for (let d = 1; d <= newProgDays; d++) {
+          try {
+            grid = await genGroupDay({
+              action: "day",
+              program: { weeks: GROUP_PT_WEEKS, days: newProgDays },
+              currentWorkouts: grid,
+              exercises: exPayload(),
+              cycleWeek: cw,
+              day: d,
+              stampRounds: true,
+              previousBlockWorkouts: previousBlock,
+            });
+            setProgWorkouts([...grid]);
+            await autoSaveProgram(grid);
+          } catch {
+            failed.push(`W${cw}D${d}`);
+          }
         }
       }
       if (failed.length) {
-        toast.warning(`Generated, but template week(s) ${failed.join(", ")} failed — press Generate again to fill the gaps.`);
+        toast.warning(`Generated, but ${failed.join(", ")} failed — press Generate again to fill gaps.`);
       } else {
         toast.success("Group PT block generated successfully!");
       }
@@ -1717,7 +1770,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       });
       setProgWorkouts(updated);
       await autoSaveProgram(updated);
-      toast.success("Group PT session regenerated successfully!");
+      toast.success("Session regenerated!");
     } catch (e: any) {
       toast.error("Regenerate failed: " + e.message);
     } finally {
@@ -1725,7 +1778,32 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     }
   }
 
-
+  async function generateGroupTestWeek() {
+    setIsGeneratingAI(true);
+    let grid = progWorkouts;
+    try {
+      for (let d = 1; d <= newProgDays; d++) {
+        setGenCycle(d);
+        grid = await genGroupDay({
+          action: "day",
+          program: { weeks: GROUP_PT_WEEKS, days: newProgDays },
+          currentWorkouts: grid,
+          exercises: exPayload(),
+          cycleWeek: 1,
+          day: d,
+          stampRounds: false,
+        });
+        setProgWorkouts([...grid]);
+        await autoSaveProgram(grid);
+      }
+      toast.success("Test week generated — review Week 1.");
+    } catch (e: any) {
+      toast.error(`Test week failed: ${e?.message ?? e}`);
+    } finally {
+      setIsGeneratingAI(false);
+      setGenCycle(0);
+    }
+  }
 
   const handleDeleteWow = async (id: string) => {
     if (!confirm("Are you sure you want to delete this Workout of the Week?")) return;
@@ -2320,15 +2398,26 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                   <div className="flex flex-col gap-2">
                     <Button onClick={handleGenerateWorkoutSlots} className="w-full">Generate Workout Grid</Button>
                     {newProgType === "GroupPT" ? (
-                      <Button 
-                        variant="outline" 
-                        onClick={generateGroupBlock} 
-                        className="w-full gap-2 border-primary text-primary hover:bg-primary/10"
-                        disabled={isGeneratingAI}
-                      >
-                        {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                        {genCycle > 0 ? `Generating template week ${genCycle}/4…` : "Generate 12-week Group PT block"}
-                      </Button>
+                      <>
+                        <Button 
+                          variant="outline" 
+                          onClick={generateGroupBlock} 
+                          className="w-full gap-2 border-primary text-primary hover:bg-primary/10"
+                          disabled={isGeneratingAI}
+                        >
+                          {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                          {genCycle > 0 ? `Generating template week ${genCycle}/4…` : "Generate 12-week Group PT block"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={generateGroupTestWeek}
+                          className="w-full gap-2"
+                          disabled={isGeneratingAI}
+                        >
+                          {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                          Generate 1 test week
+                        </Button>
+                      </>
                     ) : (
                       <>
                         <Button 

@@ -17,6 +17,8 @@ import Feed from "./pages/Feed";
 import Education from "./pages/Education";
 import Nutrition from "./pages/Nutrition";
 import TVDisplay from "./pages/TVDisplay";
+import ExerciseInfo from "./pages/ExerciseInfo";
+import MachinePage from "./pages/MachinePage";
 
 
 import { useEffect, useState } from "react";
@@ -82,6 +84,8 @@ const AppRoutes = () => {
             <Route path="/nutrition" element={<Nutrition />} />
             <Route path="/education" element={<Education />} />
             <Route path="/tv/:programId/:workoutIndex" element={<TVDisplay />} />
+            <Route path="/x/:id" element={<ExerciseInfo />} />
+            <Route path="/machine/:slug" element={<MachinePage />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/auth/callback" element={<Index />} />
