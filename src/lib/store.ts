@@ -405,25 +405,30 @@ export const saveExercises = async (exercises: any[]): Promise<{ success: boolea
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       if (exercises.length > 0) {
-        const safeExercises = exercises.map(e => ({
-          ...e,
-          user_id: user.id,
-          category: Array.isArray(e.category) ? e.category.join(', ') : e.category,
-          movementType: Array.isArray(e.movementType) ? e.movementType : [e.movementType],
-          trackingType: Array.isArray(e.trackingType) ? e.trackingType.join(', ') : e.trackingType || 'Weight & Reps'
-        }));
+        // Whitelist fields to the columns that actually exist on the `exercises` table.
+        const safeExercises = exercises.map(e => {
+          const cleaned: any = {
+            id: e.id,
+            name: e.name,
+            user_id: user.id,
+            muscle: e.muscle ?? null,
+            equipment: e.equipment ?? null,
+            difficulty: e.difficulty ?? null,
+            videoUrl: e.videoUrl ?? null,
+          };
+          // category and movementType/trackingType are stored as comma-joined strings
+          cleaned.category = Array.isArray(e.category) ? e.category.join(', ') : (e.category ?? null);
+          cleaned.movementType = Array.isArray(e.movementType) ? e.movementType.join(', ') : (e.movementType ?? null);
+          cleaned.trackingType = Array.isArray(e.trackingType) ? e.trackingType.join(', ') : (e.trackingType ?? 'Weight & Reps');
+          return cleaned;
+        });
         const { error } = await supabase.from('exercises').upsert(safeExercises);
         if (error) {
+          console.error('saveExercises upsert error:', error);
           enqueue('exercises');
           setSyncStatus('error');
           return { success: false, error };
         }
-        const currentIds = exercises.map(e => String(e.id)).filter(Boolean);
-        if (currentIds.length > 0) {
-          await supabase.from('exercises').update({ is_deleted: true }).eq('user_id', user.id).not('id', 'in', `(${currentIds.join(',')})`);
-        }
-      } else {
-        await supabase.from('exercises').update({ is_deleted: true }).eq('user_id', user.id);
       }
       clearDirty('exercises');
       dequeue('exercises');
@@ -433,6 +438,7 @@ export const saveExercises = async (exercises: any[]): Promise<{ success: boolea
     setSyncStatus('saved');
     return { success: true };
   } catch (err) {
+    console.error('saveExercises exception:', err);
     enqueue('exercises');
     setSyncStatus('error');
     return { success: false, error: err };
@@ -453,7 +459,22 @@ export const savePrograms = async (programs: any[]): Promise<{ success: boolean;
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       if (programs.length > 0) {
-        const safePrograms = programs.map(p => ({ ...p, user_id: user.id }));
+        // Whitelist fields to the columns that actually exist on the `programs` table.
+        const safePrograms = programs.map(p => {
+          const w: any = {
+            id: p.id,
+            name: p.name,
+            user_id: user.id,
+          };
+          if (p.description !== undefined) w.description = p.description;
+          if (p.stream !== undefined) w.stream = p.stream;
+          if (p.type !== undefined) w.type = p.type;
+          if (p.weeks !== undefined) w.weeks = p.weeks;
+          if (p.days !== undefined) w.days = p.days;
+          if (p.workouts !== undefined) w.workouts = p.workouts;
+          if (p.weekNotes !== undefined) w.weekNotes = p.weekNotes;
+          return w;
+        });
         let { error } = await supabase.from('programs').upsert(safePrograms);
 
         // Fallback: if the full upsert fails (a field isn't a column on `programs`),
@@ -461,12 +482,12 @@ export const savePrograms = async (programs: any[]): Promise<{ success: boolean;
         if (error) {
           console.warn("Programs upsert failed, falling back to minimal fields + user_settings...", error.message);
           const fallbackPrograms = safePrograms.map(p => ({
-            id: p.id, name: p.name, description: p.description, user_id: p.user_id, is_deleted: p.is_deleted ?? false,
+            id: p.id, name: p.name, user_id: p.user_id,
           }));
           const fallbackRes = await supabase.from('programs').upsert(fallbackPrograms);
           if (!fallbackRes.error) {
             for (const p of safePrograms) {
-              const { id, name, description, user_id, is_deleted, ...extras } = p;
+              const { id, name, user_id, ...extras } = p;
               await supabase.from('user_settings').upsert(
                 { user_id: user.id, key: `prog_extras_${p.id}`, value: JSON.stringify(extras) },
                 { onConflict: 'user_id, key' }
@@ -480,41 +501,27 @@ export const savePrograms = async (programs: any[]): Promise<{ success: boolean;
         }
 
         if (!error) {
-          const currentIds = safePrograms.map(p => String(p.id)).filter(Boolean);
-          if (currentIds.length > 0) {
-            await supabase.from('programs').update({ is_deleted: true }).eq('user_id', user.id).not('id', 'in', `(${currentIds.join(',')})`);
-          }
-          
-          const keys = safePrograms.map(p => `prog_extras_${p.id}`);
-          if (keys.length > 0) {
-            await supabase.from('user_settings').delete().eq('user_id', user.id).in('key', keys);
-          }
-
           clearDirty('programs');
           dequeue('programs');
           setSyncStatus('saved');
           return { success: true };
         }
-        
+
+        console.error('savePrograms error:', error);
         enqueue('programs');
         setSyncStatus('error');
         return { success: false, error };
       } else {
-        const { error: updateErr } = await supabase.from('programs').update({ is_deleted: true }).eq('user_id', user.id);
-        if (!updateErr) {
-          clearDirty('programs');
-          dequeue('programs');
-          setSyncStatus('saved');
-          return { success: true };
-        }
-        enqueue('programs');
-        setSyncStatus('error');
-        return { success: false, error: updateErr };
+        clearDirty('programs');
+        dequeue('programs');
+        setSyncStatus('saved');
+        return { success: true };
       }
     }
     setSyncStatus('saved');
     return { success: true };
   } catch (err) {
+    console.error('savePrograms exception:', err);
     enqueue('programs');
     setSyncStatus('error');
     return { success: false, error: err };
@@ -924,7 +931,7 @@ export const syncFromSupabase = async () => {
   // Use allSettled so one failing query (e.g. a missing table) can't wipe out everything else.
   const results = await Promise.allSettled([
     supabase.from('exercises').select('*'),
-    supabase.from('programs').select('*').is('is_deleted', null),
+    supabase.from('programs').select('*'),
     supabase.from('workout_history').select('*').eq('user_id', user.id),
     supabase.from('bodyweight_history').select('*').eq('user_id', user.id),
     supabase.from('personal_records').select('*').eq('user_id', user.id),
@@ -954,8 +961,7 @@ export const syncFromSupabase = async () => {
 
   // Guard: only overwrite local if store is NOT dirty (no pending unconfirmed writes)
   if (ex.data && ex.data.length > 0 && !isDirty('exercises')) {
-    const activeEx = ex.data.filter((e: any) => e.is_deleted !== true);
-    localStorage.setItem('fittrack_exercises', JSON.stringify(activeEx));
+    localStorage.setItem('fittrack_exercises', JSON.stringify(ex.data));
   } else if (isDirty('exercises')) {
     // Only staff should re-push the shared exercise library.
     const isStaff = localStorage.getItem('fittrack_is_staff') === 'true';
@@ -966,14 +972,13 @@ export const syncFromSupabase = async () => {
       clearDirty('exercises');
       dequeue('exercises');
       if (ex.data && ex.data.length > 0) {
-        const activeEx = ex.data.filter((e: any) => e.is_deleted !== true);
-        localStorage.setItem('fittrack_exercises', JSON.stringify(activeEx));
+        localStorage.setItem('fittrack_exercises', JSON.stringify(ex.data));
       }
     }
   }
 
   if (prg.data && prg.data.length > 0 && !isDirty('programs')) {
-    let activePrg = prg.data.filter((p: any) => p.is_deleted !== true);
+    let activePrg = prg.data;
     if (settings) {
       activePrg = activePrg.map((p: any) => {
         const extraSetting = settings.find((s: any) => s.key === `prog_extras_${p.id}`);
@@ -994,8 +999,7 @@ export const syncFromSupabase = async () => {
       clearDirty('programs');
       dequeue('programs');
       if (prg.data && prg.data.length > 0) {
-        const activePrg = prg.data.filter((p: any) => p.is_deleted !== true);
-        localStorage.setItem('fittrack_programs', JSON.stringify(activePrg));
+        localStorage.setItem('fittrack_programs', JSON.stringify(prg.data));
       }
     }
   }

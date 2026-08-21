@@ -598,8 +598,9 @@ const Admin = () => {
       
       if (addedCount > 0) {
         setExercises(currentExercises);
-        saveExercises(currentExercises);
-        toast.success(`Successfully synced ${addedCount} new videos as exercises!`);
+        const sr = await saveExercises(currentExercises);
+        if (sr.success) toast.success(`Successfully synced ${addedCount} new videos as exercises!`);
+        else toast.warning(`Synced ${addedCount} locally — cloud sync failed`);
       } else {
         toast.info("No new videos found to sync.");
       }
