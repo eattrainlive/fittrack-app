@@ -92,7 +92,6 @@ All colors MUST be HSL.
   html, body, #root {
     height: 100%;
     width: 100%;
-    overflow: hidden;
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
   }

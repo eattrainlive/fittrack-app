@@ -386,7 +386,8 @@ export const defaultPrograms = [
 
 export const getExercises = () => {
   const stored = localStorage.getItem('fittrack_exercises');
-  return stored ? JSON.parse(stored) : [];
+  if (stored) return JSON.parse(stored);
+  return defaultExercises; // fallback so the app isn't blank before the first sync
 };
 
 export const getExerciseEnrichment = async () => {
@@ -440,7 +441,8 @@ export const saveExercises = async (exercises: any[]): Promise<{ success: boolea
 
 export const getPrograms = () => {
   const stored = localStorage.getItem('fittrack_programs');
-  return stored ? JSON.parse(stored) : [];
+  if (stored) return JSON.parse(stored);
+  return defaultPrograms;
 };
 
 export const savePrograms = async (programs: any[]): Promise<{ success: boolean; error?: any }> => {
@@ -912,13 +914,15 @@ export const markNotificationRead = async (id: string) => {
 };
 
 export const syncFromSupabase = async () => {
+  try {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
 
   // Flush any pending queued writes BEFORE syncing (push local → cloud first)
   await flushRetryQueue();
 
-  const [ex, prg, hist, bw, prs, nut, mhab, chk, meas, phot, habLib, mac, mlogs, wows, wowRes, eduFolders, eduVideos] = await Promise.all([
+  // Use allSettled so one failing query (e.g. a missing table) can't wipe out everything else.
+  const results = await Promise.allSettled([
     supabase.from('exercises').select('*'),
     supabase.from('programs').select('*').is('is_deleted', null),
     supabase.from('workout_history').select('*').eq('user_id', user.id),
@@ -937,8 +941,16 @@ export const syncFromSupabase = async () => {
     supabase.from('education_folders').select('*'),
     supabase.from('education_videos').select('*')
   ]);
+  const val = (i: number) => results[i].status === "fulfilled" ? (results[i] as any).value : { data: null };
+  const ex = val(0), prg = val(1), hist = val(2), bw = val(3), prs = val(4), nut = val(5),
+    mhab = val(6), chk = val(7), meas = val(8), phot = val(9), habLib = val(10), mac = val(11),
+    mlogs = val(12), wows = val(13), wowRes = val(14), eduFolders = val(15), eduVideos = val(16);
 
-  const { data: settings } = await supabase.from('user_settings').select('*').eq('user_id', user.id);
+  let settings: any[] | null = null;
+  try {
+    const { data: settingsData } = await supabase.from('user_settings').select('*').eq('user_id', user.id);
+    settings = settingsData;
+  } catch { /* table may not exist */ }
 
   // Guard: only overwrite local if store is NOT dirty (no pending unconfirmed writes)
   if (ex.data && ex.data.length > 0 && !isDirty('exercises')) {
@@ -1055,6 +1067,10 @@ export const syncFromSupabase = async () => {
   }
 
   window.dispatchEvent(new Event('fittrack_synced'));
+  } catch (e) {
+    console.error('syncFromSupabase error:', e);
+    window.dispatchEvent(new Event('fittrack_synced'));
+  }
 };
 
 export const syncProfile = async () => {

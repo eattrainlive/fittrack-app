@@ -14,7 +14,7 @@ import { getExercises, getExerciseEnrichment, getPrograms, saveWorkoutToHistory,
 import { getEmbedUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
+
 import { supabase } from "@/lib/supabase";
 
 const PROGRESSION_OPTIONS = [
@@ -406,37 +406,45 @@ const Workouts = () => {
 
   useEffect(() => {
     const loadLibrary = async () => {
-       setExerciseLibrary(getExercises());
+       const lib = await getExercises();
+       setExerciseLibrary(lib);
        setEnrichment(await getExerciseEnrichment());
-      setWorkoutTemplates(getPrograms());
-      setActiveProgram(getActiveProgram());
-      setPreferredDays(getPreferredDays());
-      
-      const wowsData = await getWorkoutsOfWeek();
-      setWows(wowsData);
-      
-      const d = new Date();
-      const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      let currentWow = wowsData.find((w: any) => w.week_start <= todayStr);
-      if (!currentWow && wowsData.length > 0) currentWow = wowsData[wowsData.length - 1];
-      
-      if (currentWow) {
-        const results = await getWowResults(currentWow.id);
-        setWowResults(results);
-      }
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase.from('members').select('allowed_access').eq('id', user.id).maybeSingle();
-        setAllowedAccess(data?.allowed_access ?? ["Foundations", "Stronger", "Fusion", "Performance"]);
-      } else {
-        setAllowedAccess(["Foundations", "Stronger", "Fusion", "Performance"]);
-      }
+       setWorkoutTemplates(getPrograms());
+       setActiveProgram(getActiveProgram());
+       setPreferredDays(getPreferredDays());
+       
+       const wowsData = await getWorkoutsOfWeek();
+       setWows(wowsData);
+       
+       const d = new Date();
+       const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+       let currentWow = wowsData.find((w: any) => w.week_start <= todayStr);
+       if (!currentWow && wowsData.length > 0) currentWow = wowsData[wowsData.length - 1];
+       
+       if (currentWow) {
+         const results = await getWowResults(currentWow.id);
+         setWowResults(results);
+       }
+       
+       const { data: { user } } = await supabase.auth.getUser();
+       if (user) {
+         const { data } = await supabase.from('members').select('allowed_access').eq('id', user.id).maybeSingle();
+         setAllowedAccess(data?.allowed_access ?? ["Foundations", "Stronger", "Fusion", "Performance"]);
+       } else {
+         setAllowedAccess(["Foundations", "Stronger", "Fusion", "Performance"]);
+       }
     };
     
     loadLibrary();
-    window.addEventListener('fittrack_synced', loadLibrary);
-    return () => window.removeEventListener('fittrack_synced', loadLibrary);
+    // Re-read from localStorage after sync completes — fixes blank page on fresh sessions
+    // where the library wasn't in localStorage at first mount.
+    const onSynced = () => {
+      setExerciseLibrary(getExercises());
+      setWorkoutTemplates(getPrograms());
+      setActiveProgram(getActiveProgram());
+    };
+    window.addEventListener('fittrack_synced', onSynced);
+    return () => window.removeEventListener('fittrack_synced', onSynced);
   }, []);
 
   useEffect(() => {
@@ -832,39 +840,23 @@ const Workouts = () => {
     localStorage.removeItem('fittrack_active_workout');
   };
 
-  const variants: any = {
-    initial: (direction: string) => ({
-      x: direction === 'forward' ? "100%" : "-20%",
-      opacity: direction === 'forward' ? 1 : 0.5,
-      zIndex: direction === 'forward' ? 3 : 1
-    }),
-    animate: (direction: string) => ({ 
-      x: 0, 
-      opacity: 1, 
-      zIndex: direction === 'forward' ? 3 : 1,
-      transition: { duration: 0.25, ease: "easeOut" } 
-    }),
-    exit: (direction: string) => ({
-      x: direction === 'forward' ? "-20%" : "100%",
-      opacity: direction === 'forward' ? 0.5 : 1,
-      zIndex: direction === 'forward' ? 1 : 3,
-      transition: { duration: 0.25, ease: "easeIn" }
-    })
-  };
+  // Loading guard: if the library hasn't synced yet (only the tiny default set or empty),
+  // show a brief loading state instead of a blank/empty page.
+  const libraryReady = exerciseLibrary.length > 20;
+  if (!libraryReady && viewMode === 'browse') {
+    return (
+      <div className="flex-1 max-w-4xl mx-auto w-full">
+        <div className="p-8 text-center text-muted-foreground">
+          <div className="animate-pulse">Loading your programme…</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 max-w-4xl mx-auto w-full relative">
-      <AnimatePresence mode="popLayout" custom={viewDirection}>
         {viewMode === 'browse' && (
-          <motion.div 
-            key="browse"
-            custom={viewDirection}
-            variants={variants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24"
-          >
+        <div className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24">
           <div className="flex items-center justify-between">
             <h2 className="text-3xl font-heading tracking-wider uppercase">Browse</h2>
           </div>
@@ -1037,19 +1029,11 @@ const Workouts = () => {
           </div>
           
 
-        </motion.div>
+        </div>
         )}
 
         {viewMode === 'detail' && selectedTemplate && (
-          <motion.div 
-            key="detail"
-            custom={viewDirection}
-            variants={variants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
-          >
+        <div className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden">
           <div className="relative overflow-hidden rounded-2xl aspect-[4/3] shadow-md -mx-4 -mt-6 rounded-t-none md:mx-0 md:mt-0 md:rounded-t-2xl">
              <img src={getCoverImage(selectedTemplate)} alt={selectedTemplate.name} className="w-full h-full object-cover" />
              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/40"></div>
@@ -1356,18 +1340,10 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
               </div>
             )}
           </div>
-        </motion.div>
+        </div>
         )}
         {viewMode === 'wow-detail' && currentWow && (
-          <motion.div 
-            key="wow-detail"
-            custom={viewDirection}
-            variants={variants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
-          >
+        <div className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden">
             <div className="flex flex-col gap-2">
               <Button variant="ghost" size="sm" onClick={() => setViewMode('browse')} className="w-fit -ml-4 text-muted-foreground">
                 <ArrowLeft className="h-4 w-4 mr-2" /> Back
@@ -1583,20 +1559,11 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                 </div>
               );
             })()}
-          </motion.div>
+        </div>
         )}
 
-
         {viewMode === 'session-overview' && quickOverviewWorkout && (
-          <motion.div 
-            key="session-overview"
-            custom={viewDirection}
-            variants={variants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24"
-          >
+        <div className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24">
             <div className="flex flex-col gap-2">
               <Button variant="ghost" size="sm" onClick={() => setViewMode('detail')} className="w-fit -ml-4 text-muted-foreground">
                 <ArrowLeft className="h-4 w-4 mr-2" /> Back
@@ -1712,19 +1679,11 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                 ));
               })()}
             </div>
-          </motion.div>
+        </div>
         )}
 
         {viewMode === 'active' && (
-          <motion.div 
-            key="active"
-            custom={viewDirection}
-            variants={variants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24"
-          >
+        <div className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24">
           <div className="sticky top-0 z-20 -mx-4 px-4 py-2 bg-background/95 backdrop-blur-md border-b border-border/50 flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="font-heading tracking-wider uppercase text-sm truncate">{workoutName || 'Workout'}</p>
@@ -2223,9 +2182,8 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
               </div>
             </CardContent>
           </Card>
-          </motion.div>
+        </div>
         )}
-      </AnimatePresence>
 
       {isTimerVisible && (
         <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+144px)] left-4 right-4 bg-primary text-primary-foreground shadow-lg rounded-xl p-3 flex items-center justify-between z-50 animate-in slide-in-from-bottom-5">

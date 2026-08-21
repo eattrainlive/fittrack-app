@@ -121,7 +121,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       navigate("/auth");
     };
     return (
-      <div className="flex h-[100dvh] w-full bg-background font-sans flex-col items-center justify-center px-6 text-center">
+      <div className="flex h-screen w-full bg-background font-sans flex-col items-center justify-center px-6 text-center">
         <div className="max-w-sm space-y-6">
           <div className="flex flex-col items-center gap-3">
             <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
@@ -151,7 +151,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-[100dvh] w-full bg-background font-sans flex-col overflow-hidden">
+    <div className="flex h-screen w-full bg-background font-sans flex-col overflow-hidden">
       <header className="h-16 border-b border-border flex items-center justify-between px-4 bg-background sticky top-0 z-30 shrink-0 select-none">
         <div className="flex items-center gap-2">
           <Dumbbell className="h-6 w-6 text-primary" />
@@ -237,7 +237,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="flex-1 relative overflow-hidden">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden">
         {children}
       </main>
 

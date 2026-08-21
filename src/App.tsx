@@ -31,6 +31,8 @@ const queryClient = new QueryClient();
 
 const TAB_ROUTES = ["/", "/workouts", "/progress", "/nutrition", "/feed", "/profile"];
 
+const USE_PAGE_TRANSITION = false; // disabled — fixes PWA white-screen on tab switch
+
 const AppRoutes = () => {
   const location = useLocation();
   const navType = useNavigationType();
@@ -64,16 +66,18 @@ const AppRoutes = () => {
 
   return (
     <AppLayout>
-      <AnimatePresence custom={{ isBack, isTabSwitch }}>
-        <motion.div
-          key={location.pathname}
-          custom={{ isBack, isTabSwitch }}
-          variants={variants}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-          className="absolute inset-0 overflow-y-auto overflow-x-hidden pb-16 bg-background"
-        >
+      <AppErrorBoundary>
+      {USE_PAGE_TRANSITION ? (
+        <AnimatePresence mode="wait" custom={{ isBack, isTabSwitch }}>
+          <motion.div
+            key={location.pathname}
+            custom={{ isBack, isTabSwitch }}
+            variants={variants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="flex-1 overflow-y-auto overflow-x-hidden pb-16 bg-background"
+          >
           <Routes location={location}>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
@@ -92,8 +96,31 @@ const AppRoutes = () => {
             <Route path="/auth/confirm" element={<Index />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </motion.div>
-      </AnimatePresence>
+          </motion.div>
+        </AnimatePresence>
+      ) : (
+        <div className="flex-1 overflow-y-auto overflow-x-hidden pb-16 bg-background">
+          <Routes location={location}>
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/feed" element={<Feed />} />
+            <Route path="/workouts" element={<Workouts />} />
+            <Route path="/exercises" element={<Exercises />} />
+            <Route path="/progress" element={<Progress />} />
+            <Route path="/nutrition" element={<Nutrition />} />
+            <Route path="/education" element={<Education />} />
+            <Route path="/tv/:programId/:workoutIndex" element={<TVDisplay />} />
+            <Route path="/x/:id" element={<ExerciseInfo />} />
+            <Route path="/machine/:slug" element={<MachinePage />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/admin" element={<Admin />} />
+            <Route path="/auth/callback" element={<Index />} />
+            <Route path="/auth/confirm" element={<Index />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </div>
+      )}
+      </AppErrorBoundary>
     </AppLayout>
   );
 };
