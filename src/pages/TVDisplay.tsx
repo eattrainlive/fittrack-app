@@ -150,7 +150,7 @@ const TVDisplay = () => {
                     
                     // Format Reps/Time
                     let displayReps = "";
-                    const rawTrack = libEx?.trackingType ?? "Weight & Reps";
+                    const rawTrack = ex.trackingType ?? libEx?.trackingType ?? "Weight & Reps";
                     const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                     
                     if (trackingArray.includes('Weight & Distance') && (ex.weight || 0) > 0) {
@@ -159,8 +159,8 @@ const TVDisplay = () => {
                       displayReps = `${ex.distance}m`;
                     } else if ((trackingArray.includes('Distance & Time') || trackingArray.includes('Time Only')) && (ex.timeMins > 0 || ex.timeSecs > 0)) {
                       displayReps = `${ex.timeMins > 0 ? `${ex.timeMins}m ` : ''}${ex.timeSecs > 0 ? `${ex.timeSecs}sec` : ''}`;
-                    } else if (trackingArray.includes('Calories') && ex.calories > 0) {
-                      displayReps = `${ex.calories} cal`;
+                    } else if (trackingArray.includes('Calories') && (ex.calories > 0 || ex.reps > 0)) {
+                      displayReps = `${ex.calories || ex.reps} cal`;
                     } else {
                       displayReps = String(ex.reps || "");
                     }

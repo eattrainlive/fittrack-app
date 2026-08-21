@@ -864,6 +864,20 @@ const Admin = () => {
     setProgWorkouts(updatedWorkouts);
   };
 
+  // Multi-field version — patches several fields on one exercise in a single state update (avoids stale-state race).
+  const updateProgExerciseFields = (id: number | string, patch: Record<string, any>) => {
+    const updatedWorkouts = [...progWorkouts];
+    updatedWorkouts[selectedWorkoutIndex] = {
+      ...updatedWorkouts[selectedWorkoutIndex],
+      exercises: updatedWorkouts[selectedWorkoutIndex].exercises.map((e: any) => String(e.id) === String(id) ? { ...e, ...patch } : e)
+    };
+    setProgWorkouts(updatedWorkouts);
+  };
+
+  // Resolve a library exercise's default tracking type as a string array.
+  const defaultTrackingFor = (ex: any): string[] =>
+    Array.isArray(ex?.trackingType) ? ex.trackingType : (ex?.trackingType ? [ex.trackingType] : ["Weight & Reps"]);
+
   const onDragEnd = (result: any) => {
     if (!result.destination) return;
     const updatedWorkouts = [...progWorkouts];
@@ -1043,7 +1057,7 @@ const Admin = () => {
       const updatedWorkouts = [...progWorkouts];
       updatedWorkouts[selectedWorkoutIndex] = {
         ...updatedWorkouts[selectedWorkoutIndex],
-        exercises: workoutItems.map((e: any) => String(e.id) === String(exerciseId) ? { ...e, name: randomEx.id } : e)
+        exercises: workoutItems.map((e: any) => String(e.id) === String(exerciseId) ? { ...e, name: randomEx.id, trackingType: defaultTrackingFor(randomEx), trackingMode: undefined } : e)
       };
       setProgWorkouts(updatedWorkouts);
       toast.success(`Swapped for ${randomEx.name}`);
@@ -1112,6 +1126,8 @@ const Admin = () => {
       if (pool.length > 0) {
         const randomEx = pool[Math.floor(Math.random() * pool.length)];
         currentEx.name = randomEx.id;
+        currentEx.trackingType = defaultTrackingFor(randomEx);
+        currentEx.trackingMode = undefined;
         shuffledCount++;
       }
     });
@@ -2976,7 +2992,11 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                                   key={ex.id}
                                                                   value={ex.name}
                                                                   onSelect={() => {
-                                                                    updateProgExercise(pe.id, "name", ex.id);
+                                                                    updateProgExerciseFields(pe.id, {
+                                                                      name: ex.id,
+                                                                      trackingType: defaultTrackingFor(ex),
+                                                                      trackingMode: undefined,
+                                                                    });
                                                                   }}
                                                                 >
                                                                   <Check
@@ -3005,7 +3025,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                   <div className="flex flex-wrap items-center gap-4">
                                                     {(() => {
                                                       const libEx = exById[String(pe.name)];
-                                                      const rawTrack = libEx?.trackingType ?? "Weight & Reps";
+                                                      const rawTrack = pe.trackingType ?? libEx?.trackingType ?? "Weight & Reps";
                                                       const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/))
                                                         .map((s) => s.trim())
                                                         .filter(Boolean);
@@ -3092,7 +3112,10 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                           {canCals && (
                                                             <div className="flex flex-col gap-1.5 w-16">
                                                               <Label className="text-[10px] uppercase text-muted-foreground font-bold">Cals</Label>
-                                                              <Input type="number" className="h-8 text-center" value={pe.calories || 0} onChange={(e) => updateProgExercise(pe.id, "calories", parseInt(e.target.value) || 0)} />
+                                                              <Input type="number" className="h-8 text-center" value={pe.calories || (pe.reps > 0 ? pe.reps : 0)} onChange={(e) => {
+                                                                const v = parseInt(e.target.value) || 0;
+                                                                updateProgExerciseFields(pe.id, { calories: v, reps: v });
+                                                              }} />
                                                             </div>
                                                           )}
                                                         </>

@@ -181,7 +181,7 @@ const fmtLastTime = (s: any, tracking: string[]) => {
   if (!s) return "";
   const t = (x: string) => tracking.includes(x);
   const time = (s.timeMins||0) || (s.timeSecs||0) ? `${s.timeMins? s.timeMins+'m ':''}${s.timeSecs? s.timeSecs+'s':''}`.trim() : "";
-  if (t("Calories") && s.calories)            return `${s.calories} cals`;
+  if (t("Calories") && (s.calories || s.reps))   return `${s.calories || s.reps} cals`;
   if (t("Weight & Distance") && (s.weight||s.distance)) return `${s.weight}kg · ${s.distance}m`;
   if (t("Distance & Time"))                   return [s.distance? s.distance+'m':'', time].filter(Boolean).join(' in ');
   if (t("Time Only") && time)                 return time;
@@ -193,7 +193,7 @@ const fmtSet = (s: any, tracking: string[]) => {
   if (!s) return "";
   const t = (x: string) => tracking.includes(x);
   const time = (s.timeMins||0) || (s.timeSecs||0) ? `${s.timeMins? s.timeMins+'m ':''}${s.timeSecs? s.timeSecs+'s':''}`.trim() : "";
-  if (t("Calories") && (s.calories||0))        return `${s.calories} cals`;
+  if (t("Calories") && ((s.calories||0) || (s.reps||0))) return `${s.calories || s.reps} cals`;
   if (t("Weight & Distance") && ((s.weight||0) || (s.distance||0))) return `${s.weight||0}kg · ${s.distance||0}m`;
   if (t("Distance & Time")) {
     const parts = [(s.distance||0) ? s.distance+'m':'', time].filter(Boolean);
@@ -660,6 +660,7 @@ const Workouts = () => {
         distance: ex.distance || 0,
         timeMins: ex.timeMins || 0,
         timeSecs: ex.timeSecs || 0,
+        calories: ex.calories || (ex.reps && (ex.trackingType ?? []).includes?.('Calories') ? ex.reps : 0),
         completed: false
       }))
     })));
@@ -692,6 +693,7 @@ const Workouts = () => {
           distance: ex.distance || 0,
           timeMins: ex.timeMins || 0,
           timeSecs: ex.timeSecs || 0,
+          calories: ex.calories || (ex.reps && (ex.trackingType ?? []).includes?.('Calories') ? ex.reps : 0),
           completed: false
         }))
       })));
@@ -721,6 +723,7 @@ const Workouts = () => {
               distance: ex.distance || 0,
               timeMins: ex.timeMins || 0,
               timeSecs: ex.timeSecs || 0,
+              calories: ex.calories || (ex.reps && (ex.trackingType ?? []).includes?.('Calories') ? ex.reps : 0),
               completed: false
             }))
           })));
@@ -1329,7 +1332,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                     const dist = firstSet.distance || ex.distance || 0;
                     const mins = firstSet.timeMins || ex.timeMins || 0;
                     const secs = firstSet.timeSecs || ex.timeSecs || 0;
-                    const cals = firstSet.calories || ex.calories || 0;
+                    const cals = firstSet.calories || ex.calories || (trackingArray.includes('Calories') ? (firstSet.reps || ex.reps || 0) : 0);
                     const reps = firstSet.reps || ex.reps || 0;
                     let details = [];
                     if (trackingArray.includes('Weight & Distance') && (firstSet.weight || ex.weight || 0) > 0) details.push(`${firstSet.weight || ex.weight}kg`);
@@ -1439,7 +1442,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                           const dist = ex.distance || 0;
                           const mins = ex.timeMins || 0;
                           const secs = ex.timeSecs || 0;
-                          const cals = ex.calories || 0;
+                          const cals = ex.calories || (trackingArray.includes('Calories') ? (ex.reps || 0) : 0);
                           const reps = ex.reps || 0;
                           
                           let metrics = [];
@@ -1667,7 +1670,7 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                           const dist = firstSet.distance || ex.distance || 0;
                           const mins = firstSet.timeMins || ex.timeMins || 0;
                           const secs = firstSet.timeSecs || ex.timeSecs || 0;
-                          const cals = firstSet.calories || ex.calories || 0;
+                          const cals = firstSet.calories || ex.calories || (trackingArray.includes('Calories') ? (firstSet.reps || ex.reps || 0) : 0);
                           const reps = firstSet.reps || ex.reps || 0;
                           
                           let details = [];
@@ -1760,14 +1763,13 @@ className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24 overflow-x-hidden"
                           
                           const setsCount = ex.setsData?.length || ex.sets || 3;
                           const firstSet = ex.setsData?.[0] || ex || {};
+                          const rawTrack = ex.trackingType ?? libEx?.trackingType ?? "Weight & Reps";
+                          const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                           const dist = firstSet.distance || ex.distance || 0;
                           const mins = firstSet.timeMins || ex.timeMins || 0;
                           const secs = firstSet.timeSecs || ex.timeSecs || 0;
-                          const cals = firstSet.calories || ex.calories || 0;
+                          const cals = firstSet.calories || ex.calories || (trackingArray.includes('Calories') ? (firstSet.reps || ex.reps || 0) : 0);
                           const reps = firstSet.reps || ex.reps || 0;
-                          
-                          const rawTrack = ex.trackingType ?? libEx?.trackingType ?? "Weight & Reps";
-                          const trackingArray = (Array.isArray(rawTrack) ? rawTrack : String(rawTrack).split(/[;,]/)).map(s => s.trim()).filter(Boolean);
                           
                           let details = [];
                           if (trackingArray.includes('Weight & Distance') && (firstSet.weight || ex.weight || 0) > 0) details.push(`${firstSet.weight || ex.weight}kg`);
