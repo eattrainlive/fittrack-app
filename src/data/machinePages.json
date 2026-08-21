@@ -172,5 +172,18 @@
       { "label": "Reverse Preacher Curls", "exerciseId": "reverse-preacher-curl" },
       { "label": "DB Preacher Curls", "exerciseId": "db-preacher-curl" }
     ]
+  },
+  "pec-rev-flye": {
+    "title": "Pec / Reverse Flye",
+    "exercises": [
+      { "label": "Chest Flye Machine", "exerciseId": "chest-flye-machine" },
+      { "label": "Reverse Flye Machine", "exerciseId": "reverse-flye-machine" }
+    ]
+  },
+  "glute-drive": {
+    "title": "Glute Drive",
+    "exercises": [
+      { "label": "Glute Drive Machine", "exerciseId": "glute-drive-machine" }
+    ]
   }
 }
