@@ -1,17 +1,53 @@
 import { useState, useEffect, useRef } from "react";
-import { Check, ChevronRight, Flame, Target, Trophy, Info, Plus, Minus, Camera, Ruler, TrendingUp, ImagePlus, LayoutDashboard, Calendar, ArrowRight, Share2, Upload, Loader2, History, ChevronLeft, RefreshCw, AlertTriangle, Play } from "lucide-react";
+import {
+  Check,
+  ChevronRight,
+  Flame,
+  Target,
+  Trophy,
+  Info,
+  Plus,
+  Minus,
+  Camera,
+  Ruler,
+  TrendingUp,
+  ImagePlus,
+  LayoutDashboard,
+  Calendar,
+  ArrowRight,
+  Share2,
+  Upload,
+  Loader2,
+  History,
+  ChevronLeft,
+  RefreshCw,
+  AlertTriangle,
+  Play,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { 
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -32,13 +68,13 @@ import {
 import { getEmbedUrl } from "@/lib/utils";
 import { ResourcesSection } from "@/components/ResourcesSection";
 import { RecipeCards } from "@/components/RecipeCards";
-import { 
-  getHabits, 
-  getMemberNutrition, 
-  saveMemberNutrition, 
-  getMemberHabits, 
-  saveMemberHabits, 
-  getHabitCheckins, 
+import {
+  getHabits,
+  getMemberNutrition,
+  saveMemberNutrition,
+  getMemberHabits,
+  saveMemberHabits,
+  getHabitCheckins,
   saveHabitCheckin,
   seedMemberHabits,
   GOAL_PATHS,
@@ -56,7 +92,15 @@ import {
   getAppSettings,
 } from "@/lib/store";
 import { motion, AnimatePresence } from "framer-motion";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 import { supabase } from "@/lib/supabase";
 
 function ComingSoon({ title }: { title: string }) {
@@ -65,8 +109,12 @@ function ComingSoon({ title }: { title: string }) {
       <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
         <Info className="h-8 w-8 text-primary" />
       </div>
-      <h2 className="text-2xl font-heading uppercase tracking-wider">{title}</h2>
-      <p className="text-sm text-muted-foreground max-w-xs">Coming soon — we're adding this shortly.</p>
+      <h2 className="text-2xl font-heading uppercase tracking-wider">
+        {title}
+      </h2>
+      <p className="text-sm text-muted-foreground max-w-xs">
+        Coming soon — we're adding this shortly.
+      </p>
     </div>
   );
 }
@@ -83,7 +131,9 @@ export default function Nutrition() {
   const [macros, setMacros] = useState<any>(null);
   const [macroLogs, setMacroLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'habits' | 'progress' | 'roadmap'>('habits');
+  const [activeTab, setActiveTab] = useState<"habits" | "progress" | "roadmap">(
+    "habits",
+  );
   const [showSeasonReview, setShowSeasonReview] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -93,14 +143,27 @@ export default function Nutrition() {
   const [flags, setFlags] = useState<any>(null);
 
   const [newMeasurement, setNewMeasurement] = useState({
-    waist: '', hips: '', chest: '', thigh: '', arm: '', notes: ''
+    waist: "",
+    hips: "",
+    chest: "",
+    thigh: "",
+    arm: "",
+    notes: "",
   });
 
   const [showMacroCalc, setShowMacroCalc] = useState(false);
   const [macroForm, setMacroForm] = useState({
-    sex: 'male', age: '', height: '', activity: '1.2', goal: 'maintain', weight: ''
+    sex: "male",
+    age: "",
+    height: "",
+    activity: "1.2",
+    goal: "maintain",
+    weight: "",
   });
-  const [todayMacros, setTodayMacros] = useState({ hit_protein: false, hit_calories: false });
+  const [todayMacros, setTodayMacros] = useState({
+    hit_protein: false,
+    hit_calories: false,
+  });
 
   useEffect(() => {
     loadData();
@@ -118,7 +181,7 @@ export default function Nutrition() {
       const bw = getBodyweightHistory();
       const mac = getMemberMacros();
       const mLogs = getMacroLogs();
-      
+
       setNutrition(nut);
       setMemberHabits(mHabits);
       setHabitsLibrary(lib);
@@ -129,40 +192,69 @@ export default function Nutrition() {
       setMacros(mac);
       setMacroLogs(mLogs);
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date().toISOString().split("T")[0];
       const todaysLog = mLogs.find((l: any) => l.date === today);
       if (todaysLog) {
-        setTodayMacros({ hit_protein: todaysLog.hit_protein || false, hit_calories: todaysLog.hit_calories || false });
+        setTodayMacros({
+          hit_protein: todaysLog.hit_protein || false,
+          hit_calories: todaysLog.hit_calories || false,
+        });
       } else {
         setTodayMacros({ hit_protein: false, hit_calories: false });
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       let currentNut = nut;
       if (user) {
-        const { data: notes } = await supabase.from('coach_notes').select('*').eq('member_id', user.id).order('created_at', { ascending: false });
+        const { data: notes } = await supabase
+          .from("coach_notes")
+          .select("*")
+          .eq("member_id", user.id)
+          .order("created_at", { ascending: false });
         if (notes) setCoachNotes(notes);
-        
+
         // Refetch coached status and latest nutrition data to override local cache
-        const { data: freshNut } = await supabase.from('member_nutrition').select('*').eq('member_id', user.id).maybeSingle();
+        const { data: freshNut } = await supabase
+          .from("member_nutrition")
+          .select("*")
+          .eq("member_id", user.id)
+          .maybeSingle();
         if (freshNut) {
           currentNut = freshNut;
           setNutrition(freshNut);
-          localStorage.setItem('fittrack_member_nutrition', JSON.stringify(freshNut));
+          localStorage.setItem(
+            "fittrack_member_nutrition",
+            JSON.stringify(freshNut),
+          );
         }
 
-        const { data: freshMac } = await supabase.from('member_macros').select('*').eq('member_id', user.id).maybeSingle();
+        const { data: freshMac } = await supabase
+          .from("member_macros")
+          .select("*")
+          .eq("member_id", user.id)
+          .maybeSingle();
         if (freshMac) {
           setMacros(freshMac);
-          localStorage.setItem('fittrack_member_macros', JSON.stringify(freshMac));
+          localStorage.setItem(
+            "fittrack_member_macros",
+            JSON.stringify(freshMac),
+          );
         }
 
         // Refetch member habits from cloud
-        const { data: cloudHabits } = await supabase.from('member_habits').select('*').eq('member_id', user.id);
+        const { data: cloudHabits } = await supabase
+          .from("member_habits")
+          .select("*")
+          .eq("member_id", user.id);
         if (cloudHabits && cloudHabits.length > 0) {
           setMemberHabits(cloudHabits);
           mHabits = cloudHabits;
-          localStorage.setItem('fittrack_member_habits', JSON.stringify(cloudHabits));
+          localStorage.setItem(
+            "fittrack_member_habits",
+            JSON.stringify(cloudHabits),
+          );
         } else if (mHabits.length > 0) {
           // Backfill existing local habits to Supabase
           const savedHabits = await saveMemberHabits(mHabits);
@@ -170,15 +262,19 @@ export default function Nutrition() {
           mHabits = savedHabits;
         }
       }
-      
+
       if (currentNut) {
         if (mHabits.length > 0) {
           checkProgression(currentNut, mHabits, chks);
         }
-        
+
         // Check for season review
-        const lastReview = currentNut.last_review_at ? new Date(currentNut.last_review_at) : new Date(currentNut.started_at);
-        const diffWeeks = Math.floor((Date.now() - lastReview.getTime()) / (1000 * 60 * 60 * 24 * 7));
+        const lastReview = currentNut.last_review_at
+          ? new Date(currentNut.last_review_at)
+          : new Date(currentNut.started_at);
+        const diffWeeks = Math.floor(
+          (Date.now() - lastReview.getTime()) / (1000 * 60 * 60 * 24 * 7),
+        );
         if (diffWeeks >= 12) {
           setShowSeasonReview(true);
         }
@@ -191,30 +287,30 @@ export default function Nutrition() {
   };
 
   const checkProgression = async (nut: any, mHabits: any[], chks: any[]) => {
-    const activeHabits = mHabits.filter(h => h.status === 'active');
+    const activeHabits = mHabits.filter((h) => h.status === "active");
     let updatedHabits = [...mHabits];
     let graduatedAny = false;
 
     for (const mHabit of activeHabits) {
-      const habit = habitsLibrary.find(h => h.id === mHabit.habit_id);
+      const habit = habitsLibrary.find((h) => h.id === mHabit.habit_id);
       if (!habit) continue;
 
-      const checkinType = habit.checkin_type || 'tick';
-      const countTarget = checkinType === 'count' ? (habit.count_target || 1) : 1;
+      const checkinType = habit.checkin_type || "tick";
+      const countTarget = checkinType === "count" ? habit.count_target || 1 : 1;
       const daysToGraduate = habit.days_to_graduate || 21;
 
-      const goodDays = chks.filter(c => {
+      const goodDays = chks.filter((c) => {
         if (c.habit_id !== habit.id) return false;
-        if (checkinType === 'tick') return c.done;
+        if (checkinType === "tick") return c.done;
         return (c.count_value || 0) >= countTarget;
       }).length;
 
       if (goodDays >= daysToGraduate) {
-        const idx = updatedHabits.findIndex(h => h.id === mHabit.id);
-        updatedHabits[idx] = { 
-          ...mHabit, 
-          status: 'graduated', 
-          graduated_at: new Date().toISOString() 
+        const idx = updatedHabits.findIndex((h) => h.id === mHabit.id);
+        updatedHabits[idx] = {
+          ...mHabit,
+          status: "graduated",
+          graduated_at: new Date().toISOString(),
         };
         graduatedAny = true;
         toast.success(`Congratulations! You graduated: ${habit.name}`);
@@ -222,26 +318,32 @@ export default function Nutrition() {
     }
 
     if (graduatedAny) {
-      const currentlyActive = updatedHabits.filter(h => h.status === 'active').length;
+      const currentlyActive = updatedHabits.filter(
+        (h) => h.status === "active",
+      ).length;
       if (currentlyActive < 2) {
         const nextQueued = updatedHabits
-          .filter(h => h.status === 'queued')
+          .filter((h) => h.status === "queued")
           .sort((a, b) => a.position - b.position)[0];
-        
+
         if (nextQueued) {
-          const idx = updatedHabits.findIndex(h => h.id === nextQueued.id);
-          updatedHabits[idx] = { 
-            ...nextQueued, 
-            status: 'active', 
-            started_at: new Date().toISOString() 
+          const idx = updatedHabits.findIndex((h) => h.id === nextQueued.id);
+          updatedHabits[idx] = {
+            ...nextQueued,
+            status: "active",
+            started_at: new Date().toISOString(),
           };
         }
       }
 
       const goalPath = GOAL_PATHS[nut.goal] || [];
-      const phaseHabits = habitsLibrary.filter(h => h.phase === nut.phase && goalPath.includes(h.id));
-      const allGraduated = phaseHabits.every(h => 
-        updatedHabits.find(mh => mh.habit_id === h.id && mh.status === 'graduated')
+      const phaseHabits = habitsLibrary.filter(
+        (h) => h.phase === nut.phase && goalPath.includes(h.id),
+      );
+      const allGraduated = phaseHabits.every((h) =>
+        updatedHabits.find(
+          (mh) => mh.habit_id === h.id && mh.status === "graduated",
+        ),
       );
 
       if (allGraduated && phaseHabits.length > 0) {
@@ -257,18 +359,20 @@ export default function Nutrition() {
   };
   const recordCoachingInterest = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       await supabase.functions.invoke("manage-members", {
         body: {
           action: "nutrition_coaching_interest",
-          name: user.user_metadata?.full_name || user.email?.split('@')[0],
+          name: user.user_metadata?.full_name || user.email?.split("@")[0],
           email: user.email,
-          staffSecret: "42a37f4a3f9ceed78d7928187bfc339d25af43d79d5fb0b0"
-        }
+          staffSecret: "42a37f4a3f9ceed78d7928187bfc339d25af43d79d5fb0b0",
+        },
       });
-      
+
       toast.success("Interest recorded! We'll be in touch.");
     } catch (e) {
       console.error("Failed to record interest", e);
@@ -276,9 +380,14 @@ export default function Nutrition() {
     }
   };
 
-
   const handleStartOnboarding = async (goal: string) => {
-    const nut = { goal, phase: 1, season: 1, coached: false, started_at: new Date().toISOString() };
+    const nut = {
+      goal,
+      phase: 1,
+      season: 1,
+      coached: false,
+      started_at: new Date().toISOString(),
+    };
     setNutrition(nut);
     await saveMemberNutrition(nut);
     const mHabits = await seedMemberHabits(goal);
@@ -287,10 +396,12 @@ export default function Nutrition() {
   };
 
   const handleCheckin = async (habitId: number, value: any) => {
-    const date = new Date().toISOString().split('T')[0];
+    const date = new Date().toISOString().split("T")[0];
     const checkin = { habit_id: habitId, date, ...value };
     const updatedCheckins = [...checkins];
-    const idx = updatedCheckins.findIndex(c => c.date === date && c.habit_id === habitId);
+    const idx = updatedCheckins.findIndex(
+      (c) => c.date === date && c.habit_id === habitId,
+    );
     if (idx >= 0) updatedCheckins[idx] = checkin;
     else updatedCheckins.push(checkin);
     setCheckins(updatedCheckins);
@@ -305,14 +416,14 @@ export default function Nutrition() {
     const cm = parseFloat(macroForm.height);
     const age = parseInt(macroForm.age);
     const activity = parseFloat(macroForm.activity);
-    
+
     if (!kg || !cm || !age) {
       toast.error("Please fill in all fields");
       return;
     }
 
     let bmr = 0;
-    if (macroForm.sex === 'male') {
+    if (macroForm.sex === "male") {
       bmr = 10 * kg + 6.25 * cm - 5 * age + 5;
     } else {
       bmr = 10 * kg + 6.25 * cm - 5 * age - 161;
@@ -320,13 +431,18 @@ export default function Nutrition() {
 
     const tdee = bmr * activity;
     let multiplier = 1.0;
-    if (macroForm.goal === 'lose') multiplier = 0.8;
-    if (macroForm.goal === 'gain') multiplier = 1.1;
-    
+    if (macroForm.goal === "lose") multiplier = 0.8;
+    if (macroForm.goal === "gain") multiplier = 1.1;
+
     const calorieTarget = Math.round((tdee * multiplier) / 10) * 10;
-    const proteinTarget = Math.round(((macroForm.goal === 'lose' ? 2.2 : 2.0) * kg) / 5) * 5;
+    const proteinTarget =
+      Math.round(((macroForm.goal === "lose" ? 2.2 : 2.0) * kg) / 5) * 5;
     const fatTarget = Math.round((0.9 * kg) / 5) * 5;
-    const carbTarget = Math.max(0, Math.round(((calorieTarget - proteinTarget * 4 - fatTarget * 9) / 4) / 5) * 5);
+    const carbTarget = Math.max(
+      0,
+      Math.round((calorieTarget - proteinTarget * 4 - fatTarget * 9) / 4 / 5) *
+        5,
+    );
 
     const newMacros = {
       ...macros,
@@ -340,7 +456,7 @@ export default function Nutrition() {
       carb_target: carbTarget,
       fat_target: fatTarget,
       tracking_enabled: true,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     };
 
     const res = await saveMemberMacros(newMacros);
@@ -354,19 +470,23 @@ export default function Nutrition() {
   };
 
   const toggleMacroTracking = async () => {
-    const currentEnabled = macros?.tracking_enabled ?? (nutrition?.goal === 'performance');
+    const currentEnabled =
+      macros?.tracking_enabled ?? nutrition?.goal === "performance";
     const newEnabled = !currentEnabled;
     const newMacros = {
       ...(macros || {}),
       tracking_enabled: newEnabled,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     };
     const res = await saveMemberMacros(newMacros);
     if (res.success) {
       setMacros(newMacros);
       if (newEnabled && !macros?.calorie_target) {
         if (bodyweight.length > 0) {
-          setMacroForm(prev => ({ ...prev, weight: bodyweight[bodyweight.length - 1].weight.toString() }));
+          setMacroForm((prev) => ({
+            ...prev,
+            weight: bodyweight[bodyweight.length - 1].weight.toString(),
+          }));
         }
         setShowMacroCalc(true);
       }
@@ -378,16 +498,16 @@ export default function Nutrition() {
   const logTodayMacros = async (field: string, value: boolean) => {
     const updated = { ...todayMacros, [field]: value };
     setTodayMacros(updated);
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
     const log = {
       date: today,
       hit_protein: updated.hit_protein,
-      hit_calories: updated.hit_calories
+      hit_calories: updated.hit_calories,
     };
     const res = await saveMacroLog(log);
     if (res.success) {
       const logs = [...macroLogs];
-      const idx = logs.findIndex(l => l.date === today);
+      const idx = logs.findIndex((l) => l.date === today);
       if (idx >= 0) logs[idx] = log;
       else logs.push(log);
       setMacroLogs(logs);
@@ -399,14 +519,19 @@ export default function Nutrition() {
   const getProteinStreak = () => {
     if (!macros?.protein_target) return 0;
     let streak = 0;
-    const sorted = [...macroLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    const today = new Date().toISOString().split('T')[0];
+    const sorted = [...macroLogs].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
+    const today = new Date().toISOString().split("T")[0];
     let currentDate = new Date(today);
-    
+
     for (const log of sorted) {
-      if (log.date !== currentDate.toISOString().split('T')[0]) {
-        if (log.date < currentDate.toISOString().split('T')[0]) {
-          const diff = Math.floor((currentDate.getTime() - new Date(log.date).getTime()) / (1000 * 3600 * 24));
+      if (log.date !== currentDate.toISOString().split("T")[0]) {
+        if (log.date < currentDate.toISOString().split("T")[0]) {
+          const diff = Math.floor(
+            (currentDate.getTime() - new Date(log.date).getTime()) /
+              (1000 * 3600 * 24),
+          );
           if (diff > 1) break;
         }
       }
@@ -415,8 +540,8 @@ export default function Nutrition() {
         currentDate.setDate(currentDate.getDate() - 1);
       } else {
         if (log.date === today) {
-           currentDate.setDate(currentDate.getDate() - 1);
-           continue;
+          currentDate.setDate(currentDate.getDate() - 1);
+          continue;
         }
         break;
       }
@@ -425,10 +550,17 @@ export default function Nutrition() {
   };
 
   const handleAddMeasurement = async () => {
-    const date = new Date().toISOString().split('T')[0];
+    const date = new Date().toISOString().split("T")[0];
     const meas = await saveMemberMeasurement({ ...newMeasurement, date });
     setMeasurements(meas);
-    setNewMeasurement({ waist: '', hips: '', chest: '', thigh: '', arm: '', notes: '' });
+    setNewMeasurement({
+      waist: "",
+      hips: "",
+      chest: "",
+      thigh: "",
+      arm: "",
+      notes: "",
+    });
     toast.success("Measurements saved!");
   };
 
@@ -438,27 +570,29 @@ export default function Nutrition() {
 
     setIsUploading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split(".").pop();
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
       const filePath = `nutrition-photos/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('media')
+        .from("media")
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('media')
-        .getPublicUrl(filePath);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("media").getPublicUrl(filePath);
 
       const phs = await saveMemberPhoto({
         url: publicUrl,
-        date: new Date().toISOString().split('T')[0],
-        pose: 'front' // Default pose
+        date: new Date().toISOString().split("T")[0],
+        pose: "front", // Default pose
       });
       setPhotos(phs);
       toast.success("Photo uploaded!");
@@ -482,16 +616,16 @@ export default function Nutrition() {
       ...nutrition,
       goal: newGoal,
       season: (nutrition.season || 1) + 1,
-      last_review_at: new Date().toISOString()
+      last_review_at: new Date().toISOString(),
     };
     setNutrition(updatedNut);
     await saveMemberNutrition(updatedNut);
-    
+
     if (newGoal !== nutrition.goal) {
       const mHabits = await seedMemberHabits(newGoal);
       setMemberHabits(mHabits);
     }
-    
+
     setShowSeasonReview(false);
     toast.success(`Season ${updatedNut.season} started!`);
   };
@@ -511,31 +645,47 @@ export default function Nutrition() {
     }
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center min-h-screen">
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-    </div>
-  );
+  if (loading)
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
 
   if (!nutrition) {
     return (
       <div className="p-6 space-y-8 min-h-screen flex flex-col items-center justify-center text-center">
         <div className="space-y-4">
-          <h1 className="text-4xl font-heading text-primary uppercase tracking-tighter">Nutrition Journey</h1>
+          <h1 className="text-4xl font-heading text-primary uppercase tracking-tighter">
+            Nutrition Journey
+          </h1>
           <p className="text-muted-foreground max-w-xs mx-auto">
-            Build sustainable habits that last a lifetime. Pick your primary goal to begin.
+            Build sustainable habits that last a lifetime. Pick your primary
+            goal to begin.
           </p>
         </div>
         <div className="grid gap-4 w-full max-w-sm">
-          <Button variant="outline" className="h-24 flex flex-col items-center justify-center gap-2 border-2 hover:border-primary hover:bg-primary/5 transition-all" onClick={() => handleStartOnboarding('fat_loss')}>
+          <Button
+            variant="outline"
+            className="h-24 flex flex-col items-center justify-center gap-2 border-2 hover:border-primary hover:bg-primary/5 transition-all"
+            onClick={() => handleStartOnboarding("fat_loss")}
+          >
             <Target className="h-6 w-6 text-primary" />
             <span className="font-bold">Fat Loss</span>
           </Button>
-          <Button variant="outline" className="h-24 flex flex-col items-center justify-center gap-2 border-2 hover:border-primary hover:bg-primary/5 transition-all" onClick={() => handleStartOnboarding('performance')}>
+          <Button
+            variant="outline"
+            className="h-24 flex flex-col items-center justify-center gap-2 border-2 hover:border-primary hover:bg-primary/5 transition-all"
+            onClick={() => handleStartOnboarding("performance")}
+          >
             <Flame className="h-6 w-6 text-primary" />
             <span className="font-bold">Performance</span>
           </Button>
-          <Button variant="outline" className="h-24 flex flex-col items-center justify-center gap-2 border-2 hover:border-primary hover:bg-primary/5 transition-all" onClick={() => handleStartOnboarding('health')}>
+          <Button
+            variant="outline"
+            className="h-24 flex flex-col items-center justify-center gap-2 border-2 hover:border-primary hover:bg-primary/5 transition-all"
+            onClick={() => handleStartOnboarding("health")}
+          >
             <Trophy className="h-6 w-6 text-primary" />
             <span className="font-bold">Health & Longevity</span>
           </Button>
@@ -544,40 +694,85 @@ export default function Nutrition() {
     );
   }
 
-  const activeMemberHabits = memberHabits.filter(h => h.status === 'active');
-  const today = new Date().toISOString().split('T')[0];
+  const activeMemberHabits = memberHabits.filter((h) => h.status === "active");
+  const today = new Date().toISOString().split("T")[0];
 
   // Calculate consistency trend
   const consistencyData = Array.from({ length: 14 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (13 - i));
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = d.toISOString().split("T")[0];
     let done = 0;
-    activeMemberHabits.forEach(mh => {
-      const habit = habitsLibrary.find(h => h.id === mh.habit_id);
-      const checkin = checkins.find(c => c.date === dateStr && c.habit_id === mh.habit_id);
+    activeMemberHabits.forEach((mh) => {
+      const habit = habitsLibrary.find((h) => h.id === mh.habit_id);
+      const checkin = checkins.find(
+        (c) => c.date === dateStr && c.habit_id === mh.habit_id,
+      );
       if (checkin && habit) {
-        if (habit.checkin_type === 'tick' && checkin.done) done++;
-        else if (habit.checkin_type === 'count' && (checkin.count_value || 0) >= (habit.count_target || 0)) done++;
+        if (habit.checkin_type === "tick" && checkin.done) done++;
+        else if (
+          habit.checkin_type === "count" &&
+          (checkin.count_value || 0) >= (habit.count_target || 0)
+        )
+          done++;
       }
     });
     return {
       date: dateStr.slice(5),
-      value: activeMemberHabits.length > 0 ? Math.round((done / activeMemberHabits.length) * 100) : 0
+      value:
+        activeMemberHabits.length > 0
+          ? Math.round((done / activeMemberHabits.length) * 100)
+          : 0,
     };
   });
 
   const TILES = [
-    { key: 'calculator', flag: 'nutrition_calculator', name: 'Calorie Calculator', icon: '🔥', desc: 'Protein & calorie targets' },
-    { key: 'habits',     flag: 'nutrition_habits',     name: 'Habit Tracking',     icon: '✅', desc: 'Daily habits, streaks & graduation' },
-    { key: 'recipes',    flag: 'nutrition_recipes',    name: 'Recipes',            icon: '🥗', desc: 'Recipe books & ideas' },
-    { key: 'meal_plans', flag: 'nutrition_meal_plans', name: 'Meal Plans',         icon: '📋', desc: 'Structured weekly plans' },
-    { key: 'education',  flag: 'nutrition_education',  name: 'Education',          icon: '🎥', desc: 'Nutrition videos & guides' },
-    { key: 'progress',   flag: 'nutrition_progress',   name: 'Progress',           icon: '📈', desc: 'Weight, measurements & photos' },
+    {
+      key: "calculator",
+      flag: "nutrition_calculator",
+      name: "Calorie Calculator",
+      icon: "🔥",
+      desc: "Protein & calorie targets",
+    },
+    {
+      key: "habits",
+      flag: "nutrition_habits",
+      name: "Habit Tracking",
+      icon: "✅",
+      desc: "Daily habits, streaks & graduation",
+    },
+    {
+      key: "recipes",
+      flag: "nutrition_recipes",
+      name: "Recipes",
+      icon: "🥗",
+      desc: "Recipe books & ideas",
+    },
+    {
+      key: "meal_plans",
+      flag: "nutrition_meal_plans",
+      name: "Meal Plans",
+      icon: "📋",
+      desc: "Structured weekly plans",
+    },
+    {
+      key: "education",
+      flag: "nutrition_education",
+      name: "Education",
+      icon: "🎥",
+      desc: "Nutrition videos & guides",
+    },
+    {
+      key: "progress",
+      flag: "nutrition_progress",
+      name: "Progress",
+      icon: "📈",
+      desc: "Weight, measurements & photos",
+    },
   ];
 
-  const isFlagOn = (flag: string) => flags ? flags[flag] === true : false;
-  const currentTile = TILES.find(t => t.key === nutSection);
+  const isFlagOn = (flag: string) => (flags ? flags[flag] === true : false);
+  const currentTile = TILES.find((t) => t.key === nutSection);
   const sectionOff = nutSection && currentTile && !isFlagOn(currentTile.flag);
 
   // ── Hub view (no section selected) ──────────────────────────────────────
@@ -586,12 +781,20 @@ export default function Nutrition() {
       <div className="p-6 space-y-6 pb-24">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-heading text-foreground uppercase tracking-tighter">Nutrition</h1>
-            <p className="text-sm text-muted-foreground uppercase tracking-widest font-medium">Phase {nutrition.phase} · {nutrition.goal.replace('_', ' ')}</p>
+            <h1 className="text-3xl font-heading text-foreground uppercase tracking-tighter">
+              Nutrition
+            </h1>
+            <p className="text-sm text-muted-foreground uppercase tracking-widest font-medium">
+              Phase {nutrition.phase} · {nutrition.goal.replace("_", " ")}
+            </p>
           </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              >
                 <RefreshCw className="h-4 w-4" />
               </Button>
             </AlertDialogTrigger>
@@ -602,12 +805,17 @@ export default function Nutrition() {
                   Reset Nutrition Plan?
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will permanently delete your current habit progress, check-ins, and goal selection. You will be able to start a fresh approach from scratch.
+                  This will permanently delete your current habit progress,
+                  check-ins, and goal selection. You will be able to start a
+                  fresh approach from scratch.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleResetPlan} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                <AlertDialogAction
+                  onClick={handleResetPlan}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
                   Reset Everything
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -616,7 +824,7 @@ export default function Nutrition() {
         </div>
 
         {showSeasonReview && (
-          <SeasonReviewFlow 
+          <SeasonReviewFlow
             nutrition={nutrition}
             memberHabits={memberHabits}
             habitsLibrary={habitsLibrary}
@@ -634,7 +842,7 @@ export default function Nutrition() {
         )}
 
         <div className="grid grid-cols-2 gap-4">
-          {TILES.map(t => {
+          {TILES.map((t) => {
             const on = isFlagOn(t.flag);
             return (
               <button
@@ -643,27 +851,43 @@ export default function Nutrition() {
                 onClick={() => on && setNutSection(t.key)}
                 className={`flex flex-col gap-3 p-4 rounded-xl border text-left transition-all ${
                   on
-                    ? 'bg-card border-border hover:border-primary/40 active:scale-[0.98]'
-                    : 'bg-muted/30 border-border/50 opacity-60'
+                    ? "bg-card border-border hover:border-primary/40 active:scale-[0.98]"
+                    : "bg-muted/30 border-border/50 opacity-60"
                 }`}
               >
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${on ? 'bg-primary/15' : 'bg-muted'}`}>
+                <div
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${on ? "bg-primary/15" : "bg-muted"}`}
+                >
                   {t.icon}
                 </div>
                 <div className="space-y-0.5">
-                  <p className="font-heading text-lg uppercase tracking-wider leading-none">{t.name}</p>
-                  <p className="text-xs text-muted-foreground leading-tight">{t.desc}</p>
+                  <p className="font-heading text-lg uppercase tracking-wider leading-none">
+                    {t.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground leading-tight">
+                    {t.desc}
+                  </p>
                 </div>
                 {on ? (
-                  <span className="text-xs font-bold text-primary mt-auto">Open ›</span>
+                  <span className="text-xs font-bold text-primary mt-auto">
+                    Open ›
+                  </span>
                 ) : (
-                  <span className="text-[10px] font-bold uppercase text-muted-foreground mt-auto bg-muted px-2 py-0.5 rounded-full inline-block w-fit">Coming soon</span>
+                  <span className="text-[10px] font-bold uppercase text-muted-foreground mt-auto bg-muted px-2 py-0.5 rounded-full inline-block w-fit">
+                    Coming soon
+                  </span>
                 )}
               </button>
             );
           })}
         </div>
-        <input type="file" ref={photoInputRef} className="hidden" accept="image/*" onChange={handlePhotoUpload} />
+        <input
+          type="file"
+          ref={photoInputRef}
+          className="hidden"
+          accept="image/*"
+          onChange={handlePhotoUpload}
+        />
       </div>
     );
   }
@@ -672,81 +896,162 @@ export default function Nutrition() {
 
   return (
     <div className="p-6 space-y-6 pb-24">
-      <button onClick={() => setNutSection(null)} className="flex items-center gap-1 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors">
+      <button
+        onClick={() => setNutSection(null)}
+        className="flex items-center gap-1 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors"
+      >
         <ChevronLeft className="h-4 w-4" /> Nutrition
       </button>
 
       {sectionOff ? (
-        <ComingSoon title={currentTile?.name || 'Section'} />
-      ) : nutSection === 'calculator' ? (
+        <ComingSoon title={currentTile?.name || "Section"} />
+      ) : nutSection === "calculator" ? (
         <div className="space-y-8">
-          <CalculatorSection macros={macros} macroForm={macroForm} setMacroForm={setMacroForm} showMacroCalc={showMacroCalc} setShowMacroCalc={setShowMacroCalc} calculateMacros={calculateMacros} toggleMacroTracking={toggleMacroTracking} todayMacros={todayMacros} logTodayMacros={logTodayMacros} getProteinStreak={getProteinStreak} bodyweight={bodyweight} nutrition={nutrition} />
+          <CalculatorSection
+            macros={macros}
+            macroForm={macroForm}
+            setMacroForm={setMacroForm}
+            showMacroCalc={showMacroCalc}
+            setShowMacroCalc={setShowMacroCalc}
+            calculateMacros={calculateMacros}
+            toggleMacroTracking={toggleMacroTracking}
+            todayMacros={todayMacros}
+            logTodayMacros={logTodayMacros}
+            getProteinStreak={getProteinStreak}
+            bodyweight={bodyweight}
+            nutrition={nutrition}
+          />
         </div>
-      ) : nutSection === 'habits' ? (
+      ) : nutSection === "habits" ? (
         <div className="space-y-12">
-          <HabitsHome activeMemberHabits={activeMemberHabits} habitsLibrary={habitsLibrary} checkins={checkins} handleCheckin={handleCheckin} today={today} memberHabits={memberHabits} nutrition={nutrition} />
+          <HabitsHome
+            activeMemberHabits={activeMemberHabits}
+            habitsLibrary={habitsLibrary}
+            checkins={checkins}
+            handleCheckin={handleCheckin}
+            today={today}
+            memberHabits={memberHabits}
+            nutrition={nutrition}
+          />
           <div className="space-y-4">
             <h2 className="text-2xl font-heading uppercase">Roadmap</h2>
-            <RoadmapView nutrition={nutrition} memberHabits={memberHabits} habitsLibrary={habitsLibrary} />
+            <RoadmapView
+              nutrition={nutrition}
+              memberHabits={memberHabits}
+              habitsLibrary={habitsLibrary}
+            />
           </div>
           <div className="space-y-4">
-            <h2 className="text-2xl font-heading uppercase">Coach Accountability</h2>
-            <CoachUpsellSection nutrition={nutrition} coachNotes={coachNotes} recordCoachingInterest={recordCoachingInterest} activeMemberHabits={activeMemberHabits} habitsLibrary={habitsLibrary} checkins={checkins} />
+            <h2 className="text-2xl font-heading uppercase">
+              Coach Accountability
+            </h2>
+            <CoachUpsellSection
+              nutrition={nutrition}
+              coachNotes={coachNotes}
+              recordCoachingInterest={recordCoachingInterest}
+              activeMemberHabits={activeMemberHabits}
+              habitsLibrary={habitsLibrary}
+              checkins={checkins}
+            />
           </div>
         </div>
-      ) : nutSection === 'progress' ? (
+      ) : nutSection === "progress" ? (
         <div className="space-y-8">
-          <NutritionProgress consistencyData={consistencyData} measurements={measurements} photos={photos} bodyweight={bodyweight} onAddMeasurement={handleAddMeasurement} newMeasurement={newMeasurement} setNewMeasurement={setNewMeasurement} onPhotoUpload={() => photoInputRef.current?.click()} onLogWeight={handleLogWeight} isUploading={isUploading} />
+          <NutritionProgress
+            consistencyData={consistencyData}
+            measurements={measurements}
+            photos={photos}
+            bodyweight={bodyweight}
+            onAddMeasurement={handleAddMeasurement}
+            newMeasurement={newMeasurement}
+            setNewMeasurement={setNewMeasurement}
+            onPhotoUpload={() => photoInputRef.current?.click()}
+            onLogWeight={handleLogWeight}
+            isUploading={isUploading}
+          />
         </div>
-      ) : nutSection === 'recipes' ? (
-        <ResourcesSection page="recipes" heading="Recipes" blurb="Recipe books and ideas from your coach." />
-      ) : nutSection === 'meal_plans' ? (
+      ) : nutSection === "recipes" ? (
+        <ResourcesSection
+          page="recipes"
+          heading="Recipes"
+          blurb="Recipe books and ideas from your coach."
+        />
+      ) : nutSection === "meal_plans" ? (
         <MealPlansPage />
-      ) : nutSection === 'education' ? (
-        <ResourcesSection page="nutrition_education" heading="Education" blurb="Nutrition videos and guides." />
+      ) : nutSection === "education" ? (
+        <ResourcesSection
+          page="nutrition_education"
+          heading="Education"
+          blurb="Nutrition videos and guides."
+        />
       ) : (
-        <ComingSoon title={currentTile?.name || 'Section'} />
+        <ComingSoon title={currentTile?.name || "Section"} />
       )}
-      <input type="file" ref={photoInputRef} className="hidden" accept="image/*" onChange={handlePhotoUpload} />
+      <input
+        type="file"
+        ref={photoInputRef}
+        className="hidden"
+        accept="image/*"
+        onChange={handlePhotoUpload}
+      />
     </div>
   );
 }
 
-function CoachUpsellSection({ nutrition, coachNotes, recordCoachingInterest, activeMemberHabits, habitsLibrary, checkins }: any) {
+function CoachUpsellSection({
+  nutrition,
+  coachNotes,
+  recordCoachingInterest,
+  activeMemberHabits,
+  habitsLibrary,
+  checkins,
+}: any) {
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    return d.toISOString().split('T')[0];
+    return d.toISOString().split("T")[0];
   });
   const totalPossible = last7Days.length * activeMemberHabits.length;
   let totalDone = 0;
   if (totalPossible > 0) {
-    last7Days.forEach(date => {
+    last7Days.forEach((date) => {
       activeMemberHabits.forEach((mh: any) => {
         const habit = habitsLibrary.find((h: any) => h.id === mh.habit_id);
-        const checkin = checkins.find((c: any) => c.date === date && c.habit_id === mh.habit_id);
+        const checkin = checkins.find(
+          (c: any) => c.date === date && c.habit_id === mh.habit_id,
+        );
         if (checkin && habit) {
-          if (habit.checkin_type === 'tick' && checkin.done) totalDone++;
-          else if (habit.checkin_type === 'count' && (checkin.count_value || 0) >= (habit.count_target || 0)) totalDone++;
+          if (habit.checkin_type === "tick" && checkin.done) totalDone++;
+          else if (
+            habit.checkin_type === "count" &&
+            (checkin.count_value || 0) >= (habit.count_target || 0)
+          )
+            totalDone++;
         }
       });
     });
   }
-  const consistency = totalPossible > 0 ? Math.round((totalDone / totalPossible) * 100) : 0;
+  const consistency =
+    totalPossible > 0 ? Math.round((totalDone / totalPossible) * 100) : 0;
   let streak = 0;
   let currentDay = 0;
   while (true) {
     const d = new Date();
     d.setDate(d.getDate() - currentDay);
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = d.toISOString().split("T")[0];
     const allDone = activeMemberHabits.every((mh: any) => {
       const habit = habitsLibrary.find((h: any) => h.id === mh.habit_id);
-      const checkin = checkins.find((c: any) => c.date === dateStr && c.habit_id === mh.habit_id);
+      const checkin = checkins.find(
+        (c: any) => c.date === dateStr && c.habit_id === mh.habit_id,
+      );
       if (!checkin || !habit) return false;
-      if (habit.checkin_type === 'tick') return checkin.done;
+      if (habit.checkin_type === "tick") return checkin.done;
       return (checkin.count_value || 0) >= (habit.count_target || 0);
     });
-    if (allDone && activeMemberHabits.length > 0) { streak++; currentDay++; } else break;
+    if (allDone && activeMemberHabits.length > 0) {
+      streak++;
+      currentDay++;
+    } else break;
   }
 
   let upsellMessage = null;
@@ -754,7 +1059,8 @@ function CoachUpsellSection({ nutrition, coachNotes, recordCoachingInterest, act
     if (streak >= 7) {
       upsellMessage = "You're smashing this. A coach will push you further.";
     } else if (consistency < 50 && activeMemberHabits.length > 0) {
-      upsellMessage = "Stuck? This is exactly where a coach breaks you through.";
+      upsellMessage =
+        "Stuck? This is exactly where a coach breaks you through.";
     }
   }
 
@@ -764,7 +1070,9 @@ function CoachUpsellSection({ nutrition, coachNotes, recordCoachingInterest, act
         <Card className="bg-primary/10 border-primary/20">
           <CardContent className="p-4 flex items-center justify-between gap-4">
             <p className="text-sm font-medium">{upsellMessage}</p>
-            <Button size="sm" onClick={recordCoachingInterest}>Upgrade</Button>
+            <Button size="sm" onClick={recordCoachingInterest}>
+              Upgrade
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -780,15 +1088,26 @@ function CoachUpsellSection({ nutrition, coachNotes, recordCoachingInterest, act
             coachNotes?.length > 0 ? (
               <div className="space-y-1">
                 <p className="text-sm italic">"{coachNotes[0].note}"</p>
-                <p className="text-[10px] text-muted-foreground uppercase">{new Date(coachNotes[0].created_at).toLocaleDateString()}</p>
+                <p className="text-[10px] text-muted-foreground uppercase">
+                  {new Date(coachNotes[0].created_at).toLocaleDateString()}
+                </p>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground italic">No notes from your coach yet.</p>
+              <p className="text-sm text-muted-foreground italic">
+                No notes from your coach yet.
+              </p>
             )
           ) : (
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground italic">Your coach's note appears here — upgrade to 1-1 coaching.</p>
-              <Button variant="outline" size="sm" className="w-full text-xs h-8" onClick={recordCoachingInterest}>
+              <p className="text-sm text-muted-foreground italic">
+                Your coach's note appears here — upgrade to 1-1 coaching.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-xs h-8"
+                onClick={recordCoachingInterest}
+              >
                 Learn about 1-1 Coaching
               </Button>
             </div>
@@ -799,178 +1118,319 @@ function CoachUpsellSection({ nutrition, coachNotes, recordCoachingInterest, act
   );
 }
 
-function HabitsHome({ activeMemberHabits, habitsLibrary, checkins, handleCheckin, today, memberHabits, nutrition }: any) {
+function HabitsHome({
+  activeMemberHabits,
+  habitsLibrary,
+  checkins,
+  handleCheckin,
+  today,
+  memberHabits,
+  nutrition,
+}: any) {
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    return d.toISOString().split('T')[0];
+    return d.toISOString().split("T")[0];
   });
   const totalPossible = last7Days.length * activeMemberHabits.length;
   let totalDone = 0;
   if (totalPossible > 0) {
-    last7Days.forEach(date => {
+    last7Days.forEach((date) => {
       activeMemberHabits.forEach((mh: any) => {
         const habit = habitsLibrary.find((h: any) => h.id === mh.habit_id);
-        const checkin = checkins.find((c: any) => c.date === date && c.habit_id === mh.habit_id);
+        const checkin = checkins.find(
+          (c: any) => c.date === date && c.habit_id === mh.habit_id,
+        );
         if (checkin && habit) {
-          if (habit.checkin_type === 'tick' && checkin.done) totalDone++;
-          else if (habit.checkin_type === 'count' && (checkin.count_value || 0) >= (habit.count_target || 0)) totalDone++;
+          if (habit.checkin_type === "tick" && checkin.done) totalDone++;
+          else if (
+            habit.checkin_type === "count" &&
+            (checkin.count_value || 0) >= (habit.count_target || 0)
+          )
+            totalDone++;
         }
       });
     });
   }
-  const consistency = totalPossible > 0 ? Math.round((totalDone / totalPossible) * 100) : 0;
+  const consistency =
+    totalPossible > 0 ? Math.round((totalDone / totalPossible) * 100) : 0;
   let streak = 0;
   let currentDay = 0;
   while (true) {
     const d = new Date();
     d.setDate(d.getDate() - currentDay);
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = d.toISOString().split("T")[0];
     const allDone = activeMemberHabits.every((mh: any) => {
       const habit = habitsLibrary.find((h: any) => h.id === mh.habit_id);
-      const checkin = checkins.find((c: any) => c.date === dateStr && c.habit_id === mh.habit_id);
+      const checkin = checkins.find(
+        (c: any) => c.date === dateStr && c.habit_id === mh.habit_id,
+      );
       if (!checkin || !habit) return false;
-      if (habit.checkin_type === 'tick') return checkin.done;
+      if (habit.checkin_type === "tick") return checkin.done;
       return (checkin.count_value || 0) >= (habit.count_target || 0);
     });
-    if (allDone && activeMemberHabits.length > 0) { streak++; currentDay++; } else break;
+    if (allDone && activeMemberHabits.length > 0) {
+      streak++;
+      currentDay++;
+    } else break;
   }
-  const nextQueuedHabit = memberHabits.filter((h: any) => h.status === 'queued').sort((a: any, b: any) => a.position - b.position)[0];
-  const nextHabitName = nextQueuedHabit ? habitsLibrary.find((h: any) => h.id === nextQueuedHabit.habit_id)?.name : "Journey Complete";
-
-
+  const nextQueuedHabit = memberHabits
+    .filter((h: any) => h.status === "queued")
+    .sort((a: any, b: any) => a.position - b.position)[0];
+  const nextHabitName = nextQueuedHabit
+    ? habitsLibrary.find((h: any) => h.id === nextQueuedHabit.habit_id)?.name
+    : "Journey Complete";
 
   return (
     <div className="space-y-6">
       <div className="space-y-4">
         <h2 className="text-2xl font-heading uppercase">Today's Habit</h2>
-        {activeMemberHabits.length > 0 ? activeMemberHabits.map((mh: any) => {
-          const habit = habitsLibrary.find((h: any) => String(h.id) === String(mh.habit_id));
+        {activeMemberHabits.length > 0 ? (
+          activeMemberHabits.map((mh: any) => {
+            const habit = habitsLibrary.find(
+              (h: any) => String(h.id) === String(mh.habit_id),
+            );
 
-          if (!habit) return null;
-          const checkin = checkins.find((c: any) => c.date === today && c.habit_id === mh.habit_id);
-          
-          const checkinType = habit.checkin_type || 'tick';
-          const countTarget = checkinType === 'count' ? (habit.count_target || 1) : 1;
-          const todayCount = checkinType === 'tick' ? (checkin?.done ? 1 : 0) : (checkin?.count_value || 0);
-          const isDone = todayCount >= countTarget;
-          
-          const daysToGraduate = habit.days_to_graduate || 21;
-          
-          // Calculate total good days
-          const goodDays = checkins.filter((c: any) => {
-            if (c.habit_id !== habit.id) return false;
-            if (checkinType === 'tick') return c.done;
-            return (c.count_value || 0) >= countTarget;
-          }).length;
+            if (!habit) return null;
+            const checkin = checkins.find(
+              (c: any) => c.date === today && c.habit_id === mh.habit_id,
+            );
 
-          const innerProgress = Math.min(1, todayCount / countTarget);
-          const outerProgress = Math.min(1, goodDays / daysToGraduate);
+            const checkinType = habit.checkin_type || "tick";
+            const countTarget =
+              checkinType === "count" ? habit.count_target || 1 : 1;
+            const todayCount =
+              checkinType === "tick"
+                ? checkin?.done
+                  ? 1
+                  : 0
+                : checkin?.count_value || 0;
+            const isDone = todayCount >= countTarget;
 
-          const radius = 80;
-          const stroke = 12;
-          const normalizedRadius = radius - stroke * 2;
-          const circumference = normalizedRadius * 2 * Math.PI;
-          const innerRadius = normalizedRadius - stroke * 1.5;
-          const innerCircumference = innerRadius * 2 * Math.PI;
+            const daysToGraduate = habit.days_to_graduate || 21;
 
-          return (
-            <div key={mh.id} className="flex flex-col items-center text-center space-y-6 bg-card border border-border rounded-xl p-6 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4">
-                <Badge variant="outline" className="text-[10px] uppercase bg-background/50 backdrop-blur-sm">{habit.category}</Badge>
-              </div>
-              
-              <div className="space-y-2 max-w-[280px]">
-                <h3 className="text-3xl font-heading uppercase text-foreground">{habit.name}</h3>
-                <p className="text-sm text-muted-foreground">{habit.coaching_cue}</p>
-              </div>
+            // Calculate total good days
+            const goodDays = checkins.filter((c: any) => {
+              if (c.habit_id !== habit.id) return false;
+              if (checkinType === "tick") return c.done;
+              return (c.count_value || 0) >= countTarget;
+            }).length;
 
-              <div className="relative flex items-center justify-center" style={{ width: radius * 2, height: radius * 2 }}>
-                <svg height={radius * 2} width={radius * 2} className="transform -rotate-90">
-                  <circle stroke="currentColor" fill="transparent" strokeWidth={stroke} r={normalizedRadius} cx={radius} cy={radius} className="text-muted/30" />
-                  <circle
-                    stroke="currentColor"
-                    fill="transparent"
-                    strokeWidth={stroke}
-                    strokeDasharray={circumference + ' ' + circumference}
-                    style={{ strokeDashoffset: circumference - outerProgress * circumference }}
-                    strokeLinecap="round"
-                    r={normalizedRadius}
-                    cx={radius}
-                    cy={radius}
-                    className="transition-all duration-1000 ease-out text-primary"
-                  />
-                  
-                  <circle stroke="currentColor" fill="transparent" strokeWidth={stroke * 0.8} r={innerRadius} cx={radius} cy={radius} className="text-muted/30" />
-                  <circle
-                    stroke="currentColor"
-                    fill="transparent"
-                    strokeWidth={stroke * 0.8}
-                    strokeDasharray={innerCircumference + ' ' + innerCircumference}
-                    style={{ strokeDashoffset: innerCircumference - innerProgress * innerCircumference }}
-                    strokeLinecap="round"
-                    r={innerRadius}
-                    cx={radius}
-                    cy={radius}
-                    className="transition-all duration-1000 ease-out text-primary/60"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                  <span className="text-2xl font-heading tracking-wider text-foreground leading-none">{goodDays} <span className="text-sm text-muted-foreground">/ {daysToGraduate}</span></span>
-                  <span className="text-[10px] text-muted-foreground uppercase font-bold mt-1">Days</span>
+            const innerProgress = Math.min(1, todayCount / countTarget);
+            const outerProgress = Math.min(1, goodDays / daysToGraduate);
+
+            const radius = 80;
+            const stroke = 12;
+            const normalizedRadius = radius - stroke * 2;
+            const circumference = normalizedRadius * 2 * Math.PI;
+            const innerRadius = normalizedRadius - stroke * 1.5;
+            const innerCircumference = innerRadius * 2 * Math.PI;
+
+            return (
+              <div
+                key={mh.id}
+                className="flex flex-col items-center text-center space-y-6 bg-card border border-border rounded-xl p-6 relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 p-4">
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] uppercase bg-background/50 backdrop-blur-sm"
+                  >
+                    {habit.category}
+                  </Badge>
                 </div>
-              </div>
 
-              <div className="flex flex-col items-center gap-4 w-full">
-                <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-                  <Info className="h-4 w-4 text-primary" /> {habit.practice_label}
+                <div className="space-y-2 max-w-[280px]">
+                  <h3 className="text-3xl font-heading uppercase text-foreground">
+                    {habit.name}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {habit.coaching_cue}
+                  </p>
                 </div>
-                
-                <div className="flex items-center gap-4">
-                  {checkinType === 'tick' ? (
-                    <Button size="lg" variant={isDone ? "default" : "outline"} className={`h-16 w-16 rounded-full p-0 transition-all ${isDone ? 'bg-primary text-primary-foreground scale-110 shadow-lg shadow-primary/20' : ''}`} onClick={() => handleCheckin(habit.id, { done: !isDone, count_value: !isDone ? 1 : 0 })}>
-                      <Check className={`h-8 w-8 transition-transform duration-500 ${isDone ? 'scale-125' : 'scale-100'}`} />
-                    </Button>
-                  ) : (
-                    <div className="flex items-center gap-4 bg-muted rounded-full p-2">
-                      <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full hover:bg-background bg-background shadow-sm" onClick={() => handleCheckin(habit.id, { count_value: Math.max(0, todayCount - 1), done: todayCount - 1 >= countTarget })}>
-                        <Minus className="h-5 w-5" />
+
+                <div
+                  className="relative flex items-center justify-center"
+                  style={{ width: radius * 2, height: radius * 2 }}
+                >
+                  <svg
+                    height={radius * 2}
+                    width={radius * 2}
+                    className="transform -rotate-90"
+                  >
+                    <circle
+                      stroke="currentColor"
+                      fill="transparent"
+                      strokeWidth={stroke}
+                      r={normalizedRadius}
+                      cx={radius}
+                      cy={radius}
+                      className="text-muted/30"
+                    />
+                    <circle
+                      stroke="currentColor"
+                      fill="transparent"
+                      strokeWidth={stroke}
+                      strokeDasharray={circumference + " " + circumference}
+                      style={{
+                        strokeDashoffset:
+                          circumference - outerProgress * circumference,
+                      }}
+                      strokeLinecap="round"
+                      r={normalizedRadius}
+                      cx={radius}
+                      cy={radius}
+                      className="transition-all duration-1000 ease-out text-primary"
+                    />
+
+                    <circle
+                      stroke="currentColor"
+                      fill="transparent"
+                      strokeWidth={stroke * 0.8}
+                      r={innerRadius}
+                      cx={radius}
+                      cy={radius}
+                      className="text-muted/30"
+                    />
+                    <circle
+                      stroke="currentColor"
+                      fill="transparent"
+                      strokeWidth={stroke * 0.8}
+                      strokeDasharray={
+                        innerCircumference + " " + innerCircumference
+                      }
+                      style={{
+                        strokeDashoffset:
+                          innerCircumference -
+                          innerProgress * innerCircumference,
+                      }}
+                      strokeLinecap="round"
+                      r={innerRadius}
+                      cx={radius}
+                      cy={radius}
+                      className="transition-all duration-1000 ease-out text-primary/60"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                    <span className="text-2xl font-heading tracking-wider text-foreground leading-none">
+                      {goodDays}{" "}
+                      <span className="text-sm text-muted-foreground">
+                        / {daysToGraduate}
+                      </span>
+                    </span>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold mt-1">
+                      Days
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-center gap-4 w-full">
+                  <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                    <Info className="h-4 w-4 text-primary" />{" "}
+                    {habit.practice_label}
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    {checkinType === "tick" ? (
+                      <Button
+                        size="lg"
+                        variant={isDone ? "default" : "outline"}
+                        className={`h-16 w-16 rounded-full p-0 transition-all ${isDone ? "bg-primary text-primary-foreground scale-110 shadow-lg shadow-primary/20" : ""}`}
+                        onClick={() =>
+                          handleCheckin(habit.id, {
+                            done: !isDone,
+                            count_value: !isDone ? 1 : 0,
+                          })
+                        }
+                      >
+                        <Check
+                          className={`h-8 w-8 transition-transform duration-500 ${isDone ? "scale-125" : "scale-100"}`}
+                        />
                       </Button>
-                      <div className="flex flex-col items-center min-w-[60px]">
-                        <span className="text-2xl font-bold leading-none">{todayCount} <span className="text-sm text-muted-foreground">/ {countTarget}</span></span>
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground">{habit.count_unit}</span>
+                    ) : (
+                      <div className="flex items-center gap-4 bg-muted rounded-full p-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-12 w-12 rounded-full hover:bg-background bg-background shadow-sm"
+                          onClick={() =>
+                            handleCheckin(habit.id, {
+                              count_value: Math.max(0, todayCount - 1),
+                              done: todayCount - 1 >= countTarget,
+                            })
+                          }
+                        >
+                          <Minus className="h-5 w-5" />
+                        </Button>
+                        <div className="flex flex-col items-center min-w-[60px]">
+                          <span className="text-2xl font-bold leading-none">
+                            {todayCount}{" "}
+                            <span className="text-sm text-muted-foreground">
+                              / {countTarget}
+                            </span>
+                          </span>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                            {habit.count_unit}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-12 w-12 rounded-full hover:bg-background bg-background shadow-sm"
+                          onClick={() =>
+                            handleCheckin(habit.id, {
+                              count_value: Math.min(
+                                countTarget,
+                                todayCount + 1,
+                              ),
+                              done: todayCount + 1 >= countTarget,
+                            })
+                          }
+                        >
+                          <Plus className="h-5 w-5" />
+                        </Button>
                       </div>
-                      <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full hover:bg-background bg-background shadow-sm" onClick={() => handleCheckin(habit.id, { count_value: Math.min(countTarget, todayCount + 1), done: todayCount + 1 >= countTarget })}>
-                        <Plus className="h-5 w-5" />
-                      </Button>
-                    </div>
+                    )}
+                  </div>
+
+                  {habit.video_url && (
+                    <Dialog>
+                      <RadixDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="mt-2 gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-primary"
+                        >
+                          <Play className="h-4 w-4 fill-current" /> Watch Lesson
+                        </Button>
+                      </RadixDialogTrigger>
+                      <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden bg-black border-none">
+                        <DialogHeader className="p-4 absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent">
+                          <DialogTitle className="text-white">
+                            {habit.name}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <div className="aspect-video w-full mt-10">
+                          <iframe
+                            src={getEmbedUrl(habit.video_url)}
+                            className="w-full h-full"
+                            allow="autoplay; fullscreen; picture-in-picture"
+                            allowFullScreen
+                          />
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   )}
                 </div>
-
-                {habit.video_url && (
-                  <Dialog>
-                    <RadixDialogTrigger asChild>
-                      <Button variant="ghost" size="sm" className="mt-2 gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-primary">
-                        <Play className="h-4 w-4 fill-current" /> Watch Lesson
-                      </Button>
-                    </RadixDialogTrigger>
-                    <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden bg-black border-none">
-                      <DialogHeader className="p-4 absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent">
-                        <DialogTitle className="text-white">{habit.name}</DialogTitle>
-                      </DialogHeader>
-                      <div className="aspect-video w-full mt-10">
-                        <iframe src={getEmbedUrl(habit.video_url)} className="w-full h-full" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                )}
               </div>
-            </div>
-          );
-        }) : (
+            );
+          })
+        ) : (
           <div className="text-center py-12 space-y-4">
             <Trophy className="h-12 w-12 text-muted-foreground mx-auto opacity-20" />
-            <p className="text-sm text-muted-foreground">All habits graduated! Check the roadmap for next steps.</p>
+            <p className="text-sm text-muted-foreground">
+              All habits graduated! Check the roadmap for next steps.
+            </p>
           </div>
         )}
       </div>
@@ -980,38 +1440,84 @@ function HabitsHome({ activeMemberHabits, habitsLibrary, checkins, handleCheckin
 
 // ── CalculatorSection (Calorie Calculator hub tile) ────────────────────────
 
-function CalculatorSection({ macros, macroForm, setMacroForm, showMacroCalc, setShowMacroCalc, calculateMacros, toggleMacroTracking, todayMacros, logTodayMacros, getProteinStreak, bodyweight, nutrition }: any) {
+function CalculatorSection({
+  macros,
+  macroForm,
+  setMacroForm,
+  showMacroCalc,
+  setShowMacroCalc,
+  calculateMacros,
+  toggleMacroTracking,
+  todayMacros,
+  logTodayMacros,
+  getProteinStreak,
+  bodyweight,
+  nutrition,
+}: any) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between px-1">
         <h2 className="text-lg font-heading uppercase">Macros & Calories</h2>
         <div className="flex items-center gap-2">
-          <Label htmlFor="macro-tracking" className="text-xs uppercase font-bold text-muted-foreground">Track</Label>
-          <Switch id="macro-tracking" checked={macros?.tracking_enabled ?? (nutrition?.goal === 'performance')} onCheckedChange={toggleMacroTracking} />
+          <Label
+            htmlFor="macro-tracking"
+            className="text-xs uppercase font-bold text-muted-foreground"
+          >
+            Track
+          </Label>
+          <Switch
+            id="macro-tracking"
+            checked={
+              macros?.tracking_enabled ?? nutrition?.goal === "performance"
+            }
+            onCheckedChange={toggleMacroTracking}
+          />
         </div>
       </div>
 
-      {(macros?.tracking_enabled || (!macros && nutrition?.goal === 'performance')) && (
+      {(macros?.tracking_enabled ||
+        (!macros && nutrition?.goal === "performance")) && (
         <div className="space-y-4">
-          {(!macros?.calorie_target || showMacroCalc) ? (
+          {!macros?.calorie_target || showMacroCalc ? (
             <Card>
               <CardContent className="p-4 space-y-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="font-heading uppercase text-lg">Calculate Targets</h3>
-                  {macros?.calorie_target && <Button variant="ghost" size="sm" onClick={() => setShowMacroCalc(false)}>Cancel</Button>}
+                  <h3 className="font-heading uppercase text-lg">
+                    Calculate Targets
+                  </h3>
+                  {macros?.calorie_target && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowMacroCalc(false)}
+                    >
+                      Cancel
+                    </Button>
+                  )}
                 </div>
                 {macros?.coach_set ? (
                   <div className="text-center p-4 bg-muted rounded-lg">
-                    <p className="text-sm font-medium">Targets set by your coach</p>
-                    <p className="text-xs text-muted-foreground mt-1">Your coach has customized your nutrition targets.</p>
+                    <p className="text-sm font-medium">
+                      Targets set by your coach
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Your coach has customized your nutrition targets.
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label className="text-xs">Sex</Label>
-                        <Select value={macroForm.sex} onValueChange={v => setMacroForm({...macroForm, sex: v})}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                        <Select
+                          value={macroForm.sex}
+                          onValueChange={(v) =>
+                            setMacroForm({ ...macroForm, sex: v })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="male">Male</SelectItem>
                             <SelectItem value="female">Female</SelectItem>
@@ -1020,34 +1526,81 @@ function CalculatorSection({ macros, macroForm, setMacroForm, showMacroCalc, set
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs">Age</Label>
-                        <Input type="number" value={macroForm.age} onChange={e => setMacroForm({...macroForm, age: e.target.value})} placeholder="Years" />
+                        <Input
+                          type="number"
+                          value={macroForm.age}
+                          onChange={(e) =>
+                            setMacroForm({ ...macroForm, age: e.target.value })
+                          }
+                          placeholder="Years"
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs">Weight (kg)</Label>
-                        <Input type="number" value={macroForm.weight} onChange={e => setMacroForm({...macroForm, weight: e.target.value})} />
+                        <Input
+                          type="number"
+                          value={macroForm.weight}
+                          onChange={(e) =>
+                            setMacroForm({
+                              ...macroForm,
+                              weight: e.target.value,
+                            })
+                          }
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs">Height (cm)</Label>
-                        <Input type="number" value={macroForm.height} onChange={e => setMacroForm({...macroForm, height: e.target.value})} />
+                        <Input
+                          type="number"
+                          value={macroForm.height}
+                          onChange={(e) =>
+                            setMacroForm({
+                              ...macroForm,
+                              height: e.target.value,
+                            })
+                          }
+                        />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs">Activity Level</Label>
-                      <Select value={macroForm.activity} onValueChange={v => setMacroForm({...macroForm, activity: v})}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                      <Select
+                        value={macroForm.activity}
+                        onValueChange={(v) =>
+                          setMacroForm({ ...macroForm, activity: v })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="1.2">Sedentary (desk job)</SelectItem>
-                          <SelectItem value="1.375">Light (1-3 days/wk)</SelectItem>
-                          <SelectItem value="1.55">Moderate (3-5 days/wk)</SelectItem>
-                          <SelectItem value="1.725">Very Active (6-7 days/wk)</SelectItem>
+                          <SelectItem value="1.2">
+                            Sedentary (desk job)
+                          </SelectItem>
+                          <SelectItem value="1.375">
+                            Light (1-3 days/wk)
+                          </SelectItem>
+                          <SelectItem value="1.55">
+                            Moderate (3-5 days/wk)
+                          </SelectItem>
+                          <SelectItem value="1.725">
+                            Very Active (6-7 days/wk)
+                          </SelectItem>
                           <SelectItem value="1.9">Athlete (2x/day)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs">Goal</Label>
-                      <Select value={macroForm.goal} onValueChange={v => setMacroForm({...macroForm, goal: v})}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                      <Select
+                        value={macroForm.goal}
+                        onValueChange={(v) =>
+                          setMacroForm({ ...macroForm, goal: v })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="lose">Fat Loss</SelectItem>
                           <SelectItem value="maintain">Maintenance</SelectItem>
@@ -1055,7 +1608,9 @@ function CalculatorSection({ macros, macroForm, setMacroForm, showMacroCalc, set
                         </SelectContent>
                       </Select>
                     </div>
-                    <Button className="w-full" onClick={calculateMacros}>Calculate Targets</Button>
+                    <Button className="w-full" onClick={calculateMacros}>
+                      Calculate Targets
+                    </Button>
                   </div>
                 )}
               </CardContent>
@@ -1065,47 +1620,120 @@ function CalculatorSection({ macros, macroForm, setMacroForm, showMacroCalc, set
               <CardContent className="p-4 space-y-6">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-heading uppercase text-lg">Your Daily Targets</h3>
-                    {macros?.coach_set && <Badge variant="secondary" className="text-[10px]">Coach Set</Badge>}
+                    <h3 className="font-heading uppercase text-lg">
+                      Your Daily Targets
+                    </h3>
+                    {macros?.coach_set && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        Coach Set
+                      </Badge>
+                    )}
                   </div>
-                  {!macros?.coach_set && <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => {
-                    setMacroForm({
-                      sex: macros?.sex || 'male',
-                      age: macros?.age?.toString() || '',
-                      height: macros?.height_cm?.toString() || '',
-                      activity: macros?.activity_level?.toString() || '1.2',
-                      goal: macros?.macro_goal || 'maintain',
-                      weight: bodyweight.length > 0 ? (bodyweight[bodyweight.length - 1].weight?.toString() || '') : ''
-                    });
-                    setShowMacroCalc(true);
-                  }}>Recalculate</Button>}
+                  {!macros?.coach_set && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs"
+                      onClick={() => {
+                        setMacroForm({
+                          sex: macros?.sex || "male",
+                          age: macros?.age?.toString() || "",
+                          height: macros?.height_cm?.toString() || "",
+                          activity: macros?.activity_level?.toString() || "1.2",
+                          goal: macros?.macro_goal || "maintain",
+                          weight:
+                            bodyweight.length > 0
+                              ? bodyweight[
+                                  bodyweight.length - 1
+                                ].weight?.toString() || ""
+                              : "",
+                        });
+                        setShowMacroCalc(true);
+                      }}
+                    >
+                      Recalculate
+                    </Button>
+                  )}
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <p className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
                       Protein Target
-                      {getProteinStreak() > 0 && <Badge variant="secondary" className="text-[10px] bg-primary/20 text-primary border-none py-0 h-4"><Flame className="h-3 w-3 mr-1" />{getProteinStreak()}</Badge>}
+                      {getProteinStreak() > 0 && (
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] bg-primary/20 text-primary border-none py-0 h-4"
+                        >
+                          <Flame className="h-3 w-3 mr-1" />
+                          {getProteinStreak()}
+                        </Badge>
+                      )}
                     </p>
-                    <p className="text-3xl font-heading text-primary">{macros.protein_target}g</p>
+                    <p className="text-3xl font-heading text-primary">
+                      {macros.protein_target}g
+                    </p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Calorie Target</p>
-                    <p className="text-3xl font-heading">{macros.calorie_target} <span className="text-sm">kcal</span></p>
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">
+                      Calorie Target
+                    </p>
+                    <p className="text-3xl font-heading">
+                      {macros.calorie_target}{" "}
+                      <span className="text-sm">kcal</span>
+                    </p>
                   </div>
                 </div>
 
                 <div className="space-y-3 pt-4 border-t">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-bold cursor-pointer" onClick={() => logTodayMacros('hit_protein', !todayMacros.hit_protein)}>Did you hit your protein today?</Label>
-                    <Button size="icon" variant={todayMacros.hit_protein ? "default" : "outline"} className={`h-10 w-10 rounded-full p-0 transition-all ${todayMacros.hit_protein ? 'bg-primary text-primary-foreground scale-110 shadow-lg shadow-primary/20' : ''}`} onClick={() => logTodayMacros('hit_protein', !todayMacros.hit_protein)}>
-                      <Check className={`h-5 w-5 transition-transform duration-500 ${todayMacros.hit_protein ? 'scale-125' : 'scale-100'}`} />
+                    <Label
+                      className="text-sm font-bold cursor-pointer"
+                      onClick={() =>
+                        logTodayMacros("hit_protein", !todayMacros.hit_protein)
+                      }
+                    >
+                      Did you hit your protein today?
+                    </Label>
+                    <Button
+                      size="icon"
+                      variant={todayMacros.hit_protein ? "default" : "outline"}
+                      className={`h-10 w-10 rounded-full p-0 transition-all ${todayMacros.hit_protein ? "bg-primary text-primary-foreground scale-110 shadow-lg shadow-primary/20" : ""}`}
+                      onClick={() =>
+                        logTodayMacros("hit_protein", !todayMacros.hit_protein)
+                      }
+                    >
+                      <Check
+                        className={`h-5 w-5 transition-transform duration-500 ${todayMacros.hit_protein ? "scale-125" : "scale-100"}`}
+                      />
                     </Button>
                   </div>
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-bold cursor-pointer" onClick={() => logTodayMacros('hit_calories', !todayMacros.hit_calories)}>Did you stick to your calories today?</Label>
-                    <Button size="icon" variant={todayMacros.hit_calories ? "default" : "outline"} className={`h-10 w-10 rounded-full p-0 transition-all ${todayMacros.hit_calories ? 'bg-primary text-primary-foreground scale-110 shadow-lg shadow-primary/20' : ''}`} onClick={() => logTodayMacros('hit_calories', !todayMacros.hit_calories)}>
-                      <Check className={`h-5 w-5 transition-transform duration-500 ${todayMacros.hit_calories ? 'scale-125' : 'scale-100'}`} />
+                    <Label
+                      className="text-sm font-bold cursor-pointer"
+                      onClick={() =>
+                        logTodayMacros(
+                          "hit_calories",
+                          !todayMacros.hit_calories,
+                        )
+                      }
+                    >
+                      Did you stick to your calories today?
+                    </Label>
+                    <Button
+                      size="icon"
+                      variant={todayMacros.hit_calories ? "default" : "outline"}
+                      className={`h-10 w-10 rounded-full p-0 transition-all ${todayMacros.hit_calories ? "bg-primary text-primary-foreground scale-110 shadow-lg shadow-primary/20" : ""}`}
+                      onClick={() =>
+                        logTodayMacros(
+                          "hit_calories",
+                          !todayMacros.hit_calories,
+                        )
+                      }
+                    >
+                      <Check
+                        className={`h-5 w-5 transition-transform duration-500 ${todayMacros.hit_calories ? "scale-125" : "scale-100"}`}
+                      />
                     </Button>
                   </div>
                 </div>
@@ -1116,45 +1744,75 @@ function CalculatorSection({ macros, macroForm, setMacroForm, showMacroCalc, set
       )}
 
       <div className="pt-4">
-        <ResourcesSection page="calculator" heading="Tips & Resources" blurb="Videos and guides to help you hit your targets." />
+        <ResourcesSection
+          page="calculator"
+          heading="Tips & Resources"
+          blurb="Videos and guides to help you hit your targets."
+        />
       </div>
     </div>
   );
 }
 
-function NutritionProgress({ consistencyData, measurements, photos, bodyweight, onAddMeasurement, newMeasurement, setNewMeasurement, onPhotoUpload, onLogWeight, isUploading }: any) {
+function NutritionProgress({
+  consistencyData,
+  measurements,
+  photos,
+  bodyweight,
+  onAddMeasurement,
+  newMeasurement,
+  setNewMeasurement,
+  onPhotoUpload,
+  onLogWeight,
+  isUploading,
+}: any) {
   const latestMeas = measurements[measurements.length - 1];
   const firstMeas = measurements[0];
   const latestWeight = bodyweight[bodyweight.length - 1]?.weight;
   const firstWeight = bodyweight[0]?.weight;
   const getDiff = (field: string) => {
-    if (!latestMeas || !firstMeas || !latestMeas[field] || !firstMeas[field]) return null;
+    if (!latestMeas || !firstMeas || !latestMeas[field] || !firstMeas[field])
+      return null;
     const diff = latestMeas[field] - firstMeas[field];
-    return diff === 0 ? "0" : `${diff > 0 ? '▲' : '▼'} ${Math.abs(diff)}cm`;
+    return diff === 0 ? "0" : `${diff > 0 ? "▲" : "▼"} ${Math.abs(diff)}cm`;
   };
-  const weightDiff = latestWeight && firstWeight ? latestWeight - firstWeight : null;
+  const weightDiff =
+    latestWeight && firstWeight ? latestWeight - firstWeight : null;
 
   return (
     <div className="space-y-8">
       <section className="space-y-4">
-        <h2 className="text-xl font-heading uppercase flex items-center gap-2"><TrendingUp className="h-5 w-5 text-primary" /> Habit Consistency</h2>
+        <h2 className="text-xl font-heading uppercase flex items-center gap-2">
+          <TrendingUp className="h-5 w-5 text-primary" /> Habit Consistency
+        </h2>
         <Card className="p-4 h-[200px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={consistencyData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+            <LineChart
+              data={consistencyData}
+              margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                vertical={false}
+                stroke="var(--border)"
+              />
               <XAxis dataKey="date" hide />
               <YAxis hide domain={[0, 100]} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: 'var(--radius)' }} 
-                itemStyle={{ color: 'var(--primary)' }}
-                formatter={(value: number) => [`${value}%`, 'Consistency']}
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "var(--card)",
+                  borderColor: "var(--border)",
+                  borderRadius: "var(--radius)",
+                }}
+                itemStyle={{ color: "var(--primary)" }}
+                formatter={(value: number) => [`${value}%`, "Consistency"]}
               />
-              <Line 
-                type="monotone" 
-                dataKey="value" 
-                stroke="var(--primary)" 
-                strokeWidth={3} 
-                dot={{ fill: 'var(--primary)', strokeWidth: 2, r: 4 }} 
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke="var(--primary)"
+                strokeWidth={3}
+                dot={{ fill: "var(--primary)", strokeWidth: 2, r: 4 }}
                 activeDot={{ r: 6, strokeWidth: 0 }}
                 connectNulls
                 isAnimationActive={false}
@@ -1165,34 +1823,65 @@ function NutritionProgress({ consistencyData, measurements, photos, bodyweight, 
       </section>
       <section className="space-y-4">
         <div className="flex justify-between items-center">
-          <h2 className="text-xl font-heading uppercase flex items-center gap-2"><Ruler className="h-5 w-5 text-primary" /> Measurements</h2>
+          <h2 className="text-xl font-heading uppercase flex items-center gap-2">
+            <Ruler className="h-5 w-5 text-primary" /> Measurements
+          </h2>
           <DialogTrigger label="Add" icon={<Plus className="h-4 w-4" />}>
             <div className="space-y-4 p-4">
               <div className="grid grid-cols-2 gap-4">
-                {['waist', 'hips', 'chest', 'thigh', 'arm'].map(f => (
+                {["waist", "hips", "chest", "thigh", "arm"].map((f) => (
                   <div key={f} className="space-y-2">
                     <Label className="capitalize">{f} (cm)</Label>
-                    <Input type="number" value={newMeasurement[f]} onChange={e => setNewMeasurement({...newMeasurement, [f]: e.target.value})} />
+                    <Input
+                      type="number"
+                      value={newMeasurement[f]}
+                      onChange={(e) =>
+                        setNewMeasurement({
+                          ...newMeasurement,
+                          [f]: e.target.value,
+                        })
+                      }
+                    />
                   </div>
                 ))}
               </div>
               <div className="space-y-2">
                 <Label>Notes</Label>
-                <Textarea value={newMeasurement.notes} onChange={e => setNewMeasurement({...newMeasurement, notes: e.target.value})} />
+                <Textarea
+                  value={newMeasurement.notes}
+                  onChange={(e) =>
+                    setNewMeasurement({
+                      ...newMeasurement,
+                      notes: e.target.value,
+                    })
+                  }
+                />
               </div>
-              <Button className="w-full" onClick={onAddMeasurement}>Save Measurements</Button>
+              <Button className="w-full" onClick={onAddMeasurement}>
+                Save Measurements
+              </Button>
             </div>
           </DialogTrigger>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          {['waist', 'hips', 'chest', 'thigh', 'arm'].map(field => (
+          {["waist", "hips", "chest", "thigh", "arm"].map((field) => (
             <Card key={field} className="p-3">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground">{field}</p>
-                  <p className="text-lg font-bold">{latestMeas?.[field] || '--'} cm</p>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground">
+                    {field}
+                  </p>
+                  <p className="text-lg font-bold">
+                    {latestMeas?.[field] || "--"} cm
+                  </p>
                 </div>
-                {getDiff(field) && <span className={`text-[10px] font-bold ${getDiff(field)?.includes('▼') ? 'text-primary' : 'text-destructive'}`}>{getDiff(field)}</span>}
+                {getDiff(field) && (
+                  <span
+                    className={`text-[10px] font-bold ${getDiff(field)?.includes("▼") ? "text-primary" : "text-destructive"}`}
+                  >
+                    {getDiff(field)}
+                  </span>
+                )}
               </div>
             </Card>
           ))}
@@ -1200,55 +1889,152 @@ function NutritionProgress({ consistencyData, measurements, photos, bodyweight, 
       </section>
       <section className="space-y-4">
         <div className="flex justify-between items-center">
-          <h2 className="text-xl font-heading uppercase flex items-center gap-2"><Camera className="h-5 w-5 text-primary" /> Progress Photos</h2>
-          <Button variant="outline" size="sm" onClick={onPhotoUpload} disabled={isUploading} className="gap-2">
-            {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />} Add Photo
+          <h2 className="text-xl font-heading uppercase flex items-center gap-2">
+            <Camera className="h-5 w-5 text-primary" /> Progress Photos
+          </h2>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onPhotoUpload}
+            disabled={isUploading}
+            className="gap-2"
+          >
+            {isUploading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ImagePlus className="h-4 w-4" />
+            )}{" "}
+            Add Photo
           </Button>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <p className="text-[10px] uppercase font-bold text-muted-foreground">First</p>
+            <p className="text-[10px] uppercase font-bold text-muted-foreground">
+              First
+            </p>
             <div className="aspect-[3/4] bg-muted rounded-lg overflow-hidden relative border border-border">
-              {photos[0] ? <img src={photos[0].url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Camera className="h-8 w-8 text-muted-foreground/20" /></div>}
-              {photos[0] && <Badge className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-sm border-none text-[8px]">{new Date(photos[0].date).toLocaleDateString()}</Badge>}
+              {photos[0] ? (
+                <img
+                  src={photos[0].url}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Camera className="h-8 w-8 text-muted-foreground/20" />
+                </div>
+              )}
+              {photos[0] && (
+                <Badge className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-sm border-none text-[8px]">
+                  {new Date(photos[0].date).toLocaleDateString()}
+                </Badge>
+              )}
             </div>
           </div>
           <div className="space-y-2">
-            <p className="text-[10px] uppercase font-bold text-muted-foreground">Latest</p>
+            <p className="text-[10px] uppercase font-bold text-muted-foreground">
+              Latest
+            </p>
             <div className="aspect-[3/4] bg-muted rounded-lg overflow-hidden relative border border-primary/20">
-              {photos.length > 1 ? <img src={photos[photos.length - 1].url} className="w-full h-full object-cover" /> : (photos[0] ? <img src={photos[0].url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Camera className="h-8 w-8 text-muted-foreground/20" /></div>)}
-              {photos.length > 0 && <Badge className="absolute bottom-2 left-2 bg-primary/80 text-primary-foreground border-none text-[8px]">{new Date(photos[photos.length - 1].date).toLocaleDateString()}</Badge>}
+              {photos.length > 1 ? (
+                <img
+                  src={photos[photos.length - 1].url}
+                  className="w-full h-full object-cover"
+                />
+              ) : photos[0] ? (
+                <img
+                  src={photos[0].url}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Camera className="h-8 w-8 text-muted-foreground/20" />
+                </div>
+              )}
+              {photos.length > 0 && (
+                <Badge className="absolute bottom-2 left-2 bg-primary/80 text-primary-foreground border-none text-[8px]">
+                  {new Date(
+                    photos[photos.length - 1].date,
+                  ).toLocaleDateString()}
+                </Badge>
+              )}
             </div>
           </div>
         </div>
       </section>
       <section className="space-y-4">
         <div className="flex justify-between items-center">
-          <h2 className="text-xl font-heading uppercase flex items-center gap-2"><TrendingUp className="h-5 w-5 text-primary" /> Bodyweight</h2>
+          <h2 className="text-xl font-heading uppercase flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-primary" /> Bodyweight
+          </h2>
           <DialogTrigger label="Log" icon={<Plus className="h-4 w-4" />}>
             <div className="p-4 space-y-4">
               <div className="space-y-2">
                 <Label>Current Weight (kg)</Label>
-                <Input type="number" step="0.1" placeholder="75.5" onKeyDown={e => { if (e.key === 'Enter') onLogWeight(parseFloat((e.target as HTMLInputElement).value)); }} />
+                <Input
+                  type="number"
+                  step="0.1"
+                  placeholder="75.5"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter")
+                      onLogWeight(
+                        parseFloat((e.target as HTMLInputElement).value),
+                      );
+                  }}
+                />
               </div>
-              <p className="text-[10px] text-muted-foreground">Press Enter to save</p>
+              <p className="text-[10px] text-muted-foreground">
+                Press Enter to save
+              </p>
             </div>
           </DialogTrigger>
         </div>
         <Card className="p-4 h-[200px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={bodyweight}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+              <CartesianGrid
+                strokeDasharray="3 3"
+                vertical={false}
+                stroke="var(--border)"
+              />
               <XAxis dataKey="date" hide />
-              <YAxis hide domain={['dataMin - 5', 'dataMax + 5']} />
-              <Tooltip contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: 'var(--radius)' }} itemStyle={{ color: 'var(--primary)' }} />
-              <Line type="monotone" dataKey="weight" stroke="var(--primary)" strokeWidth={3} dot={{ fill: 'var(--primary)', strokeWidth: 2 }} />
+              <YAxis hide domain={["dataMin - 5", "dataMax + 5"]} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "var(--card)",
+                  borderColor: "var(--border)",
+                  borderRadius: "var(--radius)",
+                }}
+                itemStyle={{ color: "var(--primary)" }}
+              />
+              <Line
+                type="monotone"
+                dataKey="weight"
+                stroke="var(--primary)"
+                strokeWidth={3}
+                dot={{ fill: "var(--primary)", strokeWidth: 2 }}
+              />
             </LineChart>
           </ResponsiveContainer>
         </Card>
         <div className="flex justify-between items-center px-2">
-          <div className="flex flex-col"><span className="text-[10px] uppercase font-bold text-muted-foreground">Current</span><span className="text-xl font-bold">{latestWeight || '--'} kg</span></div>
-          <div className="flex flex-col items-end"><span className="text-[10px] uppercase font-bold text-muted-foreground">Change</span><span className={`text-xl font-bold ${weightDiff && weightDiff < 0 ? 'text-primary' : 'text-destructive'}`}>{weightDiff ? `${weightDiff > 0 ? '+' : ''}${weightDiff.toFixed(1)} kg` : '--'}</span></div>
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground">
+              Current
+            </span>
+            <span className="text-xl font-bold">{latestWeight || "--"} kg</span>
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground">
+              Change
+            </span>
+            <span
+              className={`text-xl font-bold ${weightDiff && weightDiff < 0 ? "text-primary" : "text-destructive"}`}
+            >
+              {weightDiff
+                ? `${weightDiff > 0 ? "+" : ""}${weightDiff.toFixed(1)} kg`
+                : "--"}
+            </span>
+          </div>
         </div>
       </section>
     </div>
@@ -1259,47 +2045,79 @@ function RoadmapView({ nutrition, memberHabits, habitsLibrary }: any) {
   return (
     <div className="space-y-8 relative">
       <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-border z-0" />
-      {[1, 2, 3].map(phase => {
+      {[1, 2, 3].map((phase) => {
         const goalPath = GOAL_PATHS[nutrition.goal] || [];
-        const phaseHabits = habitsLibrary.filter((h: any) => h.phase === phase && goalPath.includes(h.id));
+        const phaseHabits = habitsLibrary.filter(
+          (h: any) => h.phase === phase && goalPath.includes(h.id),
+        );
         return (
           <div key={phase} className="space-y-4">
             <div className="flex items-center gap-4 z-10 relative">
-              <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm ${nutrition.phase >= phase ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>{phase}</div>
+              <div
+                className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm ${nutrition.phase >= phase ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+              >
+                {phase}
+              </div>
               <h3 className="font-heading text-lg uppercase">Phase {phase}</h3>
             </div>
             <div className="pl-12 space-y-3">
               {phaseHabits.map((h: any) => {
-                const mHabit = memberHabits.find((mh: any) => String(mh.habit_id) === String(h.id));
+                const mHabit = memberHabits.find(
+                  (mh: any) => String(mh.habit_id) === String(h.id),
+                );
 
-                const status = mHabit?.status || 'locked';
+                const status = mHabit?.status || "locked";
                 const hasVideo = !!h.video_url;
-                const isUnlocked = status === 'active' || status === 'graduated';
-                
+                const isUnlocked =
+                  status === "active" || status === "graduated";
+
                 const content = (
-                  <div className={`flex items-center justify-between p-3 rounded-lg border bg-card ${isUnlocked && hasVideo ? 'cursor-pointer hover:border-primary/50 transition-colors' : ''}`}>
+                  <div
+                    className={`flex items-center justify-between p-3 rounded-lg border bg-card ${isUnlocked && hasVideo ? "cursor-pointer hover:border-primary/50 transition-colors" : ""}`}
+                  >
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
-                        <span className={`font-bold ${status === 'locked' ? 'text-muted-foreground' : 'text-foreground'}`}>{h.name}</span>
-                        {isUnlocked && hasVideo && <Play className="h-3 w-3 fill-primary text-primary" />}
+                        <span
+                          className={`font-bold ${status === "locked" ? "text-muted-foreground" : "text-foreground"}`}
+                        >
+                          {h.name}
+                        </span>
+                        {isUnlocked && hasVideo && (
+                          <Play className="h-3 w-3 fill-primary text-primary" />
+                        )}
                       </div>
-                      <span className="text-xs text-muted-foreground">{h.practice_label}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {h.practice_label}
+                      </span>
                     </div>
-                    {status === 'graduated' && <Check className="h-5 w-5 text-primary" />}
-                    {status === 'active' && <Badge className="bg-primary text-primary-foreground">Active</Badge>}
-                    {status === 'locked' && <Badge variant="outline" className="text-muted-foreground">Locked</Badge>}
+                    {status === "graduated" && (
+                      <Check className="h-5 w-5 text-primary" />
+                    )}
+                    {status === "active" && (
+                      <Badge className="bg-primary text-primary-foreground">
+                        Active
+                      </Badge>
+                    )}
+                    {status === "locked" && (
+                      <Badge
+                        variant="outline"
+                        className="text-muted-foreground"
+                      >
+                        Locked
+                      </Badge>
+                    )}
                   </div>
                 );
 
                 if (isUnlocked && hasVideo) {
                   return (
                     <Dialog key={h.id}>
-                      <RadixDialogTrigger asChild>
-                        {content}
-                      </RadixDialogTrigger>
+                      <RadixDialogTrigger asChild>{content}</RadixDialogTrigger>
                       <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden bg-black border-none">
                         <DialogHeader className="p-4 absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent">
-                          <DialogTitle className="text-white">{h.name}</DialogTitle>
+                          <DialogTitle className="text-white">
+                            {h.name}
+                          </DialogTitle>
                         </DialogHeader>
                         <div className="aspect-video w-full mt-10">
                           <iframe
@@ -1324,75 +2142,164 @@ function RoadmapView({ nutrition, memberHabits, habitsLibrary }: any) {
   );
 }
 
-function SeasonReviewFlow({ nutrition, memberHabits, habitsLibrary, checkins, measurements, bodyweight, onComplete, onCancel, onPhotoUpload, onAddMeasurement, newMeasurement, setNewMeasurement, recordCoachingInterest }: any) {
+function SeasonReviewFlow({
+  nutrition,
+  memberHabits,
+  habitsLibrary,
+  checkins,
+  measurements,
+  bodyweight,
+  onComplete,
+  onCancel,
+  onPhotoUpload,
+  onAddMeasurement,
+  newMeasurement,
+  setNewMeasurement,
+  recordCoachingInterest,
+}: any) {
   const [step, setStep] = useState(1);
   const [newGoal, setNewGoal] = useState(nutrition.goal);
 
   // Summary stats
-  const graduatedCount = memberHabits.filter((h: any) => h.status === 'graduated' && new Date(h.graduated_at) > (nutrition.last_review_at ? new Date(nutrition.last_review_at) : new Date(nutrition.started_at))).length;
-  
+  const graduatedCount = memberHabits.filter(
+    (h: any) =>
+      h.status === "graduated" &&
+      new Date(h.graduated_at) >
+        (nutrition.last_review_at
+          ? new Date(nutrition.last_review_at)
+          : new Date(nutrition.started_at)),
+  ).length;
+
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-y-auto">
       <div className="p-6 space-y-8 max-w-lg mx-auto">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={onCancel}><ChevronLeft className="h-6 w-6" /></Button>
-          <h1 className="text-3xl font-heading uppercase tracking-tighter">Season {nutrition.season || 1} Review</h1>
+          <Button variant="ghost" size="icon" onClick={onCancel}>
+            <ChevronLeft className="h-6 w-6" />
+          </Button>
+          <h1 className="text-3xl font-heading uppercase tracking-tighter">
+            Season {nutrition.season || 1} Review
+          </h1>
         </div>
 
         {step === 1 && (
-          <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
+          <motion.div
+            key="step1"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="space-y-8"
+          >
             <div className="space-y-4">
               <h2 className="text-xl font-heading uppercase">Season Summary</h2>
               <div className="grid grid-cols-2 gap-4">
                 <Card className="p-4 bg-primary/5 border-primary/20">
-                  <span className="text-4xl font-heading text-primary">{graduatedCount}</span>
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground">Habits Graduated</p>
+                  <span className="text-4xl font-heading text-primary">
+                    {graduatedCount}
+                  </span>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground">
+                    Habits Graduated
+                  </p>
                 </Card>
                 <Card className="p-4 bg-primary/5 border-primary/20">
-                  <span className="text-4xl font-heading text-primary">{nutrition.phase}</span>
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground">Current Phase</p>
+                  <span className="text-4xl font-heading text-primary">
+                    {nutrition.phase}
+                  </span>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground">
+                    Current Phase
+                  </p>
                 </Card>
               </div>
             </div>
-            <Button className="w-full" onClick={() => setStep(2)}>Next: Update Progress <ArrowRight className="ml-2 h-4 w-4" /></Button>
+            <Button className="w-full" onClick={() => setStep(2)}>
+              Next: Update Progress <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
           </motion.div>
         )}
 
         {step === 2 && (
-          <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
+          <motion.div
+            key="step2"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="space-y-8"
+          >
             <div className="space-y-4">
-              <h2 className="text-xl font-heading uppercase text-center">Capture Your Progress</h2>
-              <p className="text-sm text-muted-foreground text-center">Take a fresh photo and update your measurements to see how far you've come.</p>
+              <h2 className="text-xl font-heading uppercase text-center">
+                Capture Your Progress
+              </h2>
+              <p className="text-sm text-muted-foreground text-center">
+                Take a fresh photo and update your measurements to see how far
+                you've come.
+              </p>
               <div className="grid gap-4">
-                <Button variant="outline" className="h-16 gap-2" onClick={onPhotoUpload}><Camera className="h-5 w-5" /> Update Photo</Button>
-                <DialogTrigger label="Update Measurements" icon={<Ruler className="h-5 w-5" />}>
+                <Button
+                  variant="outline"
+                  className="h-16 gap-2"
+                  onClick={onPhotoUpload}
+                >
+                  <Camera className="h-5 w-5" /> Update Photo
+                </Button>
+                <DialogTrigger
+                  label="Update Measurements"
+                  icon={<Ruler className="h-5 w-5" />}
+                >
                   <div className="space-y-4 p-4">
                     <div className="grid grid-cols-2 gap-4">
-                      {['waist', 'hips', 'chest', 'thigh', 'arm'].map(f => (
+                      {["waist", "hips", "chest", "thigh", "arm"].map((f) => (
                         <div key={f} className="space-y-2">
                           <Label className="capitalize">{f} (cm)</Label>
-                          <Input type="number" value={newMeasurement[f]} onChange={e => setNewMeasurement({...newMeasurement, [f]: e.target.value})} />
+                          <Input
+                            type="number"
+                            value={newMeasurement[f]}
+                            onChange={(e) =>
+                              setNewMeasurement({
+                                ...newMeasurement,
+                                [f]: e.target.value,
+                              })
+                            }
+                          />
                         </div>
                       ))}
                     </div>
-                    <Button className="w-full" onClick={onAddMeasurement}>Save Measurements</Button>
+                    <Button className="w-full" onClick={onAddMeasurement}>
+                      Save Measurements
+                    </Button>
                   </div>
                 </DialogTrigger>
               </div>
             </div>
-            <Button className="w-full" onClick={() => setStep(3)}>Next: Set New Goal <ArrowRight className="ml-2 h-4 w-4" /></Button>
+            <Button className="w-full" onClick={() => setStep(3)}>
+              Next: Set New Goal <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
           </motion.div>
         )}
 
         {step === 3 && (
-          <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
+          <motion.div
+            key="step3"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="space-y-8"
+          >
             <div className="space-y-4">
-              <h2 className="text-xl font-heading uppercase text-center">Your Next Chapter</h2>
-              <p className="text-sm text-muted-foreground text-center">Would you like to keep your current goal or focus on something new for the next 12 weeks?</p>
+              <h2 className="text-xl font-heading uppercase text-center">
+                Your Next Chapter
+              </h2>
+              <p className="text-sm text-muted-foreground text-center">
+                Would you like to keep your current goal or focus on something
+                new for the next 12 weeks?
+              </p>
               <div className="grid gap-4">
-                {['fat_loss', 'performance', 'health'].map(g => (
-                  <Button key={g} variant={newGoal === g ? 'default' : 'outline'} className="h-16 justify-between px-6" onClick={() => setNewGoal(g)}>
-                    <span className="capitalize font-bold">{g.replace('_', ' ')}</span>
+                {["fat_loss", "performance", "health"].map((g) => (
+                  <Button
+                    key={g}
+                    variant={newGoal === g ? "default" : "outline"}
+                    className="h-16 justify-between px-6"
+                    onClick={() => setNewGoal(g)}
+                  >
+                    <span className="capitalize font-bold">
+                      {g.replace("_", " ")}
+                    </span>
                     {newGoal === g && <Check className="h-5 w-5" />}
                   </Button>
                 ))}
@@ -1402,15 +2309,26 @@ function SeasonReviewFlow({ nutrition, memberHabits, habitsLibrary, checkins, me
             {!nutrition?.coached && (
               <Card className="bg-primary/10 border-primary/20">
                 <CardContent className="p-4 space-y-3">
-                  <p className="text-sm font-medium text-center">Level up your next 12 weeks with 1-1 accountability.</p>
-                  <Button variant="outline" className="w-full text-xs h-8" onClick={recordCoachingInterest}>
+                  <p className="text-sm font-medium text-center">
+                    Level up your next 12 weeks with 1-1 accountability.
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="w-full text-xs h-8"
+                    onClick={recordCoachingInterest}
+                  >
                     Learn about 1-1 Coaching
                   </Button>
                 </CardContent>
               </Card>
             )}
 
-            <Button className="w-full bg-primary text-primary-foreground h-14 text-lg font-bold uppercase" onClick={() => onComplete(newGoal)}>Start New Season</Button>
+            <Button
+              className="w-full bg-primary text-primary-foreground h-14 text-lg font-bold uppercase"
+              onClick={() => onComplete(newGoal)}
+            >
+              Start New Season
+            </Button>
           </motion.div>
         )}
       </div>
@@ -1421,7 +2339,7 @@ function SeasonReviewFlow({ nutrition, memberHabits, habitsLibrary, checkins, me
 // ── Meal Plans (Ready-Made + Build Your Own) ────────────────────────────────
 
 function MealPlansPage() {
-  const [tab, setTab] = useState<'plans' | 'build'>('plans');
+  const [tab, setTab] = useState<"plans" | "build">("plans");
   const [target, setTarget] = useState<number | null>(null);
 
   useEffect(() => {
@@ -1433,26 +2351,31 @@ function MealPlansPage() {
     <div className="space-y-6">
       <div className="flex bg-muted rounded-lg p-1">
         <button
-          onClick={() => setTab('plans')}
-          className={`flex-1 text-sm font-bold py-2 rounded-md transition-all ${tab === 'plans' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+          onClick={() => setTab("plans")}
+          className={`flex-1 text-sm font-bold py-2 rounded-md transition-all ${tab === "plans" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
         >
           Ready-Made Plans
         </button>
         <button
-          onClick={() => setTab('build')}
-          className={`flex-1 text-sm font-bold py-2 rounded-md transition-all ${tab === 'build' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+          onClick={() => setTab("build")}
+          className={`flex-1 text-sm font-bold py-2 rounded-md transition-all ${tab === "build" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
         >
           Build Your Own
         </button>
       </div>
 
-      {tab === 'plans' ? (
-        <ResourcesSection page="meal_plans" heading="Ready-Made Plans" blurb="Full plans you can follow as-is." />
+      {tab === "plans" ? (
+        <ResourcesSection
+          page="meal_plans"
+          heading="Ready-Made Plans"
+          blurb="Full plans you can follow as-is."
+        />
       ) : (
         <div className="space-y-4">
           {target && (
             <div className="rounded-xl bg-primary/10 border border-primary/30 p-3 text-sm">
-              <span className="font-bold">Your target: {target} kcal/day.</span> Pick meals from the options below to hit it.
+              <span className="font-bold">Your target: {target} kcal/day.</span>{" "}
+              Pick meals from the options below to hit it.
             </div>
           )}
           <RecipeCards targetCalories={target} />
@@ -1462,17 +2385,40 @@ function MealPlansPage() {
   );
 }
 
-function DialogTrigger({ label, icon, children }: { label: string, icon: React.ReactNode, children: React.ReactNode }) {
+function DialogTrigger({
+  label,
+  icon,
+  children,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="outline" size="sm" className="gap-2" onClick={() => setOpen(true)}>{icon} {label}</Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-2"
+        onClick={() => setOpen(true)}
+      >
+        {icon} {label}
+      </Button>
       {open && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <Card className="w-full max-w-sm max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xl font-heading uppercase">{label}</CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setOpen(false)}><Plus className="h-6 w-6 rotate-45" /></Button>
+              <CardTitle className="text-xl font-heading uppercase">
+                {label}
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setOpen(false)}
+              >
+                <Plus className="h-6 w-6 rotate-45" />
+              </Button>
             </CardHeader>
             <div>{children}</div>
           </Card>

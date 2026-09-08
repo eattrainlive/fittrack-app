@@ -1,10 +1,35 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, X, Check, Flame, Loader2, Utensils, ChevronLeft, ChevronRight, Zap, Search, ArrowLeft, ChevronDown, Pencil, BookOpen, Minus, Trash2, Globe, Lock } from "lucide-react";
+import {
+  Plus,
+  X,
+  Check,
+  Flame,
+  Loader2,
+  Utensils,
+  ChevronLeft,
+  ChevronRight,
+  Zap,
+  Search,
+  ArrowLeft,
+  ChevronDown,
+  Pencil,
+  BookOpen,
+  Minus,
+  Trash2,
+  Globe,
+  Lock,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
@@ -44,7 +69,7 @@ interface Recipe {
   method: string;
   image_url: string;
   sort_order: number;
-  visibility?: 'private' | 'shared';
+  visibility?: "private" | "shared";
   created_by?: string | null;
 }
 
@@ -74,7 +99,11 @@ function fmtDate(d: Date): string {
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-export function RecipeCards({ targetCalories }: { targetCalories: number | null }) {
+export function RecipeCards({
+  targetCalories,
+}: {
+  targetCalories: number | null;
+}) {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeMeal, setActiveMeal] = useState<string>("Breakfast");
@@ -83,7 +112,9 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
 
   // Diary state
   const [selectedDate, setSelectedDate] = useState(() => fmtDate(new Date()));
-  const [weekStart, setWeekStart] = useState(() => startOfWeekMonday(new Date()));
+  const [weekStart, setWeekStart] = useState(() =>
+    startOfWeekMonday(new Date()),
+  );
   const [diary, setDiary] = useState<any[]>([]);
   const [diaryLoading, setDiaryLoading] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -123,10 +154,14 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
   }, [selectedDate, loadDiary]);
 
   // Reset pagination + open bands when filters or meal tab change
-  useEffect(() => { setLimit(20); setOpenBands(new Set()); }, [searchQuery, activeChips, fitsMyDay, activeMeal]);
+  useEffect(() => {
+    setLimit(20);
+    setOpenBands(new Set());
+  }, [searchQuery, activeChips, fitsMyDay, activeMeal]);
 
   // Lunch and Dinner share the "Main" recipe set; Breakfast and Snack map 1:1
-  const mealQuery = (tab: string) => (tab === "Lunch" || tab === "Dinner" ? "Main" : tab);
+  const mealQuery = (tab: string) =>
+    tab === "Lunch" || tab === "Dinner" ? "Main" : tab;
 
   const mealRecipes = recipes.filter((r) => r.meal === mealQuery(activeMeal));
 
@@ -182,23 +217,33 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
         fat: acc.fat + Math.round((r.fats || 0) * m),
       };
     },
-    { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
   );
 
-  const calPct = targetCalories ? Math.min(100, Math.round((dayTotals.calories / targetCalories) * 100)) : 0;
+  const calPct = targetCalories
+    ? Math.min(100, Math.round((dayTotals.calories / targetCalories) * 100))
+    : 0;
 
   // Check if a recipe is already in the diary for this date
-  const isInDiary = (recipeId: string) => diary.some((i) => i.recipe_id === recipeId);
+  const isInDiary = (recipeId: string) =>
+    diary.some((i) => i.recipe_id === recipeId);
 
   // ── Filter logic (client-side over loaded recipes) ────────────────
   const chipTests: Record<string, (r: Recipe) => boolean> = {
-    'High protein': (r) => r.protein >= 30,
-    'Quick (≤15 min)': (r) => (parseInt((r.time || '').match(/\d+/)?.[0] ?? '999')) <= 15,
-    'Chicken': (r) => /chicken/i.test(r.name + r.ingredients),
-    'Beef': (r) => /beef|mince/i.test(r.name + r.ingredients),
-    'Seafood': (r) => /prawn|shrimp|tuna|fish|salmon/i.test(r.name + r.ingredients),
-    'Veggie': (r) => !/chicken|beef|mince|prawn|tuna|fish|turkey|bacon|ham|salmon/i.test(r.name + r.ingredients),
-    'Sweet': (r) => r.meal === 'Dessert' || /biscoff|chocolate|cheesecake|donut|cake|cookie/i.test(r.name),
+    "High protein": (r) => r.protein >= 30,
+    "Quick (≤15 min)": (r) =>
+      parseInt((r.time || "").match(/\d+/)?.[0] ?? "999") <= 15,
+    Chicken: (r) => /chicken/i.test(r.name + r.ingredients),
+    Beef: (r) => /beef|mince/i.test(r.name + r.ingredients),
+    Seafood: (r) =>
+      /prawn|shrimp|tuna|fish|salmon/i.test(r.name + r.ingredients),
+    Veggie: (r) =>
+      !/chicken|beef|mince|prawn|tuna|fish|turkey|bacon|ham|salmon/i.test(
+        r.name + r.ingredients,
+      ),
+    Sweet: (r) =>
+      r.meal === "Dessert" ||
+      /biscoff|chocolate|cheesecake|donut|cake|cookie/i.test(r.name),
   };
 
   const q = searchQuery.trim().toLowerCase();
@@ -206,20 +251,29 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
   const remaining = (targetCalories ?? 0) - dayTotals.calories;
 
   const filteredRecipes = mealRecipes.filter((r) => {
-    if (q && !r.name.toLowerCase().includes(q) && !(r.ingredients || '').toLowerCase().includes(q)) return false;
-    if (activeChips.length && !activeChips.every(c => chipTests[c]?.(r))) return false;
-    if (fitsMyDay && (!targetCalories || r.calories > Math.max(remaining, 0))) return false;
+    if (
+      q &&
+      !r.name.toLowerCase().includes(q) &&
+      !(r.ingredients || "").toLowerCase().includes(q)
+    )
+      return false;
+    if (activeChips.length && !activeChips.every((c) => chipTests[c]?.(r)))
+      return false;
+    if (fitsMyDay && (!targetCalories || r.calories > Math.max(remaining, 0)))
+      return false;
     return true;
   });
 
-  const filteredBands = Array.from(new Set(filteredRecipes.map(r => r.band))).sort((a: any, b: any) => parseInt(a) - parseInt(b));
+  const filteredBands = Array.from(
+    new Set(filteredRecipes.map((r) => r.band)),
+  ).sort((a: any, b: any) => parseInt(a) - parseInt(b));
   const openBandRecipes = filteredBands
-    .filter(b => openBands.has(b) || anyFilterActive)
-    .flatMap(b => filteredRecipes.filter(r => r.band === b));
+    .filter((b) => openBands.has(b) || anyFilterActive)
+    .flatMap((b) => filteredRecipes.filter((r) => r.band === b));
   const hasMore = openBandRecipes.length > limit;
 
   const toggleBand = (band: string) => {
-    setOpenBands(prev => {
+    setOpenBands((prev) => {
       const next = new Set(prev);
       if (next.has(band)) next.delete(band);
       else next.add(band);
@@ -227,7 +281,11 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
     });
   };
 
-  const clearAll = () => { setSearchQuery(""); setActiveChips([]); setFitsMyDay(false); };
+  const clearAll = () => {
+    setSearchQuery("");
+    setActiveChips([]);
+    setFitsMyDay(false);
+  };
 
   // Week strip days
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -246,7 +304,10 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
       for (const d of weekDays) {
         const ds = fmtDate(d);
         const items = await getDiary(ds);
-        totals[ds] = items.reduce((s, i) => s + Math.round((i.calories || 0) * (i.servings || 1)), 0);
+        totals[ds] = items.reduce(
+          (s, i) => s + Math.round((i.calories || 0) * (i.servings || 1)),
+          0,
+        );
       }
       setWeekTotals(totals);
     })();
@@ -273,17 +334,28 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <button
-            onClick={() => setWeekStart(new Date(weekStart.getTime() - 7 * 86400000))}
+            onClick={() =>
+              setWeekStart(new Date(weekStart.getTime() - 7 * 86400000))
+            }
             className="p-1.5 rounded-lg hover:bg-muted"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
           <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            {weekStart.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} —{" "}
-            {new Date(weekStart.getTime() + 6 * 86400000).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+            {weekStart.toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+            })}{" "}
+            —{" "}
+            {new Date(weekStart.getTime() + 6 * 86400000).toLocaleDateString(
+              "en-GB",
+              { day: "numeric", month: "short" },
+            )}
           </span>
           <button
-            onClick={() => setWeekStart(new Date(weekStart.getTime() + 7 * 86400000))}
+            onClick={() =>
+              setWeekStart(new Date(weekStart.getTime() + 7 * 86400000))
+            }
             className="p-1.5 rounded-lg hover:bg-muted"
           >
             <ChevronRight className="h-4 w-4" />
@@ -303,16 +375,20 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
                   isSelected
                     ? "bg-primary text-primary-foreground border-primary"
                     : isToday
-                    ? "border-primary/40 text-foreground"
-                    : "border-border text-muted-foreground"
+                      ? "border-primary/40 text-foreground"
+                      : "border-border text-muted-foreground"
                 }`}
               >
-                <span className={`text-[10px] font-bold uppercase ${isSelected ? "text-primary-foreground/70" : "text-muted-foreground/60"}`}>
+                <span
+                  className={`text-[10px] font-bold uppercase ${isSelected ? "text-primary-foreground/70" : "text-muted-foreground/60"}`}
+                >
                   {DAY_LABELS[i]}
                 </span>
                 <span className="text-sm font-bold">{d.getDate()}</span>
                 {dayTotal > 0 && (
-                  <span className={`text-[9px] ${isSelected ? "text-primary-foreground/70" : "text-primary"}`}>
+                  <span
+                    className={`text-[9px] ${isSelected ? "text-primary-foreground/70" : "text-primary"}`}
+                  >
                     {dayTotal}
                   </span>
                 )}
@@ -335,7 +411,9 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
         ) : (
           diaryByMeal.map((group) => (
             <div key={group.meal} className="space-y-1.5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{group.meal}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                {group.meal}
+              </p>
               {group.items.map((item) => {
                 const mult = item.servings || 1;
                 const kcal = Math.round((item.calories || 0) * mult);
@@ -343,42 +421,50 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
                 const c = Math.round((item.carbs || 0) * mult);
                 const f = Math.round((item.fats || 0) * mult);
                 return (
-                <div key={item.id} className="flex items-center justify-between gap-2 bg-card border border-border rounded-lg p-2.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold truncate">
-                      {item.name}{mult !== 1 ? ` ×${mult}` : ""}
-                      {item.source === "custom" && <span className="ml-1 opacity-60 text-[10px]">(custom)</span>}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {kcal} kcal · P{p} C{c} F{f}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {item.source === "recipe" && item.recipe_id && (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between gap-2 bg-card border border-border rounded-lg p-2.5"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold truncate">
+                        {item.name}
+                        {mult !== 1 ? ` ×${mult}` : ""}
+                        {item.source === "custom" && (
+                          <span className="ml-1 opacity-60 text-[10px]">
+                            (custom)
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {kcal} kcal · P{p} C{c} F{f}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {item.source === "recipe" && item.recipe_id && (
+                        <button
+                          onClick={() => handleViewRecipe(item.recipe_id)}
+                          className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary"
+                          title="View recipe"
+                        >
+                          <BookOpen className="h-4 w-4" />
+                        </button>
+                      )}
                       <button
-                        onClick={() => handleViewRecipe(item.recipe_id)}
-                        className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary"
-                        title="View recipe"
+                        onClick={() => setEditingItem(item)}
+                        className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
+                        title="Edit"
                       >
-                        <BookOpen className="h-4 w-4" />
+                        <Pencil className="h-4 w-4" />
                       </button>
-                    )}
-                    <button
-                      onClick={() => setEditingItem(item)}
-                      className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
-                      title="Edit"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleRemoveDiaryItem(item.id)}
-                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                      title="Remove"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
+                      <button
+                        onClick={() => handleRemoveDiaryItem(item.id)}
+                        className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                        title="Remove"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
-                </div>
                 );
               })}
             </div>
@@ -391,10 +477,19 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
         <div className="flex justify-between items-baseline">
           <div>
             <p className="text-[10px] uppercase tracking-wider text-neutral-400">
-              {selectedDate === todayStr ? "Today" : new Date(selectedDate).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })} · {diary.length} items
+              {selectedDate === todayStr
+                ? "Today"
+                : new Date(selectedDate).toLocaleDateString("en-GB", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "short",
+                  })}{" "}
+              · {diary.length} items
             </p>
             <p className="font-heading text-2xl text-primary leading-none">
-              {dayTotals.calories}{targetCalories ? ` / ${targetCalories}` : ""} <span className="text-xs text-neutral-400">kcal</span>
+              {dayTotals.calories}
+              {targetCalories ? ` / ${targetCalories}` : ""}{" "}
+              <span className="text-xs text-neutral-400">kcal</span>
             </p>
           </div>
           <Button
@@ -409,23 +504,34 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
         {targetCalories && (
           <>
             <div className="h-1.5 rounded-full bg-neutral-700 overflow-hidden">
-              <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${calPct}%` }} />
+              <div
+                className="h-full bg-primary rounded-full transition-all duration-500"
+                style={{ width: `${calPct}%` }}
+              />
             </div>
             <p className="text-xs text-neutral-300">
               P {dayTotals.protein}g · C {dayTotals.carbs}g · F {dayTotals.fat}g
-              {targetCalories - dayTotals.calories > 0 ? ` · ${targetCalories - dayTotals.calories} to go` : dayTotals.calories > targetCalories ? ` · ${dayTotals.calories - targetCalories} over` : ""}
+              {targetCalories - dayTotals.calories > 0
+                ? ` · ${targetCalories - dayTotals.calories} to go`
+                : dayTotals.calories > targetCalories
+                  ? ` · ${dayTotals.calories - targetCalories} over`
+                  : ""}
             </p>
           </>
         )}
         {!targetCalories && (
-          <p className="text-xs text-neutral-300">P {dayTotals.protein}g · C {dayTotals.carbs}g · F {dayTotals.fat}g</p>
+          <p className="text-xs text-neutral-300">
+            P {dayTotals.protein}g · C {dayTotals.carbs}g · F {dayTotals.fat}g
+          </p>
         )}
       </div>
 
       {/* ── Meal type selector ────────────────────────────────────────── */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {MEAL_TYPES.map((m) => {
-          const count = recipes.filter((r) => r.meal === mealQuery(m.key)).length;
+          const count = recipes.filter(
+            (r) => r.meal === mealQuery(m.key),
+          ).length;
           return (
             <button
               key={m.key}
@@ -438,7 +544,9 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
             >
               <span>{m.icon}</span> {m.label}
               {count > 0 && (
-                <span className={`text-[10px] ${activeMeal === m.key ? "text-primary-foreground/70" : "text-muted-foreground/50"}`}>
+                <span
+                  className={`text-[10px] ${activeMeal === m.key ? "text-primary-foreground/70" : "text-muted-foreground/50"}`}
+                >
                   {count}
                 </span>
               )}
@@ -457,20 +565,31 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
           <Plus className="h-4 w-4" /> Add your own recipe
         </Button>
 
-        {myRecipes.filter((r) => r.meal === mealQuery(activeMeal)).length > 0 && (
+        {myRecipes.filter((r) => r.meal === mealQuery(activeMeal)).length >
+          0 && (
           <div className="space-y-1.5">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">My Recipes</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              My Recipes
+            </p>
             {myRecipes
               .filter((r) => r.meal === mealQuery(activeMeal))
               .map((r) => (
-                <div key={r.id} className="flex items-center gap-2 bg-card border border-border rounded-lg p-2.5">
+                <div
+                  key={r.id}
+                  className="flex items-center gap-2 bg-card border border-border rounded-lg p-2.5"
+                >
                   <button
                     onClick={() => setSelected(r)}
                     className="flex-1 flex items-center gap-2.5 min-w-0 text-left"
                   >
                     <div className="w-10 h-10 rounded-md bg-muted overflow-hidden shrink-0 flex items-center justify-center">
                       {r.image_url ? (
-                        <img src={r.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                        <img
+                          src={r.image_url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
                       ) : (
                         <Utensils className="h-4 w-4 text-muted-foreground/40" />
                       )}
@@ -484,7 +603,9 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
                           <Globe className="h-3 w-3 text-primary shrink-0" />
                         )}
                       </p>
-                      <p className="text-[10px] text-muted-foreground">{r.calories} kcal · P{r.protein} C{r.carbs} F{r.fats}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {r.calories} kcal · P{r.protein} C{r.carbs} F{r.fats}
+                      </p>
                     </div>
                   </button>
                   <button
@@ -527,7 +648,10 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
             className="pl-9 pr-9 h-9"
           />
           {searchQuery && (
-            <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            >
               <X className="h-4 w-4" />
             </button>
           )}
@@ -535,14 +659,20 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
 
         {/* Filter chips */}
         <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-          {Object.keys(chipTests).map(chip => {
+          {Object.keys(chipTests).map((chip) => {
             const active = activeChips.includes(chip);
             return (
               <button
                 key={chip}
-                onClick={() => setActiveChips(prev => active ? prev.filter(c => c !== chip) : [...prev, chip])}
+                onClick={() =>
+                  setActiveChips((prev) =>
+                    active ? prev.filter((c) => c !== chip) : [...prev, chip],
+                  )
+                }
                 className={`text-[11px] font-bold px-2.5 py-1.5 rounded-full border whitespace-nowrap transition-all shrink-0 ${
-                  active ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground'
+                  active
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground"
                 }`}
               >
                 {chip}
@@ -560,42 +690,70 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
               disabled={!targetCalories}
             />
             <span className="text-xs font-bold text-muted-foreground">
-              Fits my day{fitsMyDay && targetCalories ? ` · ${Math.max(remaining, 0)} kcal left` : ""}
+              Fits my day
+              {fitsMyDay && targetCalories
+                ? ` · ${Math.max(remaining, 0)} kcal left`
+                : ""}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground">Showing {filteredRecipes.length} of {mealRecipes.length}</span>
+            <span className="text-[11px] text-muted-foreground">
+              Showing {filteredRecipes.length} of {mealRecipes.length}
+            </span>
             {anyFilterActive && (
-              <button onClick={clearAll} className="text-[11px] font-bold text-primary">Clear all</button>
+              <button
+                onClick={clearAll}
+                className="text-[11px] font-bold text-primary"
+              >
+                Clear all
+              </button>
             )}
           </div>
         </div>
         {!targetCalories && (
-          <p className="text-[10px] text-muted-foreground">Set a calorie target to use "Fits my day"</p>
+          <p className="text-[10px] text-muted-foreground">
+            Set a calorie target to use "Fits my day"
+          </p>
         )}
       </div>
 
       {/* ── Recipe cards by calorie band (accordions) ──────────────────── */}
       {filteredRecipes.length === 0 ? (
         <div className="text-center py-12 space-y-3">
-          <p className="text-sm text-muted-foreground">No recipes match — try clearing a filter.</p>
-          {anyFilterActive && <Button variant="outline" size="sm" onClick={clearAll}>Clear all</Button>}
+          <p className="text-sm text-muted-foreground">
+            No recipes match — try clearing a filter.
+          </p>
+          {anyFilterActive && (
+            <Button variant="outline" size="sm" onClick={clearAll}>
+              Clear all
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
           {filteredBands.map((band) => {
-            const bandItems = filteredRecipes.filter(r => r.band === band);
+            const bandItems = filteredRecipes.filter((r) => r.band === band);
             const isOpen = openBands.has(band) || anyFilterActive;
-            const visibleInBand = openBandRecipes.slice(0, limit).filter(r => r.band === band);
+            const visibleInBand = openBandRecipes
+              .slice(0, limit)
+              .filter((r) => r.band === band);
             return (
-              <div key={band} className="rounded-xl border border-border overflow-hidden">
+              <div
+                key={band}
+                className="rounded-xl border border-border overflow-hidden"
+              >
                 <button
                   className="w-full flex items-center justify-between px-3 py-2.5 bg-card"
                   onClick={() => toggleBand(band)}
                 >
-                  <span className="text-sm font-bold uppercase tracking-wider">{band} kcal</span>
+                  <span className="text-sm font-bold uppercase tracking-wider">
+                    {band} kcal
+                  </span>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    {bandItems.length} recipes <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                    {bandItems.length} recipes{" "}
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                    />
                   </span>
                 </button>
                 {isOpen && visibleInBand.length > 0 && (
@@ -628,9 +786,13 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
                             )}
                           </div>
                           <div className="p-2.5 space-y-1">
-                            <p className="font-bold text-xs leading-tight line-clamp-2">{r.name}</p>
+                            <p className="font-bold text-xs leading-tight line-clamp-2">
+                              {r.name}
+                            </p>
                             <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                              <span className="font-semibold">{r.calories} kcal</span>
+                              <span className="font-semibold">
+                                {r.calories} kcal
+                              </span>
                               <span>·</span>
                               <span>{r.protein}g protein</span>
                             </div>
@@ -645,7 +807,7 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
           })}
           {hasMore && (
             <button
-              onClick={() => setLimit(l => l + 20)}
+              onClick={() => setLimit((l) => l + 20)}
               className="w-full text-center text-sm font-bold text-primary py-3 border border-border rounded-xl"
             >
               Load more ({openBandRecipes.length - limit} remaining)
@@ -655,13 +817,22 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
       )}
 
       {/* ── Full recipe modal ──────────────────────────────────────────── */}
-      <Dialog open={!!selected} onOpenChange={(open) => { if (!open) setSelected(null); }}>
+      <Dialog
+        open={!!selected}
+        onOpenChange={(open) => {
+          if (!open) setSelected(null);
+        }}
+      >
         <DialogContent className="w-[92vw] max-w-sm max-h-[85vh] overflow-hidden bg-card border-border p-0 flex flex-col">
           {selected && (
             <>
               <div className="aspect-[16/10] w-full bg-muted overflow-hidden relative shrink-0">
                 {selected.image_url ? (
-                  <img src={selected.image_url} alt={selected.name} className="w-full h-full object-cover" />
+                  <img
+                    src={selected.image_url}
+                    alt={selected.name}
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <Utensils className="h-12 w-12 text-muted-foreground/20" />
@@ -678,20 +849,36 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
               <div className="overflow-y-auto p-4 space-y-4 flex-1">
                 <div className="flex gap-2">
                   <div className="flex-1 rounded-lg bg-muted/50 p-2 text-center">
-                    <p className="text-lg font-heading text-foreground">{selected.calories}</p>
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">kcal</p>
+                    <p className="text-lg font-heading text-foreground">
+                      {selected.calories}
+                    </p>
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">
+                      kcal
+                    </p>
                   </div>
                   <div className="flex-1 rounded-lg bg-muted/50 p-2 text-center">
-                    <p className="text-lg font-heading text-primary">{selected.protein}g</p>
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Protein</p>
+                    <p className="text-lg font-heading text-primary">
+                      {selected.protein}g
+                    </p>
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">
+                      Protein
+                    </p>
                   </div>
                   <div className="flex-1 rounded-lg bg-muted/50 p-2 text-center">
-                    <p className="text-lg font-heading text-amber-500">{selected.carbs}g</p>
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Carbs</p>
+                    <p className="text-lg font-heading text-amber-500">
+                      {selected.carbs}g
+                    </p>
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">
+                      Carbs
+                    </p>
                   </div>
                   <div className="flex-1 rounded-lg bg-muted/50 p-2 text-center">
-                    <p className="text-lg font-heading text-orange-400">{selected.fats}g</p>
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Fat</p>
+                    <p className="text-lg font-heading text-orange-400">
+                      {selected.fats}g
+                    </p>
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">
+                      Fat
+                    </p>
                   </div>
                 </div>
 
@@ -704,12 +891,20 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
                 )}
 
                 <div className="space-y-2">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Ingredients</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Ingredients
+                  </h4>
                   <ul className="space-y-1">
                     {String(selected.ingredients || "")
                       .split("\n")
                       .map((s) => s.trim())
-                      .filter((s) => s && !/^(macros?|calories?|serves?|total\s*time|protein|carbs?|fat|fibre|fiber)\s*[:\-]/i.test(s))
+                      .filter(
+                        (s) =>
+                          s &&
+                          !/^(macros?|calories?|serves?|total\s*time|protein|carbs?|fat|fibre|fiber)\s*[:\-]/i.test(
+                            s,
+                          ),
+                      )
                       .map((ing, i) => (
                         <li key={i} className="text-sm flex items-start gap-2">
                           <span className="text-primary mt-0.5">•</span> {ing}
@@ -720,17 +915,24 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
 
                 {selected.method && (
                   <div className="space-y-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Method</h4>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Method
+                    </h4>
                     <ol className="space-y-2 pl-0 list-none">
                       {String(selected.method)
                         .split("\n")
-                        .map(s => s.trim())
+                        .map((s) => s.trim())
                         .filter(Boolean)
                         .map((step, i) => {
                           const text = step.replace(/^\d+\.\s*/, "");
                           return (
-                            <li key={i} className="flex gap-2 text-sm leading-relaxed">
-                              <span className="shrink-0 font-medium text-muted-foreground w-5">{i + 1}.</span>
+                            <li
+                              key={i}
+                              className="flex gap-2 text-sm leading-relaxed"
+                            >
+                              <span className="shrink-0 font-medium text-muted-foreground w-5">
+                                {i + 1}.
+                              </span>
                               <span>{text}</span>
                             </li>
                           );
@@ -743,9 +945,18 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
               <div className="shrink-0 border-t border-border p-3 bg-background">
                 <Button
                   className="w-full h-11 font-bold"
-                  onClick={() => { handleAddRecipe(selected); setSelected(null); }}
+                  onClick={() => {
+                    handleAddRecipe(selected);
+                    setSelected(null);
+                  }}
                 >
-                  <Plus className="h-4 w-4 mr-1" /> Add to {selectedDate === todayStr ? "Today" : new Date(selectedDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                  <Plus className="h-4 w-4 mr-1" /> Add to{" "}
+                  {selectedDate === todayStr
+                    ? "Today"
+                    : new Date(selectedDate).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                      })}
                 </Button>
               </div>
             </>
@@ -757,7 +968,10 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
       <EditDiaryItemDialog
         item={editingItem}
         onClose={() => setEditingItem(null)}
-        onSaved={() => { loadDiary(selectedDate); setEditingItem(null); }}
+        onSaved={() => {
+          loadDiary(selectedDate);
+          setEditingItem(null);
+        }}
       />
 
       {/* ── Quick Add dialog ───────────────────────────────────────────── */}
@@ -766,7 +980,9 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
         onClose={() => setShowQuickAdd(false)}
         selectedDate={selectedDate}
         defaultMeal={activeMeal}
-        onSaved={() => { loadDiary(selectedDate); }}
+        onSaved={() => {
+          loadDiary(selectedDate);
+        }}
       />
 
       {/* ── Create / Edit recipe dialog ───────────────────────────────── */}
@@ -774,12 +990,18 @@ export function RecipeCards({ targetCalories }: { targetCalories: number | null 
         open={showCreateRecipe}
         onClose={() => setShowCreateRecipe(false)}
         defaultMeal={activeMeal}
-        onSaved={() => { loadRecipes(); setShowCreateRecipe(false); }}
+        onSaved={() => {
+          loadRecipes();
+          setShowCreateRecipe(false);
+        }}
       />
       <EditRecipeDialog
         recipe={editingRecipe}
         onClose={() => setEditingRecipe(null)}
-        onSaved={() => { loadRecipes(); setEditingRecipe(null); }}
+        onSaved={() => {
+          loadRecipes();
+          setEditingRecipe(null);
+        }}
       />
     </div>
   );
@@ -794,14 +1016,20 @@ interface FoodResult {
   image: string | null;
 }
 
-function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
+function QuickAddDialog({
+  open,
+  onClose,
+  selectedDate,
+  defaultMeal,
+  onSaved,
+}: {
   open: boolean;
   onClose: () => void;
   selectedDate: string;
   defaultMeal: string;
   onSaved: () => void;
 }) {
-  const [mode, setMode] = useState<'search' | 'manual'>('search');
+  const [mode, setMode] = useState<"search" | "manual">("search");
   // Search state
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FoodResult[]>([]);
@@ -821,16 +1049,23 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
 
   useEffect(() => {
     if (open) {
-      setMode('search');
-      setQuery(""); setResults([]); setPicked(null); setGrams("100");
+      setMode("search");
+      setQuery("");
+      setResults([]);
+      setPicked(null);
+      setGrams("100");
       setMeal(defaultMeal);
-      setMName(""); setMCalories(""); setMProtein(""); setMCarbs(""); setMFats("");
+      setMName("");
+      setMCalories("");
+      setMProtein("");
+      setMCarbs("");
+      setMFats("");
     }
   }, [open, defaultMeal]);
 
   // Debounced search
   useEffect(() => {
-    if (mode !== 'search' || !query.trim() || query.trim().length < 2) {
+    if (mode !== "search" || !query.trim() || query.trim().length < 2) {
       setResults([]);
       return;
     }
@@ -841,7 +1076,9 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
       setResults(r);
       setSearching(false);
     }, 350);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [query, mode]);
 
   const handleSaveSearch = async () => {
@@ -898,26 +1135,39 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
 
   if (!open) return null;
 
-  const dayLabel = selectedDate === fmtDate(new Date()) ? "Today" : new Date(selectedDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const dayLabel =
+    selectedDate === fmtDate(new Date())
+      ? "Today"
+      : new Date(selectedDate).toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+        });
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
       <DialogContent className="w-[92vw] max-w-sm bg-card border-border max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-heading uppercase tracking-wider">Quick Add</DialogTitle>
+          <DialogTitle className="font-heading uppercase tracking-wider">
+            Quick Add
+          </DialogTitle>
         </DialogHeader>
 
         {/* Mode toggle */}
         <div className="flex bg-muted rounded-lg p-1 gap-1">
           <button
-            onClick={() => setMode('search')}
-            className={`flex-1 text-xs font-bold py-2 rounded-md transition-all flex items-center justify-center gap-1.5 ${mode === 'search' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+            onClick={() => setMode("search")}
+            className={`flex-1 text-xs font-bold py-2 rounded-md transition-all flex items-center justify-center gap-1.5 ${mode === "search" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
           >
             <Search className="h-3.5 w-3.5" /> Search Foods
           </button>
           <button
-            onClick={() => setMode('manual')}
-            className={`flex-1 text-xs font-bold py-2 rounded-md transition-all ${mode === 'manual' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+            onClick={() => setMode("manual")}
+            className={`flex-1 text-xs font-bold py-2 rounded-md transition-all ${mode === "manual" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
           >
             Manual Entry
           </button>
@@ -927,16 +1177,20 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
         <div className="space-y-1.5">
           <Label className="text-xs">Meal</Label>
           <Select value={meal} onValueChange={setMeal}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {DIARY_MEALS.map((m) => (
-                <SelectItem key={m} value={m}>{m}</SelectItem>
+                <SelectItem key={m} value={m}>
+                  {m}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        {mode === 'search' && (
+        {mode === "search" && (
           <div className="space-y-3">
             {!picked ? (
               <>
@@ -960,11 +1214,14 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
                   </div>
                 )}
 
-                {!searching && query.trim().length >= 2 && results.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No results found. Try a different term or use manual entry.
-                  </p>
-                )}
+                {!searching &&
+                  query.trim().length >= 2 &&
+                  results.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No results found. Try a different term or use manual
+                      entry.
+                    </p>
+                  )}
 
                 <div className="space-y-1.5 max-h-[40vh] overflow-y-auto">
                   {results.map((r, i) => (
@@ -974,7 +1231,12 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
                       className="w-full flex items-center gap-3 border border-border rounded-lg p-2.5 text-left hover:border-primary/40 transition-colors active:scale-[0.99]"
                     >
                       {r.image ? (
-                        <img src={r.image} alt="" className="w-10 h-10 rounded-md object-cover shrink-0" loading="lazy" />
+                        <img
+                          src={r.image}
+                          alt=""
+                          className="w-10 h-10 rounded-md object-cover shrink-0"
+                          loading="lazy"
+                        />
                       ) : (
                         <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center shrink-0">
                           <Utensils className="h-4 w-4 text-muted-foreground/40" />
@@ -984,7 +1246,7 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
                         <p className="text-sm font-bold truncate">{r.name}</p>
                         <p className="text-[10px] text-muted-foreground">
                           {r.per100.cal} kcal / 100g
-                          {r.serving ? ` · serving: ${r.serving}` : ''}
+                          {r.serving ? ` · serving: ${r.serving}` : ""}
                         </p>
                       </div>
                     </button>
@@ -994,7 +1256,12 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
                 {results.length > 0 && (
                   <p className="text-[10px] text-muted-foreground text-center">
                     Food data from{" "}
-                    <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener noreferrer" className="underline">
+                    <a
+                      href="https://world.openfoodfacts.org"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline"
+                    >
                       Open Food Facts
                     </a>
                   </p>
@@ -1012,7 +1279,11 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
 
                 <div className="flex items-center gap-3 border border-border rounded-lg p-3">
                   {picked.image ? (
-                    <img src={picked.image} alt="" className="w-12 h-12 rounded-md object-cover shrink-0" />
+                    <img
+                      src={picked.image}
+                      alt=""
+                      className="w-12 h-12 rounded-md object-cover shrink-0"
+                    />
                   ) : (
                     <div className="w-12 h-12 rounded-md bg-muted flex items-center justify-center shrink-0">
                       <Utensils className="h-5 w-5 text-muted-foreground/40" />
@@ -1021,7 +1292,8 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
                   <div className="min-w-0">
                     <p className="text-sm font-bold truncate">{picked.name}</p>
                     <p className="text-[10px] text-muted-foreground">
-                      {picked.per100.cal} kcal · P{picked.per100.protein} C{picked.per100.carbs} F{picked.per100.fats} per 100g
+                      {picked.per100.cal} kcal · P{picked.per100.protein} C
+                      {picked.per100.carbs} F{picked.per100.fats} per 100g
                     </p>
                   </div>
                 </div>
@@ -1036,7 +1308,9 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
                     autoFocus
                   />
                   {picked.serving && (
-                    <p className="text-[10px] text-muted-foreground">Serving size: {picked.serving}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Serving size: {picked.serving}
+                    </p>
                   )}
                 </div>
 
@@ -1047,28 +1321,52 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
                     return (
                       <>
                         <div className="rounded-lg bg-muted/50 p-2 text-center">
-                          <p className="text-sm font-heading text-foreground">{Math.round(picked.per100.cal * f)}</p>
-                          <p className="text-[9px] uppercase font-bold text-muted-foreground">kcal</p>
+                          <p className="text-sm font-heading text-foreground">
+                            {Math.round(picked.per100.cal * f)}
+                          </p>
+                          <p className="text-[9px] uppercase font-bold text-muted-foreground">
+                            kcal
+                          </p>
                         </div>
                         <div className="rounded-lg bg-muted/50 p-2 text-center">
-                          <p className="text-sm font-heading text-primary">{Math.round(picked.per100.protein * f)}g</p>
-                          <p className="text-[9px] uppercase font-bold text-muted-foreground">Protein</p>
+                          <p className="text-sm font-heading text-primary">
+                            {Math.round(picked.per100.protein * f)}g
+                          </p>
+                          <p className="text-[9px] uppercase font-bold text-muted-foreground">
+                            Protein
+                          </p>
                         </div>
                         <div className="rounded-lg bg-muted/50 p-2 text-center">
-                          <p className="text-sm font-heading text-amber-500">{Math.round(picked.per100.carbs * f)}g</p>
-                          <p className="text-[9px] uppercase font-bold text-muted-foreground">Carbs</p>
+                          <p className="text-sm font-heading text-amber-500">
+                            {Math.round(picked.per100.carbs * f)}g
+                          </p>
+                          <p className="text-[9px] uppercase font-bold text-muted-foreground">
+                            Carbs
+                          </p>
                         </div>
                         <div className="rounded-lg bg-muted/50 p-2 text-center">
-                          <p className="text-sm font-heading text-orange-400">{Math.round(picked.per100.fats * f)}g</p>
-                          <p className="text-[9px] uppercase font-bold text-muted-foreground">Fat</p>
+                          <p className="text-sm font-heading text-orange-400">
+                            {Math.round(picked.per100.fats * f)}g
+                          </p>
+                          <p className="text-[9px] uppercase font-bold text-muted-foreground">
+                            Fat
+                          </p>
                         </div>
                       </>
                     );
                   })()}
                 </div>
 
-                <Button className="w-full h-11 font-bold" onClick={handleSaveSearch} disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+                <Button
+                  className="w-full h-11 font-bold"
+                  onClick={handleSaveSearch}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4 mr-1" />
+                  )}
                   Add to {dayLabel}
                 </Button>
               </div>
@@ -1076,32 +1374,71 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
           </div>
         )}
 
-        {mode === 'manual' && (
+        {mode === "manual" && (
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Food name</Label>
-              <Input value={mName} onChange={(e) => setMName(e.target.value)} placeholder="e.g. Banana" autoFocus />
+              <Input
+                value={mName}
+                onChange={(e) => setMName(e.target.value)}
+                placeholder="e.g. Banana"
+                autoFocus
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Calories *</Label>
-              <Input type="number" value={mCalories} onChange={(e) => setMCalories(e.target.value)} placeholder="90" />
+              <Input
+                type="number"
+                value={mCalories}
+                onChange={(e) => setMCalories(e.target.value)}
+                placeholder="90"
+              />
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Protein (g)</Label>
-                <Input type="number" value={mProtein} onChange={(e) => setMProtein(e.target.value)} placeholder="0" />
+                <Label className="text-[10px] uppercase text-muted-foreground">
+                  Protein (g)
+                </Label>
+                <Input
+                  type="number"
+                  value={mProtein}
+                  onChange={(e) => setMProtein(e.target.value)}
+                  placeholder="0"
+                />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Carbs (g)</Label>
-                <Input type="number" value={mCarbs} onChange={(e) => setMCarbs(e.target.value)} placeholder="0" />
+                <Label className="text-[10px] uppercase text-muted-foreground">
+                  Carbs (g)
+                </Label>
+                <Input
+                  type="number"
+                  value={mCarbs}
+                  onChange={(e) => setMCarbs(e.target.value)}
+                  placeholder="0"
+                />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Fat (g)</Label>
-                <Input type="number" value={mFats} onChange={(e) => setMFats(e.target.value)} placeholder="0" />
+                <Label className="text-[10px] uppercase text-muted-foreground">
+                  Fat (g)
+                </Label>
+                <Input
+                  type="number"
+                  value={mFats}
+                  onChange={(e) => setMFats(e.target.value)}
+                  placeholder="0"
+                />
               </div>
             </div>
-            <Button className="w-full h-11 font-bold" onClick={handleSaveManual} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+            <Button
+              className="w-full h-11 font-bold"
+              onClick={handleSaveManual}
+              disabled={saving}
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4 mr-1" />
+              )}
               Add to {dayLabel}
             </Button>
           </div>
@@ -1113,7 +1450,11 @@ function QuickAddDialog({ open, onClose, selectedDate, defaultMeal, onSaved }: {
 
 // ── Edit Diary Item dialog (servings stepper + meal picker + custom macro edit) ──
 
-function EditDiaryItemDialog({ item, onClose, onSaved }: {
+function EditDiaryItemDialog({
+  item,
+  onClose,
+  onSaved,
+}: {
   item: any | null;
   onClose: () => void;
   onSaved: () => void;
@@ -1143,10 +1484,18 @@ function EditDiaryItemDialog({ item, onClose, onSaved }: {
 
   const isCustom = item.source === "custom";
   const mult = servings || 1;
-  const previewKcal = Math.round((isCustom ? (parseInt(calories) || 0) : (item.calories || 0)) * mult);
-  const previewP = Math.round((isCustom ? (parseInt(protein) || 0) : (item.protein || 0)) * mult);
-  const previewC = Math.round((isCustom ? (parseInt(carbs) || 0) : (item.carbs || 0)) * mult);
-  const previewF = Math.round((isCustom ? (parseInt(fats) || 0) : (item.fats || 0)) * mult);
+  const previewKcal = Math.round(
+    (isCustom ? parseInt(calories) || 0 : item.calories || 0) * mult,
+  );
+  const previewP = Math.round(
+    (isCustom ? parseInt(protein) || 0 : item.protein || 0) * mult,
+  );
+  const previewC = Math.round(
+    (isCustom ? parseInt(carbs) || 0 : item.carbs || 0) * mult,
+  );
+  const previewF = Math.round(
+    (isCustom ? parseInt(fats) || 0 : item.fats || 0) * mult,
+  );
 
   const handleSave = async () => {
     setSaving(true);
@@ -1170,10 +1519,17 @@ function EditDiaryItemDialog({ item, onClose, onSaved }: {
   };
 
   return (
-    <Dialog open={!!item} onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog
+      open={!!item}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
       <DialogContent className="w-[92vw] max-w-sm bg-card border-border max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-heading uppercase tracking-wider">Edit Item</DialogTitle>
+          <DialogTitle className="font-heading uppercase tracking-wider">
+            Edit Item
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -1185,16 +1541,24 @@ function EditDiaryItemDialog({ item, onClose, onSaved }: {
                 variant="outline"
                 size="icon"
                 className="h-10 w-10 rounded-full"
-                onClick={() => setServings(s => Math.max(0.5, Math.round((s - 0.5) * 10) / 10))}
+                onClick={() =>
+                  setServings((s) =>
+                    Math.max(0.5, Math.round((s - 0.5) * 10) / 10),
+                  )
+                }
               >
                 <Minus className="h-4 w-4" />
               </Button>
-              <span className="text-2xl font-heading tracking-wider w-12 text-center">{servings}</span>
+              <span className="text-2xl font-heading tracking-wider w-12 text-center">
+                {servings}
+              </span>
               <Button
                 variant="outline"
                 size="icon"
                 className="h-10 w-10 rounded-full"
-                onClick={() => setServings(s => Math.round((s + 0.5) * 10) / 10)}
+                onClick={() =>
+                  setServings((s) => Math.round((s + 0.5) * 10) / 10)
+                }
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -1205,10 +1569,14 @@ function EditDiaryItemDialog({ item, onClose, onSaved }: {
           <div className="space-y-1.5">
             <Label className="text-xs">Meal</Label>
             <Select value={meal} onValueChange={setMeal}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {DIARY_MEALS.map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1223,20 +1591,44 @@ function EditDiaryItemDialog({ item, onClose, onSaved }: {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-[10px] uppercase text-muted-foreground">Calories</Label>
-                  <Input type="number" value={calories} onChange={(e) => setCalories(e.target.value)} />
+                  <Label className="text-[10px] uppercase text-muted-foreground">
+                    Calories
+                  </Label>
+                  <Input
+                    type="number"
+                    value={calories}
+                    onChange={(e) => setCalories(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[10px] uppercase text-muted-foreground">Protein (g)</Label>
-                  <Input type="number" value={protein} onChange={(e) => setProtein(e.target.value)} />
+                  <Label className="text-[10px] uppercase text-muted-foreground">
+                    Protein (g)
+                  </Label>
+                  <Input
+                    type="number"
+                    value={protein}
+                    onChange={(e) => setProtein(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[10px] uppercase text-muted-foreground">Carbs (g)</Label>
-                  <Input type="number" value={carbs} onChange={(e) => setCarbs(e.target.value)} />
+                  <Label className="text-[10px] uppercase text-muted-foreground">
+                    Carbs (g)
+                  </Label>
+                  <Input
+                    type="number"
+                    value={carbs}
+                    onChange={(e) => setCarbs(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[10px] uppercase text-muted-foreground">Fat (g)</Label>
-                  <Input type="number" value={fats} onChange={(e) => setFats(e.target.value)} />
+                  <Label className="text-[10px] uppercase text-muted-foreground">
+                    Fat (g)
+                  </Label>
+                  <Input
+                    type="number"
+                    value={fats}
+                    onChange={(e) => setFats(e.target.value)}
+                  />
                 </div>
               </div>
             </>
@@ -1245,25 +1637,45 @@ function EditDiaryItemDialog({ item, onClose, onSaved }: {
           {/* Live macro preview (scaled by servings) */}
           <div className="grid grid-cols-4 gap-2 pt-1">
             <div className="rounded-lg bg-muted/50 p-2 text-center">
-              <p className="text-sm font-heading text-foreground">{previewKcal}</p>
-              <p className="text-[9px] uppercase font-bold text-muted-foreground">kcal</p>
+              <p className="text-sm font-heading text-foreground">
+                {previewKcal}
+              </p>
+              <p className="text-[9px] uppercase font-bold text-muted-foreground">
+                kcal
+              </p>
             </div>
             <div className="rounded-lg bg-muted/50 p-2 text-center">
               <p className="text-sm font-heading text-primary">{previewP}g</p>
-              <p className="text-[9px] uppercase font-bold text-muted-foreground">Protein</p>
+              <p className="text-[9px] uppercase font-bold text-muted-foreground">
+                Protein
+              </p>
             </div>
             <div className="rounded-lg bg-muted/50 p-2 text-center">
               <p className="text-sm font-heading text-amber-500">{previewC}g</p>
-              <p className="text-[9px] uppercase font-bold text-muted-foreground">Carbs</p>
+              <p className="text-[9px] uppercase font-bold text-muted-foreground">
+                Carbs
+              </p>
             </div>
             <div className="rounded-lg bg-muted/50 p-2 text-center">
-              <p className="text-sm font-heading text-orange-400">{previewF}g</p>
-              <p className="text-[9px] uppercase font-bold text-muted-foreground">Fat</p>
+              <p className="text-sm font-heading text-orange-400">
+                {previewF}g
+              </p>
+              <p className="text-[9px] uppercase font-bold text-muted-foreground">
+                Fat
+              </p>
             </div>
           </div>
 
-          <Button className="w-full h-11 font-bold" onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
+          <Button
+            className="w-full h-11 font-bold"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Check className="h-4 w-4 mr-1" />
+            )}
             Save Changes
           </Button>
         </div>
@@ -1274,9 +1686,21 @@ function EditDiaryItemDialog({ item, onClose, onSaved }: {
 
 // ── Create Recipe dialog (member creates their own recipe) ──────────────────
 
-const RECIPE_MEALS = ["Breakfast", "Lunch", "Dinner", "Side", "Snack", "Dessert"];
+const RECIPE_MEALS = [
+  "Breakfast",
+  "Lunch",
+  "Dinner",
+  "Side",
+  "Snack",
+  "Dessert",
+];
 
-function CreateRecipeDialog({ open, onClose, defaultMeal, onSaved }: {
+function CreateRecipeDialog({
+  open,
+  onClose,
+  defaultMeal,
+  onSaved,
+}: {
   open: boolean;
   onClose: () => void;
   defaultMeal: string;
@@ -1293,14 +1717,23 @@ function CreateRecipeDialog({ open, onClose, defaultMeal, onSaved }: {
   const [time, setTime] = useState("");
   const [ingredients, setIngredients] = useState("");
   const [method, setMethod] = useState("");
-  const [visibility, setVisibility] = useState<'private' | 'shared'>('private');
+  const [visibility, setVisibility] = useState<"private" | "shared">("private");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setName(""); setMeal(defaultMeal); setCalories(""); setProtein("");
-      setCarbs(""); setFats(""); setFibre(""); setServes(""); setTime("");
-      setIngredients(""); setMethod(""); setVisibility('private');
+      setName("");
+      setMeal(defaultMeal);
+      setCalories("");
+      setProtein("");
+      setCarbs("");
+      setFats("");
+      setFibre("");
+      setServes("");
+      setTime("");
+      setIngredients("");
+      setMethod("");
+      setVisibility("private");
     }
   }, [open, defaultMeal]);
 
@@ -1312,49 +1745,75 @@ function CreateRecipeDialog({ open, onClose, defaultMeal, onSaved }: {
       return;
     }
     setSaving(true);
-    const res = await addRecipe({
-      meal, name: name.trim(),
-      calories: parseInt(calories) || 0,
-      protein: parseInt(protein) || 0,
-      carbs: parseInt(carbs) || 0,
-      fats: parseInt(fats) || 0,
-      fibre: parseInt(fibre) || 0,
-      serves: serves.trim(),
-      time: time.trim(),
-      ingredients: ingredients.trim(),
-      method: method.trim(),
-    }, visibility);
+    const res = await addRecipe(
+      {
+        meal,
+        name: name.trim(),
+        calories: parseInt(calories) || 0,
+        protein: parseInt(protein) || 0,
+        carbs: parseInt(carbs) || 0,
+        fats: parseInt(fats) || 0,
+        fibre: parseInt(fibre) || 0,
+        serves: serves.trim(),
+        time: time.trim(),
+        ingredients: ingredients.trim(),
+        method: method.trim(),
+      },
+      visibility,
+    );
     setSaving(false);
     if (res.success) {
-      toast.success(visibility === 'shared' ? 'Recipe saved & shared' : 'Saved to your recipes');
+      toast.success(
+        visibility === "shared"
+          ? "Recipe saved & shared"
+          : "Saved to your recipes",
+      );
       onSaved();
     } else {
-      toast.error('Could not save recipe');
+      toast.error("Could not save recipe");
       console.error(res.error);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
       <DialogContent className="w-[92vw] max-w-sm bg-card border-border max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-heading uppercase tracking-wider">Add Your Own Recipe</DialogTitle>
-          <DialogDescription>Save a recipe for yourself or share it with everyone.</DialogDescription>
+          <DialogTitle className="font-heading uppercase tracking-wider">
+            Add Your Own Recipe
+          </DialogTitle>
+          <DialogDescription>
+            Save a recipe for yourself or share it with everyone.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label className="text-xs">Name *</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. My Coffee" autoFocus />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. My Coffee"
+              autoFocus
+            />
           </div>
 
           <div className="space-y-1.5">
             <Label className="text-xs">Category</Label>
             <Select value={meal} onValueChange={setMeal}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {RECIPE_MEALS.map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1362,43 +1821,91 @@ function CreateRecipeDialog({ open, onClose, defaultMeal, onSaved }: {
 
           <div className="space-y-1.5">
             <Label className="text-xs">Calories *</Label>
-            <Input type="number" value={calories} onChange={(e) => setCalories(e.target.value)} placeholder="0" />
+            <Input
+              type="number"
+              value={calories}
+              onChange={(e) => setCalories(e.target.value)}
+              placeholder="0"
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-2">
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase text-muted-foreground">Protein (g)</Label>
-              <Input type="number" value={protein} onChange={(e) => setProtein(e.target.value)} placeholder="0" />
+              <Label className="text-[10px] uppercase text-muted-foreground">
+                Protein (g)
+              </Label>
+              <Input
+                type="number"
+                value={protein}
+                onChange={(e) => setProtein(e.target.value)}
+                placeholder="0"
+              />
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase text-muted-foreground">Carbs (g)</Label>
-              <Input type="number" value={carbs} onChange={(e) => setCarbs(e.target.value)} placeholder="0" />
+              <Label className="text-[10px] uppercase text-muted-foreground">
+                Carbs (g)
+              </Label>
+              <Input
+                type="number"
+                value={carbs}
+                onChange={(e) => setCarbs(e.target.value)}
+                placeholder="0"
+              />
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase text-muted-foreground">Fat (g)</Label>
-              <Input type="number" value={fats} onChange={(e) => setFats(e.target.value)} placeholder="0" />
+              <Label className="text-[10px] uppercase text-muted-foreground">
+                Fat (g)
+              </Label>
+              <Input
+                type="number"
+                value={fats}
+                onChange={(e) => setFats(e.target.value)}
+                placeholder="0"
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase text-muted-foreground">Serves</Label>
-              <Input value={serves} onChange={(e) => setServes(e.target.value)} placeholder="1" />
+              <Label className="text-[10px] uppercase text-muted-foreground">
+                Serves
+              </Label>
+              <Input
+                value={serves}
+                onChange={(e) => setServes(e.target.value)}
+                placeholder="1"
+              />
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase text-muted-foreground">Time</Label>
-              <Input value={time} onChange={(e) => setTime(e.target.value)} placeholder="15 min" />
+              <Label className="text-[10px] uppercase text-muted-foreground">
+                Time
+              </Label>
+              <Input
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                placeholder="15 min"
+              />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <Label className="text-xs">Ingredients (one per line)</Label>
-            <Textarea value={ingredients} onChange={(e) => setIngredients(e.target.value)} placeholder={"1 cup oats\n1 banana\n..."} rows={3} />
+            <Textarea
+              value={ingredients}
+              onChange={(e) => setIngredients(e.target.value)}
+              placeholder={"1 cup oats\n1 banana\n..."}
+              rows={3}
+            />
           </div>
 
           <div className="space-y-1.5">
             <Label className="text-xs">Method (one step per line)</Label>
-            <Textarea value={method} onChange={(e) => setMethod(e.target.value)} placeholder={"Mix dry ingredients\nAdd wet ingredients\n..."} rows={3} />
+            <Textarea
+              value={method}
+              onChange={(e) => setMethod(e.target.value)}
+              placeholder={"Mix dry ingredients\nAdd wet ingredients\n..."}
+              rows={3}
+            />
           </div>
 
           {/* Visibility */}
@@ -1406,31 +1913,45 @@ function CreateRecipeDialog({ open, onClose, defaultMeal, onSaved }: {
             <Label className="text-xs">Visibility</Label>
             <div className="grid grid-cols-2 gap-2">
               <button
-                onClick={() => setVisibility('private')}
+                onClick={() => setVisibility("private")}
                 className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
-                  visibility === 'private' ? 'border-primary bg-primary/5' : 'border-border'
+                  visibility === "private"
+                    ? "border-primary bg-primary/5"
+                    : "border-border"
                 }`}
               >
                 <Lock className="h-4 w-4" />
                 <span className="text-xs font-bold">Just for me</span>
               </button>
               <button
-                onClick={() => setVisibility('shared')}
+                onClick={() => setVisibility("shared")}
                 className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
-                  visibility === 'shared' ? 'border-primary bg-primary/5' : 'border-border'
+                  visibility === "shared"
+                    ? "border-primary bg-primary/5"
+                    : "border-border"
                 }`}
               >
                 <Globe className="h-4 w-4" />
                 <span className="text-xs font-bold">Share with everyone</span>
               </button>
             </div>
-            {visibility === 'shared' && (
-              <p className="text-[10px] text-muted-foreground">Adds it to the shared recipe library other members can use.</p>
+            {visibility === "shared" && (
+              <p className="text-[10px] text-muted-foreground">
+                Adds it to the shared recipe library other members can use.
+              </p>
             )}
           </div>
 
-          <Button className="w-full h-11 font-bold" onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+          <Button
+            className="w-full h-11 font-bold"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4 mr-1" />
+            )}
             Save Recipe
           </Button>
         </div>
@@ -1441,7 +1962,11 @@ function CreateRecipeDialog({ open, onClose, defaultMeal, onSaved }: {
 
 // ── Edit Recipe dialog (member edits their own recipe) ─────────────────────
 
-function EditRecipeDialog({ recipe, onClose, onSaved }: {
+function EditRecipeDialog({
+  recipe,
+  onClose,
+  onSaved,
+}: {
   recipe: Recipe | null;
   onClose: () => void;
   onSaved: () => void;
@@ -1456,7 +1981,7 @@ function EditRecipeDialog({ recipe, onClose, onSaved }: {
   const [time, setTime] = useState("");
   const [ingredients, setIngredients] = useState("");
   const [method, setMethod] = useState("");
-  const [visibility, setVisibility] = useState<'private' | 'shared'>('private');
+  const [visibility, setVisibility] = useState<"private" | "shared">("private");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -1471,7 +1996,7 @@ function EditRecipeDialog({ recipe, onClose, onSaved }: {
       setTime(recipe.time || "");
       setIngredients(recipe.ingredients || "");
       setMethod(recipe.method || "");
-      setVisibility((recipe as any).visibility || 'private');
+      setVisibility((recipe as any).visibility || "private");
     }
   }, [recipe]);
 
@@ -1519,10 +2044,17 @@ function EditRecipeDialog({ recipe, onClose, onSaved }: {
   };
 
   return (
-    <Dialog open={!!recipe} onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog
+      open={!!recipe}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
       <DialogContent className="w-[92vw] max-w-sm bg-card border-border max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-heading uppercase tracking-wider">Edit Recipe</DialogTitle>
+          <DialogTitle className="font-heading uppercase tracking-wider">
+            Edit Recipe
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -1534,10 +2066,14 @@ function EditRecipeDialog({ recipe, onClose, onSaved }: {
           <div className="space-y-1.5">
             <Label className="text-xs">Category</Label>
             <Select value={meal} onValueChange={setMeal}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {RECIPE_MEALS.map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1545,61 +2081,102 @@ function EditRecipeDialog({ recipe, onClose, onSaved }: {
 
           <div className="space-y-1.5">
             <Label className="text-xs">Calories *</Label>
-            <Input type="number" value={calories} onChange={(e) => setCalories(e.target.value)} />
+            <Input
+              type="number"
+              value={calories}
+              onChange={(e) => setCalories(e.target.value)}
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-2">
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase text-muted-foreground">Protein (g)</Label>
-              <Input type="number" value={protein} onChange={(e) => setProtein(e.target.value)} />
+              <Label className="text-[10px] uppercase text-muted-foreground">
+                Protein (g)
+              </Label>
+              <Input
+                type="number"
+                value={protein}
+                onChange={(e) => setProtein(e.target.value)}
+              />
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase text-muted-foreground">Carbs (g)</Label>
-              <Input type="number" value={carbs} onChange={(e) => setCarbs(e.target.value)} />
+              <Label className="text-[10px] uppercase text-muted-foreground">
+                Carbs (g)
+              </Label>
+              <Input
+                type="number"
+                value={carbs}
+                onChange={(e) => setCarbs(e.target.value)}
+              />
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase text-muted-foreground">Fat (g)</Label>
-              <Input type="number" value={fats} onChange={(e) => setFats(e.target.value)} />
+              <Label className="text-[10px] uppercase text-muted-foreground">
+                Fat (g)
+              </Label>
+              <Input
+                type="number"
+                value={fats}
+                onChange={(e) => setFats(e.target.value)}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase text-muted-foreground">Serves</Label>
-              <Input value={serves} onChange={(e) => setServes(e.target.value)} />
+              <Label className="text-[10px] uppercase text-muted-foreground">
+                Serves
+              </Label>
+              <Input
+                value={serves}
+                onChange={(e) => setServes(e.target.value)}
+              />
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase text-muted-foreground">Time</Label>
+              <Label className="text-[10px] uppercase text-muted-foreground">
+                Time
+              </Label>
               <Input value={time} onChange={(e) => setTime(e.target.value)} />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <Label className="text-xs">Ingredients (one per line)</Label>
-            <Textarea value={ingredients} onChange={(e) => setIngredients(e.target.value)} rows={3} />
+            <Textarea
+              value={ingredients}
+              onChange={(e) => setIngredients(e.target.value)}
+              rows={3}
+            />
           </div>
 
           <div className="space-y-1.5">
             <Label className="text-xs">Method (one step per line)</Label>
-            <Textarea value={method} onChange={(e) => setMethod(e.target.value)} rows={3} />
+            <Textarea
+              value={method}
+              onChange={(e) => setMethod(e.target.value)}
+              rows={3}
+            />
           </div>
 
           <div className="space-y-2">
             <Label className="text-xs">Visibility</Label>
             <div className="grid grid-cols-2 gap-2">
               <button
-                onClick={() => setVisibility('private')}
+                onClick={() => setVisibility("private")}
                 className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
-                  visibility === 'private' ? 'border-primary bg-primary/5' : 'border-border'
+                  visibility === "private"
+                    ? "border-primary bg-primary/5"
+                    : "border-border"
                 }`}
               >
                 <Lock className="h-4 w-4" />
                 <span className="text-xs font-bold">Just for me</span>
               </button>
               <button
-                onClick={() => setVisibility('shared')}
+                onClick={() => setVisibility("shared")}
                 className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
-                  visibility === 'shared' ? 'border-primary bg-primary/5' : 'border-border'
+                  visibility === "shared"
+                    ? "border-primary bg-primary/5"
+                    : "border-border"
                 }`}
               >
                 <Globe className="h-4 w-4" />
@@ -1609,11 +2186,24 @@ function EditRecipeDialog({ recipe, onClose, onSaved }: {
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1 h-11" onClick={handleDelete} disabled={saving}>
+            <Button
+              variant="outline"
+              className="flex-1 h-11"
+              onClick={handleDelete}
+              disabled={saving}
+            >
               <Trash2 className="h-4 w-4 mr-1" /> Delete
             </Button>
-            <Button className="flex-1 h-11 font-bold" onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
+            <Button
+              className="flex-1 h-11 font-bold"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4 mr-1" />
+              )}
               Save
             </Button>
           </div>

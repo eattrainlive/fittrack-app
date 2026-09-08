@@ -1,8 +1,37 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Bar,
+  BarChart,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { useState, useEffect, useMemo } from "react";
-import { getBodyweightHistory, saveBodyweight, getPersonalRecords, savePersonalRecord, deletePersonalRecord, getExercises, getWorkoutHistory } from "@/lib/store";
+import {
+  getBodyweightHistory,
+  saveBodyweight,
+  getPersonalRecords,
+  savePersonalRecord,
+  deletePersonalRecord,
+  getExercises,
+  getWorkoutHistory,
+} from "@/lib/store";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,19 +63,18 @@ const Progress = () => {
     };
     loadData();
     const timer = setTimeout(() => setIsLoading(false), 600);
-    
+
     const handleSync = () => {
       loadData();
       setIsLoading(false);
     };
 
-    window.addEventListener('fittrack_synced', handleSync);
+    window.addEventListener("fittrack_synced", handleSync);
     return () => {
       clearTimeout(timer);
-      window.removeEventListener('fittrack_synced', handleSync);
+      window.removeEventListener("fittrack_synced", handleSync);
     };
   }, []);
-
 
   const handleSaveMeasurements = async () => {
     const data: any = {};
@@ -60,13 +88,13 @@ const Progress = () => {
     if (Object.keys(data).length > 0) {
       const res: any = await saveBodyweight(data);
       setBodyweightData(res.history || []);
-      
+
       if (res.success) {
         toast.success("Measurements saved");
       } else {
         toast.warning("Saved locally — cloud sync failed");
       }
-      
+
       setNewWeight("");
       setNewBodyFat("");
       setNewWaist("");
@@ -96,16 +124,24 @@ const Progress = () => {
     const data = [];
     const now = new Date();
     for (let i = 3; i >= 0; i--) {
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (i * 7 + 7));
-      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (i * 7));
-      
+      const start = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - (i * 7 + 7),
+      );
+      const end = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - i * 7,
+      );
+
       const weekVolume = workoutHistory
         .filter((w: any) => {
           const d = new Date(w.date);
           return d >= start && d < end;
         })
         .reduce((sum: number, w: any) => sum + (w.volume || 0), 0);
-        
+
       data.push({ name: `Week ${4 - i}`, volume: weekVolume });
     }
     return data;
@@ -122,18 +158,25 @@ const Progress = () => {
         { name: "Mar", bench: 85, squat: 110, deadlift: 130 },
       ];
     }
-    
+
     // Create a simplified chart from PRs
     return [
-      { name: "Current", ...prs.reduce((acc: any, pr: any) => ({ ...acc, [pr.exerciseId]: pr.weight }), {}) }
+      {
+        name: "Current",
+        ...prs.reduce(
+          (acc: any, pr: any) => ({ ...acc, [pr.exerciseId]: pr.weight }),
+          {},
+        ),
+      },
     ];
   }, [prs, workoutHistory]);
-
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-4xl font-heading tracking-wider">Progress Charts</h2>
+        <h2 className="text-4xl font-heading tracking-wider">
+          Progress Charts
+        </h2>
         <Select defaultValue="month">
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select timeframe" />
@@ -156,182 +199,289 @@ const Progress = () => {
           <div className="grid gap-4 md:grid-cols-2">
             <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className="font-heading text-2xl tracking-wider">Total Volume</CardTitle>
-            <CardDescription>Total weight lifted across all exercises</CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2">
-            <div className="h-[300px] w-full p-4">
-              {isLoading ? (
-                <Skeleton className="w-full h-full rounded-xl" />
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={volumeData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value/1000}k`} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                      itemStyle={{ color: 'hsl(var(--foreground))' }}
-                      cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }}
-                    />
-                    <Bar dataKey="volume" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                <CardTitle className="font-heading text-2xl tracking-wider">
+                  Total Volume
+                </CardTitle>
+                <CardDescription>
+                  Total weight lifted across all exercises
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pl-2">
+                <div className="h-[300px] w-full p-4">
+                  {isLoading ? (
+                    <Skeleton className="w-full h-full rounded-xl" />
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={volumeData}
+                        margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                      >
+                        <XAxis
+                          dataKey="name"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <YAxis
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(value) => `${value / 1000}k`}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            borderColor: "hsl(var(--border))",
+                            borderRadius: "8px",
+                          }}
+                          itemStyle={{ color: "hsl(var(--foreground))" }}
+                          cursor={{ fill: "hsl(var(--muted))", opacity: 0.2 }}
+                        />
+                        <Bar
+                          dataKey="volume"
+                          fill="hsl(var(--primary))"
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <CardTitle className="font-heading text-2xl tracking-wider">Estimated 1RM</CardTitle>
-            <CardDescription>Estimated one-rep max for main lifts</CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2">
-            <div className="h-[300px] w-full p-4">
-              {isLoading ? (
-                <Skeleton className="w-full h-full rounded-xl" />
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={oneRepMaxData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                      itemStyle={{ color: 'hsl(var(--foreground))' }}
-                    />
-                    <Line type="monotone" dataKey="bench" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ fill: 'hsl(var(--primary))' }} />
-                    <Line type="monotone" dataKey="squat" stroke="hsl(var(--muted-foreground))" strokeWidth={2} dot={{ fill: 'hsl(var(--muted-foreground))' }} />
-                    <Line type="monotone" dataKey="deadlift" stroke="hsl(var(--foreground))" strokeWidth={2} dot={{ fill: 'hsl(var(--foreground))' }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-            <div className="flex justify-center gap-4 mt-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-primary"></div>
-                <span>Bench Press</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-muted-foreground"></div>
-                <span>Squat</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-foreground"></div>
-                <span>Deadlift</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="font-heading text-2xl tracking-wider">
+                  Estimated 1RM
+                </CardTitle>
+                <CardDescription>
+                  Estimated one-rep max for main lifts
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pl-2">
+                <div className="h-[300px] w-full p-4">
+                  {isLoading ? (
+                    <Skeleton className="w-full h-full rounded-xl" />
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={oneRepMaxData}
+                        margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                      >
+                        <XAxis
+                          dataKey="name"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <YAxis
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            borderColor: "hsl(var(--border))",
+                            borderRadius: "8px",
+                          }}
+                          itemStyle={{ color: "hsl(var(--foreground))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="bench"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2}
+                          dot={{ fill: "hsl(var(--primary))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="squat"
+                          stroke="hsl(var(--muted-foreground))"
+                          strokeWidth={2}
+                          dot={{ fill: "hsl(var(--muted-foreground))" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="deadlift"
+                          stroke="hsl(var(--foreground))"
+                          strokeWidth={2}
+                          dot={{ fill: "hsl(var(--foreground))" }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+                <div className="flex justify-center gap-4 mt-4 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-primary"></div>
+                    <span>Bench Press</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-muted-foreground"></div>
+                    <span>Squat</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-foreground"></div>
+                    <span>Deadlift</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card className="bg-card border-border md:col-span-2">
-            <CardHeader className="space-y-4">
-              <div>
-                <CardTitle className="font-heading text-2xl tracking-wider">Body Measurements</CardTitle>
-                <CardDescription>Track your weight and body measurements over time</CardDescription>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-                <Input 
-                  type="number" 
-                  placeholder="Weight (kg)" 
-                  value={newWeight}
-                  onChange={(e) => setNewWeight(e.target.value)}
-                  className="bg-background"
-                  step="0.1"
-                />
-                <Input 
-                  type="number" 
-                  placeholder="Body Fat %" 
-                  value={newBodyFat}
-                  onChange={(e) => setNewBodyFat(e.target.value)}
-                  className="bg-background"
-                  step="0.1"
-                />
-                <Input 
-                  type="number" 
-                  placeholder="Waist (cm)" 
-                  value={newWaist}
-                  onChange={(e) => setNewWaist(e.target.value)}
-                  className="bg-background"
-                  step="0.1"
-                />
-                <Input 
-                  type="number" 
-                  placeholder="Arms (cm)" 
-                  value={newArms}
-                  onChange={(e) => setNewArms(e.target.value)}
-                  className="bg-background"
-                  step="0.1"
-                />
-                <Input 
-                  type="number" 
-                  placeholder="Chest (cm)" 
-                  value={newChest}
-                  onChange={(e) => setNewChest(e.target.value)}
-                  className="bg-background"
-                  step="0.1"
-                />
-                <Input 
-                  type="number" 
-                  placeholder="Legs (cm)" 
-                  value={newLegs}
-                  onChange={(e) => setNewLegs(e.target.value)}
-                  className="bg-background"
-                  step="0.1"
-                />
-              </div>
-              <div className="flex justify-end">
-                <Button onClick={handleSaveMeasurements}>Log Measurements</Button>
-              </div>
-            </CardHeader>
-            <CardContent className="pl-2 pt-4">
-              <div className="h-[300px] w-full p-4">
-                {isLoading ? (
-                  <Skeleton className="w-full h-full rounded-xl" />
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={bodyweightData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                      <XAxis 
-                        dataKey="date" 
-                        stroke="hsl(var(--muted-foreground))" 
-                        fontSize={12} 
-                        tickLine={false} 
-                        axisLine={false}
-                        tickFormatter={(val) => {
-                          const d = new Date(val);
-                          return `${d.getMonth() + 1}/${d.getDate()}`;
-                        }}
-                      />
-                      <YAxis 
-                        yAxisId="left"
-                        stroke="hsl(var(--muted-foreground))" 
-                        fontSize={12} 
-                        tickLine={false} 
-                        axisLine={false}
-                        domain={['dataMin - 2', 'dataMax + 2']}
-                      />
-                      <YAxis 
-                        yAxisId="right"
-                        orientation="right"
-                        stroke="hsl(var(--muted-foreground))" 
-                        fontSize={12} 
-                        tickLine={false} 
-                        axisLine={false}
-                        domain={['dataMin - 2', 'dataMax + 2']}
-                      />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                        itemStyle={{ color: 'hsl(var(--foreground))' }}
-                        labelFormatter={(label) => new Date(label).toLocaleDateString()}
-                      />
-                      <Line yAxisId="left" type="monotone" name="Weight (kg)" dataKey="weight" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ fill: 'hsl(var(--primary))', r: 4 }} activeDot={{ r: 6 }} />
-                      <Line yAxisId="right" type="monotone" name="Body Fat %" dataKey="bodyFat" stroke="hsl(var(--destructive))" strokeWidth={2} dot={{ fill: 'hsl(var(--destructive))', r: 3 }} />
-                      <Line yAxisId="right" type="monotone" name="Waist (cm)" dataKey="waist" stroke="hsl(var(--foreground))" strokeWidth={2} dot={{ fill: 'hsl(var(--foreground))', r: 3 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+            <Card className="bg-card border-border md:col-span-2">
+              <CardHeader className="space-y-4">
+                <div>
+                  <CardTitle className="font-heading text-2xl tracking-wider">
+                    Body Measurements
+                  </CardTitle>
+                  <CardDescription>
+                    Track your weight and body measurements over time
+                  </CardDescription>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Weight (kg)"
+                    value={newWeight}
+                    onChange={(e) => setNewWeight(e.target.value)}
+                    className="bg-background"
+                    step="0.1"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Body Fat %"
+                    value={newBodyFat}
+                    onChange={(e) => setNewBodyFat(e.target.value)}
+                    className="bg-background"
+                    step="0.1"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Waist (cm)"
+                    value={newWaist}
+                    onChange={(e) => setNewWaist(e.target.value)}
+                    className="bg-background"
+                    step="0.1"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Arms (cm)"
+                    value={newArms}
+                    onChange={(e) => setNewArms(e.target.value)}
+                    className="bg-background"
+                    step="0.1"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Chest (cm)"
+                    value={newChest}
+                    onChange={(e) => setNewChest(e.target.value)}
+                    className="bg-background"
+                    step="0.1"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Legs (cm)"
+                    value={newLegs}
+                    onChange={(e) => setNewLegs(e.target.value)}
+                    className="bg-background"
+                    step="0.1"
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <Button onClick={handleSaveMeasurements}>
+                    Log Measurements
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="pl-2 pt-4">
+                <div className="h-[300px] w-full p-4">
+                  {isLoading ? (
+                    <Skeleton className="w-full h-full rounded-xl" />
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={bodyweightData}
+                        margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                      >
+                        <XAxis
+                          dataKey="date"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(val) => {
+                            const d = new Date(val);
+                            return `${d.getMonth() + 1}/${d.getDate()}`;
+                          }}
+                        />
+                        <YAxis
+                          yAxisId="left"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                          domain={["dataMin - 2", "dataMax + 2"]}
+                        />
+                        <YAxis
+                          yAxisId="right"
+                          orientation="right"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                          domain={["dataMin - 2", "dataMax + 2"]}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            borderColor: "hsl(var(--border))",
+                            borderRadius: "8px",
+                          }}
+                          itemStyle={{ color: "hsl(var(--foreground))" }}
+                          labelFormatter={(label) =>
+                            new Date(label).toLocaleDateString()
+                          }
+                        />
+                        <Line
+                          yAxisId="left"
+                          type="monotone"
+                          name="Weight (kg)"
+                          dataKey="weight"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={3}
+                          dot={{ fill: "hsl(var(--primary))", r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          name="Body Fat %"
+                          dataKey="bodyFat"
+                          stroke="hsl(var(--destructive))"
+                          strokeWidth={2}
+                          dot={{ fill: "hsl(var(--destructive))", r: 3 }}
+                        />
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          name="Waist (cm)"
+                          dataKey="waist"
+                          stroke="hsl(var(--foreground))"
+                          strokeWidth={2}
+                          dot={{ fill: "hsl(var(--foreground))", r: 3 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
@@ -343,22 +493,29 @@ const Progress = () => {
                   <Trophy className="h-6 w-6 text-primary" />
                   Personal Records
                 </CardTitle>
-                <CardDescription>Track your all-time best lifts</CardDescription>
+                <CardDescription>
+                  Track your all-time best lifts
+                </CardDescription>
               </div>
               <div className="flex items-center space-x-2 w-full md:w-auto">
-                <Select value={newPrExercise?.toString() || ""} onValueChange={setNewPrExercise}>
+                <Select
+                  value={newPrExercise?.toString() || ""}
+                  onValueChange={setNewPrExercise}
+                >
                   <SelectTrigger className="w-full md:w-[200px]">
                     <SelectValue placeholder="Select exercise" />
                   </SelectTrigger>
                   <SelectContent>
                     {exercises.map((ex) => (
-                      <SelectItem key={ex.id} value={ex.id?.toString()}>{ex.name}</SelectItem>
+                      <SelectItem key={ex.id} value={ex.id?.toString()}>
+                        {ex.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Input 
-                  type="number" 
-                  placeholder="Weight (kg)" 
+                <Input
+                  type="number"
+                  placeholder="Weight (kg)"
                   value={newPrWeight}
                   onChange={(e) => setNewPrWeight(e.target.value)}
                   className="w-24 bg-background"
@@ -373,23 +530,40 @@ const Progress = () => {
                 <div className="text-center py-12 text-muted-foreground">
                   <Trophy className="h-12 w-12 mx-auto mb-4 opacity-20" />
                   <p>No personal records logged yet.</p>
-                  <p className="text-sm mt-1">Select an exercise and log your first PR above.</p>
+                  <p className="text-sm mt-1">
+                    Select an exercise and log your first PR above.
+                  </p>
                 </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {prs.map((pr) => {
-                    const exercise = exercises.find((e) => String(e.id) === String(pr.exerciseId) || String(e.id) === String(pr.exercise));
+                    const exercise = exercises.find(
+                      (e) =>
+                        String(e.id) === String(pr.exerciseId) ||
+                        String(e.id) === String(pr.exercise),
+                    );
                     return (
-                      <div key={pr.id} className="flex items-center justify-between p-4 rounded-lg border border-border bg-muted/50 group">
+                      <div
+                        key={pr.id}
+                        className="flex items-center justify-between p-4 rounded-lg border border-border bg-muted/50 group"
+                      >
                         <div className="space-y-1">
-                          <p className="font-medium">{exercise?.name || pr.exercise || 'Unknown Exercise'}</p>
-                          <p className="text-sm text-muted-foreground">{new Date(pr.date).toLocaleDateString()}</p>
+                          <p className="font-medium">
+                            {exercise?.name ||
+                              pr.exercise ||
+                              "Unknown Exercise"}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(pr.date).toLocaleDateString()}
+                          </p>
                         </div>
                         <div className="flex items-center gap-4">
-                          <span className="text-2xl font-heading text-primary">{pr.weight}kg</span>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <span className="text-2xl font-heading text-primary">
+                            {pr.weight}kg
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => handleDeletePr(pr.id)}
                             className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
                           >
@@ -410,4 +584,3 @@ const Progress = () => {
 };
 
 export default Progress;
-

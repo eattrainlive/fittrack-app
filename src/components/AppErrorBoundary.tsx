@@ -60,8 +60,16 @@ export class AppErrorBoundary extends React.Component<
           >
             Something went wrong
           </h2>
-          <p style={{ opacity: 0.6, fontSize: 14, marginBottom: 24, maxWidth: 360 }}>
-            {this.state.error.message || "An unexpected error occurred while loading this page."}
+          <p
+            style={{
+              opacity: 0.6,
+              fontSize: 14,
+              marginBottom: 24,
+              maxWidth: 360,
+            }}
+          >
+            {this.state.error.message ||
+              "An unexpected error occurred while loading this page."}
           </p>
           <button
             onClick={this.handleReload}
@@ -98,7 +106,7 @@ export function installChunkErrorHandler() {
     const msg = String(e?.message || "");
     if (
       /Loading chunk|dynamically imported module|Importing a module script failed|error loading/i.test(
-        msg
+        msg,
       )
     ) {
       if (!sessionStorage.getItem("reloadedOnce")) {

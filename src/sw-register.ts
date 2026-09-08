@@ -29,7 +29,10 @@ export function registerServiceWorker() {
         if (!newWorker) return;
 
         newWorker.addEventListener("statechange", () => {
-          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+          if (
+            newWorker.state === "installed" &&
+            navigator.serviceWorker.controller
+          ) {
             // A new version is installed. Tell it to skip waiting.
             newWorker.postMessage({ type: "SKIP_WAITING" });
           }

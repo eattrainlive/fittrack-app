@@ -1,23 +1,37 @@
-import * as pdfjsLib from 'pdfjs-dist';
+import * as pdfjsLib from "pdfjs-dist";
 import { supabase } from "./supabase";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 // ── Dirty flag helpers ─────────────────────────────────────────────────────
 // A "dirty" store has local writes that haven't confirmed to Supabase yet.
 // syncFromSupabase will NOT overwrite a dirty store (it re-pushes instead).
-const DIRTY_STORES = ['programs', 'exercises', 'history', 'bodyweight', 'habits', 'macros', 'macroLogs', 'prs', 'wowResults'] as const;
-type DirtyStore = typeof DIRTY_STORES[number];
+const DIRTY_STORES = [
+  "programs",
+  "exercises",
+  "history",
+  "bodyweight",
+  "habits",
+  "macros",
+  "macroLogs",
+  "prs",
+  "wowResults",
+] as const;
+type DirtyStore = (typeof DIRTY_STORES)[number];
 
-export const markDirty = (store: DirtyStore) => localStorage.setItem(`fittrack_dirty_${store}`, '1');
-export const clearDirty = (store: DirtyStore) => localStorage.removeItem(`fittrack_dirty_${store}`);
-export const isDirty = (store: DirtyStore) => localStorage.getItem(`fittrack_dirty_${store}`) === '1';
+export const markDirty = (store: DirtyStore) =>
+  localStorage.setItem(`fittrack_dirty_${store}`, "1");
+export const clearDirty = (store: DirtyStore) =>
+  localStorage.removeItem(`fittrack_dirty_${store}`);
+export const isDirty = (store: DirtyStore) =>
+  localStorage.getItem(`fittrack_dirty_${store}`) === "1";
 
 // ── Sync status (drives the header indicator) ──────────────────────────────
-export type SyncStatus = 'idle' | 'saving' | 'saved' | 'error';
+export type SyncStatus = "idle" | "saving" | "saved" | "error";
 const syncListeners: Set<(s: SyncStatus) => void> = new Set();
 
-let _syncStatus: SyncStatus = 'idle';
+let _syncStatus: SyncStatus = "idle";
 export const getSyncStatus = () => _syncStatus;
 export const subscribeSyncStatus = (fn: (s: SyncStatus) => void) => {
   syncListeners.add(fn);
@@ -25,94 +39,141 @@ export const subscribeSyncStatus = (fn: (s: SyncStatus) => void) => {
 };
 const setSyncStatus = (s: SyncStatus) => {
   _syncStatus = s;
-  syncListeners.forEach(fn => fn(s));
-  if (s === 'saved') setTimeout(() => { if (_syncStatus === 'saved') setSyncStatus('idle'); }, 3000);
+  syncListeners.forEach((fn) => fn(s));
+  if (s === "saved")
+    setTimeout(() => {
+      if (_syncStatus === "saved") setSyncStatus("idle");
+    }, 3000);
 };
 
 // ── Retry queue ────────────────────────────────────────────────────────────
 // Persists failed writes; retried on: app load, regain connectivity, explicit call.
 type QueuedWrite = { store: DirtyStore; timestamp: number };
 const getQueue = (): QueuedWrite[] => {
-  try { return JSON.parse(localStorage.getItem('fittrack_retry_queue') || '[]'); } catch { return []; }
+  try {
+    return JSON.parse(localStorage.getItem("fittrack_retry_queue") || "[]");
+  } catch {
+    return [];
+  }
 };
-const setQueue = (q: QueuedWrite[]) => localStorage.setItem('fittrack_retry_queue', JSON.stringify(q));
+const setQueue = (q: QueuedWrite[]) =>
+  localStorage.setItem("fittrack_retry_queue", JSON.stringify(q));
 const enqueue = (store: DirtyStore) => {
-  const q = getQueue().filter(x => x.store !== store);
+  const q = getQueue().filter((x) => x.store !== store);
   q.push({ store, timestamp: Date.now() });
   setQueue(q);
 };
-const dequeue = (store: DirtyStore) => setQueue(getQueue().filter(x => x.store !== store));
+const dequeue = (store: DirtyStore) =>
+  setQueue(getQueue().filter((x) => x.store !== store));
 
 // Flush all queued writes (called on load + online event)
 export const flushRetryQueue = async () => {
   const q = getQueue();
   if (!q.length) return;
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return;
 
   for (const item of q) {
-    if (item.store === 'programs') {
+    if (item.store === "programs") {
       // Only staff can write to the shared programme library
-      const isStaff = localStorage.getItem('fittrack_is_staff') === 'true';
-      if (!isStaff) { dequeue('programs'); clearDirty('programs'); continue; }
-      const local = localStorage.getItem('fittrack_programs');
-      if (local) { await savePrograms(JSON.parse(local)); }
-    } else if (item.store === 'exercises') {
+      const isStaff = localStorage.getItem("fittrack_is_staff") === "true";
+      if (!isStaff) {
+        dequeue("programs");
+        clearDirty("programs");
+        continue;
+      }
+      const local = localStorage.getItem("fittrack_programs");
+      if (local) {
+        await savePrograms(JSON.parse(local));
+      }
+    } else if (item.store === "exercises") {
       // Only staff can write to the shared exercise library
-      const isStaff = localStorage.getItem('fittrack_is_staff') === 'true';
-      if (!isStaff) { dequeue('exercises'); clearDirty('exercises'); continue; }
-      const local = localStorage.getItem('fittrack_exercises');
-      if (local) { await saveExercises(JSON.parse(local)); }
-    } else if (item.store === 'history') {
-      const local = localStorage.getItem('fittrack_history');
+      const isStaff = localStorage.getItem("fittrack_is_staff") === "true";
+      if (!isStaff) {
+        dequeue("exercises");
+        clearDirty("exercises");
+        continue;
+      }
+      const local = localStorage.getItem("fittrack_exercises");
+      if (local) {
+        await saveExercises(JSON.parse(local));
+      }
+    } else if (item.store === "history") {
+      const local = localStorage.getItem("fittrack_history");
       if (local) {
         const allHistory = JSON.parse(local);
         // Push every local row to the cloud, not just the newest one.
         for (const w of allHistory) {
-          await supabase.from('workout_history').upsert({
-            id: w.id, user_id: user.id, date: w.date,
-            name: w.name ?? null, exercises: w.exercises ?? [],
-            volume: w.volume ?? 0, reward: w.reward ?? null,
-            duration: w.duration ?? null, data: w,
-          }, { onConflict: 'id' });
+          await supabase.from("workout_history").upsert(
+            {
+              id: w.id,
+              user_id: user.id,
+              date: w.date,
+              name: w.name ?? null,
+              exercises: w.exercises ?? [],
+              volume: w.volume ?? 0,
+              reward: w.reward ?? null,
+              duration: w.duration ?? null,
+              data: w,
+            },
+            { onConflict: "id" },
+          );
         }
       }
-    } else if (item.store === 'bodyweight') {
-      const local = localStorage.getItem('fittrack_bodyweight');
+    } else if (item.store === "bodyweight") {
+      const local = localStorage.getItem("fittrack_bodyweight");
       if (local) {
         const bw = JSON.parse(local);
         if (bw.length > 0) {
           const latest = bw[bw.length - 1];
-          await supabase.from('bodyweight_history').upsert({ user_id: user.id, ...latest }, { onConflict: 'user_id, date' });
+          await supabase
+            .from("bodyweight_history")
+            .upsert(
+              { user_id: user.id, ...latest },
+              { onConflict: "user_id, date" },
+            );
         }
       }
-    } else if (item.store === 'macros') {
-      const local = localStorage.getItem('fittrack_member_macros');
-      if (local) { await saveMemberMacros(JSON.parse(local)); }
-    } else if (item.store === 'macroLogs') {
-      const local = localStorage.getItem('fittrack_macro_logs');
+    } else if (item.store === "macros") {
+      const local = localStorage.getItem("fittrack_member_macros");
+      if (local) {
+        await saveMemberMacros(JSON.parse(local));
+      }
+    } else if (item.store === "macroLogs") {
+      const local = localStorage.getItem("fittrack_macro_logs");
       if (local) {
         const logs = JSON.parse(local);
         for (const log of logs) {
-          await supabase.from('macro_logs').upsert({ ...log, member_id: user.id }, { onConflict: 'member_id, date' });
+          await supabase
+            .from("macro_logs")
+            .upsert(
+              { ...log, member_id: user.id },
+              { onConflict: "member_id, date" },
+            );
         }
       }
-    } else if (item.store === 'prs') {
-      const local = localStorage.getItem('fittrack_prs');
+    } else if (item.store === "prs") {
+      const local = localStorage.getItem("fittrack_prs");
       if (local) {
         const prs = JSON.parse(local);
         if (prs.length > 0) {
-          const rows = prs.map((p:any) => ({ ...p, user_id: user.id }));
-          await supabase.from('personal_records').upsert(rows, { onConflict: 'user_id, exercise' });
+          const rows = prs.map((p: any) => ({ ...p, user_id: user.id }));
+          await supabase
+            .from("personal_records")
+            .upsert(rows, { onConflict: "user_id, exercise" });
         }
       }
-    } else if (item.store === 'wowResults') {
-      const local = localStorage.getItem('fittrack_wow_results');
+    } else if (item.store === "wowResults") {
+      const local = localStorage.getItem("fittrack_wow_results");
       if (local) {
         const results = JSON.parse(local);
         if (results.length > 0) {
-          const rows = results.map((r:any) => ({ ...r, member_id: user.id }));
-          await supabase.from('wow_results').upsert(rows, { onConflict: 'wow_id, member_id' });
+          const rows = results.map((r: any) => ({ ...r, member_id: user.id }));
+          await supabase
+            .from("wow_results")
+            .upsert(rows, { onConflict: "wow_id, member_id" });
         }
       }
     }
@@ -120,66 +181,94 @@ export const flushRetryQueue = async () => {
 };
 
 // Register online retry
-if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => { flushRetryQueue(); });
+if (typeof window !== "undefined") {
+  window.addEventListener("online", () => {
+    flushRetryQueue();
+  });
 }
 
 // Nutrition & Habits Data
 export const GOAL_PATHS: Record<string, number[]> = {
-  fat_loss: [1,4,2,3,6,8,9,12,10,13,14,11,17,24,22,23,26,27,28],
-  performance: [1,5,7,3,8,11,15,19,20,21,24,25,23,16,28],
-  health: [1,2,3,4,8,5,9,12,16,14,10,18,22,23,26,27,28]
+  fat_loss: [
+    1, 4, 2, 3, 6, 8, 9, 12, 10, 13, 14, 11, 17, 24, 22, 23, 26, 27, 28,
+  ],
+  performance: [1, 5, 7, 3, 8, 11, 15, 19, 20, 21, 24, 25, 23, 16, 28],
+  health: [1, 2, 3, 4, 8, 5, 9, 12, 16, 14, 10, 18, 22, 23, 26, 27, 28],
 };
 
 export const getHabits = async () => {
-  const { data } = await supabase.from('habits').select('*').order('sort_order', { ascending: true });
+  const { data } = await supabase
+    .from("habits")
+    .select("*")
+    .order("sort_order", { ascending: true });
   if (data) {
-    localStorage.setItem('fittrack_habits_library', JSON.stringify(data));
+    localStorage.setItem("fittrack_habits_library", JSON.stringify(data));
     return data;
   }
-  const local = localStorage.getItem('fittrack_habits_library');
+  const local = localStorage.getItem("fittrack_habits_library");
   if (local) return JSON.parse(local);
   return [];
 };
 
 export const getMemberNutrition = () => {
-  const local = localStorage.getItem('fittrack_member_nutrition');
+  const local = localStorage.getItem("fittrack_member_nutrition");
   return local ? JSON.parse(local) : null;
 };
 
 export const saveMemberNutrition = async (nutrition: any) => {
-  localStorage.setItem('fittrack_member_nutrition', JSON.stringify(nutrition));
-  const { data: { user } } = await supabase.auth.getUser();
+  localStorage.setItem("fittrack_member_nutrition", JSON.stringify(nutrition));
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (user) {
-    await supabase.from('member_nutrition').upsert({ ...nutrition, member_id: user.id }, { onConflict: 'member_id' });
+    await supabase
+      .from("member_nutrition")
+      .upsert(
+        { ...nutrition, member_id: user.id },
+        { onConflict: "member_id" },
+      );
   }
 };
 
 export const getMemberHabits = () => {
-  const local = localStorage.getItem('fittrack_member_habits');
+  const local = localStorage.getItem("fittrack_member_habits");
   return local ? JSON.parse(local) : [];
 };
 
 export const saveMemberHabits = async (habits: any[]) => {
-  localStorage.setItem('fittrack_member_habits', JSON.stringify(habits));
-  const { data: { user } } = await supabase.auth.getUser();
+  localStorage.setItem("fittrack_member_habits", JSON.stringify(habits));
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (user) {
-    const { data: existing } = await supabase.from('member_habits').select('id, habit_id').eq('member_id', user.id);
-    const payload = habits.map(h => {
+    const { data: existing } = await supabase
+      .from("member_habits")
+      .select("id, habit_id")
+      .eq("member_id", user.id);
+    const payload = habits.map((h) => {
       const { id, habits: _habits, ...rest } = h;
       const item: any = { ...rest, member_id: user.id };
       if (existing) {
-        const match = existing.find(e => e.habit_id === item.habit_id);
+        const match = existing.find((e) => e.habit_id === item.habit_id);
         if (match) item.id = match.id;
       }
-      if (!item.id && id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      if (
+        !item.id &&
+        id &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          id,
+        )
+      ) {
         item.id = id;
       }
       return item;
     });
-    const { data, error } = await supabase.from('member_habits').upsert(payload).select();
+    const { data, error } = await supabase
+      .from("member_habits")
+      .upsert(payload)
+      .select();
     if (data) {
-      localStorage.setItem('fittrack_member_habits', JSON.stringify(data));
+      localStorage.setItem("fittrack_member_habits", JSON.stringify(data));
       return data;
     }
     if (error) console.error("Error saving member habits:", error);
@@ -188,7 +277,7 @@ export const saveMemberHabits = async (habits: any[]) => {
 };
 
 export const getHabitCheckins = () => {
-  const local = localStorage.getItem('fittrack_habit_checkins');
+  const local = localStorage.getItem("fittrack_habit_checkins");
   return local ? JSON.parse(local) : [];
 };
 
@@ -196,38 +285,57 @@ export const saveHabitCheckin = async (checkin: any) => {
   const checkins = getHabitCheckins();
   const date = checkin.date;
   const habitId = checkin.habit_id;
-  const existingIdx = checkins.findIndex((c: any) => c.date === date && c.habit_id === habitId);
+  const existingIdx = checkins.findIndex(
+    (c: any) => c.date === date && c.habit_id === habitId,
+  );
   if (existingIdx >= 0) {
     checkins[existingIdx] = checkin;
   } else {
     checkins.push(checkin);
   }
-  localStorage.setItem('fittrack_habit_checkins', JSON.stringify(checkins));
-  const { data: { user } } = await supabase.auth.getUser();
+  localStorage.setItem("fittrack_habit_checkins", JSON.stringify(checkins));
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (user) {
-    await supabase.from('habit_checkins').upsert({ ...checkin, member_id: user.id }, { onConflict: 'member_id, habit_id, date' });
+    await supabase
+      .from("habit_checkins")
+      .upsert(
+        { ...checkin, member_id: user.id },
+        { onConflict: "member_id, habit_id, date" },
+      );
   }
 };
 
 export const getMemberMeasurements = () => {
-  const local = localStorage.getItem('fittrack_member_measurements');
+  const local = localStorage.getItem("fittrack_member_measurements");
   return local ? JSON.parse(local) : [];
 };
 
 export const saveMemberMeasurement = async (measurement: any) => {
   const measurements = getMemberMeasurements();
-  const newMeasurement = { ...measurement, id: measurement.id || Date.now().toString() };
+  const newMeasurement = {
+    ...measurement,
+    id: measurement.id || Date.now().toString(),
+  };
   measurements.push(newMeasurement);
-  localStorage.setItem('fittrack_member_measurements', JSON.stringify(measurements));
-  const { data: { user } } = await supabase.auth.getUser();
+  localStorage.setItem(
+    "fittrack_member_measurements",
+    JSON.stringify(measurements),
+  );
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (user) {
-    await supabase.from('member_measurements').upsert({ ...newMeasurement, member_id: user.id });
+    await supabase
+      .from("member_measurements")
+      .upsert({ ...newMeasurement, member_id: user.id });
   }
   return measurements;
 };
 
 export const getMemberPhotos = () => {
-  const local = localStorage.getItem('fittrack_member_photos');
+  const local = localStorage.getItem("fittrack_member_photos");
   return local ? JSON.parse(local) : [];
 };
 
@@ -235,10 +343,14 @@ export const saveMemberPhoto = async (photo: any) => {
   const photos = getMemberPhotos();
   const newPhoto = { ...photo, id: photo.id || Date.now().toString() };
   photos.push(newPhoto);
-  localStorage.setItem('fittrack_member_photos', JSON.stringify(photos));
-  const { data: { user } } = await supabase.auth.getUser();
+  localStorage.setItem("fittrack_member_photos", JSON.stringify(photos));
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (user) {
-    await supabase.from('member_photos').upsert({ ...newPhoto, member_id: user.id });
+    await supabase
+      .from("member_photos")
+      .upsert({ ...newPhoto, member_id: user.id });
   }
   return photos;
 };
@@ -247,122 +359,250 @@ export const seedMemberHabits = async (goal: string) => {
   const path = GOAL_PATHS[goal] || GOAL_PATHS.health;
   const habits = path.map((habitId, index) => ({
     habit_id: habitId,
-    status: index === 0 ? 'active' : 'queued',
+    status: index === 0 ? "active" : "queued",
     position: index,
-    started_at: index === 0 ? new Date().toISOString() : null
+    started_at: index === 0 ? new Date().toISOString() : null,
   }));
   const savedHabits = await saveMemberHabits(habits);
   return savedHabits;
 };
 
 export const resetMemberNutrition = async () => {
-  localStorage.removeItem('fittrack_member_nutrition');
-  localStorage.removeItem('fittrack_member_habits');
-  localStorage.removeItem('fittrack_habit_checkins');
-  localStorage.removeItem('fittrack_member_macros');
-  localStorage.removeItem('fittrack_macro_logs');
-  const { data: { user } } = await supabase.auth.getUser();
+  localStorage.removeItem("fittrack_member_nutrition");
+  localStorage.removeItem("fittrack_member_habits");
+  localStorage.removeItem("fittrack_habit_checkins");
+  localStorage.removeItem("fittrack_member_macros");
+  localStorage.removeItem("fittrack_macro_logs");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (user) {
     await Promise.all([
-      supabase.from('member_nutrition').delete().eq('member_id', user.id),
-      supabase.from('member_habits').delete().eq('member_id', user.id),
-      supabase.from('habit_checkins').delete().eq('member_id', user.id),
-      supabase.from('member_macros').delete().eq('member_id', user.id),
-      supabase.from('macro_logs').delete().eq('member_id', user.id)
+      supabase.from("member_nutrition").delete().eq("member_id", user.id),
+      supabase.from("member_habits").delete().eq("member_id", user.id),
+      supabase.from("habit_checkins").delete().eq("member_id", user.id),
+      supabase.from("member_macros").delete().eq("member_id", user.id),
+      supabase.from("macro_logs").delete().eq("member_id", user.id),
     ]);
   }
 };
 
 export const getMemberMacros = () => {
-  const local = localStorage.getItem('fittrack_member_macros');
+  const local = localStorage.getItem("fittrack_member_macros");
   return local ? JSON.parse(local) : null;
 };
 
-export const saveMemberMacros = async (macros: any): Promise<{ success: boolean; error?: any }> => {
-  localStorage.setItem('fittrack_member_macros', JSON.stringify(macros));
-  markDirty('macros');
-  setSyncStatus('saving');
+export const saveMemberMacros = async (
+  macros: any,
+): Promise<{ success: boolean; error?: any }> => {
+  localStorage.setItem("fittrack_member_macros", JSON.stringify(macros));
+  markDirty("macros");
+  setSyncStatus("saving");
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (user) {
-      const { error } = await supabase.from('member_macros').upsert({ ...macros, member_id: user.id }, { onConflict: 'member_id' });
+      const { error } = await supabase
+        .from("member_macros")
+        .upsert({ ...macros, member_id: user.id }, { onConflict: "member_id" });
       if (error) {
-        enqueue('macros');
-        setSyncStatus('error');
+        enqueue("macros");
+        setSyncStatus("error");
         return { success: false, error };
       }
     }
-    clearDirty('macros');
-    dequeue('macros');
-    setSyncStatus('saved');
+    clearDirty("macros");
+    dequeue("macros");
+    setSyncStatus("saved");
     return { success: true };
   } catch (e) {
-    enqueue('macros');
-    setSyncStatus('error');
+    enqueue("macros");
+    setSyncStatus("error");
     return { success: false, error: e };
   }
 };
 
 export const getMacroLogs = () => {
-  const local = localStorage.getItem('fittrack_macro_logs');
+  const local = localStorage.getItem("fittrack_macro_logs");
   return local ? JSON.parse(local) : [];
 };
 
-export const saveMacroLog = async (log: any): Promise<{ success: boolean; error?: any }> => {
+export const saveMacroLog = async (
+  log: any,
+): Promise<{ success: boolean; error?: any }> => {
   const logs = getMacroLogs();
   const date = log.date;
   const existingIdx = logs.findIndex((l: any) => l.date === date);
   if (existingIdx >= 0) logs[existingIdx] = log;
   else logs.push(log);
-  
-  localStorage.setItem('fittrack_macro_logs', JSON.stringify(logs));
-  markDirty('macroLogs');
-  setSyncStatus('saving');
+
+  localStorage.setItem("fittrack_macro_logs", JSON.stringify(logs));
+  markDirty("macroLogs");
+  setSyncStatus("saving");
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (user) {
-      const { error } = await supabase.from('macro_logs').upsert({ ...log, member_id: user.id }, { onConflict: 'member_id, date' });
+      const { error } = await supabase
+        .from("macro_logs")
+        .upsert(
+          { ...log, member_id: user.id },
+          { onConflict: "member_id, date" },
+        );
       if (error) {
-        enqueue('macroLogs');
-        setSyncStatus('error');
+        enqueue("macroLogs");
+        setSyncStatus("error");
         return { success: false, error };
       }
     }
-    clearDirty('macroLogs');
-    dequeue('macroLogs');
-    setSyncStatus('saved');
+    clearDirty("macroLogs");
+    dequeue("macroLogs");
+    setSyncStatus("saved");
     return { success: true };
   } catch (e) {
-    enqueue('macroLogs');
-    setSyncStatus('error');
+    enqueue("macroLogs");
+    setSyncStatus("error");
     return { success: false, error: e };
   }
 };
 
 export const defaultExercises = [
-  { id: "bench", name: "Bench Press", category: "Strength", muscle: "Chest", equipment: "Barbell", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push", trackingType: ["Weight & Reps"] },
-  { id: "squat", name: "Squat", category: "Strength", muscle: "Legs", equipment: "Barbell", difficulty: "Advanced", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Knee", trackingType: ["Weight & Reps"] },
-  { id: "deadlift", name: "Deadlift", category: "Strength", muscle: "Back", equipment: "Barbell", difficulty: "Advanced", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Hip", trackingType: ["Weight & Reps"] },
-  { id: "pullup", name: "Pull-up", category: "Strength", muscle: "Back", equipment: "Bodyweight", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Pull", trackingType: ["Weight & Reps"] },
-  { id: "pushup", name: "Push-up", category: "Strength", muscle: "Chest", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push", trackingType: ["Weight & Reps"] },
-  { id: "curl", name: "Dumbbell Curl", category: "Strength", muscle: "Biceps", equipment: "Dumbbell", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Accessory", trackingType: ["Weight & Reps"] },
-  { id: "legpress", name: "Leg Press", category: "Strength", muscle: "Legs", equipment: "Machine", difficulty: "Beginner", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Knee", trackingType: ["Weight & Reps"] },
-  { id: "ohp", name: "Overhead Press", category: "Strength", muscle: "Shoulders", equipment: "Barbell", difficulty: "Intermediate", videoUrl: "https://player.vimeo.com/video/147173661", movementType: "Push", trackingType: ["Weight & Reps"] },
-  { id: "treadmill", name: "Treadmill Run", category: "Cardio", muscle: "Full Body", equipment: "Machine", difficulty: "Beginner", videoUrl: "", movementType: "Conditioning", trackingType: ["Distance & Time", "Calories"] },
-  { id: "stretching", name: "Dynamic Stretching", category: "Mobility", muscle: "Full Body", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "", movementType: "Warm Up", trackingType: ["Time Only"] },
-  { id: "glutebridge", name: "Glute Bridge", category: "Activation", muscle: "Legs", equipment: "Bodyweight", difficulty: "Beginner", videoUrl: "", movementType: "Fire Up", trackingType: ["Weight & Reps"] },
+  {
+    id: "bench",
+    name: "Bench Press",
+    category: "Strength",
+    muscle: "Chest",
+    equipment: "Barbell",
+    difficulty: "Intermediate",
+    videoUrl: "https://player.vimeo.com/video/147173661",
+    movementType: "Push",
+    trackingType: ["Weight & Reps"],
+  },
+  {
+    id: "squat",
+    name: "Squat",
+    category: "Strength",
+    muscle: "Legs",
+    equipment: "Barbell",
+    difficulty: "Advanced",
+    videoUrl: "https://player.vimeo.com/video/147173661",
+    movementType: "Knee",
+    trackingType: ["Weight & Reps"],
+  },
+  {
+    id: "deadlift",
+    name: "Deadlift",
+    category: "Strength",
+    muscle: "Back",
+    equipment: "Barbell",
+    difficulty: "Advanced",
+    videoUrl: "https://player.vimeo.com/video/147173661",
+    movementType: "Hip",
+    trackingType: ["Weight & Reps"],
+  },
+  {
+    id: "pullup",
+    name: "Pull-up",
+    category: "Strength",
+    muscle: "Back",
+    equipment: "Bodyweight",
+    difficulty: "Intermediate",
+    videoUrl: "https://player.vimeo.com/video/147173661",
+    movementType: "Pull",
+    trackingType: ["Weight & Reps"],
+  },
+  {
+    id: "pushup",
+    name: "Push-up",
+    category: "Strength",
+    muscle: "Chest",
+    equipment: "Bodyweight",
+    difficulty: "Beginner",
+    videoUrl: "https://player.vimeo.com/video/147173661",
+    movementType: "Push",
+    trackingType: ["Weight & Reps"],
+  },
+  {
+    id: "curl",
+    name: "Dumbbell Curl",
+    category: "Strength",
+    muscle: "Biceps",
+    equipment: "Dumbbell",
+    difficulty: "Beginner",
+    videoUrl: "https://player.vimeo.com/video/147173661",
+    movementType: "Accessory",
+    trackingType: ["Weight & Reps"],
+  },
+  {
+    id: "legpress",
+    name: "Leg Press",
+    category: "Strength",
+    muscle: "Legs",
+    equipment: "Machine",
+    difficulty: "Beginner",
+    videoUrl: "https://player.vimeo.com/video/147173661",
+    movementType: "Knee",
+    trackingType: ["Weight & Reps"],
+  },
+  {
+    id: "ohp",
+    name: "Overhead Press",
+    category: "Strength",
+    muscle: "Shoulders",
+    equipment: "Barbell",
+    difficulty: "Intermediate",
+    videoUrl: "https://player.vimeo.com/video/147173661",
+    movementType: "Push",
+    trackingType: ["Weight & Reps"],
+  },
+  {
+    id: "treadmill",
+    name: "Treadmill Run",
+    category: "Cardio",
+    muscle: "Full Body",
+    equipment: "Machine",
+    difficulty: "Beginner",
+    videoUrl: "",
+    movementType: "Conditioning",
+    trackingType: ["Distance & Time", "Calories"],
+  },
+  {
+    id: "stretching",
+    name: "Dynamic Stretching",
+    category: "Mobility",
+    muscle: "Full Body",
+    equipment: "Bodyweight",
+    difficulty: "Beginner",
+    videoUrl: "",
+    movementType: "Warm Up",
+    trackingType: ["Time Only"],
+  },
+  {
+    id: "glutebridge",
+    name: "Glute Bridge",
+    category: "Activation",
+    muscle: "Legs",
+    equipment: "Bodyweight",
+    difficulty: "Beginner",
+    videoUrl: "",
+    movementType: "Fire Up",
+    trackingType: ["Weight & Reps"],
+  },
 ];
 
 export const defaultPrograms = [
   {
     id: "t1",
     name: "Full Body Basics",
-    description: "Perfect starting point for beginners focusing on compound movements.",
+    description:
+      "Perfect starting point for beginners focusing on compound movements.",
     exercises: [
       { name: "squat", sets: 3, reps: 10, weight: 0 },
       { name: "bench", sets: 3, reps: 10, weight: 0 },
       { name: "deadlift", sets: 1, reps: 5, weight: 0 },
-    ]
+    ],
   },
   {
     id: "t2",
@@ -371,7 +611,7 @@ export const defaultPrograms = [
     exercises: [
       { name: "bench", sets: 4, reps: 8, weight: 0 },
       { name: "pullup", sets: 3, reps: 8, weight: 0 },
-    ]
+    ],
   },
   {
     id: "t3",
@@ -380,33 +620,39 @@ export const defaultPrograms = [
     exercises: [
       { name: "squat", sets: 4, reps: 8, weight: 0 },
       { name: "deadlift", sets: 3, reps: 8, weight: 0 },
-    ]
-  }
+    ],
+  },
 ];
 
 export const getExercises = () => {
-  const stored = localStorage.getItem('fittrack_exercises');
+  const stored = localStorage.getItem("fittrack_exercises");
   if (stored) return JSON.parse(stored);
   return defaultExercises; // fallback so the app isn't blank before the first sync
 };
 
 export const getExerciseEnrichment = async () => {
-  const { data } = await supabase.from('exercise_enrichment').select('*');
+  const { data } = await supabase.from("exercise_enrichment").select("*");
   const map: Record<string, any> = {};
-  (data || []).forEach((r: any) => { map[String(r.exercise_id)] = r; });
+  (data || []).forEach((r: any) => {
+    map[String(r.exercise_id)] = r;
+  });
   return map;
 };
 
-export const saveExercises = async (exercises: any[]): Promise<{ success: boolean; error?: any }> => {
-  localStorage.setItem('fittrack_exercises', JSON.stringify(exercises));
-  markDirty('exercises');
-  setSyncStatus('saving');
+export const saveExercises = async (
+  exercises: any[],
+): Promise<{ success: boolean; error?: any }> => {
+  localStorage.setItem("fittrack_exercises", JSON.stringify(exercises));
+  markDirty("exercises");
+  setSyncStatus("saving");
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (user) {
       if (exercises.length > 0) {
         // Whitelist fields to the columns that actually exist on the `exercises` table.
-        const safeExercises = exercises.map(e => {
+        const safeExercises = exercises.map((e) => {
           const cleaned: any = {
             id: e.id,
             name: e.name,
@@ -417,50 +663,62 @@ export const saveExercises = async (exercises: any[]): Promise<{ success: boolea
             videoUrl: e.videoUrl ?? null,
           };
           // category and movementType/trackingType are stored as comma-joined strings
-          cleaned.category = Array.isArray(e.category) ? e.category.join(', ') : (e.category ?? null);
-          cleaned.movementType = Array.isArray(e.movementType) ? e.movementType.join(', ') : (e.movementType ?? null);
-          cleaned.trackingType = Array.isArray(e.trackingType) ? e.trackingType.join(', ') : (e.trackingType ?? 'Weight & Reps');
+          cleaned.category = Array.isArray(e.category)
+            ? e.category.join(", ")
+            : (e.category ?? null);
+          cleaned.movementType = Array.isArray(e.movementType)
+            ? e.movementType.join(", ")
+            : (e.movementType ?? null);
+          cleaned.trackingType = Array.isArray(e.trackingType)
+            ? e.trackingType.join(", ")
+            : (e.trackingType ?? "Weight & Reps");
           return cleaned;
         });
-        const { error } = await supabase.from('exercises').upsert(safeExercises);
+        const { error } = await supabase
+          .from("exercises")
+          .upsert(safeExercises);
         if (error) {
-          console.error('saveExercises upsert error:', error);
-          enqueue('exercises');
-          setSyncStatus('error');
+          console.error("saveExercises upsert error:", error);
+          enqueue("exercises");
+          setSyncStatus("error");
           return { success: false, error };
         }
       }
-      clearDirty('exercises');
-      dequeue('exercises');
-      setSyncStatus('saved');
+      clearDirty("exercises");
+      dequeue("exercises");
+      setSyncStatus("saved");
       return { success: true };
     }
-    setSyncStatus('saved');
+    setSyncStatus("saved");
     return { success: true };
   } catch (err) {
-    console.error('saveExercises exception:', err);
-    enqueue('exercises');
-    setSyncStatus('error');
+    console.error("saveExercises exception:", err);
+    enqueue("exercises");
+    setSyncStatus("error");
     return { success: false, error: err };
   }
 };
 
 export const getPrograms = () => {
-  const stored = localStorage.getItem('fittrack_programs');
+  const stored = localStorage.getItem("fittrack_programs");
   if (stored) return JSON.parse(stored);
   return defaultPrograms;
 };
 
-export const savePrograms = async (programs: any[]): Promise<{ success: boolean; error?: any }> => {
-  localStorage.setItem('fittrack_programs', JSON.stringify(programs));
-  markDirty('programs');
-  setSyncStatus('saving');
+export const savePrograms = async (
+  programs: any[],
+): Promise<{ success: boolean; error?: any }> => {
+  localStorage.setItem("fittrack_programs", JSON.stringify(programs));
+  markDirty("programs");
+  setSyncStatus("saving");
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (user) {
       if (programs.length > 0) {
         // Whitelist fields to the columns that actually exist on the `programs` table.
-        const safePrograms = programs.map(p => {
+        const safePrograms = programs.map((p) => {
           const w: any = {
             id: p.id,
             name: p.name,
@@ -475,22 +733,33 @@ export const savePrograms = async (programs: any[]): Promise<{ success: boolean;
           if (p.weekNotes !== undefined) w.weekNotes = p.weekNotes;
           return w;
         });
-        let { error } = await supabase.from('programs').upsert(safePrograms);
+        let { error } = await supabase.from("programs").upsert(safePrograms);
 
         // Fallback: if the full upsert fails (a field isn't a column on `programs`),
         // save the minimal columns and stash the rest in user_settings so nothing is lost.
         if (error) {
-          console.warn("Programs upsert failed, falling back to minimal fields + user_settings...", error.message);
-          const fallbackPrograms = safePrograms.map(p => ({
-            id: p.id, name: p.name, user_id: p.user_id,
+          console.warn(
+            "Programs upsert failed, falling back to minimal fields + user_settings...",
+            error.message,
+          );
+          const fallbackPrograms = safePrograms.map((p) => ({
+            id: p.id,
+            name: p.name,
+            user_id: p.user_id,
           }));
-          const fallbackRes = await supabase.from('programs').upsert(fallbackPrograms);
+          const fallbackRes = await supabase
+            .from("programs")
+            .upsert(fallbackPrograms);
           if (!fallbackRes.error) {
             for (const p of safePrograms) {
               const { id, name, user_id, ...extras } = p;
-              await supabase.from('user_settings').upsert(
-                { user_id: user.id, key: `prog_extras_${p.id}`, value: JSON.stringify(extras) },
-                { onConflict: 'user_id, key' }
+              await supabase.from("user_settings").upsert(
+                {
+                  user_id: user.id,
+                  key: `prog_extras_${p.id}`,
+                  value: JSON.stringify(extras),
+                },
+                { onConflict: "user_id, key" },
               );
             }
             error = null;
@@ -501,53 +770,76 @@ export const savePrograms = async (programs: any[]): Promise<{ success: boolean;
         }
 
         if (!error) {
-          clearDirty('programs');
-          dequeue('programs');
-          setSyncStatus('saved');
+          clearDirty("programs");
+          dequeue("programs");
+          setSyncStatus("saved");
           return { success: true };
         }
 
-        console.error('savePrograms error:', error);
-        enqueue('programs');
-        setSyncStatus('error');
+        console.error("savePrograms error:", error);
+        enqueue("programs");
+        setSyncStatus("error");
         return { success: false, error };
       } else {
-        clearDirty('programs');
-        dequeue('programs');
-        setSyncStatus('saved');
+        clearDirty("programs");
+        dequeue("programs");
+        setSyncStatus("saved");
         return { success: true };
       }
     }
-    setSyncStatus('saved');
+    setSyncStatus("saved");
     return { success: true };
   } catch (err) {
-    console.error('savePrograms exception:', err);
-    enqueue('programs');
-    setSyncStatus('error');
+    console.error("savePrograms exception:", err);
+    enqueue("programs");
+    setSyncStatus("error");
     return { success: false, error: err };
   }
 };
 
-export const deleteProgramRow = async (id: string): Promise<{ success: boolean; error?: any }> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'not-authenticated' };
-  const { error } = await supabase.from('programs').delete().eq('id', id).eq('user_id', user.id);
-  if (error) console.error('deleteProgramRow failed', error);
+export const deleteProgramRow = async (
+  id: string,
+): Promise<{ success: boolean; error?: any }> => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "not-authenticated" };
+  const { error } = await supabase
+    .from("programs")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) console.error("deleteProgramRow failed", error);
   return { success: !error, error };
 };
 
 export const getActiveProgram = () => {
-  const stored = localStorage.getItem('fittrack_active_program');
+  const stored = localStorage.getItem("fittrack_active_program");
   return stored ? JSON.parse(stored) : null;
 };
 
-export const saveActiveProgram = async (activeProgram: any): Promise<{ success: boolean; error?: any }> => {
-  if (activeProgram) localStorage.setItem('fittrack_active_program', JSON.stringify(activeProgram));
-  else localStorage.removeItem('fittrack_active_program');
+export const saveActiveProgram = async (
+  activeProgram: any,
+): Promise<{ success: boolean; error?: any }> => {
+  if (activeProgram)
+    localStorage.setItem(
+      "fittrack_active_program",
+      JSON.stringify(activeProgram),
+    );
+  else localStorage.removeItem("fittrack_active_program");
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (user && activeProgram) {
-      await supabase.from('user_settings').upsert({ user_id: user.id, key: 'active_program', value: JSON.stringify(activeProgram) }, { onConflict: 'user_id, key' });
+      await supabase.from("user_settings").upsert(
+        {
+          user_id: user.id,
+          key: "active_program",
+          value: JSON.stringify(activeProgram),
+        },
+        { onConflict: "user_id, key" },
+      );
     }
     return { success: true };
   } catch (e) {
@@ -556,16 +848,25 @@ export const saveActiveProgram = async (activeProgram: any): Promise<{ success: 
 };
 
 export const getPreferredDays = () => {
-  const stored = localStorage.getItem('fittrack_preferred_days');
+  const stored = localStorage.getItem("fittrack_preferred_days");
   return stored ? parseInt(stored, 10) : 3;
 };
 
-export const savePreferredDays = async (days: number): Promise<{ success: boolean; error?: any }> => {
-  localStorage.setItem('fittrack_preferred_days', days.toString());
+export const savePreferredDays = async (
+  days: number,
+): Promise<{ success: boolean; error?: any }> => {
+  localStorage.setItem("fittrack_preferred_days", days.toString());
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (user) {
-      await supabase.from('user_settings').upsert({ user_id: user.id, key: 'preferred_days', value: days.toString() }, { onConflict: 'user_id, key' });
+      await supabase
+        .from("user_settings")
+        .upsert(
+          { user_id: user.id, key: "preferred_days", value: days.toString() },
+          { onConflict: "user_id, key" },
+        );
     }
     return { success: true };
   } catch (e) {
@@ -574,68 +875,87 @@ export const savePreferredDays = async (days: number): Promise<{ success: boolea
 };
 
 export const getWorkoutHistory = () => {
-  const stored = localStorage.getItem('fittrack_history');
+  const stored = localStorage.getItem("fittrack_history");
   return stored ? JSON.parse(stored) : [];
 };
 
-export const saveWorkoutToHistory = async (workout: any): Promise<{ success: boolean; error?: any; workout?: any }> => {
+export const saveWorkoutToHistory = async (
+  workout: any,
+): Promise<{ success: boolean; error?: any; workout?: any }> => {
   const history = getWorkoutHistory();
-  const newWorkout = { ...workout, date: workout.date || new Date().toISOString(), id: workout.id || Date.now().toString() };
+  const newWorkout = {
+    ...workout,
+    date: workout.date || new Date().toISOString(),
+    id: workout.id || Date.now().toString(),
+  };
   // dedupe: don't add if same id already exists
   if (!history.find((h: any) => h.id === newWorkout.id)) {
     history.unshift(newWorkout);
-    localStorage.setItem('fittrack_history', JSON.stringify(history));
-    markDirty('history');
+    localStorage.setItem("fittrack_history", JSON.stringify(history));
+    markDirty("history");
   }
-  setSyncStatus('saving');
+  setSyncStatus("saving");
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
-      enqueue('history');
-      setSyncStatus('error');
-      return { success: false, error: 'not-authenticated', workout: newWorkout };
+      enqueue("history");
+      setSyncStatus("error");
+      return {
+        success: false,
+        error: "not-authenticated",
+        workout: newWorkout,
+      };
     }
     // Write top-level columns (matching the existing table shape) AND keep data in sync.
     const { data: rows, error } = await supabase
-      .from('workout_history')
-      .upsert({
-        id: newWorkout.id,
-        user_id: user.id,
-        date: newWorkout.date,
-        name: newWorkout.name ?? null,
-        exercises: newWorkout.exercises ?? [],
-        volume: newWorkout.volume ?? 0,
-        reward: newWorkout.reward ?? null,
-        duration: newWorkout.duration ?? null,
-        data: newWorkout,
-      }, { onConflict: 'id' })
+      .from("workout_history")
+      .upsert(
+        {
+          id: newWorkout.id,
+          user_id: user.id,
+          date: newWorkout.date,
+          name: newWorkout.name ?? null,
+          exercises: newWorkout.exercises ?? [],
+          volume: newWorkout.volume ?? 0,
+          reward: newWorkout.reward ?? null,
+          duration: newWorkout.duration ?? null,
+          data: newWorkout,
+        },
+        { onConflict: "id" },
+      )
       .select();
 
     if (error) {
-      enqueue('history');
-      setSyncStatus('error');
+      enqueue("history");
+      setSyncStatus("error");
       return { success: false, error, workout: newWorkout };
     }
     if (!rows || rows.length === 0) {
       // Upsert returned nothing → RLS/policy silently dropped it
-      enqueue('history');
-      setSyncStatus('error');
-      return { success: false, error: 'no-row-persisted (check RLS insert/update policy)', workout: newWorkout };
+      enqueue("history");
+      setSyncStatus("error");
+      return {
+        success: false,
+        error: "no-row-persisted (check RLS insert/update policy)",
+        workout: newWorkout,
+      };
     }
-    clearDirty('history');
-    dequeue('history');
-    setSyncStatus('saved');
+    clearDirty("history");
+    dequeue("history");
+    setSyncStatus("saved");
     return { success: true, workout: newWorkout };
   } catch (e) {
-    enqueue('history');
-    setSyncStatus('error');
+    enqueue("history");
+    setSyncStatus("error");
     return { success: false, error: e, workout: newWorkout };
   }
 };
 
 export const getPersonalRecords = () => {
   try {
-    return JSON.parse(localStorage.getItem('fittrack_prs') || '[]');
+    return JSON.parse(localStorage.getItem("fittrack_prs") || "[]");
   } catch {
     return [];
   }
@@ -644,67 +964,114 @@ export const getPersonalRecords = () => {
 export const detectAndSavePBs = async (exercises: any[]) => {
   const prs = getPersonalRecords();
   const byName: Record<string, any> = {};
-  prs.forEach((p: any) => { byName[p.exercise || p.exerciseId] = p; });
+  prs.forEach((p: any) => {
+    byName[p.exercise || p.exerciseId] = p;
+  });
   const newPBs: any[] = [];
 
   for (const ex of exercises) {
     if (ex.isSection || !ex.name) continue;
     const sets = Array.isArray(ex.setsData) ? ex.setsData : [];
-    const best = sets.reduce((m: number, s: any) => Math.max(m, s.weight || 0), 0);
-    if (best <= 0) continue;                          // skip bodyweight/cardio/no-weight
-    const bestSet = sets.filter((s:any)=> (s.weight||0)===best).sort((a:any,b:any)=>(b.reps||0)-(a.reps||0))[0];
+    const best = sets.reduce(
+      (m: number, s: any) => Math.max(m, s.weight || 0),
+      0,
+    );
+    if (best <= 0) continue; // skip bodyweight/cardio/no-weight
+    const bestSet = sets
+      .filter((s: any) => (s.weight || 0) === best)
+      .sort((a: any, b: any) => (b.reps || 0) - (a.reps || 0))[0];
     const prev = byName[ex.name];
     if (!prev || best > prev.weight) {
-      const rec = { id: Date.now().toString() + Math.random().toString(36).slice(2,6),
-        exercise: ex.name, weight: best, reps: bestSet?.reps || 0,
-        date: new Date().toISOString().split('T')[0] };
+      const rec = {
+        id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+        exercise: ex.name,
+        weight: best,
+        reps: bestSet?.reps || 0,
+        date: new Date().toISOString().split("T")[0],
+      };
       byName[ex.name] = rec;
       newPBs.push(rec);
     }
   }
-  
+
   if (newPBs.length === 0) return [];
 
   const merged = Object.values(byName);
-  localStorage.setItem('fittrack_prs', JSON.stringify(merged));
-  markDirty('prs');
+  localStorage.setItem("fittrack_prs", JSON.stringify(merged));
+  markDirty("prs");
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (user) {
-      const rows = newPBs.map((p:any) => ({ ...p, user_id: user.id }));
-      const { error } = await supabase.from('personal_records')
-        .upsert(rows, { onConflict: 'user_id, exercise' });
-      if (error) { enqueue('prs'); } else { clearDirty('prs'); dequeue('prs'); }
-    } else { clearDirty('prs'); }
-  } catch { enqueue('prs'); }
+      const rows = newPBs.map((p: any) => ({ ...p, user_id: user.id }));
+      const { error } = await supabase
+        .from("personal_records")
+        .upsert(rows, { onConflict: "user_id, exercise" });
+      if (error) {
+        enqueue("prs");
+      } else {
+        clearDirty("prs");
+        dequeue("prs");
+      }
+    } else {
+      clearDirty("prs");
+    }
+  } catch {
+    enqueue("prs");
+  }
   return newPBs;
 };
 
 export const savePersonalRecord = (exerciseId: string, weight: number) => {
   const prs = getPersonalRecords();
-  const date = new Date().toISOString().split('T')[0];
-  const newPr = { id: Date.now().toString(), exercise: exerciseId, exerciseId, weight, date }; // kept exerciseId for backwards compat in Progress.tsx
+  const date = new Date().toISOString().split("T")[0];
+  const newPr = {
+    id: Date.now().toString(),
+    exercise: exerciseId,
+    exerciseId,
+    weight,
+    date,
+  }; // kept exerciseId for backwards compat in Progress.tsx
   prs.push(newPr);
-  localStorage.setItem('fittrack_prs', JSON.stringify(prs));
-  markDirty('prs');
-  supabase.auth.getUser().then(({ data: { user } }) => {
-    if (user) {
-      supabase.from('personal_records').upsert({ ...newPr, user_id: user.id }, { onConflict: 'user_id, exercise' }).then(({ error }) => {
-        if (error) enqueue('prs');
-        else { clearDirty('prs'); dequeue('prs'); }
-      });
-    }
-  }).catch(() => enqueue('prs'));
+  localStorage.setItem("fittrack_prs", JSON.stringify(prs));
+  markDirty("prs");
+  supabase.auth
+    .getUser()
+    .then(({ data: { user } }) => {
+      if (user) {
+        supabase
+          .from("personal_records")
+          .upsert(
+            { ...newPr, user_id: user.id },
+            { onConflict: "user_id, exercise" },
+          )
+          .then(({ error }) => {
+            if (error) enqueue("prs");
+            else {
+              clearDirty("prs");
+              dequeue("prs");
+            }
+          });
+      }
+    })
+    .catch(() => enqueue("prs"));
   return prs;
 };
 
 export const deletePersonalRecord = (id: string) => {
   let prs = getPersonalRecords();
   prs = prs.filter((pr: any) => pr.id !== id);
-  localStorage.setItem('fittrack_prs', JSON.stringify(prs));
-  markDirty('prs'); // using dirty mechanism for deletions might be complex, simplified for now
+  localStorage.setItem("fittrack_prs", JSON.stringify(prs));
+  markDirty("prs"); // using dirty mechanism for deletions might be complex, simplified for now
   supabase.auth.getUser().then(({ data: { user } }) => {
-    if (user) supabase.from('personal_records').delete().eq('id', id).eq('user_id', user.id).then();
+    if (user)
+      supabase
+        .from("personal_records")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id)
+        .then();
   });
   return prs;
 };
@@ -712,24 +1079,37 @@ export const deletePersonalRecord = (id: string) => {
 export const getLastExerciseStats = (exerciseName: string) => {
   const history = getWorkoutHistory(); // newest first
   for (const workout of history) {
-    const ex = workout.exercises?.find((e: any) => String(e.name) === String(exerciseName));
+    const ex = workout.exercises?.find(
+      (e: any) => String(e.name) === String(exerciseName),
+    );
     if (!ex) continue;
     const sets = Array.isArray(ex.setsData) ? ex.setsData : [];
-    const hasVal = sets.some((s: any) =>
-      (+s.weight||0)>0 || (+s.reps||0)>0 || (+s.distance||0)>0 || (+s.calories||0)>0 || (+s.timeMins||0)>0 || (+s.timeSecs||0)>0);
+    const hasVal = sets.some(
+      (s: any) =>
+        (+s.weight || 0) > 0 ||
+        (+s.reps || 0) > 0 ||
+        (+s.distance || 0) > 0 ||
+        (+s.calories || 0) > 0 ||
+        (+s.timeMins || 0) > 0 ||
+        (+s.timeSecs || 0) > 0,
+    );
     if (!hasVal) continue;
 
-    const top = (key: string) => sets.reduce((m: number, s: any) => Math.max(m, +s[key] || 0), 0);
-    const bestWeightSet = sets.filter((s:any)=>(+s.weight||0)>0).sort((a:any,b:any)=>(+b.weight)-(+a.weight))[0] || {};
+    const top = (key: string) =>
+      sets.reduce((m: number, s: any) => Math.max(m, +s[key] || 0), 0);
+    const bestWeightSet =
+      sets
+        .filter((s: any) => (+s.weight || 0) > 0)
+        .sort((a: any, b: any) => +b.weight - +a.weight)[0] || {};
     return {
       date: workout.date,
       trackingType: ex.trackingType || null,
       weight: +bestWeightSet.weight || 0,
       reps: +bestWeightSet.reps || 0,
-      calories: top('calories'),
-      distance: top('distance'),
-      timeMins: top('timeMins'),
-      timeSecs: top('timeSecs'),
+      calories: top("calories"),
+      distance: top("distance"),
+      timeMins: top("timeMins"),
+      timeSecs: top("timeSecs"),
       sets: sets.length,
     };
   }
@@ -740,118 +1120,186 @@ export const getLastExerciseStats = (exerciseName: string) => {
 // `limit` caps how many sessions to return (default 3 for Past Lifts).
 export const getExerciseHistory = (exerciseName: string, limit = 3) => {
   const history = getWorkoutHistory(); // newest first
-  const out: { date: string; trackingType: any; sets: { weight: number; reps: number; distance: number; calories: number; timeMins: number; timeSecs: number }[]; top: { weight: number; reps: number } }[] = [];
+  const out: {
+    date: string;
+    trackingType: any;
+    sets: {
+      weight: number;
+      reps: number;
+      distance: number;
+      calories: number;
+      timeMins: number;
+      timeSecs: number;
+    }[];
+    top: { weight: number; reps: number };
+  }[] = [];
   for (const workout of history) {
-    const ex = workout.exercises?.find((e: any) => String(e.name) === String(exerciseName));
+    const ex = workout.exercises?.find(
+      (e: any) => String(e.name) === String(exerciseName),
+    );
     if (!ex) continue;
     const raw = Array.isArray(ex.setsData) ? ex.setsData : [];
     let sets = raw
-      .filter((s: any) => (s.weight || 0) > 0 || (s.reps || 0) > 0 || (s.distance || 0) > 0 || (s.calories || 0) > 0 || (s.timeMins || 0) > 0 || (s.timeSecs || 0) > 0)
-      .map((s: any) => ({ weight: s.weight || 0, reps: s.reps || 0, distance: s.distance || 0, calories: s.calories || 0, timeMins: s.timeMins || 0, timeSecs: s.timeSecs || 0 }));
-    if (!sets.length && (ex.weight || 0) > 0) sets = [{ weight: ex.weight, reps: ex.reps || 0, distance: 0, calories: 0, timeMins: 0, timeSecs: 0 }];
+      .filter(
+        (s: any) =>
+          (s.weight || 0) > 0 ||
+          (s.reps || 0) > 0 ||
+          (s.distance || 0) > 0 ||
+          (s.calories || 0) > 0 ||
+          (s.timeMins || 0) > 0 ||
+          (s.timeSecs || 0) > 0,
+      )
+      .map((s: any) => ({
+        weight: s.weight || 0,
+        reps: s.reps || 0,
+        distance: s.distance || 0,
+        calories: s.calories || 0,
+        timeMins: s.timeMins || 0,
+        timeSecs: s.timeSecs || 0,
+      }));
+    if (!sets.length && (ex.weight || 0) > 0)
+      sets = [
+        {
+          weight: ex.weight,
+          reps: ex.reps || 0,
+          distance: 0,
+          calories: 0,
+          timeMins: 0,
+          timeSecs: 0,
+        },
+      ];
     if (!sets.length) continue;
     const top = sets.reduce((a, b) => (b.weight > a.weight ? b : a));
-    out.push({ date: workout.date, trackingType: ex.trackingType || null, sets, top });
+    out.push({
+      date: workout.date,
+      trackingType: ex.trackingType || null,
+      sets,
+      top,
+    });
     if (out.length >= limit) break;
   }
   // Drop sessions where no weight was actually logged (junk 0kg entries),
   // but keep bodyweight exercises that have never had a weighted session.
-  const hasAnyWeighted = out.some(h => h.top.weight > 0);
-  return hasAnyWeighted ? out.filter(h => h.top.weight > 0) : out;
+  const hasAnyWeighted = out.some((h) => h.top.weight > 0);
+  return hasAnyWeighted ? out.filter((h) => h.top.weight > 0) : out;
 };
 
 export const getBodyweightHistory = () => {
-  const stored = localStorage.getItem('fittrack_bodyweight');
+  const stored = localStorage.getItem("fittrack_bodyweight");
   return stored ? JSON.parse(stored) : [];
 };
 
-export const saveBodyweight = async (data: any): Promise<{ success: boolean; error?: any; history?: any[] }> => {
+export const saveBodyweight = async (
+  data: any,
+): Promise<{ success: boolean; error?: any; history?: any[] }> => {
   const history = getBodyweightHistory();
-  const date = new Date().toISOString().split('T')[0];
+  const date = new Date().toISOString().split("T")[0];
   history.push({ date, ...data });
-  localStorage.setItem('fittrack_bodyweight', JSON.stringify(history));
-  markDirty('bodyweight');
-  setSyncStatus('saving');
+  localStorage.setItem("fittrack_bodyweight", JSON.stringify(history));
+  markDirty("bodyweight");
+  setSyncStatus("saving");
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (user) {
-      const { error } = await supabase.from('bodyweight_history').upsert({ user_id: user.id, date, ...data }, { onConflict: 'user_id, date' });
+      const { error } = await supabase
+        .from("bodyweight_history")
+        .upsert(
+          { user_id: user.id, date, ...data },
+          { onConflict: "user_id, date" },
+        );
       if (error) {
-        enqueue('bodyweight');
-        setSyncStatus('error');
+        enqueue("bodyweight");
+        setSyncStatus("error");
         return { success: false, error, history };
       }
     }
-    clearDirty('bodyweight');
-    dequeue('bodyweight');
-    setSyncStatus('saved');
+    clearDirty("bodyweight");
+    dequeue("bodyweight");
+    setSyncStatus("saved");
     return { success: true, history };
   } catch (e) {
-    enqueue('bodyweight');
-    setSyncStatus('error');
+    enqueue("bodyweight");
+    setSyncStatus("error");
     return { success: false, error: e, history };
   }
 };
 
 export const getEducationFolders = () => {
-  const local = localStorage.getItem('fittrack_education_folders');
+  const local = localStorage.getItem("fittrack_education_folders");
   return local ? JSON.parse(local) : [];
 };
 
 export const saveEducationFolders = (folders: any[]) => {
-  localStorage.setItem('fittrack_education_folders', JSON.stringify(folders));
+  localStorage.setItem("fittrack_education_folders", JSON.stringify(folders));
   supabase.auth.getUser().then(async ({ data: { user } }) => {
-    if (user) await supabase.from('education_folders').upsert(folders.map(f => ({ ...f, user_id: user.id })));
+    if (user)
+      await supabase
+        .from("education_folders")
+        .upsert(folders.map((f) => ({ ...f, user_id: user.id })));
   });
 };
 
 export const getVimeoToken = () => {
-  return localStorage.getItem('fittrack_vimeo_token') || "";
+  return localStorage.getItem("fittrack_vimeo_token") || "";
 };
 
 export const saveVimeoToken = (token: string) => {
-  localStorage.setItem('fittrack_vimeo_token', token);
+  localStorage.setItem("fittrack_vimeo_token", token);
   supabase.auth.getUser().then(({ data: { user } }) => {
     if (user) {
-      supabase.from('user_settings').upsert({ user_id: user.id, key: 'vimeo_token', value: token }, { onConflict: 'user_id, key' }).then();
+      supabase
+        .from("user_settings")
+        .upsert(
+          { user_id: user.id, key: "vimeo_token", value: token },
+          { onConflict: "user_id, key" },
+        )
+        .then();
     }
   });
 };
 
 export const getAnthropicKey = () => {
-  return localStorage.getItem('fittrack_anthropic_key') || "";
+  return localStorage.getItem("fittrack_anthropic_key") || "";
 };
 
 export const saveAnthropicKey = (key: string) => {
-  localStorage.setItem('fittrack_anthropic_key', key);
+  localStorage.setItem("fittrack_anthropic_key", key);
   supabase.auth.getUser().then(({ data: { user } }) => {
     if (user) {
-      supabase.from('user_settings').upsert({ user_id: user.id, key: 'anthropic_key', value: key }, { onConflict: 'user_id, key' }).then();
+      supabase
+        .from("user_settings")
+        .upsert(
+          { user_id: user.id, key: "anthropic_key", value: key },
+          { onConflict: "user_id, key" },
+        )
+        .then();
     }
   });
 };
 
 export const getCommunityPosts = () => {
-  const local = localStorage.getItem('fittrack_community_posts');
+  const local = localStorage.getItem("fittrack_community_posts");
   return local ? JSON.parse(local) : [];
 };
 
 export const saveCommunityPost = (post: any) => {
   const posts = getCommunityPosts();
   posts.unshift(post);
-  localStorage.setItem('fittrack_community_posts', JSON.stringify(posts));
+  localStorage.setItem("fittrack_community_posts", JSON.stringify(posts));
   return posts;
 };
 
 export const getCommunityComments = () => {
-  const local = localStorage.getItem('fittrack_community_comments');
+  const local = localStorage.getItem("fittrack_community_comments");
   return local ? JSON.parse(local) : [];
 };
 
 export const saveCommunityComment = (comment: any) => {
   const comments = getCommunityComments();
   comments.push(comment);
-  localStorage.setItem('fittrack_community_comments', JSON.stringify(comments));
+  localStorage.setItem("fittrack_community_comments", JSON.stringify(comments));
   return comments;
 };
 
@@ -866,13 +1314,18 @@ export const getCommunityFeed = () => {
       workoutName: "Leg Day Crusher",
       exercises: [
         { name: "squat", sets: 4, reps: 8, weight: 100 },
-        { name: "deadlift", sets: 3, reps: 8, weight: 120 }
+        { name: "deadlift", sets: 3, reps: 8, weight: 120 },
       ],
       volume: 6080,
-      reward: { name: "Ambulance", emoji: "🚑", count: 1, displayName: "Ambulance" },
+      reward: {
+        name: "Ambulance",
+        emoji: "🚑",
+        count: 1,
+        displayName: "Ambulance",
+      },
       likes: 12,
-      comments: 3
-    }
+      comments: 3,
+    },
   ];
   const historyPosts = history.map((w: any) => ({
     id: w.id,
@@ -883,231 +1336,347 @@ export const getCommunityFeed = () => {
     volume: w.volume,
     reward: w.reward,
     likes: 0,
-    comments: 0
+    comments: 0,
   }));
-  return [...customPosts, ...historyPosts, ...mockFeed].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  return [...customPosts, ...historyPosts, ...mockFeed].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+  );
 };
 
 export const getMembers = async () => {
-  const { data } = await supabase.from('members').select('*').order('name');
+  const { data } = await supabase.from("members").select("*").order("name");
   return data || [];
 };
 
 export const getMemberActivity = async (memberId: string) => {
-  const { data } = await supabase.from('workout_history').select('*').eq('user_id', memberId).order('date', { ascending: false });
+  const { data } = await supabase
+    .from("workout_history")
+    .select("*")
+    .eq("user_id", memberId)
+    .order("date", { ascending: false });
   return (data || []).map((r: any) => r.data ?? r);
 };
 
-export const sendNotification = async (userId: string, title: string, message: string) => {
-  await supabase.from('notifications').insert({ user_id: userId, title, message, is_read: false });
+export const sendNotification = async (
+  userId: string,
+  title: string,
+  message: string,
+) => {
+  await supabase
+    .from("notifications")
+    .insert({ user_id: userId, title, message, is_read: false });
 };
 
 export const migrateLocalToSupabase = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return;
 };
 
 export const getEducationVideos = () => {
-  const local = localStorage.getItem('fittrack_education_videos');
+  const local = localStorage.getItem("fittrack_education_videos");
   return local ? JSON.parse(local) : [];
 };
 
 export const saveEducationVideos = (videos: any[]) => {
-  localStorage.setItem('fittrack_education_videos', JSON.stringify(videos));
+  localStorage.setItem("fittrack_education_videos", JSON.stringify(videos));
   supabase.auth.getUser().then(async ({ data: { user } }) => {
-    if (user) await supabase.from('education_videos').upsert(videos.map(v => ({ ...v, user_id: user.id })));
+    if (user)
+      await supabase
+        .from("education_videos")
+        .upsert(videos.map((v) => ({ ...v, user_id: user.id })));
   });
 };
 
 export const getNotifications = async () => {
-  const { data } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
+  const { data } = await supabase
+    .from("notifications")
+    .select("*")
+    .order("created_at", { ascending: false });
   return data || [];
 };
 
 export const markNotificationRead = async (id: string) => {
-  await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+  await supabase.from("notifications").update({ is_read: true }).eq("id", id);
 };
 
 export const syncFromSupabase = async () => {
   try {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
 
-  // Flush any pending queued writes BEFORE syncing (push local → cloud first)
-  await flushRetryQueue();
+    // Flush any pending queued writes BEFORE syncing (push local → cloud first)
+    await flushRetryQueue();
 
-  // Use allSettled so one failing query (e.g. a missing table) can't wipe out everything else.
-  const results = await Promise.allSettled([
-    supabase.from('exercises').select('*'),
-    supabase.from('programs').select('*'),
-    supabase.from('workout_history').select('*').eq('user_id', user.id),
-    supabase.from('bodyweight_history').select('*').eq('user_id', user.id),
-    supabase.from('personal_records').select('*').eq('user_id', user.id),
-    supabase.from('member_nutrition').select('*').eq('member_id', user.id).maybeSingle(),
-    supabase.from('member_habits').select('*').eq('member_id', user.id),
-    supabase.from('habit_checkins').select('*').eq('member_id', user.id),
-    supabase.from('member_measurements').select('*').eq('member_id', user.id),
-    supabase.from('member_photos').select('*').eq('member_id', user.id),
-    supabase.from('habits').select('*').order('sort_order', { ascending: true }),
-    supabase.from('member_macros').select('*').eq('member_id', user.id).maybeSingle(),
-    supabase.from('macro_logs').select('*').eq('member_id', user.id),
-    supabase.from('workout_of_week').select('*').order('week_start', { ascending: false }),
-    supabase.from('wow_results').select('*').eq('member_id', user.id),
-    supabase.from('education_folders').select('*'),
-    supabase.from('education_videos').select('*')
-  ]);
-  const val = (i: number) => results[i].status === "fulfilled" ? (results[i] as any).value : { data: null };
-  const ex = val(0), prg = val(1), hist = val(2), bw = val(3), prs = val(4), nut = val(5),
-    mhab = val(6), chk = val(7), meas = val(8), phot = val(9), habLib = val(10), mac = val(11),
-    mlogs = val(12), wows = val(13), wowRes = val(14), eduFolders = val(15), eduVideos = val(16);
+    // Use allSettled so one failing query (e.g. a missing table) can't wipe out everything else.
+    const results = await Promise.allSettled([
+      supabase.from("exercises").select("*"),
+      supabase.from("programs").select("*"),
+      supabase.from("workout_history").select("*").eq("user_id", user.id),
+      supabase.from("bodyweight_history").select("*").eq("user_id", user.id),
+      supabase.from("personal_records").select("*").eq("user_id", user.id),
+      supabase
+        .from("member_nutrition")
+        .select("*")
+        .eq("member_id", user.id)
+        .maybeSingle(),
+      supabase.from("member_habits").select("*").eq("member_id", user.id),
+      supabase.from("habit_checkins").select("*").eq("member_id", user.id),
+      supabase.from("member_measurements").select("*").eq("member_id", user.id),
+      supabase.from("member_photos").select("*").eq("member_id", user.id),
+      supabase
+        .from("habits")
+        .select("*")
+        .order("sort_order", { ascending: true }),
+      supabase
+        .from("member_macros")
+        .select("*")
+        .eq("member_id", user.id)
+        .maybeSingle(),
+      supabase.from("macro_logs").select("*").eq("member_id", user.id),
+      supabase
+        .from("workout_of_week")
+        .select("*")
+        .order("week_start", { ascending: false }),
+      supabase.from("wow_results").select("*").eq("member_id", user.id),
+      supabase.from("education_folders").select("*"),
+      supabase.from("education_videos").select("*"),
+    ]);
+    const val = (i: number) =>
+      results[i].status === "fulfilled"
+        ? (results[i] as any).value
+        : { data: null };
+    const ex = val(0),
+      prg = val(1),
+      hist = val(2),
+      bw = val(3),
+      prs = val(4),
+      nut = val(5),
+      mhab = val(6),
+      chk = val(7),
+      meas = val(8),
+      phot = val(9),
+      habLib = val(10),
+      mac = val(11),
+      mlogs = val(12),
+      wows = val(13),
+      wowRes = val(14),
+      eduFolders = val(15),
+      eduVideos = val(16);
 
-  let settings: any[] | null = null;
-  try {
-    const { data: settingsData } = await supabase.from('user_settings').select('*').eq('user_id', user.id);
-    settings = settingsData;
-  } catch { /* table may not exist */ }
+    let settings: any[] | null = null;
+    try {
+      const { data: settingsData } = await supabase
+        .from("user_settings")
+        .select("*")
+        .eq("user_id", user.id);
+      settings = settingsData;
+    } catch {
+      /* table may not exist */
+    }
 
-  // Guard: only overwrite local if store is NOT dirty (no pending unconfirmed writes)
-  if (ex.data && ex.data.length > 0 && !isDirty('exercises')) {
-    localStorage.setItem('fittrack_exercises', JSON.stringify(ex.data));
-  } else if (isDirty('exercises')) {
-    // Only staff should re-push the shared exercise library.
-    const isStaff = localStorage.getItem('fittrack_is_staff') === 'true';
-    if (isStaff) {
-      const local = localStorage.getItem('fittrack_exercises');
-      if (local) saveExercises(JSON.parse(local));
-    } else {
-      clearDirty('exercises');
-      dequeue('exercises');
-      if (ex.data && ex.data.length > 0) {
-        localStorage.setItem('fittrack_exercises', JSON.stringify(ex.data));
+    // Guard: only overwrite local if store is NOT dirty (no pending unconfirmed writes)
+    if (ex.data && ex.data.length > 0 && !isDirty("exercises")) {
+      localStorage.setItem("fittrack_exercises", JSON.stringify(ex.data));
+    } else if (isDirty("exercises")) {
+      // Only staff should re-push the shared exercise library.
+      const isStaff = localStorage.getItem("fittrack_is_staff") === "true";
+      if (isStaff) {
+        const local = localStorage.getItem("fittrack_exercises");
+        if (local) saveExercises(JSON.parse(local));
+      } else {
+        clearDirty("exercises");
+        dequeue("exercises");
+        if (ex.data && ex.data.length > 0) {
+          localStorage.setItem("fittrack_exercises", JSON.stringify(ex.data));
+        }
       }
     }
-  }
 
-  if (prg.data && prg.data.length > 0 && !isDirty('programs')) {
-    let activePrg = prg.data;
+    if (prg.data && prg.data.length > 0 && !isDirty("programs")) {
+      let activePrg = prg.data;
+      if (settings) {
+        activePrg = activePrg.map((p: any) => {
+          const extraSetting = settings.find(
+            (s: any) => s.key === `prog_extras_${p.id}`,
+          );
+          let extraData: any = {};
+          if (extraSetting) {
+            try {
+              extraData = JSON.parse(extraSetting.value);
+            } catch (e) {}
+          }
+          return { ...extraData, ...p };
+        });
+      }
+      localStorage.setItem("fittrack_programs", JSON.stringify(activePrg));
+    } else if (isDirty("programs")) {
+      // Only staff should re-push programmes to the shared library.
+      // For members, just clear the dirty flag and load from cloud.
+      const isStaff = localStorage.getItem("fittrack_is_staff") === "true";
+      if (isStaff) {
+        const local = localStorage.getItem("fittrack_programs");
+        if (local) savePrograms(JSON.parse(local));
+      } else {
+        clearDirty("programs");
+        dequeue("programs");
+        if (prg.data && prg.data.length > 0) {
+          localStorage.setItem("fittrack_programs", JSON.stringify(prg.data));
+        }
+      }
+    }
+
+    if (hist.data && hist.data.length > 0) {
+      const cloudRows = hist.data.map((r: any) => r.data ?? r);
+      if (!isDirty("history")) {
+        // Not dirty → cloud is source of truth, but still merge to preserve any local-only rows
+        const localRows = JSON.parse(
+          localStorage.getItem("fittrack_history") || "[]",
+        );
+        const byId = new Map<string, any>();
+        // Cloud rows take priority
+        cloudRows.forEach((r: any) => byId.set(String(r.id), r));
+        // Local-only rows (not in cloud) are preserved and re-enqueued for push
+        const localOnly: any[] = [];
+        localRows.forEach((r: any) => {
+          if (!byId.has(String(r.id))) {
+            byId.set(String(r.id), r);
+            localOnly.push(r);
+          }
+        });
+        if (localOnly.length > 0) enqueue("history");
+        localStorage.setItem(
+          "fittrack_history",
+          JSON.stringify(Array.from(byId.values())),
+        );
+      }
+      // If dirty, the flushRetryQueue above already pushed everything; don't overwrite local.
+    }
+
+    if (bw.data && bw.data.length > 0 && !isDirty("bodyweight")) {
+      localStorage.setItem("fittrack_bodyweight", JSON.stringify(bw.data));
+    }
+
+    if (prs.data && prs.data.length > 0 && !isDirty("prs"))
+      localStorage.setItem("fittrack_prs", JSON.stringify(prs.data));
+    else if (isDirty("prs")) {
+      const local = localStorage.getItem("fittrack_prs");
+      if (local) {
+        const prsData = JSON.parse(local);
+        const rows = prsData.map((p: any) => ({ ...p, user_id: user.id }));
+        supabase
+          .from("personal_records")
+          .upsert(rows, { onConflict: "user_id, exercise" })
+          .then();
+      }
+    }
+
+    if (wows.data)
+      localStorage.setItem("fittrack_wows", JSON.stringify(wows.data));
+    if (wowRes.data && !isDirty("wowResults"))
+      localStorage.setItem("fittrack_wow_results", JSON.stringify(wowRes.data));
+    if (nut.data)
+      localStorage.setItem(
+        "fittrack_member_nutrition",
+        JSON.stringify(nut.data),
+      );
+    if (mhab.data && mhab.data.length > 0)
+      localStorage.setItem("fittrack_member_habits", JSON.stringify(mhab.data));
+    if (chk.data && chk.data.length > 0)
+      localStorage.setItem("fittrack_habit_checkins", JSON.stringify(chk.data));
+    if (meas.data && meas.data.length > 0)
+      localStorage.setItem(
+        "fittrack_member_measurements",
+        JSON.stringify(meas.data),
+      );
+    if (phot.data && phot.data.length > 0)
+      localStorage.setItem("fittrack_member_photos", JSON.stringify(phot.data));
+    if (habLib.data && habLib.data.length > 0)
+      localStorage.setItem(
+        "fittrack_habits_library",
+        JSON.stringify(habLib.data),
+      );
+    if (mac.data && !isDirty("macros"))
+      localStorage.setItem("fittrack_member_macros", JSON.stringify(mac.data));
+    else if (isDirty("macros")) {
+      const local = localStorage.getItem("fittrack_member_macros");
+      if (local) saveMemberMacros(JSON.parse(local));
+    }
+    if (mlogs.data && mlogs.data.length > 0 && !isDirty("macroLogs"))
+      localStorage.setItem("fittrack_macro_logs", JSON.stringify(mlogs.data));
+    else if (isDirty("macroLogs")) {
+      const local = localStorage.getItem("fittrack_macro_logs");
+      if (local) {
+        const logs = JSON.parse(local);
+        for (const log of logs) saveMacroLog(log);
+      }
+    }
+
+    if (eduFolders.data && eduFolders.data.length > 0)
+      localStorage.setItem(
+        "fittrack_education_folders",
+        JSON.stringify(eduFolders.data),
+      );
+    if (eduVideos.data && eduVideos.data.length > 0)
+      localStorage.setItem(
+        "fittrack_education_videos",
+        JSON.stringify(eduVideos.data),
+      );
+
     if (settings) {
-      activePrg = activePrg.map((p: any) => {
-        const extraSetting = settings.find((s: any) => s.key === `prog_extras_${p.id}`);
-        let extraData: any = {};
-        if (extraSetting) { try { extraData = JSON.parse(extraSetting.value); } catch (e) {} }
-        return { ...extraData, ...p };
-      });
-    }
-    localStorage.setItem('fittrack_programs', JSON.stringify(activePrg));
-  } else if (isDirty('programs')) {
-    // Only staff should re-push programmes to the shared library.
-    // For members, just clear the dirty flag and load from cloud.
-    const isStaff = localStorage.getItem('fittrack_is_staff') === 'true';
-    if (isStaff) {
-      const local = localStorage.getItem('fittrack_programs');
-      if (local) savePrograms(JSON.parse(local));
-    } else {
-      clearDirty('programs');
-      dequeue('programs');
-      if (prg.data && prg.data.length > 0) {
-        localStorage.setItem('fittrack_programs', JSON.stringify(prg.data));
-      }
-    }
-  }
+      const active = settings.find((s) => s.key === "active_program");
+      if (active) localStorage.setItem("fittrack_active_program", active.value);
 
-  if (hist.data && hist.data.length > 0) {
-    const cloudRows = hist.data.map((r: any) => r.data ?? r);
-    if (!isDirty('history')) {
-      // Not dirty → cloud is source of truth, but still merge to preserve any local-only rows
-      const localRows = JSON.parse(localStorage.getItem('fittrack_history') || '[]');
-      const byId = new Map<string, any>();
-      // Cloud rows take priority
-      cloudRows.forEach((r: any) => byId.set(String(r.id), r));
-      // Local-only rows (not in cloud) are preserved and re-enqueued for push
-      const localOnly: any[] = [];
-      localRows.forEach((r: any) => {
-        if (!byId.has(String(r.id))) { byId.set(String(r.id), r); localOnly.push(r); }
-      });
-      if (localOnly.length > 0) enqueue('history');
-      localStorage.setItem('fittrack_history', JSON.stringify(Array.from(byId.values())));
+      const prefDays = settings.find((s) => s.key === "preferred_days");
+      if (prefDays)
+        localStorage.setItem("fittrack_preferred_days", prefDays.value);
     }
-    // If dirty, the flushRetryQueue above already pushed everything; don't overwrite local.
-  }
-  
-  if (bw.data && bw.data.length > 0 && !isDirty('bodyweight')) {
-    localStorage.setItem('fittrack_bodyweight', JSON.stringify(bw.data));
-  }
-  
-  if (prs.data && prs.data.length > 0 && !isDirty('prs')) localStorage.setItem('fittrack_prs', JSON.stringify(prs.data));
-  else if (isDirty('prs')) {
-    const local = localStorage.getItem('fittrack_prs');
-    if (local) {
-      const prsData = JSON.parse(local);
-      const rows = prsData.map((p:any) => ({ ...p, user_id: user.id }));
-      supabase.from('personal_records').upsert(rows, { onConflict: 'user_id, exercise' }).then();
-    }
-  }
 
-  if (wows.data) localStorage.setItem('fittrack_wows', JSON.stringify(wows.data));
-  if (wowRes.data && !isDirty('wowResults')) localStorage.setItem('fittrack_wow_results', JSON.stringify(wowRes.data));
-  if (nut.data) localStorage.setItem('fittrack_member_nutrition', JSON.stringify(nut.data));
-  if (mhab.data && mhab.data.length > 0) localStorage.setItem('fittrack_member_habits', JSON.stringify(mhab.data));
-  if (chk.data && chk.data.length > 0) localStorage.setItem('fittrack_habit_checkins', JSON.stringify(chk.data));
-  if (meas.data && meas.data.length > 0) localStorage.setItem('fittrack_member_measurements', JSON.stringify(meas.data));
-  if (phot.data && phot.data.length > 0) localStorage.setItem('fittrack_member_photos', JSON.stringify(phot.data));
-  if (habLib.data && habLib.data.length > 0) localStorage.setItem('fittrack_habits_library', JSON.stringify(habLib.data));
-  if (mac.data && !isDirty('macros')) localStorage.setItem('fittrack_member_macros', JSON.stringify(mac.data));
-  else if (isDirty('macros')) {
-    const local = localStorage.getItem('fittrack_member_macros');
-    if (local) saveMemberMacros(JSON.parse(local));
-  }
-  if (mlogs.data && mlogs.data.length > 0 && !isDirty('macroLogs')) localStorage.setItem('fittrack_macro_logs', JSON.stringify(mlogs.data));
-  else if (isDirty('macroLogs')) {
-    const local = localStorage.getItem('fittrack_macro_logs');
-    if (local) {
-      const logs = JSON.parse(local);
-      for (const log of logs) saveMacroLog(log);
-    }
-  }
-
-  if (eduFolders.data && eduFolders.data.length > 0) localStorage.setItem('fittrack_education_folders', JSON.stringify(eduFolders.data));
-  if (eduVideos.data && eduVideos.data.length > 0) localStorage.setItem('fittrack_education_videos', JSON.stringify(eduVideos.data));
-
-  if (settings) {
-    const active = settings.find(s => s.key === 'active_program');
-    if (active) localStorage.setItem('fittrack_active_program', active.value);
-    
-    const prefDays = settings.find(s => s.key === 'preferred_days');
-    if (prefDays) localStorage.setItem('fittrack_preferred_days', prefDays.value);
-  }
-
-  window.dispatchEvent(new Event('fittrack_synced'));
+    window.dispatchEvent(new Event("fittrack_synced"));
   } catch (e) {
-    console.error('syncFromSupabase error:', e);
-    window.dispatchEvent(new Event('fittrack_synced'));
+    console.error("syncFromSupabase error:", e);
+    window.dispatchEvent(new Event("fittrack_synced"));
   }
 };
 
 export const syncProfile = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (user) {
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-    if (profile) localStorage.setItem('fittrack_profile', JSON.stringify(profile));
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+    if (profile)
+      localStorage.setItem("fittrack_profile", JSON.stringify(profile));
   }
 };
 
 // ── Workout of the Week (WOW) ──────────────────────────────────────────────
 
 export const getWorkoutsOfWeek = async () => {
-  const { data } = await supabase.from('workout_of_week').select('*').order('week_start', { ascending: false });
+  const { data } = await supabase
+    .from("workout_of_week")
+    .select("*")
+    .order("week_start", { ascending: false });
   if (data) {
-    localStorage.setItem('fittrack_wows', JSON.stringify(data));
+    localStorage.setItem("fittrack_wows", JSON.stringify(data));
     return data;
   }
-  const local = localStorage.getItem('fittrack_wows');
+  const local = localStorage.getItem("fittrack_wows");
   return local ? JSON.parse(local) : [];
 };
 
-export const saveWorkoutOfWeek = async (wow: any): Promise<{ success: boolean; error?: any }> => {
+export const saveWorkoutOfWeek = async (
+  wow: any,
+): Promise<{ success: boolean; error?: any }> => {
   try {
-    const { error } = await supabase.from('workout_of_week').upsert(wow);
+    const { error } = await supabase.from("workout_of_week").upsert(wow);
     if (error) return { success: false, error };
     return { success: true };
   } catch (e) {
@@ -1116,39 +1685,55 @@ export const saveWorkoutOfWeek = async (wow: any): Promise<{ success: boolean; e
 };
 
 export const getWowResults = async (wowId: string) => {
-  const { data } = await supabase.from('wow_results').select('*').eq('wow_id', wowId);
+  const { data } = await supabase
+    .from("wow_results")
+    .select("*")
+    .eq("wow_id", wowId);
   return data || [];
 };
 
-export const saveWowResult = async (result: any): Promise<{ success: boolean; error?: any }> => {
-  const localResults = JSON.parse(localStorage.getItem('fittrack_wow_results') || '[]');
-  const existingIdx = localResults.findIndex((r: any) => r.wow_id === result.wow_id);
+export const saveWowResult = async (
+  result: any,
+): Promise<{ success: boolean; error?: any }> => {
+  const localResults = JSON.parse(
+    localStorage.getItem("fittrack_wow_results") || "[]",
+  );
+  const existingIdx = localResults.findIndex(
+    (r: any) => r.wow_id === result.wow_id,
+  );
   if (existingIdx >= 0) {
     localResults[existingIdx] = result;
   } else {
     localResults.push(result);
   }
-  localStorage.setItem('fittrack_wow_results', JSON.stringify(localResults));
-  markDirty('wowResults');
-  setSyncStatus('saving');
+  localStorage.setItem("fittrack_wow_results", JSON.stringify(localResults));
+  markDirty("wowResults");
+  setSyncStatus("saving");
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (user) {
-      const { error } = await supabase.from('wow_results').upsert({ ...result, member_id: user.id }, { onConflict: 'wow_id, member_id' });
+      const { error } = await supabase
+        .from("wow_results")
+        .upsert(
+          { ...result, member_id: user.id },
+          { onConflict: "wow_id, member_id" },
+        );
       if (error) {
-        enqueue('wowResults');
-        setSyncStatus('error');
+        enqueue("wowResults");
+        setSyncStatus("error");
         return { success: false, error };
       }
     }
-    clearDirty('wowResults');
-    dequeue('wowResults');
-    setSyncStatus('saved');
+    clearDirty("wowResults");
+    dequeue("wowResults");
+    setSyncStatus("saved");
     return { success: true };
   } catch (e) {
-    enqueue('wowResults');
-    setSyncStatus('error');
+    enqueue("wowResults");
+    setSyncStatus("error");
     return { success: false, error: e };
   }
 };
@@ -1160,39 +1745,65 @@ const normEmail = (e: string) => e.toLowerCase().trim();
 // Get the current member's gym_members row — matched by email (Quoox/GymOS webhook
 // writes rows keyed on GymOS id + email, never sets member_id to the FitTrack auth id).
 export const getMyGymMember = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user?.email) return null;
   const { data: rows } = await supabase
-    .from('gym_members')
-    .select('*')
-    .ilike('email', user.email.toLowerCase());
+    .from("gym_members")
+    .select("*")
+    .ilike("email", user.email.toLowerCase());
   if (!rows?.length) return null;
   // Prefer active, then paused, then the most recently ended row
-  return rows.find((r: any) => r.status === 'active')
-      ?? rows.find((r: any) => r.status === 'paused')
-      ?? rows.sort((a: any, b: any) =>
-          new Date(b.ended_on || 0).getTime() - new Date(a.ended_on || 0).getTime())[0];
+  return (
+    rows.find((r: any) => r.status === "active") ??
+    rows.find((r: any) => r.status === "paused") ??
+    rows.sort(
+      (a: any, b: any) =>
+        new Date(b.ended_on || 0).getTime() -
+        new Date(a.ended_on || 0).getTime(),
+    )[0]
+  );
 };
-
-
 
 // ── Membership Sync (staff import) ─────────────────────────────────────────
 
 export const importMemberships = async (
-  activeRows: { email: string; full_name?: string; product?: string; joined_on?: string }[],
-  endedRows: { email: string; full_name?: string; product?: string; ended_on?: string }[]
+  activeRows: {
+    email: string;
+    full_name?: string;
+    product?: string;
+    joined_on?: string;
+  }[],
+  endedRows: {
+    email: string;
+    full_name?: string;
+    product?: string;
+    ended_on?: string;
+  }[],
 ) => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated' };
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Not authenticated" };
 
-  const results = { matched: 0, unmatched: 0, flagged: 0, unmatchedEmails: [] as string[] };
+  const results = {
+    matched: 0,
+    unmatched: 0,
+    flagged: 0,
+    unmatchedEmails: [] as string[],
+  };
 
   // Fetch existing gym_members
-  const { data: existingMembers } = await supabase.from('gym_members').select('*');
-  const existingByEmail = new Map((existingMembers || []).map((m: any) => [normEmail(m.email), m]));
+  const { data: existingMembers } = await supabase
+    .from("gym_members")
+    .select("*");
+  const existingByEmail = new Map(
+    (existingMembers || []).map((m: any) => [normEmail(m.email), m]),
+  );
 
-  const activeEmails = new Set(activeRows.map(r => normEmail(r.email)));
-  const endedEmails = new Set(endedRows.map(r => normEmail(r.email)));
+  const activeEmails = new Set(activeRows.map((r) => normEmail(r.email)));
+  const endedEmails = new Set(endedRows.map((r) => normEmail(r.email)));
 
   // Process active rows
   for (const row of activeRows) {
@@ -1201,23 +1812,26 @@ export const importMemberships = async (
 
     if (existing) {
       // Update to active
-      const { error } = await supabase.from('gym_members').update({
-        status: 'active',
-        product: row.product || existing.product,
-        full_name: row.full_name || existing.full_name,
-        joined_on: row.joined_on || existing.joined_on,
-        last_import_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }).eq('id', existing.id);
+      const { error } = await supabase
+        .from("gym_members")
+        .update({
+          status: "active",
+          product: row.product || existing.product,
+          full_name: row.full_name || existing.full_name,
+          joined_on: row.joined_on || existing.joined_on,
+          last_import_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
 
       if (!error) {
         results.matched++;
         // Write status history if status changed
-        if (existing.status !== 'active') {
-          await supabase.from('membership_status_history').insert({
+        if (existing.status !== "active") {
+          await supabase.from("membership_status_history").insert({
             gym_member_id: existing.id,
-            status: 'active',
-            effective_date: new Date().toISOString().split('T')[0],
+            status: "active",
+            effective_date: new Date().toISOString().split("T")[0],
             product: row.product || existing.product,
           });
         }
@@ -1235,20 +1849,24 @@ export const importMemberships = async (
     const existing = existingByEmail.get(email);
 
     if (existing) {
-      const { error } = await supabase.from('gym_members').update({
-        status: 'cancelled',
-        ended_on: row.ended_on || new Date().toISOString().split('T')[0],
-        last_import_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }).eq('id', existing.id);
+      const { error } = await supabase
+        .from("gym_members")
+        .update({
+          status: "cancelled",
+          ended_on: row.ended_on || new Date().toISOString().split("T")[0],
+          last_import_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
 
       if (!error) {
         results.matched++;
-        if (existing.status !== 'cancelled') {
-          await supabase.from('membership_status_history').insert({
+        if (existing.status !== "cancelled") {
+          await supabase.from("membership_status_history").insert({
             gym_member_id: existing.id,
-            status: 'cancelled',
-            effective_date: row.ended_on || new Date().toISOString().split('T')[0],
+            status: "cancelled",
+            effective_date:
+              row.ended_on || new Date().toISOString().split("T")[0],
             product: row.product || existing.product,
           });
         }
@@ -1258,17 +1876,24 @@ export const importMemberships = async (
 
   // Flag members in app + active before, but absent from Active upload and not in Ended
   for (const [email, member] of existingByEmail) {
-    if (member.status === 'active' && !activeEmails.has(email) && !endedEmails.has(email)) {
-      await supabase.from('gym_members').update({
-        status: 'pending_review',
-        updated_at: new Date().toISOString(),
-      }).eq('id', member.id);
+    if (
+      member.status === "active" &&
+      !activeEmails.has(email) &&
+      !endedEmails.has(email)
+    ) {
+      await supabase
+        .from("gym_members")
+        .update({
+          status: "pending_review",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", member.id);
       results.flagged++;
     }
   }
 
   // Record the import batch
-  await supabase.from('import_batches').insert({
+  await supabase.from("import_batches").insert({
     matched_count: results.matched,
     unmatched_count: results.unmatched,
     flagged_count: results.flagged,
@@ -1280,60 +1905,76 @@ export const importMemberships = async (
 // ── At-Risk Reports ────────────────────────────────────────────────────────
 
 export const getMemberFlags = async () => {
-  const { data, error } = await supabase.from('member_flags')
-    .select('*, gym_members(*)')
-    .order('computed_at', { ascending: false });
+  const { data, error } = await supabase
+    .from("member_flags")
+    .select("*, gym_members(*)")
+    .order("computed_at", { ascending: false });
   if (error) return [];
   return data || [];
 };
 
 export const getFlagRules = async () => {
-  const { data, error } = await supabase.from('flag_rules').select('*').order('product');
+  const { data, error } = await supabase
+    .from("flag_rules")
+    .select("*")
+    .order("product");
   if (error) return [];
   return data || [];
 };
 
 export const saveFlagRule = async (rule: any) => {
-  const { error } = await supabase.from('flag_rules').upsert({
-    ...rule,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'product' });
+  const { error } = await supabase.from("flag_rules").upsert(
+    {
+      ...rule,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "product" },
+  );
   return { success: !error, error };
 };
 
 export const recomputeFlags = async () => {
-  const { error } = await supabase.rpc('compute_member_flags');
+  const { error } = await supabase.rpc("compute_member_flags");
   return { success: !error, error };
 };
 
 export const overrideFlag = async (flagId: string, note: string) => {
-  const { error } = await supabase.from('member_flags')
-    .update({ status: 'overridden', override_note: note })
-    .eq('id', flagId);
+  const { error } = await supabase
+    .from("member_flags")
+    .update({ status: "overridden", override_note: note })
+    .eq("id", flagId);
   return { success: !error, error };
 };
 
 // ── Membership Access Gate ─────────────────────────────────────────────────
 
-export const getMembershipAccess = async (): Promise<{ allowed: boolean; reason: string }> => {
+export const getMembershipAccess = async (): Promise<{
+  allowed: boolean;
+  reason: string;
+}> => {
   // Staff always in
-  if (localStorage.getItem('fittrack_is_staff') === 'true') return { allowed: true, reason: 'staff' };
+  if (localStorage.getItem("fittrack_is_staff") === "true")
+    return { allowed: true, reason: "staff" };
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email) return { allowed: true, reason: 'no-user' }; // fail-open
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.email) return { allowed: true, reason: "no-user" }; // fail-open
 
   const email = user.email.toLowerCase();
   const { data: rows, error } = await supabase
-    .from('gym_members')
-    .select('status, ended_on')
-    .ilike('email', email);
+    .from("gym_members")
+    .select("status, ended_on")
+    .ilike("email", email);
 
-  if (error) return { allowed: true, reason: 'lookup-error' };      // fail-open on error
-  if (!rows || rows.length === 0) return { allowed: true, reason: 'unmatched' }; // not synced yet → allow
+  if (error) return { allowed: true, reason: "lookup-error" }; // fail-open on error
+  if (!rows || rows.length === 0) return { allowed: true, reason: "unmatched" }; // not synced yet → allow
 
   // Active or paused anywhere = allowed
-  if (rows.some((r: any) => r.status === 'active')) return { allowed: true, reason: 'active' };
-  if (rows.some((r: any) => r.status === 'paused')) return { allowed: true, reason: 'paused' };
+  if (rows.some((r: any) => r.status === "active"))
+    return { allowed: true, reason: "active" };
+  if (rows.some((r: any) => r.status === "paused"))
+    return { allowed: true, reason: "paused" };
 
   // Otherwise cancelled/expired only — check 7-day grace on most recent ended_on
   const latestEnd = rows.reduce((max: number, r: any) => {
@@ -1341,9 +1982,10 @@ export const getMembershipAccess = async (): Promise<{ allowed: boolean; reason:
     return t > max ? t : max;
   }, 0);
   const GRACE_MS = 7 * 24 * 60 * 60 * 1000;
-  if (latestEnd && Date.now() - latestEnd < GRACE_MS) return { allowed: true, reason: 'grace' };
+  if (latestEnd && Date.now() - latestEnd < GRACE_MS)
+    return { allowed: true, reason: "grace" };
 
-  return { allowed: false, reason: 'cancelled' };
+  return { allowed: false, reason: "cancelled" };
 };
 
 // ── App settings (shared feature flags) ────────────────────────────────────
@@ -1351,64 +1993,113 @@ export const getMembershipAccess = async (): Promise<{ allowed: boolean; reason:
 // ── Resources (sections + items per page) ───────────────────────────────────
 
 export const getResourceSections = async (page: string) => {
-  const { data } = await supabase.from('resource_sections').select('*').eq('page', page).order('sort_order').order('created_at');
+  const { data } = await supabase
+    .from("resource_sections")
+    .select("*")
+    .eq("page", page)
+    .order("sort_order")
+    .order("created_at");
   return data || [];
 };
 
 export const addResourceSection = async (page: string, name: string) => {
-  const { error } = await supabase.from('resource_sections').insert({ page, name });
+  const { error } = await supabase
+    .from("resource_sections")
+    .insert({ page, name });
   return { error };
 };
 
 export const deleteResourceSection = async (id: string) => {
-  const { error } = await supabase.from('resource_sections').delete().eq('id', id);
+  const { error } = await supabase
+    .from("resource_sections")
+    .delete()
+    .eq("id", id);
   return { error };
 };
 
 export const getResources = async (page: string) => {
-  const { data } = await supabase.from('resources').select('*').eq('page', page).order('sort_order').order('created_at');
+  const { data } = await supabase
+    .from("resources")
+    .select("*")
+    .eq("page", page)
+    .order("sort_order")
+    .order("created_at");
   return data || [];
 };
 
-export const addResource = async (r: { page: string; section_id: string | null; title: string; url: string; type: string; description?: string; thumbnail_url?: string | null }) => {
-  const { error } = await supabase.from('resources').insert(r);
+export const addResource = async (r: {
+  page: string;
+  section_id: string | null;
+  title: string;
+  url: string;
+  type: string;
+  description?: string;
+  thumbnail_url?: string | null;
+}) => {
+  const { error } = await supabase.from("resources").insert(r);
   return { error };
 };
 
 export const deleteResource = async (id: string) => {
-  const { error } = await supabase.from('resources').delete().eq('id', id);
+  const { error } = await supabase.from("resources").delete().eq("id", id);
   return { error };
 };
 
-export const updateResource = async (id: string, patch: {
-  title?: string; description?: string; section_id?: string | null; url?: string; type?: string; thumbnail_url?: string | null;
-}) => {
-  const { error } = await supabase.from('resources').update(patch).eq('id', id);
+export const updateResource = async (
+  id: string,
+  patch: {
+    title?: string;
+    description?: string;
+    section_id?: string | null;
+    url?: string;
+    type?: string;
+    thumbnail_url?: string | null;
+  },
+) => {
+  const { error } = await supabase.from("resources").update(patch).eq("id", id);
   return { error };
 };
 
 export const reorderResources = async (orderedIds: string[]) => {
-  await Promise.all(orderedIds.map((id, i) =>
-    supabase.from('resources').update({ sort_order: i }).eq('id', id)));
+  await Promise.all(
+    orderedIds.map((id, i) =>
+      supabase.from("resources").update({ sort_order: i }).eq("id", id),
+    ),
+  );
 };
 
 export const reorderSections = async (orderedIds: string[]) => {
-  await Promise.all(orderedIds.map((id, i) =>
-    supabase.from('resource_sections').update({ sort_order: i }).eq('id', id)));
+  await Promise.all(
+    orderedIds.map((id, i) =>
+      supabase.from("resource_sections").update({ sort_order: i }).eq("id", id),
+    ),
+  );
 };
 
 async function uploadBlob(blob: Blob, name: string): Promise<string | null> {
   const path = `${Date.now()}-${name}`;
-  const { error } = await supabase.storage.from('resources').upload(path, blob, { upsert: false });
-  if (error) { console.error(error); return null; }
-  return supabase.storage.from('resources').getPublicUrl(path).data.publicUrl;
+  const { error } = await supabase.storage
+    .from("resources")
+    .upload(path, blob, { upsert: false });
+  if (error) {
+    console.error(error);
+    return null;
+  }
+  return supabase.storage.from("resources").getPublicUrl(path).data.publicUrl;
 }
 
-export const uploadResourceFile = async (file: File): Promise<string | null> => {
-  const path = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-  const { error } = await supabase.storage.from('resources').upload(path, file, { upsert: false });
-  if (error) { console.error(error); return null; }
-  return supabase.storage.from('resources').getPublicUrl(path).data.publicUrl;
+export const uploadResourceFile = async (
+  file: File,
+): Promise<string | null> => {
+  const path = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const { error } = await supabase.storage
+    .from("resources")
+    .upload(path, file, { upsert: false });
+  if (error) {
+    console.error(error);
+    return null;
+  }
+  return supabase.storage.from("resources").getPublicUrl(path).data.publicUrl;
 };
 
 // Render PDF page 1 → JPEG thumbnail (~500px wide). Returns a public URL or null.
@@ -1420,50 +2111,83 @@ export const makePdfCover = async (file: File): Promise<string | null> => {
     const base = page.getViewport({ scale: 1 });
     const scale = 500 / base.width;
     const viewport = page.getViewport({ scale });
-    const canvas = document.createElement('canvas');
-    canvas.width = viewport.width; canvas.height = viewport.height;
-    await page.render({ canvasContext: canvas.getContext('2d')!, viewport }).promise;
-    const blob: Blob | null = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.82));
-    return blob ? uploadBlob(blob, 'cover.jpg') : null;
-  } catch (e) { console.warn('PDF cover failed', e); return null; }
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext("2d")!, viewport })
+      .promise;
+    const blob: Blob | null = await new Promise((res) =>
+      canvas.toBlob(res, "image/jpeg", 0.82),
+    );
+    return blob ? uploadBlob(blob, "cover.jpg") : null;
+  } catch (e) {
+    console.warn("PDF cover failed", e);
+    return null;
+  }
 };
 
 // Returns { title, thumbnail_url } from a PDF in a single parse — title from
 // embedded metadata (fallback to filename), cover from page 1 rendered to JPEG.
-export const processPdf = async (file: File): Promise<{ title: string; thumbnail_url: string | null }> => {
-  const cleanName = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'Untitled';
+export const processPdf = async (
+  file: File,
+): Promise<{ title: string; thumbnail_url: string | null }> => {
+  const cleanName =
+    file.name
+      .replace(/\.[^.]+$/, "")
+      .replace(/[_-]+/g, " ")
+      .trim() || "Untitled";
   try {
     const data = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data }).promise;
     const meta = await pdf.getMetadata().catch(() => null);
     const metaTitle = (meta?.info as any)?.Title;
-    const title = metaTitle && String(metaTitle).trim() ? String(metaTitle).trim() : cleanName;
+    const title =
+      metaTitle && String(metaTitle).trim()
+        ? String(metaTitle).trim()
+        : cleanName;
 
     const page = await pdf.getPage(1);
     const base = page.getViewport({ scale: 1 });
     const viewport = page.getViewport({ scale: 500 / base.width });
-    const canvas = document.createElement('canvas');
-    canvas.width = viewport.width; canvas.height = viewport.height;
-    await page.render({ canvasContext: canvas.getContext('2d')!, viewport }).promise;
-    const blob: Blob | null = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.82));
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext("2d")!, viewport })
+      .promise;
+    const blob: Blob | null = await new Promise((res) =>
+      canvas.toBlob(res, "image/jpeg", 0.82),
+    );
     let thumbnail_url: string | null = null;
     if (blob) {
       const path = `${Date.now()}-cover.jpg`;
-      const { error } = await supabase.storage.from('resources').upload(path, blob, { upsert: false });
-      if (!error) thumbnail_url = supabase.storage.from('resources').getPublicUrl(path).data.publicUrl;
+      const { error } = await supabase.storage
+        .from("resources")
+        .upload(path, blob, { upsert: false });
+      if (!error)
+        thumbnail_url = supabase.storage.from("resources").getPublicUrl(path)
+          .data.publicUrl;
     }
     return { title, thumbnail_url };
-  } catch (e) { console.warn('processPdf failed', e); return { title: cleanName, thumbnail_url: null }; }
+  } catch (e) {
+    console.warn("processPdf failed", e);
+    return { title: cleanName, thumbnail_url: null };
+  }
 };
 
 export const getAppSettings = async () => {
-  const cached = localStorage.getItem('fittrack_app_settings');
+  const cached = localStorage.getItem("fittrack_app_settings");
   let cachedData: any = null;
-  try { cachedData = cached ? JSON.parse(cached) : null; } catch {}
+  try {
+    cachedData = cached ? JSON.parse(cached) : null;
+  } catch {}
 
-  const { data } = await supabase.from('app_settings').select('*').eq('id', 1).maybeSingle();
+  const { data } = await supabase
+    .from("app_settings")
+    .select("*")
+    .eq("id", 1)
+    .maybeSingle();
   if (data) {
-    localStorage.setItem('fittrack_app_settings', JSON.stringify(data));
+    localStorage.setItem("fittrack_app_settings", JSON.stringify(data));
     return data;
   }
   return cachedData;
@@ -1471,12 +2195,17 @@ export const getAppSettings = async () => {
 
 export const saveAppSettings = async (patch: Record<string, boolean>) => {
   const { error } = await supabase
-    .from('app_settings')
+    .from("app_settings")
     .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq('id', 1);
+    .eq("id", 1);
   if (!error) {
-    const cur = JSON.parse(localStorage.getItem('fittrack_app_settings') || '{}');
-    localStorage.setItem('fittrack_app_settings', JSON.stringify({ ...cur, ...patch }));
+    const cur = JSON.parse(
+      localStorage.getItem("fittrack_app_settings") || "{}",
+    );
+    localStorage.setItem(
+      "fittrack_app_settings",
+      JSON.stringify({ ...cur, ...patch }),
+    );
   }
   return { error };
 };
@@ -1484,14 +2213,18 @@ export const saveAppSettings = async (patch: Record<string, boolean>) => {
 // ── Recipes ─────────────────────────────────────────────────────────────────
 
 export const getRecipes = async (meal?: string) => {
-  let query = supabase.from('recipes').select('*').order('band').order('calories');
-  if (meal) query = query.eq('meal', meal);
+  let query = supabase
+    .from("recipes")
+    .select("*")
+    .order("band")
+    .order("calories");
+  if (meal) query = query.eq("meal", meal);
   const { data } = await query;
   if (data) {
-    localStorage.setItem('fittrack_recipes', JSON.stringify(data));
+    localStorage.setItem("fittrack_recipes", JSON.stringify(data));
     return data;
   }
-  const local = localStorage.getItem('fittrack_recipes');
+  const local = localStorage.getItem("fittrack_recipes");
   if (local) {
     const all = JSON.parse(local);
     return meal ? all.filter((r: any) => r.meal === meal) : all;
@@ -1499,9 +2232,11 @@ export const getRecipes = async (meal?: string) => {
   return [];
 };
 
-export const saveRecipe = async (recipe: any): Promise<{ success: boolean; error?: any }> => {
+export const saveRecipe = async (
+  recipe: any,
+): Promise<{ success: boolean; error?: any }> => {
   try {
-    const { error } = await supabase.from('recipes').upsert(recipe);
+    const { error } = await supabase.from("recipes").upsert(recipe);
     if (error) return { success: false, error };
     return { success: true };
   } catch (e) {
@@ -1509,9 +2244,11 @@ export const saveRecipe = async (recipe: any): Promise<{ success: boolean; error
   }
 };
 
-export const deleteRecipe = async (id: string): Promise<{ success: boolean; error?: any }> => {
+export const deleteRecipe = async (
+  id: string,
+): Promise<{ success: boolean; error?: any }> => {
   try {
-    const { error } = await supabase.from('recipes').delete().eq('id', id);
+    const { error } = await supabase.from("recipes").delete().eq("id", id);
     if (error) return { success: false, error };
     return { success: true };
   } catch (e) {
@@ -1520,77 +2257,144 @@ export const deleteRecipe = async (id: string): Promise<{ success: boolean; erro
 };
 
 export const uploadRecipeImage = async (file: File): Promise<string | null> => {
-  const path = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-  const { error } = await supabase.storage.from('recipe-images').upload(path, file, { upsert: false });
-  if (error) { console.error(error); return null; }
-  return supabase.storage.from('recipe-images').getPublicUrl(path).data.publicUrl;
+  const path = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const { error } = await supabase.storage
+    .from("recipe-images")
+    .upload(path, file, { upsert: false });
+  if (error) {
+    console.error(error);
+    return null;
+  }
+  return supabase.storage.from("recipe-images").getPublicUrl(path).data
+    .publicUrl;
 };
 
 // ── Food Diary (saved, dated food log) ───────────────────────────────────────
 
 export const getDiary = async (date: string) => {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return [];
-  const { data } = await supabase.from('food_diary').select('*')
-    .eq('member_id', user.id).eq('date', date).order('created_at');
+  const { data } = await supabase
+    .from("food_diary")
+    .select("*")
+    .eq("member_id", user.id)
+    .eq("date", date)
+    .order("created_at");
   return data || [];
 };
 
 export const addDiaryItem = async (item: {
-  date: string; meal?: string; source: 'recipe' | 'custom'; recipe_id?: string | null;
-  name: string; calories: number; protein: number; carbs: number; fats: number; servings?: number;
+  date: string;
+  meal?: string;
+  source: "recipe" | "custom";
+  recipe_id?: string | null;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  servings?: number;
 }): Promise<{ success: boolean; error?: any }> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'not signed in' };
-  const { error } = await supabase.from('food_diary').insert({ servings: 1, ...item, member_id: user.id });
-  if (error) console.error('addDiaryItem error:', error);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "not signed in" };
+  const { error } = await supabase
+    .from("food_diary")
+    .insert({ servings: 1, ...item, member_id: user.id });
+  if (error) console.error("addDiaryItem error:", error);
   return { success: !error, error };
 };
 
-export const removeDiaryItem = async (id: string): Promise<{ success: boolean; error?: any }> => {
-  const { error } = await supabase.from('food_diary').delete().eq('id', id);
-  if (error) console.error('removeDiaryItem error:', error);
+export const removeDiaryItem = async (
+  id: string,
+): Promise<{ success: boolean; error?: any }> => {
+  const { error } = await supabase.from("food_diary").delete().eq("id", id);
+  if (error) console.error("removeDiaryItem error:", error);
   return { success: !error, error };
 };
 
-export const updateDiaryItem = async (id: string, patch: {
-  servings?: number; name?: string; meal?: string;
-  calories?: number; protein?: number; carbs?: number; fats?: number;
-}): Promise<{ success: boolean; error?: any }> => {
-  const { error } = await supabase.from('food_diary').update(patch).eq('id', id);
-  if (error) console.error('updateDiaryItem error:', error);
+export const updateDiaryItem = async (
+  id: string,
+  patch: {
+    servings?: number;
+    name?: string;
+    meal?: string;
+    calories?: number;
+    protein?: number;
+    carbs?: number;
+    fats?: number;
+  },
+): Promise<{ success: boolean; error?: any }> => {
+  const { error } = await supabase
+    .from("food_diary")
+    .update(patch)
+    .eq("id", id);
+  if (error) console.error("updateDiaryItem error:", error);
   return { success: !error, error };
 };
 
 export const getRecipeById = async (id: string) => {
-  const { data } = await supabase.from('recipes').select('*').eq('id', id).maybeSingle();
+  const { data } = await supabase
+    .from("recipes")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
   return data || null;
 };
 
 // ── Member recipes (private or shared) ──────────────────────────────────────
 
-export const addRecipe = async (r: {
-  meal: string; name: string; calories: number; protein: number; carbs: number; fats: number;
-  fibre?: number; serves?: string; time?: string; ingredients?: string; method?: string; image_url?: string | null;
-}, visibility: 'private' | 'shared'): Promise<{ success: boolean; error?: any; recipe?: any }> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'not signed in' };
-  const { data, error } = await supabase.from('recipes')
+export const addRecipe = async (
+  r: {
+    meal: string;
+    name: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+    fibre?: number;
+    serves?: string;
+    time?: string;
+    ingredients?: string;
+    method?: string;
+    image_url?: string | null;
+  },
+  visibility: "private" | "shared",
+): Promise<{ success: boolean; error?: any; recipe?: any }> => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "not signed in" };
+  const { data, error } = await supabase
+    .from("recipes")
     .insert({ ...r, created_by: user.id, visibility })
-    .select().maybeSingle();
-  if (error) console.error('addRecipe failed', error);
+    .select()
+    .maybeSingle();
+  if (error) console.error("addRecipe failed", error);
   return { success: !error, error, recipe: data };
 };
 
 export const getMyRecipes = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return [];
-  const { data } = await supabase.from('recipes').select('*').eq('created_by', user.id).order('meal');
+  const { data } = await supabase
+    .from("recipes")
+    .select("*")
+    .eq("created_by", user.id)
+    .order("meal");
   return data || [];
 };
 
-export const updateRecipe = async (id: string, patch: any): Promise<{ success: boolean; error?: any }> => {
-  const { error } = await supabase.from('recipes').update(patch).eq('id', id);
+export const updateRecipe = async (
+  id: string,
+  patch: any,
+): Promise<{ success: boolean; error?: any }> => {
+  const { error } = await supabase.from("recipes").update(patch).eq("id", id);
   return { success: !error, error };
 };
 
@@ -1600,24 +2404,32 @@ export const updateRecipe = async (id: string, patch: any): Promise<{ success: b
 
 export const searchFoods = async (q: string) => {
   if (!q || q.trim().length < 2) return [];
-  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}`
-            + `&search_simple=1&json=1&page_size=20`
-            + `&fields=product_name,brands,nutriments,serving_size,image_small_url`;
+  const url =
+    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}` +
+    `&search_simple=1&json=1&page_size=20` +
+    `&fields=product_name,brands,nutriments,serving_size,image_small_url`;
   try {
     const res = await fetch(url);
     const data = await res.json();
     return (data.products || [])
-      .filter((p: any) => p.product_name && p.nutriments?.['energy-kcal_100g'] != null)
+      .filter(
+        (p: any) =>
+          p.product_name && p.nutriments?.["energy-kcal_100g"] != null,
+      )
       .map((p: any) => ({
-        name: p.product_name + (p.brands ? ` · ${p.brands.split(',')[0].trim()}` : ''),
+        name:
+          p.product_name +
+          (p.brands ? ` · ${p.brands.split(",")[0].trim()}` : ""),
         per100: {
-          cal: Math.round(p.nutriments['energy-kcal_100g'] || 0),
-          protein: Math.round(p.nutriments['proteins_100g'] || 0),
-          carbs: Math.round(p.nutriments['carbohydrates_100g'] || 0),
-          fats: Math.round(p.nutriments['fat_100g'] || 0),
+          cal: Math.round(p.nutriments["energy-kcal_100g"] || 0),
+          protein: Math.round(p.nutriments["proteins_100g"] || 0),
+          carbs: Math.round(p.nutriments["carbohydrates_100g"] || 0),
+          fats: Math.round(p.nutriments["fat_100g"] || 0),
         },
         serving: p.serving_size || null,
         image: p.image_small_url || null,
       }));
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 };

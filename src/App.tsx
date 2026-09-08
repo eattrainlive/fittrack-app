@@ -3,7 +3,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AppErrorBoundary, installChunkErrorHandler } from "@/components/AppErrorBoundary";
+import {
+  AppErrorBoundary,
+  installChunkErrorHandler,
+} from "@/components/AppErrorBoundary";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import { AppLayout } from "./components/AppLayout";
@@ -20,7 +23,6 @@ import TVDisplay from "./pages/TVDisplay";
 import ExerciseInfo from "./pages/ExerciseInfo";
 import MachinePage from "./pages/MachinePage";
 
-
 import { useEffect, useState } from "react";
 import { syncFromSupabase, syncProfile } from "./lib/store";
 import { supabase } from "./lib/supabase";
@@ -29,7 +31,14 @@ import { useLocation, useNavigationType } from "react-router-dom";
 
 const queryClient = new QueryClient();
 
-const TAB_ROUTES = ["/", "/workouts", "/progress", "/nutrition", "/feed", "/profile"];
+const TAB_ROUTES = [
+  "/",
+  "/workouts",
+  "/progress",
+  "/nutrition",
+  "/feed",
+  "/profile",
+];
 
 const USE_PAGE_TRANSITION = false; // disabled — fixes PWA white-screen on tab switch
 
@@ -42,7 +51,8 @@ const AppRoutes = () => {
     setPrevLocation(location.pathname);
   }, [location.pathname]);
 
-  const isTabSwitch = TAB_ROUTES.includes(prevLocation) && TAB_ROUTES.includes(location.pathname);
+  const isTabSwitch =
+    TAB_ROUTES.includes(prevLocation) && TAB_ROUTES.includes(location.pathname);
   const isBack = navType === "POP";
 
   const variants: any = {
@@ -51,75 +61,93 @@ const AppRoutes = () => {
       if (custom.isBack) return { x: "-20%", opacity: 0.5, zIndex: 1 };
       return { x: "100%", opacity: 1, zIndex: 3 };
     },
-    animate: (custom: any) => ({ 
-      x: 0, 
-      opacity: 1, 
-      zIndex: custom.isBack ? 1 : (custom.isTabSwitch ? 2 : 3), 
-      transition: { duration: 0.25, ease: "easeOut" } 
+    animate: (custom: any) => ({
+      x: 0,
+      opacity: 1,
+      zIndex: custom.isBack ? 1 : custom.isTabSwitch ? 2 : 3,
+      transition: { duration: 0.25, ease: "easeOut" },
     }),
     exit: (custom: any) => {
-      if (custom.isTabSwitch) return { opacity: 0, x: 0, zIndex: 1, transition: { duration: 0.2 } };
-      if (custom.isBack) return { x: "100%", opacity: 1, zIndex: 3, transition: { duration: 0.25, ease: "easeIn" } };
-      return { x: "-20%", opacity: 0.5, zIndex: 1, transition: { duration: 0.25, ease: "easeIn" } };
-    }
+      if (custom.isTabSwitch)
+        return { opacity: 0, x: 0, zIndex: 1, transition: { duration: 0.2 } };
+      if (custom.isBack)
+        return {
+          x: "100%",
+          opacity: 1,
+          zIndex: 3,
+          transition: { duration: 0.25, ease: "easeIn" },
+        };
+      return {
+        x: "-20%",
+        opacity: 0.5,
+        zIndex: 1,
+        transition: { duration: 0.25, ease: "easeIn" },
+      };
+    },
   };
 
   return (
     <AppLayout>
       <AppErrorBoundary>
-      {USE_PAGE_TRANSITION ? (
-        <AnimatePresence mode="wait" custom={{ isBack, isTabSwitch }}>
-          <motion.div
-            key={location.pathname}
-            custom={{ isBack, isTabSwitch }}
-            variants={variants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="flex-1 overflow-y-auto overflow-x-hidden pb-16 bg-background"
-          >
-          <Routes location={location}>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/feed" element={<Feed />} />
-            <Route path="/workouts" element={<Workouts />} />
-            <Route path="/exercises" element={<Exercises />} />
-            <Route path="/progress" element={<Progress />} />
-            <Route path="/nutrition" element={<Nutrition />} />
-            <Route path="/education" element={<Education />} />
-            <Route path="/tv/:programId/:workoutIndex" element={<TVDisplay />} />
-            <Route path="/x/:id" element={<ExerciseInfo />} />
-            <Route path="/machine/:slug" element={<MachinePage />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/admin" element={<Admin />} />
-            <Route path="/auth/callback" element={<Index />} />
-            <Route path="/auth/confirm" element={<Index />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          </motion.div>
-        </AnimatePresence>
-      ) : (
-        <div className="flex-1 overflow-y-auto overflow-x-hidden pb-16 bg-background">
-          <Routes location={location}>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/feed" element={<Feed />} />
-            <Route path="/workouts" element={<Workouts />} />
-            <Route path="/exercises" element={<Exercises />} />
-            <Route path="/progress" element={<Progress />} />
-            <Route path="/nutrition" element={<Nutrition />} />
-            <Route path="/education" element={<Education />} />
-            <Route path="/tv/:programId/:workoutIndex" element={<TVDisplay />} />
-            <Route path="/x/:id" element={<ExerciseInfo />} />
-            <Route path="/machine/:slug" element={<MachinePage />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/admin" element={<Admin />} />
-            <Route path="/auth/callback" element={<Index />} />
-            <Route path="/auth/confirm" element={<Index />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </div>
-      )}
+        {USE_PAGE_TRANSITION ? (
+          <AnimatePresence mode="wait" custom={{ isBack, isTabSwitch }}>
+            <motion.div
+              key={location.pathname}
+              custom={{ isBack, isTabSwitch }}
+              variants={variants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="flex-1 overflow-y-auto overflow-x-hidden pb-16 bg-background"
+            >
+              <Routes location={location}>
+                <Route path="/" element={<Index />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/feed" element={<Feed />} />
+                <Route path="/workouts" element={<Workouts />} />
+                <Route path="/exercises" element={<Exercises />} />
+                <Route path="/progress" element={<Progress />} />
+                <Route path="/nutrition" element={<Nutrition />} />
+                <Route path="/education" element={<Education />} />
+                <Route
+                  path="/tv/:programId/:workoutIndex"
+                  element={<TVDisplay />}
+                />
+                <Route path="/x/:id" element={<ExerciseInfo />} />
+                <Route path="/machine/:slug" element={<MachinePage />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/admin" element={<Admin />} />
+                <Route path="/auth/callback" element={<Index />} />
+                <Route path="/auth/confirm" element={<Index />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </motion.div>
+          </AnimatePresence>
+        ) : (
+          <div className="flex-1 overflow-y-auto overflow-x-hidden pb-16 bg-background">
+            <Routes location={location}>
+              <Route path="/" element={<Index />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/feed" element={<Feed />} />
+              <Route path="/workouts" element={<Workouts />} />
+              <Route path="/exercises" element={<Exercises />} />
+              <Route path="/progress" element={<Progress />} />
+              <Route path="/nutrition" element={<Nutrition />} />
+              <Route path="/education" element={<Education />} />
+              <Route
+                path="/tv/:programId/:workoutIndex"
+                element={<TVDisplay />}
+              />
+              <Route path="/x/:id" element={<ExerciseInfo />} />
+              <Route path="/machine/:slug" element={<MachinePage />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/admin" element={<Admin />} />
+              <Route path="/auth/callback" element={<Index />} />
+              <Route path="/auth/confirm" element={<Index />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </div>
+        )}
       </AppErrorBoundary>
     </AppLayout>
   );
@@ -130,26 +158,26 @@ const AppContent = () => {
     installChunkErrorHandler();
     supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
-        const storedUid = localStorage.getItem('fittrack_current_uid');
+        const storedUid = localStorage.getItem("fittrack_current_uid");
         if (storedUid && storedUid !== session.user.id) {
           // Clear user-specific cache
-          localStorage.removeItem('fittrack_history');
-          localStorage.removeItem('fittrack_active_program');
-          localStorage.removeItem('fittrack_bodyweight');
-          localStorage.removeItem('fittrack_active_workout');
-          localStorage.removeItem('fittrack_prs');
+          localStorage.removeItem("fittrack_history");
+          localStorage.removeItem("fittrack_active_program");
+          localStorage.removeItem("fittrack_bodyweight");
+          localStorage.removeItem("fittrack_active_workout");
+          localStorage.removeItem("fittrack_prs");
         }
-        localStorage.setItem('fittrack_current_uid', session.user.id);
-        
+        localStorage.setItem("fittrack_current_uid", session.user.id);
+
         syncFromSupabase();
         syncProfile();
-      } else if (event === 'SIGNED_OUT') {
-        localStorage.removeItem('fittrack_current_uid');
-        localStorage.removeItem('fittrack_history');
-        localStorage.removeItem('fittrack_active_program');
-        localStorage.removeItem('fittrack_bodyweight');
-        localStorage.removeItem('fittrack_active_workout');
-        localStorage.removeItem('fittrack_prs');
+      } else if (event === "SIGNED_OUT") {
+        localStorage.removeItem("fittrack_current_uid");
+        localStorage.removeItem("fittrack_history");
+        localStorage.removeItem("fittrack_active_program");
+        localStorage.removeItem("fittrack_bodyweight");
+        localStorage.removeItem("fittrack_active_workout");
+        localStorage.removeItem("fittrack_prs");
       }
     });
   }, []);

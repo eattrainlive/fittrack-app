@@ -1,10 +1,27 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, PlayCircle, FileText, Loader2, ImageIcon, ChevronUp, ChevronDown, Upload, Pencil } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  PlayCircle,
+  FileText,
+  Loader2,
+  ImageIcon,
+  ChevronUp,
+  ChevronDown,
+  Upload,
+  Pencil,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +45,8 @@ import {
 } from "@/lib/store";
 import { getEmbedUrl } from "@/lib/utils";
 
-const isVideo = (u: string) => /vimeo|youtube|youtu\.be|player\./i.test(u || "");
+const isVideo = (u: string) =>
+  /vimeo|youtube|youtu\.be|player\./i.test(u || "");
 
 interface Section {
   id: string;
@@ -226,7 +244,11 @@ export function ResourcesSection({
     load();
   };
 
-  const moveResource = async (sectionItems: Resource[], index: number, dir: -1 | 1) => {
+  const moveResource = async (
+    sectionItems: Resource[],
+    index: number,
+    dir: -1 | 1,
+  ) => {
     const next = index + dir;
     if (next < 0 || next >= sectionItems.length) return;
     const reordered = [...sectionItems];
@@ -261,7 +283,11 @@ export function ResourcesSection({
       setProgress(`Uploading ${i + 1} of ${files.length}…`);
       const url = await uploadResourceFile(f);
       if (!url) continue; // skip failures, keep going
-      let title = f.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || "Untitled";
+      let title =
+        f.name
+          .replace(/\.[^.]+$/, "")
+          .replace(/[_-]+/g, " ")
+          .trim() || "Untitled";
       let thumbnail_url: string | null = null;
       if (f.type === "application/pdf") {
         const r = await processPdf(f);
@@ -270,13 +296,24 @@ export function ResourcesSection({
       } else if (f.type.startsWith("image/")) {
         thumbnail_url = url; // image is its own cover
       }
-      await addResource({ page, section_id, title, url, type: "file", thumbnail_url });
+      await addResource({
+        page,
+        section_id,
+        title,
+        url,
+        type: "file",
+        thumbnail_url,
+      });
     }
     setProgress(null);
     await load();
   };
 
-  const renderResource = (r: Resource, sectionItems: Resource[], index: number) => (
+  const renderResource = (
+    r: Resource,
+    sectionItems: Resource[],
+    index: number,
+  ) => (
     <div
       key={r.id}
       className="w-full flex items-center gap-3 border border-border rounded-xl p-3 text-left active:scale-[0.99] transition"
@@ -286,9 +323,18 @@ export function ResourcesSection({
         onClick={() => openResource(r)}
       >
         <div className="w-12 h-12 rounded-lg overflow-hidden bg-primary/10 flex items-center justify-center shrink-0">
-          {r.thumbnail_url
-            ? <img src={r.thumbnail_url} alt="" className="w-full h-full object-cover" loading="lazy" />
-            : (isVideo(r.url) ? <PlayCircle className="w-5 h-5 text-primary" /> : <FileText className="w-5 h-5 text-primary" />)}
+          {r.thumbnail_url ? (
+            <img
+              src={r.thumbnail_url}
+              alt=""
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : isVideo(r.url) ? (
+            <PlayCircle className="w-5 h-5 text-primary" />
+          ) : (
+            <FileText className="w-5 h-5 text-primary" />
+          )}
         </div>
         <div className="min-w-0">
           <p className="font-bold text-sm truncate">{r.title}</p>
@@ -347,9 +393,7 @@ export function ResourcesSection({
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-lg font-heading uppercase">{heading}</h2>
-          {blurb && (
-            <p className="text-xs text-muted-foreground">{blurb}</p>
-          )}
+          {blurb && <p className="text-xs text-muted-foreground">{blurb}</p>}
         </div>
         {isStaff && (
           <div className="flex gap-2">
@@ -398,9 +442,7 @@ export function ResourcesSection({
       ) : (
         <div className="space-y-6">
           {sections.map((sec, secIdx) => {
-            const items = resources.filter(
-              (r) => r.section_id === sec.id
-            );
+            const items = resources.filter((r) => r.section_id === sec.id);
             if (items.length === 0 && !isStaff) return null;
             return (
               <div key={sec.id} className="space-y-2">
@@ -440,7 +482,10 @@ export function ResourcesSection({
                       >
                         <Plus className="h-3.5 w-3.5" />
                       </button>
-                      <label className="p-1 text-muted-foreground hover:text-primary cursor-pointer" title="Bulk upload">
+                      <label
+                        className="p-1 text-muted-foreground hover:text-primary cursor-pointer"
+                        title="Bulk upload"
+                      >
                         <Upload className="h-3.5 w-3.5" />
                         <input
                           type="file"
@@ -483,7 +528,9 @@ export function ResourcesSection({
                 Other
               </h3>
               <div className="space-y-2">
-                {uncategorised.map((r, i) => renderResource(r, uncategorised, i))}
+                {uncategorised.map((r, i) =>
+                  renderResource(r, uncategorised, i),
+                )}
               </div>
             </div>
           )}
@@ -534,9 +581,7 @@ export function ResourcesSection({
               <Label>Section</Label>
               <Select
                 value={resForm.section_id}
-                onValueChange={(v) =>
-                  setResForm({ ...resForm, section_id: v })
-                }
+                onValueChange={(v) => setResForm({ ...resForm, section_id: v })}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -568,19 +613,22 @@ export function ResourcesSection({
                 accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
                 onChange={(e) => {
                   setResFile(e.target.files?.[0] || null);
-                  if (e.target.files?.[0])
-                    setResForm({ ...resForm, url: "" });
+                  if (e.target.files?.[0]) setResForm({ ...resForm, url: "" });
                 }}
               />
             </div>
             <div className="space-y-2">
-              <Label className="flex items-center gap-1.5"><ImageIcon className="h-3.5 w-3.5" /> Cover image (optional)</Label>
+              <Label className="flex items-center gap-1.5">
+                <ImageIcon className="h-3.5 w-3.5" /> Cover image (optional)
+              </Label>
               <Input
                 type="file"
                 accept="image/*"
                 onChange={(e) => setCoverFile(e.target.files?.[0] || null)}
               />
-              <p className="text-[10px] text-muted-foreground">Overrides the auto-generated cover for PDFs/videos/links.</p>
+              <p className="text-[10px] text-muted-foreground">
+                Overrides the auto-generated cover for PDFs/videos/links.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Description (optional)</Label>
@@ -609,7 +657,15 @@ export function ResourcesSection({
       </Dialog>
 
       {/* Edit Resource dialog */}
-      <Dialog open={!!editing} onOpenChange={(o) => { if (!o) { setEditing(null); setEditFile(null); } }}>
+      <Dialog
+        open={!!editing}
+        onOpenChange={(o) => {
+          if (!o) {
+            setEditing(null);
+            setEditFile(null);
+          }
+        }}
+      >
         <DialogContent className="w-[92vw] max-w-sm">
           <DialogHeader>
             <DialogTitle>Edit resource</DialogTitle>
@@ -620,7 +676,9 @@ export function ResourcesSection({
                 <Label>Title</Label>
                 <Input
                   value={editing.title}
-                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                  onChange={(e) =>
+                    setEditing({ ...editing, title: e.target.value })
+                  }
                   placeholder="Resource title"
                 />
               </div>
@@ -628,17 +686,27 @@ export function ResourcesSection({
                 <Label>Section</Label>
                 <select
                   value={editing.section_id || ""}
-                  onChange={(e) => setEditing({ ...editing, section_id: e.target.value || null })}
+                  onChange={(e) =>
+                    setEditing({
+                      ...editing,
+                      section_id: e.target.value || null,
+                    })
+                  }
                   className="w-full border border-border rounded-md h-10 px-2 text-sm bg-background"
                 >
                   <option value="">Other (no section)</option>
                   {sections.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
                   ))}
                 </select>
               </div>
               <div className="space-y-2">
-                <Label className="flex items-center gap-1.5"><ImageIcon className="h-3.5 w-3.5" /> Replace cover image (optional)</Label>
+                <Label className="flex items-center gap-1.5">
+                  <ImageIcon className="h-3.5 w-3.5" /> Replace cover image
+                  (optional)
+                </Label>
                 <Input
                   type="file"
                   accept="image/*"
@@ -649,7 +717,9 @@ export function ResourcesSection({
                 <Label>Description (optional)</Label>
                 <Textarea
                   value={editing.description || ""}
-                  onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+                  onChange={(e) =>
+                    setEditing({ ...editing, description: e.target.value })
+                  }
                   placeholder="Short description"
                   rows={2}
                 />

@@ -1,31 +1,57 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Save, LogOut, CloudUpload, CloudDownload, BookOpen } from "lucide-react";
+import {
+  Save,
+  LogOut,
+  CloudUpload,
+  CloudDownload,
+  BookOpen,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
-import { migrateLocalToSupabase, syncFromSupabase, getPreferredDays, savePreferredDays, getMyGymMember } from "@/lib/store";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  migrateLocalToSupabase,
+  syncFromSupabase,
+  getPreferredDays,
+  savePreferredDays,
+  getMyGymMember,
+} from "@/lib/store";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 const Profile = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [name, setName] = useState("John Doe");
   const [passcode, setPasscode] = useState("");
-  const [isStaff, setIsStaff] = useState(() => localStorage.getItem("fittrack_is_staff") === "true");
+  const [isStaff, setIsStaff] = useState(
+    () => localStorage.getItem("fittrack_is_staff") === "true",
+  );
   const [preferredDays, setPreferredDays] = useState(3);
   const [gymMember, setGymMember] = useState<any | null>(null);
 
   useEffect(() => {
     setPreferredDays(getPreferredDays());
     const handleSync = () => setPreferredDays(getPreferredDays());
-    window.addEventListener('fittrack_synced', handleSync);
-    return () => window.removeEventListener('fittrack_synced', handleSync);
+    window.addEventListener("fittrack_synced", handleSync);
+    return () => window.removeEventListener("fittrack_synced", handleSync);
   }, []);
 
   useEffect(() => {
@@ -86,12 +112,22 @@ const Profile = () => {
   return (
     <div className="flex-1 space-y-6 p-8 pt-6 max-w-4xl mx-auto w-full">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-4xl font-heading tracking-wider">Profile Settings</h2>
+        <h2 className="text-4xl font-heading tracking-wider">
+          Profile Settings
+        </h2>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate('/education')} className="gap-2">
+          <Button
+            variant="outline"
+            onClick={() => navigate("/education")}
+            className="gap-2"
+          >
             <BookOpen className="h-4 w-4" /> Education
           </Button>
-          <Button variant="destructive" onClick={handleLogout} className="gap-2">
+          <Button
+            variant="destructive"
+            onClick={handleLogout}
+            className="gap-2"
+          >
             <LogOut className="h-4 w-4" /> Sign Out
           </Button>
         </div>
@@ -100,8 +136,12 @@ const Profile = () => {
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="border-border">
           <CardHeader>
-            <CardTitle className="font-heading text-2xl tracking-wider">Personal Information</CardTitle>
-            <CardDescription>Update your personal details and measurements.</CardDescription>
+            <CardTitle className="font-heading text-2xl tracking-wider">
+              Personal Information
+            </CardTitle>
+            <CardDescription>
+              Update your personal details and measurements.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-center gap-6">
@@ -111,15 +151,24 @@ const Profile = () => {
               </Avatar>
               <Button variant="outline">Change Photo</Button>
             </div>
-            
+
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={user?.email || "john@example.com"} disabled />
+                <Input
+                  id="email"
+                  type="email"
+                  value={user?.email || "john@example.com"}
+                  disabled
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -134,14 +183,19 @@ const Profile = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="preferredDays">Preferred Training Days (per week)</Label>
-              <Select value={preferredDays.toString()} onValueChange={async (v) => {
-                const days = parseInt(v, 10);
-                setPreferredDays(days);
-                const { success } = await savePreferredDays(days);
-                if (success) toast.success("Training days updated");
-                else toast.error("Failed to update training days");
-              }}>
+              <Label htmlFor="preferredDays">
+                Preferred Training Days (per week)
+              </Label>
+              <Select
+                value={preferredDays.toString()}
+                onValueChange={async (v) => {
+                  const days = parseInt(v, 10);
+                  setPreferredDays(days);
+                  const { success } = await savePreferredDays(days);
+                  if (success) toast.success("Training days updated");
+                  else toast.error("Failed to update training days");
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -163,36 +217,56 @@ const Profile = () => {
         <div className="space-y-6">
           <Card className="border-border">
             <CardHeader>
-              <CardTitle className="font-heading text-2xl tracking-wider">Membership</CardTitle>
-              <CardDescription>Your gym membership status, synced from GymOS.</CardDescription>
+              <CardTitle className="font-heading text-2xl tracking-wider">
+                Membership
+              </CardTitle>
+              <CardDescription>
+                Your gym membership status, synced from GymOS.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {gymMember ? (
                 <>
                   <p className="text-sm">
-                    Membership: <span className="font-semibold text-primary">{gymMember.status === 'active' ? 'Active' : gymMember.status}</span> — source GymOS
+                    Membership:{" "}
+                    <span className="font-semibold text-primary">
+                      {gymMember.status === "active"
+                        ? "Active"
+                        : gymMember.status}
+                    </span>{" "}
+                    — source GymOS
                   </p>
                   {gymMember.last_import_at && (
-                    <p className="text-xs text-muted-foreground">As of {new Date(gymMember.last_import_at).toLocaleDateString()}</p>
+                    <p className="text-xs text-muted-foreground">
+                      As of{" "}
+                      {new Date(gymMember.last_import_at).toLocaleDateString()}
+                    </p>
                   )}
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground">No gym membership linked yet.</p>
+                <p className="text-sm text-muted-foreground">
+                  No gym membership linked yet.
+                </p>
               )}
             </CardContent>
           </Card>
 
           <Card className="border-border">
             <CardHeader>
-              <CardTitle className="font-heading text-2xl tracking-wider">Coaching & Privacy</CardTitle>
-              <CardDescription>Manage who can see your workout data.</CardDescription>
+              <CardTitle className="font-heading text-2xl tracking-wider">
+                Coaching & Privacy
+              </CardTitle>
+              <CardDescription>
+                Manage who can see your workout data.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between space-x-2">
                 <div className="space-y-1">
                   <Label className="text-base">Share Data with Coaches</Label>
                   <p className="text-sm text-muted-foreground">
-                    Allow affiliated gym coaches to view your progress and prescribe programs.
+                    Allow affiliated gym coaches to view your progress and
+                    prescribe programs.
                   </p>
                 </div>
                 <Switch defaultChecked />
@@ -211,20 +285,24 @@ const Profile = () => {
 
           <Card className="border-border">
             <CardHeader>
-              <CardTitle className="font-heading text-2xl tracking-wider">Data Sync</CardTitle>
-              <CardDescription>Sync your local data to the cloud.</CardDescription>
+              <CardTitle className="font-heading text-2xl tracking-wider">
+                Data Sync
+              </CardTitle>
+              <CardDescription>
+                Sync your local data to the cloud.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button 
-                onClick={handleMigrate} 
+              <Button
+                onClick={handleMigrate}
                 disabled={isMigrating}
                 className="w-full gap-2"
               >
                 <CloudUpload className="h-4 w-4" />
                 {isMigrating ? "Migrating..." : "Push Local Data to Cloud"}
               </Button>
-              <Button 
-                onClick={handleSync} 
+              <Button
+                onClick={handleSync}
                 disabled={isSyncing}
                 variant="outline"
                 className="w-full gap-2"
@@ -237,7 +315,9 @@ const Profile = () => {
 
           <Card className="border-border">
             <CardHeader>
-              <CardTitle className="font-heading text-2xl tracking-wider">Staff Access</CardTitle>
+              <CardTitle className="font-heading text-2xl tracking-wider">
+                Staff Access
+              </CardTitle>
               <CardDescription>Manage staff privileges.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -246,10 +326,17 @@ const Profile = () => {
                   <div className="rounded-lg border border-primary/50 bg-primary/10 p-4 text-sm text-primary">
                     Staff access is currently active.
                   </div>
-                  <Button onClick={() => navigate('/admin')} className="w-full gap-2">
+                  <Button
+                    onClick={() => navigate("/admin")}
+                    className="w-full gap-2"
+                  >
                     Open Staff Hub
                   </Button>
-                  <Button onClick={handleLockStaff} variant="outline" className="w-full">
+                  <Button
+                    onClick={handleLockStaff}
+                    variant="outline"
+                    className="w-full"
+                  >
                     Lock Staff Access
                   </Button>
                 </div>
@@ -257,9 +344,9 @@ const Profile = () => {
                 <div className="space-y-2">
                   <Label htmlFor="passcode">Staff Passcode</Label>
                   <div className="flex gap-2">
-                    <Input 
-                      id="passcode" 
-                      type="password" 
+                    <Input
+                      id="passcode"
+                      type="password"
                       placeholder="Enter passcode"
                       value={passcode}
                       onChange={(e) => setPasscode(e.target.value)}
