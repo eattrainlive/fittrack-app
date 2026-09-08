@@ -15,7 +15,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn, getEmbedUrl } from "@/lib/utils";
-import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification, getAnthropicKey, saveAnthropicKey, getVimeoToken, getHabits, getWorkoutsOfWeek, saveWorkoutOfWeek, getAppSettings, saveAppSettings, getExerciseEnrichment } from "@/lib/store";
+import { getExercises, saveExercises, getPrograms, savePrograms, saveVimeoToken, getMembers, getMemberActivity, sendNotification, getAnthropicKey, saveAnthropicKey, getVimeoToken, getHabits, getWorkoutsOfWeek, saveWorkoutOfWeek, getAppSettings, saveAppSettings, getExerciseEnrichment, deleteProgramRow } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Dumbbell, PlayCircle, GripVertical, Copy, Video, Loader2, Edit, Users, History, Calendar as CalendarIcon, Bell, Send, Download, Link2, Link2Off, Heading, Upload, Sparkles, Check, ChevronsUpDown } from "lucide-react";
 import JSZip from "jszip";
@@ -1375,13 +1375,12 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDeleteProgram = (id: string) => {
+  const handleDeleteProgram = async (id: string) => {
     const updated = programs.filter(p => p.id !== id);
     setPrograms(updated);
-    savePrograms(updated).then(r => {
-      if (r.success) toast.success("Program deleted!");
-      else toast.warning("Deleted locally — cloud sync failed. It will retry automatically.");
-    });
+    localStorage.setItem('fittrack_programs', JSON.stringify(updated));
+    const res = await deleteProgramRow(id);
+    toast[res.success ? 'success' : 'error'](res.success ? 'Program deleted' : 'Delete failed');
   };
 
   const handleDuplicateProgram = (id: string) => {

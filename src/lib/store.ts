@@ -528,6 +528,14 @@ export const savePrograms = async (programs: any[]): Promise<{ success: boolean;
   }
 };
 
+export const deleteProgramRow = async (id: string): Promise<{ success: boolean; error?: any }> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'not-authenticated' };
+  const { error } = await supabase.from('programs').delete().eq('id', id).eq('user_id', user.id);
+  if (error) console.error('deleteProgramRow failed', error);
+  return { success: !error, error };
+};
+
 export const getActiveProgram = () => {
   const stored = localStorage.getItem('fittrack_active_program');
   return stored ? JSON.parse(stored) : null;
