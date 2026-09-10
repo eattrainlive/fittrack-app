@@ -1,5 +1,6 @@
 import * as pdfjsLib from "pdfjs-dist";
 import { supabase } from "./supabase";
+import { logError } from "./errorLog";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -106,7 +107,7 @@ export const flushRetryQueue = async () => {
         const allHistory = JSON.parse(local);
         // Push every local row to the cloud, not just the newest one.
         for (const w of allHistory) {
-          await supabase.from("workout_history").upsert(
+          const { error: _e } = await supabase.from("workout_history").upsert(
             {
               id: w.id,
               user_id: user.id,
@@ -120,6 +121,7 @@ export const flushRetryQueue = async () => {
             },
             { onConflict: "id" },
           );
+          if (_e) logError("flushRetryQueue.history", "workout_history", _e);
         }
       }
     } else if (item.store === "bodyweight") {
@@ -128,12 +130,14 @@ export const flushRetryQueue = async () => {
         const bw = JSON.parse(local);
         if (bw.length > 0) {
           const latest = bw[bw.length - 1];
-          await supabase
+          const { error: _be } = await supabase
             .from("bodyweight_history")
             .upsert(
               { user_id: user.id, ...latest },
               { onConflict: "user_id, date" },
             );
+          if (_be)
+            logError("flushRetryQueue.bodyweight", "bodyweight_history", _be);
         }
       }
     } else if (item.store === "macros") {
@@ -146,12 +150,13 @@ export const flushRetryQueue = async () => {
       if (local) {
         const logs = JSON.parse(local);
         for (const log of logs) {
-          await supabase
+          const { error: _me } = await supabase
             .from("macro_logs")
             .upsert(
               { ...log, member_id: user.id },
               { onConflict: "member_id, date" },
             );
+          if (_me) logError("flushRetryQueue.macroLogs", "macro_logs", _me);
         }
       }
     } else if (item.store === "prs") {
@@ -160,9 +165,10 @@ export const flushRetryQueue = async () => {
         const prs = JSON.parse(local);
         if (prs.length > 0) {
           const rows = prs.map((p: any) => ({ ...p, user_id: user.id }));
-          await supabase
+          const { error: _pe } = await supabase
             .from("personal_records")
             .upsert(rows, { onConflict: "user_id, exercise" });
+          if (_pe) logError("flushRetryQueue.prs", "personal_records", _pe);
         }
       }
     } else if (item.store === "wowResults") {
@@ -171,9 +177,10 @@ export const flushRetryQueue = async () => {
         const results = JSON.parse(local);
         if (results.length > 0) {
           const rows = results.map((r: any) => ({ ...r, member_id: user.id }));
-          await supabase
+          const { error: _we } = await supabase
             .from("wow_results")
             .upsert(rows, { onConflict: "wow_id, member_id" });
+          if (_we) logError("flushRetryQueue.wowResults", "wow_results", _we);
         }
       }
     }
@@ -355,6 +362,35 @@ export const saveMemberPhoto = async (photo: any) => {
   return photos;
 };
 
+export const deleteMemberPhoto = async (photo: any) => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false };
+  // remove the DB row (by id), scoped to the owner
+  const { error } = await supabase
+    .from("member_photos")
+    .delete()
+    .eq("id", photo.id)
+    .eq("member_id", user.id);
+  // also remove the file from the media bucket (best-effort)
+  try {
+    const marker = "/object/public/media/";
+    const i = String(photo.url || "").indexOf(marker);
+    if (i !== -1)
+      await supabase.storage
+        .from("media")
+        .remove([decodeURIComponent(photo.url.slice(i + marker.length))]);
+  } catch (_) {}
+  // update local cache
+  const local = getMemberPhotos().filter(
+    (p: any) => String(p.id) !== String(photo.id),
+  );
+  localStorage.setItem("fittrack_member_photos", JSON.stringify(local));
+  if (error) logError("deleteMemberPhoto", "member_photos", error);
+  return { success: !error, error };
+};
+
 export const seedMemberHabits = async (goal: string) => {
   const path = GOAL_PATHS[goal] || GOAL_PATHS.health;
   const habits = path.map((habitId, index) => ({
@@ -407,6 +443,7 @@ export const saveMemberMacros = async (
         .from("member_macros")
         .upsert({ ...macros, member_id: user.id }, { onConflict: "member_id" });
       if (error) {
+        logError("saveMemberMacros", "member_macros", error);
         enqueue("macros");
         setSyncStatus("error");
         return { success: false, error };
@@ -417,6 +454,7 @@ export const saveMemberMacros = async (
     setSyncStatus("saved");
     return { success: true };
   } catch (e) {
+    logError("saveMemberMacros", "member_macros", e);
     enqueue("macros");
     setSyncStatus("error");
     return { success: false, error: e };
@@ -452,6 +490,7 @@ export const saveMacroLog = async (
           { onConflict: "member_id, date" },
         );
       if (error) {
+        logError("saveMacroLog", "macro_logs", error);
         enqueue("macroLogs");
         setSyncStatus("error");
         return { success: false, error };
@@ -462,6 +501,7 @@ export const saveMacroLog = async (
     setSyncStatus("saved");
     return { success: true };
   } catch (e) {
+    logError("saveMacroLog", "macro_logs", e);
     enqueue("macroLogs");
     setSyncStatus("error");
     return { success: false, error: e };
@@ -679,6 +719,7 @@ export const saveExercises = async (
           .upsert(safeExercises);
         if (error) {
           console.error("saveExercises upsert error:", error);
+          logError("saveExercises", "exercises", error);
           enqueue("exercises");
           setSyncStatus("error");
           return { success: false, error };
@@ -693,6 +734,7 @@ export const saveExercises = async (
     return { success: true };
   } catch (err) {
     console.error("saveExercises exception:", err);
+    logError("saveExercises", "exercises", err);
     enqueue("exercises");
     setSyncStatus("error");
     return { success: false, error: err };
@@ -733,7 +775,9 @@ export const savePrograms = async (
           if (p.weekNotes !== undefined) w.weekNotes = p.weekNotes;
           return w;
         });
-        let { error } = await supabase.from("programs").upsert(safePrograms);
+        let { error } = await supabase
+          .from("programs")
+          .upsert(safePrograms, { onConflict: "id" });
 
         // Fallback: if the full upsert fails (a field isn't a column on `programs`),
         // save the minimal columns and stash the rest in user_settings so nothing is lost.
@@ -749,7 +793,7 @@ export const savePrograms = async (
           }));
           const fallbackRes = await supabase
             .from("programs")
-            .upsert(fallbackPrograms);
+            .upsert(fallbackPrograms, { onConflict: "id" });
           if (!fallbackRes.error) {
             for (const p of safePrograms) {
               const { id, name, user_id, ...extras } = p;
@@ -766,6 +810,7 @@ export const savePrograms = async (
           } else {
             error = fallbackRes.error;
             console.error("Minimal programs fallback also failed:", error);
+            logError("savePrograms.fallback", "programs", error);
           }
         }
 
@@ -777,6 +822,7 @@ export const savePrograms = async (
         }
 
         console.error("savePrograms error:", error);
+        logError("savePrograms", "programs", error);
         enqueue("programs");
         setSyncStatus("error");
         return { success: false, error };
@@ -791,6 +837,7 @@ export const savePrograms = async (
     return { success: true };
   } catch (err) {
     console.error("savePrograms exception:", err);
+    logError("savePrograms", "programs", err);
     enqueue("programs");
     setSyncStatus("error");
     return { success: false, error: err };
@@ -809,7 +856,10 @@ export const deleteProgramRow = async (
     .delete()
     .eq("id", id)
     .eq("user_id", user.id);
-  if (error) console.error("deleteProgramRow failed", error);
+  if (error) {
+    console.error("deleteProgramRow failed", error);
+    logError("deleteProgramRow", "programs", error);
+  }
   return { success: !error, error };
 };
 
@@ -900,6 +950,9 @@ export const saveWorkoutToHistory = async (
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
+      logError("saveWorkoutToHistory", "workout_history", {
+        message: "not-authenticated",
+      });
       enqueue("history");
       setSyncStatus("error");
       return {
@@ -928,12 +981,16 @@ export const saveWorkoutToHistory = async (
       .select();
 
     if (error) {
+      logError("saveWorkoutToHistory", "workout_history", error);
       enqueue("history");
       setSyncStatus("error");
       return { success: false, error, workout: newWorkout };
     }
     if (!rows || rows.length === 0) {
       // Upsert returned nothing → RLS/policy silently dropped it
+      logError("saveWorkoutToHistory", "workout_history", {
+        message: "no-row-persisted (check RLS insert/update policy)",
+      });
       enqueue("history");
       setSyncStatus("error");
       return {
@@ -947,6 +1004,7 @@ export const saveWorkoutToHistory = async (
     setSyncStatus("saved");
     return { success: true, workout: newWorkout };
   } catch (e) {
+    logError("saveWorkoutToHistory", "workout_history", e);
     enqueue("history");
     setSyncStatus("error");
     return { success: false, error: e, workout: newWorkout };
@@ -1009,6 +1067,7 @@ export const detectAndSavePBs = async (exercises: any[]) => {
         .from("personal_records")
         .upsert(rows, { onConflict: "user_id, exercise" });
       if (error) {
+        logError("detectAndSavePBs", "personal_records", error);
         enqueue("prs");
       } else {
         clearDirty("prs");
@@ -1210,6 +1269,7 @@ export const saveBodyweight = async (
           { onConflict: "user_id, date" },
         );
       if (error) {
+        logError("saveBodyweight", "bodyweight_history", error);
         enqueue("bodyweight");
         setSyncStatus("error");
         return { success: false, error, history };
@@ -1220,6 +1280,7 @@ export const saveBodyweight = async (
     setSyncStatus("saved");
     return { success: true, history };
   } catch (e) {
+    logError("saveBodyweight", "bodyweight_history", e);
     enqueue("bodyweight");
     setSyncStatus("error");
     return { success: false, error: e, history };
@@ -2304,7 +2365,10 @@ export const addDiaryItem = async (item: {
   const { error } = await supabase
     .from("food_diary")
     .insert({ servings: 1, ...item, member_id: user.id });
-  if (error) console.error("addDiaryItem error:", error);
+  if (error) {
+    console.error("addDiaryItem error:", error);
+    logError("addDiaryItem", "food_diary", error);
+  }
   return { success: !error, error };
 };
 
@@ -2312,7 +2376,10 @@ export const removeDiaryItem = async (
   id: string,
 ): Promise<{ success: boolean; error?: any }> => {
   const { error } = await supabase.from("food_diary").delete().eq("id", id);
-  if (error) console.error("removeDiaryItem error:", error);
+  if (error) {
+    console.error("removeDiaryItem error:", error);
+    logError("removeDiaryItem", "food_diary", error);
+  }
   return { success: !error, error };
 };
 
@@ -2332,7 +2399,10 @@ export const updateDiaryItem = async (
     .from("food_diary")
     .update(patch)
     .eq("id", id);
-  if (error) console.error("updateDiaryItem error:", error);
+  if (error) {
+    console.error("updateDiaryItem error:", error);
+    logError("updateDiaryItem", "food_diary", error);
+  }
   return { success: !error, error };
 };
 
@@ -2373,7 +2443,10 @@ export const addRecipe = async (
     .insert({ ...r, created_by: user.id, visibility })
     .select()
     .maybeSingle();
-  if (error) console.error("addRecipe failed", error);
+  if (error) {
+    console.error("addRecipe failed", error);
+    logError("addRecipe", "recipes", error);
+  }
   return { success: !error, error, recipe: data };
 };
 

@@ -32,12 +32,20 @@ import {
   getWorkoutHistory,
   getBodyweightHistory,
   getActiveProgram,
+  getMyGymMember,
 } from "@/lib/store";
 import { format, subDays, isSameDay } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { BaselineCard } from "@/components/BaselineCard";
+import {
+  isTrialProduct,
+  daysSince,
+  getTrialBaselineCapturedAt,
+} from "@/lib/trialBaseline";
+import { isTrialEligible } from "@/lib/trialSummary";
 
 const Index = () => {
   const [history, setHistory] = useState<any[]>([]);
@@ -48,6 +56,8 @@ const Index = () => {
   const [allowedAccess, setAllowedAccess] = useState<string[] | null>(null);
   const [userName, setUserName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [showBaseline, setShowBaseline] = useState(false);
+  const [showTrialProgress, setShowTrialProgress] = useState(false);
   const navigate = useNavigate();
 
   const loadData = async () => {
@@ -89,6 +99,27 @@ const Index = () => {
       );
     } else {
       setAllowedAccess(["Foundations", "Stronger", "Fusion", "Performance"]);
+    }
+
+    // Trial Day-0 baseline card: only for early-day trialists who haven't captured it yet.
+    // Trial-progress entry point: any eligible trialist (full 30-day window).
+    try {
+      const member = await getMyGymMember();
+      const captured = await getTrialBaselineCapturedAt();
+      if (
+        member &&
+        isTrialProduct(member.product) &&
+        !captured &&
+        daysSince(member.joined_on) <= 3
+      ) {
+        setShowBaseline(true);
+      } else {
+        setShowBaseline(false);
+      }
+      setShowTrialProgress(!!member && isTrialEligible(member.product));
+    } catch {
+      setShowBaseline(false);
+      setShowTrialProgress(false);
     }
   };
 
@@ -208,6 +239,33 @@ const Index = () => {
           Ready to crush your goals today?
         </p>
       </div>
+
+      {showBaseline && (
+        <BaselineCard onDismiss={() => setShowBaseline(false)} />
+      )}
+
+      {showTrialProgress && (
+        <button
+          onClick={() => navigate("/my-trial")}
+          className="w-full flex items-center gap-3 bg-card border border-border border-l-4 border-l-primary rounded-xl p-3 text-left shadow-sm active:scale-[0.99] transition"
+        >
+          <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+            <TrendingUp className="w-5 h-5 text-primary" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
+              Your trial
+            </p>
+            <p className="font-heading text-lg tracking-wide uppercase leading-none">
+              See your 30-day progress
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              PT sessions, strength wins &amp; how far you've come
+            </p>
+          </div>
+          <ChevronRight className="w-5 h-5 text-primary shrink-0" />
+        </button>
+      )}
 
       <div className="space-y-3">
         {/* Up Next programme strip (lime) */}

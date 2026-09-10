@@ -3,6 +3,17 @@ import App from "./App.tsx";
 import "./index.css";
 import "./pwa-manifest";
 import { registerServiceWorker } from "./sw-register";
+import { logError } from "./lib/errorLog";
+
+// Catch uncaught client errors so they land in error_log (staff can see them)
+if (typeof window !== "undefined") {
+  window.addEventListener("error", (e) =>
+    logError("window.error", "-", { message: e.message, code: "js" }),
+  );
+  window.addEventListener("unhandledrejection", (e) =>
+    logError("unhandledrejection", "-", (e as any).reason),
+  );
+}
 
 // Machine QR redirects — run before React mounts so the site never flashes for a machine slug
 const MACHINE_REDIRECTS: Record<string, string> = {

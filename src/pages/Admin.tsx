@@ -98,6 +98,7 @@ import {
   Heading,
   Upload,
   Sparkles,
+  Target,
   Check,
   ChevronsUpDown,
 } from "lucide-react";
@@ -106,6 +107,13 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { MembersGrid } from "@/components/MembersGrid";
+import SyncErrorsPanel from "@/components/SyncErrorsPanel";
+import {
+  propagateAcrossRounds,
+  propagateSessionAcrossRounds,
+  otherRoundWeeks,
+} from "@/lib/groupPtRounds";
 
 // Real cardio machines, by day (varied). Ordered; Day N uses index (N-1) % length.
 const CARDIO_MACHINES = [
@@ -335,6 +343,7 @@ const Admin = () => {
   const [selectedDay, setSelectedDay] = useState(1);
   const [progViewMode, setProgViewMode] = useState<"day" | "full">("day");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [linkRounds, setLinkRounds] = useState(true);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
@@ -402,6 +411,9 @@ const Admin = () => {
   const [selectedMember, setSelectedMember] = useState<any | null>(null);
   const [memberActivity, setMemberActivity] = useState<any[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
+  // Standard 30-day trial access — pre-ticked when inviting from the Current
+  // Trialists board. Single constant so it's easy to change later.
+  const TRIAL_INVITE_ACCESS = ["Foundations", "Stronger", "Group PT"];
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteAllowed, setInviteAllowed] = useState<string[]>([
@@ -413,6 +425,25 @@ const Admin = () => {
   ]);
   const [isInviting, setIsInviting] = useState(false);
   const [isBulkInviting, setIsBulkInviting] = useState(false);
+  const inviteCardRef = useRef<HTMLDivElement>(null);
+
+  // Pre-fill the Invite Member form from the Current Trialists board's
+  // "Invite to app" button, then scroll the invite card into view.
+  const handleInviteFromBoard = (m: { name: string; email: string }) => {
+    setInviteName(m.name);
+    setInviteEmail(m.email);
+    setInviteAllowed(TRIAL_INVITE_ACCESS);
+    setActiveTab("members");
+    setTimeout(() => {
+      inviteCardRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      (
+        inviteCardRef.current?.querySelector("input") as HTMLInputElement | null
+      )?.focus();
+    }, 80);
+  };
 
   // Notification State
   const [nutritionMembers, setNutritionMembers] = useState<any[]>([]);
@@ -1176,13 +1207,37 @@ const Admin = () => {
 
   const updateProgExercise = (id: number | string, field: string, val: any) => {
     const updatedWorkouts = [...progWorkouts];
+    const session = updatedWorkouts[selectedWorkoutIndex];
+    const exIndex = session.exercises.findIndex(
+      (e: any) => String(e.id) === String(id),
+    );
     updatedWorkouts[selectedWorkoutIndex] = {
-      ...updatedWorkouts[selectedWorkoutIndex],
-      exercises: updatedWorkouts[selectedWorkoutIndex].exercises.map(
-        (e: any) => (String(e.id) === String(id) ? { ...e, [field]: val } : e),
+      ...session,
+      exercises: session.exercises.map((e: any) =>
+        String(e.id) === String(id) ? { ...e, [field]: val } : e,
       ),
     };
-    setProgWorkouts(updatedWorkouts);
+    // Group PT round-linking: ripple identity changes (name/trackingType/eachSide/blockType)
+    // to sibling round-weeks, preserving each round's own sets/reps/rest/weight.
+    if (
+      linkRounds &&
+      newProgType === "GroupPT" &&
+      exIndex !== -1 &&
+      ["name", "trackingType", "eachSide", "blockType"].includes(field)
+    ) {
+      const final = propagateAcrossRounds(
+        updatedWorkouts,
+        Number(session.week),
+        Number(session.day),
+        exIndex,
+        { [field]: val },
+      );
+      setProgWorkouts(final);
+      const sibs = otherRoundWeeks(Number(session.week));
+      if (sibs.length) toast.success("Updated across weeks " + sibs.join(", "));
+    } else {
+      setProgWorkouts(updatedWorkouts);
+    }
   };
 
   // Multi-field version — patches several fields on one exercise in a single state update (avoids stale-state race).
@@ -1191,13 +1246,41 @@ const Admin = () => {
     patch: Record<string, any>,
   ) => {
     const updatedWorkouts = [...progWorkouts];
+    const session = updatedWorkouts[selectedWorkoutIndex];
+    const exIndex = session.exercises.findIndex(
+      (e: any) => String(e.id) === String(id),
+    );
     updatedWorkouts[selectedWorkoutIndex] = {
-      ...updatedWorkouts[selectedWorkoutIndex],
-      exercises: updatedWorkouts[selectedWorkoutIndex].exercises.map(
-        (e: any) => (String(e.id) === String(id) ? { ...e, ...patch } : e),
+      ...session,
+      exercises: session.exercises.map((e: any) =>
+        String(e.id) === String(id) ? { ...e, ...patch } : e,
       ),
     };
-    setProgWorkouts(updatedWorkouts);
+    // Group PT round-linking: ripple identity fields across sibling round-weeks.
+    if (
+      linkRounds &&
+      newProgType === "GroupPT" &&
+      exIndex !== -1 &&
+      Object.keys(patch).some((k) =>
+        ["name", "trackingType", "eachSide", "blockType"].includes(k),
+      )
+    ) {
+      const identity: Record<string, any> = {};
+      for (const k of ["name", "trackingType", "eachSide", "blockType"])
+        if (k in patch) identity[k] = patch[k];
+      const final = propagateAcrossRounds(
+        updatedWorkouts,
+        Number(session.week),
+        Number(session.day),
+        exIndex,
+        identity,
+      );
+      setProgWorkouts(final);
+      const sibs = otherRoundWeeks(Number(session.week));
+      if (sibs.length) toast.success("Updated across weeks " + sibs.join(", "));
+    } else {
+      setProgWorkouts(updatedWorkouts);
+    }
   };
 
   // Resolve a library exercise's default tracking type as a string array.
@@ -1434,8 +1517,34 @@ const Admin = () => {
   }
 
   function rulesBasedPool(libEx: any): any[] {
+    const libTags = mt(libEx);
+    const origIsStrength = isStrengthMove(libEx);
+
+    // Strength pattern FAMILIES — shuffle across the entire family, ANY angle.
+    // Put this FIRST so the same-angle enrichment alternates don't pre-empt it
+    // (a chest press can now shuffle to an overhead press, a row to a pull-up, etc.).
+    const FAMILY: Record<string, string[]> = {
+      push: ["Push", "Horizontal Push", "Vertical Push"],
+      pull: ["Pull", "Horizontal Pull", "Vertical Pull"],
+      knee: ["Knee"],
+      hip: ["Hip"],
+    };
+    const famKey = Object.keys(FAMILY).find((f) =>
+      FAMILY[f].some((t) => libTags.includes(t)),
+    );
+    if (famKey) {
+      const famSet = FAMILY[famKey];
+      const inFamily = exercises.filter(
+        (e) =>
+          e.id !== libEx.id &&
+          mt(e).some((t: string) => famSet.includes(t)) &&
+          isStrengthMove(e) === origIsStrength,
+      );
+      if (inFamily.length) return inFamily;
+    }
+
+    // Non-family patterns (accessory / core / carries / warm-up): coach-picked enrichment alternates first.
     const row = enrichment[String(libEx.id)];
-    // (a) coach-picked enrichment alternates — resolve names to real library exercises
     if (row) {
       const cols = [
         "alt_same_pattern",
@@ -1462,20 +1571,10 @@ const Admin = () => {
       }
       if (alts.length) return alts;
     }
-    // (b) fallback: same SPECIFIC movement pattern (incl H/V direction) + same muscle, then relax
-    const libTags = mt(libEx);
-    const specific =
-      libTags.find((t: string) => /Horizontal|Vertical/.test(t)) || libTags[0];
+
+    // Final fallback: same specific tag.
+    const specific = libTags[0];
     if (specific) {
-      const origIsStrength = isStrengthMove(libEx);
-      const sameMuscle = exercises.filter(
-        (e) =>
-          e.id !== libEx.id &&
-          mt(e).includes(specific) &&
-          e.muscle === libEx.muscle &&
-          isStrengthMove(e) === origIsStrength,
-      );
-      if (sameMuscle.length) return sameMuscle;
       const samePattern = exercises.filter(
         (e) =>
           e.id !== libEx.id &&
@@ -1532,8 +1631,25 @@ const Admin = () => {
             : e,
         ),
       };
-      setProgWorkouts(updatedWorkouts);
+      let finalWorkouts = updatedWorkouts;
+      if (linkRounds && newProgType === "GroupPT") {
+        const session = updatedWorkouts[selectedWorkoutIndex];
+        finalWorkouts = propagateAcrossRounds(
+          updatedWorkouts,
+          Number(session.week),
+          Number(session.day),
+          itemIdx,
+          { name: randomEx.id, trackingType: defaultTrackingFor(randomEx) },
+        );
+      }
+      setProgWorkouts(finalWorkouts);
       toast.success(`Swapped for ${randomEx.name}`);
+      if (linkRounds && newProgType === "GroupPT") {
+        const session = updatedWorkouts[selectedWorkoutIndex];
+        const sibs = otherRoundWeeks(Number(session.week));
+        if (sibs.length)
+          toast.success("Updated across weeks " + sibs.join(", "));
+      }
     } else {
       toast.error("No matching exercises found to swap with.");
     }
@@ -1631,9 +1747,25 @@ const Admin = () => {
       }
     });
 
-    setProgWorkouts(updatedWorkouts);
+    let finalWorkouts = updatedWorkouts;
+    if (linkRounds && newProgType === "GroupPT") {
+      const session = updatedWorkouts[selectedWorkoutIndex];
+      finalWorkouts = propagateSessionAcrossRounds(
+        updatedWorkouts,
+        Number(session.week),
+        Number(session.day),
+        session.exercises,
+      );
+    }
+    setProgWorkouts(finalWorkouts);
     if (shuffledCount > 0) {
       toast.success(`Shuffled ${shuffledCount} exercises!`);
+      if (linkRounds && newProgType === "GroupPT") {
+        const session = updatedWorkouts[selectedWorkoutIndex];
+        const sibs = otherRoundWeeks(Number(session.week));
+        if (sibs.length)
+          toast.success("Updated across weeks " + sibs.join(", "));
+      }
     } else {
       toast.error("No exercises could be shuffled.");
     }
@@ -1745,6 +1877,8 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
   };
 
   const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
+  // Synchronous mirror so tight generation loops reuse ONE programme id.
+  const editingProgramIdRef = useRef<string | null>(null);
 
   const handleAddProgram = () => {
     if (!newProgName) {
@@ -1871,10 +2005,12 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     setNewProgCover("");
     setProgWorkouts([]);
     setProgWeekNotes({});
+    editingProgramIdRef.current = null;
     setEditingProgramId(null);
   };
 
   const handleEditProgram = (prog: any) => {
+    editingProgramIdRef.current = prog.id;
     setEditingProgramId(prog.id);
     setNewProgName(prog.name);
     setNewProgDesc(prog.description || "");
@@ -1884,8 +2020,16 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     setNewProgType(
       (prog.type as "program" | "session_folder" | "GroupPT") || "program",
     );
-    setNewProgWeeks(prog.weeks || 4);
-    setNewProgDays(prog.daysPerWeek || 3);
+    // Derive length + days from the saved row, with type-aware fallbacks and an
+    // inference safety net (highest day present) so the editor never hides days.
+    const inferredDays =
+      Array.isArray(prog.workouts) && prog.workouts.length
+        ? Math.max(...prog.workouts.map((w: any) => Number(w.day) || 1))
+        : 0;
+    const defaultDays =
+      prog.type === "GroupPT" ? 6 : prog.stream === "Stronger" ? 7 : 5;
+    setNewProgWeeks(prog.type === "GroupPT" ? 12 : prog.weeks || 4);
+    setNewProgDays(prog.daysPerWeek || inferredDays || defaultDays);
     const loadedNotes = prog.weekNotes || {};
     const normalizedNotes: Record<number, any> = {};
     Object.keys(loadedNotes).forEach((k) => {
@@ -2042,10 +2186,10 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
   };
 
   const autoSaveProgram = async (workoutsToSave: any[]) => {
-    const progId = editingProgramId || "p_" + Date.now();
-    if (!editingProgramId) {
-      setEditingProgramId(progId);
-    }
+    const progId =
+      editingProgramIdRef.current || editingProgramId || "p_" + Date.now();
+    editingProgramIdRef.current = progId; // synchronous — every loop iteration reuses it
+    if (!editingProgramId) setEditingProgramId(progId);
     const week1Start = progWeekNotes[1]?.start_date || newProgStartDate || null;
     const newProg = {
       id: progId,
@@ -2095,8 +2239,9 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
       }),
     };
 
+    const exists = programs.some((p) => p.id === progId);
     let updated;
-    if (editingProgramId) {
+    if (exists) {
       updated = programs.map((p) => (p.id === progId ? newProg : p));
     } else {
       updated = [...programs, newProg];
@@ -3019,11 +3164,10 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                     <div className="flex flex-wrap gap-4 pt-2">
                       {["Strength", "Cardio", "Mobility", "Activation"].map(
                         (cat) => {
-                          const currentCats = Array.isArray(
-                            editingExercise.category,
-                          )
-                            ? editingExercise.category
-                            : [editingExercise.category || "Strength"];
+                          const currentCats = toArr(editingExercise.category)
+                            .length
+                            ? toArr(editingExercise.category)
+                            : ["Strength"];
                           return (
                             <div
                               key={cat}
@@ -3072,13 +3216,10 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                     <Label>Movement Type</Label>
                     <div className="flex flex-wrap gap-4 pt-2">
                       {MOVEMENT_TYPES.map((m) => {
-                        const currentMovs = Array.isArray(
-                          editingExercise.movementType,
-                        )
-                          ? editingExercise.movementType
-                          : editingExercise.movementType
-                            ? [editingExercise.movementType]
-                            : ["Push"];
+                        const currentMovs = toArr(editingExercise.movementType)
+                          .length
+                          ? toArr(editingExercise.movementType)
+                          : ["Push"];
                         return (
                           <div key={m} className="flex items-center space-x-2">
                             <Checkbox
@@ -4219,6 +4360,19 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                               >
                                 Shuffle All
                               </Button>
+                              {newProgType === "GroupPT" && (
+                                <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={linkRounds}
+                                    onChange={(e) =>
+                                      setLinkRounds(e.target.checked)
+                                    }
+                                    className="h-3.5 w-3.5 rounded border-border"
+                                  />
+                                  Link rounds
+                                </label>
+                              )}
                               {newProgType !== "wow" && (
                                 <Button
                                   variant="default"
@@ -4535,23 +4689,19 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                                     )
                                                                       return true;
                                                                     const cats =
-                                                                      Array.isArray(
+                                                                      toArr(
                                                                         ex.category,
-                                                                      )
-                                                                        ? ex.category
+                                                                      ).length
+                                                                        ? toArr(
+                                                                            ex.category,
+                                                                          )
                                                                         : [
-                                                                            ex.category ||
-                                                                              "Strength",
+                                                                            "Strength",
                                                                           ];
                                                                     const movs =
-                                                                      Array.isArray(
+                                                                      toArr(
                                                                         ex.movementType,
-                                                                      )
-                                                                        ? ex.movementType
-                                                                        : [
-                                                                            ex.movementType ||
-                                                                              "",
-                                                                          ];
+                                                                      );
                                                                     return (
                                                                       cats.includes(
                                                                         pe.blockType,
@@ -5420,7 +5570,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
 
         <TabsContent value="members" className="space-y-6 mt-6">
           <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <Card className="flex-1 bg-card border-border">
+            <Card ref={inviteCardRef} className="flex-1 bg-card border-border">
               <CardHeader>
                 <CardTitle>Invite Member</CardTitle>
               </CardHeader>
@@ -5508,86 +5658,13 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
             </Card>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {members.map((member) => (
-              <Card
-                key={member.id}
-                className="bg-card border-border flex flex-col"
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold">
-                      {member.full_name?.charAt(0).toUpperCase() || "U"}
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">
-                        {member.full_name}
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                        {member.email}
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-1 flex flex-col gap-4">
-                  <div className="space-y-2 flex-1">
-                    <Label className="text-xs text-muted-foreground">
-                      Access
-                    </Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        "Foundations",
-                        "Stronger",
-                        "Fusion",
-                        "Performance",
-                        "Group PT",
-                      ].map((acc) => {
-                        const hasAccess = (
-                          member.allowed_access || []
-                        ).includes(acc);
-                        return (
-                          <div
-                            key={acc}
-                            className="flex items-center space-x-2"
-                          >
-                            <Checkbox
-                              id={`mem-${member.id}-${acc}`}
-                              checked={hasAccess}
-                              onCheckedChange={(c) =>
-                                handleSetAccess(member.id, acc, !!c)
-                              }
-                            />
-                            <Label
-                              htmlFor={`mem-${member.id}-${acc}`}
-                              className="text-xs"
-                            >
-                              {acc}
-                            </Label>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="w-full gap-2 mt-auto"
-                    onClick={() => handleViewActivity(member)}
-                  >
-                    <History className="h-4 w-4" /> View Activity
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-            {members.length === 0 && (
-              <div className="col-span-full text-center py-12 text-muted-foreground bg-muted/20 rounded-lg border border-dashed">
-                <Users className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                <p>
-                  No members found yet. Members will appear here once they log
-                  in.
-                </p>
-              </div>
-            )}
-          </div>
+          <MembersGrid
+            members={members}
+            staffSecret={staffSecret}
+            onSetAccess={handleSetAccess}
+            onViewActivity={handleViewActivity}
+            onInviteMember={handleInviteFromBoard}
+          />
         </TabsContent>
 
         <TabsContent value="nutrition" className="space-y-6 mt-6">
@@ -6704,6 +6781,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-6 mt-6">
+          <SyncErrorsPanel />
           <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle>AI Settings</CardTitle>

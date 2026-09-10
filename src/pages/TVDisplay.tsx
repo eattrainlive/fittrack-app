@@ -4,6 +4,9 @@ import { getPrograms, getExercises } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dumbbell, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { QRCodeSVG } from "qrcode.react";
+
+const APP_URL = "https://etlfittrack.netlify.app";
 
 const TVDisplay = () => {
   const { programId, workoutIndex } = useParams();
@@ -154,7 +157,7 @@ const TVDisplay = () => {
         </div>
       </div>
 
-      <div className="flex-1 w-full grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4 items-start pb-4">
+      <div className="flex-1 min-h-0 w-full grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4 items-start pb-4">
         {sections.map((section, sIdx) => (
           <div
             key={sIdx}
@@ -264,6 +267,26 @@ const TVDisplay = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="shrink-0 mt-2 flex items-center justify-end gap-3">
+        <div className="text-right leading-tight">
+          <div className="text-white font-heading uppercase tracking-wide text-base md:text-lg">
+            Download the app
+          </div>
+          <div className="text-white/60 text-xs md:text-sm">
+            Scan to join Eat Train Live
+          </div>
+        </div>
+        <div className="bg-white rounded-lg p-2 shadow-lg">
+          <QRCodeSVG
+            value={APP_URL}
+            size={104}
+            bgColor="#ffffff"
+            fgColor="#000000"
+            level="M"
+          />
+        </div>
       </div>
     </div>
   );

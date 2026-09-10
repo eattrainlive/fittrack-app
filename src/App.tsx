@@ -22,6 +22,7 @@ import Nutrition from "./pages/Nutrition";
 import TVDisplay from "./pages/TVDisplay";
 import ExerciseInfo from "./pages/ExerciseInfo";
 import MachinePage from "./pages/MachinePage";
+import MyTrial from "./pages/MyTrial";
 
 import { useEffect, useState } from "react";
 import { syncFromSupabase, syncProfile } from "./lib/store";
@@ -115,6 +116,7 @@ const AppRoutes = () => {
                 />
                 <Route path="/x/:id" element={<ExerciseInfo />} />
                 <Route path="/machine/:slug" element={<MachinePage />} />
+                <Route path="/my-trial" element={<MyTrial />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/auth/callback" element={<Index />} />
@@ -140,6 +142,7 @@ const AppRoutes = () => {
               />
               <Route path="/x/:id" element={<ExerciseInfo />} />
               <Route path="/machine/:slug" element={<MachinePage />} />
+              <Route path="/my-trial" element={<MyTrial />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="/auth/callback" element={<Index />} />
