@@ -242,20 +242,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownloadSource}
-            disabled={isZipping}
-            className="gap-2 hidden sm:flex border-primary text-primary hover:bg-primary/10"
-          >
-            {isZipping ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4" />
-            )}
-            Download Source
-          </Button>
+          {isStaff && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadSource}
+              disabled={isZipping}
+              className="gap-2 hidden sm:flex border-primary text-primary hover:bg-primary/10"
+            >
+              {isZipping ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Download Source
+            </Button>
+          )}
           {user && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
