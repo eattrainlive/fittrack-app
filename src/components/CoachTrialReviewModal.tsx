@@ -33,6 +33,13 @@ import { toast } from "@/components/ui/sonner";
 import { supabase } from "@/lib/supabase";
 import { REVIEW_BOOKING_URL, type ProgressSummary } from "@/lib/trialSummary";
 
+const PRIMARY_GOAL_LABELS: Record<string, string> = {
+  fat_loss: "Fat Loss 🔥",
+  strength: "Strength 💪",
+  fitness: "Fitness 🏃",
+  health: "Health ❤️",
+};
+
 interface MemberProps {
   id: string;
   email?: string;
@@ -407,8 +414,28 @@ export function CoachTrialReviewModal({
               <Card className="border-l-4 border-l-primary">
                 <CardContent className="p-4 space-y-3">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1">
-                    <Target className="w-3.5 h-3.5" /> Induction Goals vs Actual
+                    <Target className="w-3.5 h-3.5" />{" "}
+                    {s.memberType === "trial"
+                      ? "Induction Goals vs Actual"
+                      : "Their Goals vs Actual"}
                   </p>
+
+                  {/* Primary goal + typed goal (extended) */}
+                  {(s.goals.primaryGoal || s.goals.goalText) && (
+                    <div className="space-y-1.5">
+                      {s.goals.primaryGoal && (
+                        <Badge variant="secondary" className="font-semibold">
+                          {PRIMARY_GOAL_LABELS[s.goals.primaryGoal] ||
+                            s.goals.primaryGoal}
+                        </Badge>
+                      )}
+                      {s.goals.goalText && (
+                        <p className="text-sm italic text-muted-foreground">
+                          "{s.goals.goalText}"
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                     {s.goals.sessionsPerWeek && (
@@ -454,6 +481,46 @@ export function CoachTrialReviewModal({
                       </div>
                     )}
                   </div>
+
+                  {/* Focus + 3 habits by name */}
+                  {(s.goals.focus ||
+                    s.goals.habit_1 ||
+                    s.goals.habit_2 ||
+                    s.goals.habit_3) && (
+                    <div className="space-y-2 pt-1">
+                      {s.goals.focus && (
+                        <p className="text-sm italic text-muted-foreground">
+                          Focus: "{s.goals.focus}"
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-1.5">
+                        {[s.goals.habit_1, s.goals.habit_2, s.goals.habit_3]
+                          .filter((h) => h != null)
+                          .map((h) => (
+                            <Badge
+                              key={h}
+                              variant="secondary"
+                              className="font-normal"
+                            >
+                              {String(h)}
+                            </Badge>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {s.goals.reviewDue && (
+                    <p className="text-xs text-muted-foreground pt-1">
+                      Review due:{" "}
+                      {new Date(
+                        s.goals.reviewDue + "T00:00:00",
+                      ).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             )}

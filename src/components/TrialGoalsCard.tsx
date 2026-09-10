@@ -77,7 +77,12 @@ export function TrialGoalsCard({
   const [stepTarget, setStepTarget] = useState("");
   const [sessionsPerWeek, setSessionsPerWeek] = useState("");
   const [calorieTarget, setCalorieTarget] = useState("");
-  const [picked, setPicked] = useState<(number | null)[]>([null, null, null]);
+  const [picked, setPicked] = useState<(string | null)[]>([null, null, null]);
+  const [customMode, setCustomMode] = useState<boolean[]>([
+    false,
+    false,
+    false,
+  ]);
 
   const complete = !!goals?.captured_at;
 
@@ -90,7 +95,21 @@ export function TrialGoalsCard({
         setStepTarget(fmtNum(g.step_target));
         setSessionsPerWeek(fmtNum(g.sessions_per_week));
         setCalorieTarget(fmtNum(g.calorie_target));
-        setPicked([g.habit_1 ?? null, g.habit_2 ?? null, g.habit_3 ?? null]);
+        const p: (string | null)[] = [
+          g.habit_1 ?? null,
+          g.habit_2 ?? null,
+          g.habit_3 ?? null,
+        ];
+        setPicked(p);
+        // If a stored habit isn't a known library name, treat it as custom text.
+        setCustomMode(
+          p.map((t) => {
+            if (!t) return false;
+            return !habits.some(
+              (h) => h.name.toLowerCase() === t.toLowerCase(),
+            );
+          }),
+        );
       }
       onSaved?.(g);
     })();
@@ -165,7 +184,7 @@ export function TrialGoalsCard({
         stepTarget: stepTarget ? parseInt(stepTarget, 10) : null,
         sessionsPerWeek: sessionsPerWeek ? parseInt(sessionsPerWeek, 10) : null,
         calorieTarget: calorieTarget ? parseInt(calorieTarget, 10) : null,
-        habitIds: picked.filter((h): h is number => h != null),
+        habitTexts: picked.map((h) => (h ? h.trim() : null)),
       });
       setGoals(g);
       toast.success("Starting point saved 🎯");
@@ -202,8 +221,7 @@ export function TrialGoalsCard({
     }
   };
 
-  const habitName = (id?: number | null) =>
-    id == null ? "" : habits.find((h) => h.id === id)?.name || `Habit ${id}`;
+  const habitName = (h?: string | null) => (h ? String(h) : "");
   const hasTargets =
     goals &&
     (goals.step_target ||
@@ -444,25 +462,78 @@ export function TrialGoalsCard({
                     Habit {slot + 1}
                     {slot > 0 ? " (optional)" : ""}
                   </Label>
-                  <select
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    value={picked[slot] ?? ""}
-                    onChange={(e) =>
-                      setPicked((p) => {
-                        const v = e.target.value
-                          ? parseInt(e.target.value, 10)
-                          : null;
-                        return p.map((x, i) => (i === slot ? v : x));
-                      })
-                    }
-                  >
-                    <option value="">— None —</option>
-                    {habits.map((h) => (
-                      <option key={h.id} value={h.id}>
-                        {h.name}
-                      </option>
-                    ))}
-                  </select>
+                  {customMode[slot] ? (
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        placeholder="Type your own habit…"
+                        value={picked[slot] ?? ""}
+                        onChange={(e) =>
+                          setPicked((p) =>
+                            p.map((x, i) => (i === slot ? e.target.value : x)),
+                          )
+                        }
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0"
+                        onClick={() => {
+                          setCustomMode((m) =>
+                            m.map((x, i) => (i === slot ? false : x)),
+                          );
+                          setPicked((p) =>
+                            p.map((x, i) => (i === slot ? null : x)),
+                          );
+                        }}
+                      >
+                        List
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <select
+                        className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        value={
+                          picked[slot] &&
+                          habits.some((h) => h.name === picked[slot])
+                            ? picked[slot]!
+                            : ""
+                        }
+                        onChange={(e) =>
+                          setPicked((p) =>
+                            p.map((x, i) =>
+                              i === slot ? e.target.value || null : x,
+                            ),
+                          )
+                        }
+                      >
+                        <option value="">— None —</option>
+                        {habits.map((h) => (
+                          <option key={h.id} value={h.name}>
+                            {h.name}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0"
+                        onClick={() => {
+                          setCustomMode((m) =>
+                            m.map((x, i) => (i === slot ? true : x)),
+                          );
+                          setPicked((p) =>
+                            p.map((x, i) => (i === slot ? null : x)),
+                          );
+                        }}
+                      >
+                        Custom
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

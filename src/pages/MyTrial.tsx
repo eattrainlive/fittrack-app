@@ -22,9 +22,14 @@ import {
   REVIEW_BOOKING_URL,
   type ProgressSummary,
 } from "@/lib/trialSummary";
-import { getMyGymMember, deleteMemberPhoto } from "@/lib/store";
+import { getMyGymMember } from "@/lib/store";
 import { TrialGoalsCard } from "@/components/TrialGoalsCard";
 import { uploadProgressPhoto, saveMemberPhoto } from "@/lib/trialGoals";
+import {
+  getMyPhotos,
+  deleteMemberPhoto,
+  type MemberPhoto,
+} from "@/lib/memberPhotos";
 import { toast } from "@/components/ui/sonner";
 
 const fmtKg = (n: number) => n.toLocaleString();
@@ -34,6 +39,7 @@ const MyTrial = () => {
   const [eligible, setEligible] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [myPhotos, setMyPhotos] = useState<MemberPhoto[]>([]);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
@@ -49,6 +55,7 @@ const MyTrial = () => {
         }
         const s = await getTrialSummary();
         setSummary(s);
+        setMyPhotos(await getMyPhotos());
       } catch {
         setEligible(false);
       } finally {
@@ -77,6 +84,7 @@ const MyTrial = () => {
       // Refresh summary so the new photo appears immediately.
       const s = await getTrialSummary();
       setSummary(s);
+      setMyPhotos(await getMyPhotos());
     } catch (err: any) {
       toast.error("Couldn't save photo: " + (err?.message || "Unknown error"));
     } finally {
@@ -94,6 +102,7 @@ const MyTrial = () => {
         // Refresh summary so the strip re-resolves from remaining photos.
         const s = await getTrialSummary();
         setSummary(s);
+        setMyPhotos(await getMyPhotos());
       } else {
         toast.error("Couldn't delete photo. Please try again.");
       }
@@ -189,7 +198,7 @@ const MyTrial = () => {
                 disabled={uploading}
               />
             </label>
-            {(s.photos || []).map((p, i) => (
+            {myPhotos.map((p, i) => (
               <figure
                 key={(p.url || "") + i}
                 className="shrink-0 w-24 sm:w-28 space-y-1"

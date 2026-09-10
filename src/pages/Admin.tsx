@@ -664,6 +664,28 @@ const Admin = () => {
     }
   };
 
+  const handleSetStaff = async (memberId: string, isStaff: boolean) => {
+    const member = members.find((m) => m.id === memberId);
+    // Optimistic update
+    setMembers(
+      members.map((m) => (m.id === memberId ? { ...m, is_staff: isStaff } : m)),
+    );
+    try {
+      await manageMembers({
+        action: "setStaff",
+        memberId,
+        isStaff,
+        staffSecret,
+      });
+      toast.success(isStaff ? "Staff access granted" : "Staff access removed");
+      await loadMembers();
+    } catch (e: any) {
+      console.error("setStaff error:", e);
+      toast.error(`Failed to update staff status: ${e.message}`);
+      await loadMembers();
+    }
+  };
+
   const handleSetAccess = async (
     memberId: string,
     acc: string,
@@ -5664,6 +5686,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
             onSetAccess={handleSetAccess}
             onViewActivity={handleViewActivity}
             onInviteMember={handleInviteFromBoard}
+            onSetStaff={handleSetStaff}
           />
         </TabsContent>
 

@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { getMyGymMember } from "./store";
 import { getTrialGoals } from "./trialGoals";
+import { getMemberGoals } from "./memberGoals";
 
 // ── Progress summary engine (trial pack + general monthly recap) ────────────
 // Window-driven + parameterised so the same engine drives trial summaries,
@@ -61,14 +62,25 @@ export interface ProgressSummary {
   habitsBuilt: number;
   totalCheckins: number;
   daysLogged: number;
-  // trial goals (from trial_goals) — present when captured
+  // trial/member goals (from trial_goals / member_goals) — present when captured
   goals?: {
     startWeight?: number | null;
     stepTarget?: number | null;
     sessionsPerWeek?: number | null;
     calorieTarget?: number | null;
-    habitIds?: (number | null)[];
+    habit_1?: string | null;
+    habit_2?: string | null;
+    habit_3?: string | null;
     capturedAt?: string | null;
+    focus?: string | null;
+    reviewDue?: string | null;
+    setAt?: string | null;
+    // Extended retention fields:
+    primaryGoal?: string | null;
+    goalText?: string | null;
+    targetWeight?: number | null;
+    targetDate?: string | null;
+    focusAreas?: string[] | null;
   };
   sessionsPerWeekActual: number;
 }
@@ -129,20 +141,42 @@ export const getProgressSummary = async (opts: {
     user.email?.split("@")[0] ||
     "there";
 
-  // Window: default to the 30-day trial window from the gym_members row
+  // Window: trialists use the 30-day window from joined_on; members use a
+  // rolling 90-day view from member_goals.set_at (or today-90 if no goals yet).
+  const isTrial = opts.memberType === "trial";
   const joined = opts.memberRow?.joined_on || member?.joined_on;
   let start = opts.start;
   let end = opts.end;
-  if (joined) {
-    const s = new Date(joined);
-    const e30 = new Date(s.getTime() + 30 * 24 * 60 * 60 * 1000);
-    start = start || s.toISOString();
-    end = end || new Date(Math.min(e30.getTime(), Date.now())).toISOString();
+  if (!isTrial) {
+    // Member: rolling 90-day view from set_at (or today-90).
+    if (!start) {
+      try {
+        const mg = await getMemberGoals();
+        if (mg?.set_at) {
+          const s = new Date(mg.set_at);
+          const e90 = new Date(s.getTime() + 90 * 86400000);
+          start = s.toISOString();
+          end =
+            end || new Date(Math.min(e90.getTime(), Date.now())).toISOString();
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!start) start = new Date(Date.now() - 90 * 86400000).toISOString();
+    if (!end) end = new Date().toISOString();
+  } else {
+    if (joined) {
+      const s = new Date(joined);
+      const e30 = new Date(s.getTime() + 30 * 24 * 60 * 60 * 1000);
+      start = start || s.toISOString();
+      end = end || new Date(Math.min(e30.getTime(), Date.now())).toISOString();
+    }
+    if (!start) start = new Date(Date.now() - 30 * 86400000).toISOString();
+    if (!end) end = new Date().toISOString();
   }
-  if (!start) start = new Date(Date.now() - 30 * 86400000).toISOString();
-  if (!end) end = new Date().toISOString();
 
-  const totalDays = 30;
+  const totalDays = isTrial ? 30 : 90;
   const dayCount = Math.min(
     totalDays,
     Math.max(
@@ -416,20 +450,46 @@ export const getProgressSummary = async (opts: {
     }
   }
 
-  // ── Trial goals (trial_goals) + sessions-per-week actual ─────────────────
+  // ── Goals (trial_goals for trialists, member_goals for full members) ─────
   let goals: ProgressSummary["goals"];
   let sessionsPerWeekActual = 0;
   try {
-    const g = await getTrialGoals();
-    if (g) {
-      goals = {
-        startWeight: g.start_weight,
-        stepTarget: g.step_target,
-        sessionsPerWeek: g.sessions_per_week,
-        calorieTarget: g.calorie_target,
-        habitIds: [g.habit_1, g.habit_2, g.habit_3],
-        capturedAt: g.captured_at,
-      };
+    if (isTrial) {
+      const g = await getTrialGoals();
+      if (g) {
+        goals = {
+          startWeight: g.start_weight,
+          stepTarget: g.step_target,
+          sessionsPerWeek: g.sessions_per_week,
+          calorieTarget: g.calorie_target,
+          habit_1: g.habit_1,
+          habit_2: g.habit_2,
+          habit_3: g.habit_3,
+          capturedAt: g.captured_at,
+        };
+      }
+    } else {
+      const g = await getMemberGoals();
+      if (g) {
+        goals = {
+          startWeight: g.start_weight,
+          focus: g.focus,
+          stepTarget: g.step_target,
+          sessionsPerWeek: g.sessions_per_week,
+          calorieTarget: g.calorie_target,
+          habit_1: g.habit_1,
+          habit_2: g.habit_2,
+          habit_3: g.habit_3,
+          reviewDue: g.review_due,
+          setAt: g.set_at,
+          capturedAt: g.set_at,
+          primaryGoal: g.primary_goal,
+          goalText: g.goal_text,
+          targetWeight: g.target_weight,
+          targetDate: g.target_date,
+          focusAreas: g.focus_areas,
+        };
+      }
     }
   } catch {
     // ignore
@@ -501,9 +561,19 @@ export const getProgressSummary = async (opts: {
 export const getTrialSummary = () =>
   getProgressSummary({ memberType: "trial" });
 
+export const getMemberSummary = () =>
+  getProgressSummary({ memberType: "default" });
+
 export const isTrialEligible = (product?: string | null) => {
   const p = String(product || "")
     .toLowerCase()
     .trim();
   return p === "30 day trial" || p === "forever strong 30 day trial";
+};
+
+// A "current member" = has a roster row whose product is NOT a trial.
+export const isMemberEligible = (product?: string | null) => {
+  if (!product) return false;
+  if (isTrialEligible(product)) return false;
+  return true;
 };

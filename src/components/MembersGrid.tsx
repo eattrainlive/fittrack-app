@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -20,11 +20,16 @@ import {
   CalendarX,
   LayoutGrid,
   KanbanSquare,
+  Activity,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { isTrialEligible } from "@/lib/trialSummary";
 import { CoachTrialReviewModal } from "@/components/CoachTrialReviewModal";
 import { CurrentTrialistsBoard } from "@/components/CurrentTrialistsBoard";
+import SyncMembershipsCard from "@/components/SyncMembershipsCard";
+import { NeedsLinkingCard } from "@/components/NeedsLinkingCard";
+import { MemberActivityModal } from "@/components/MemberActivityModal";
+import { MemberEngagementBoard } from "@/components/MemberEngagementBoard";
 
 const TRIAL_LENGTH_DAYS = 30;
 
@@ -61,6 +66,8 @@ interface MembersGridProps {
   onSetAccess: (memberId: string, acc: string, checked: boolean) => void;
   onViewActivity: (member: any) => void;
   onInviteMember?: (member: { name: string; email: string }) => void;
+  onSetStaff?: (memberId: string, isStaff: boolean) => Promise<void>;
+  onMembershipsSynced?: () => void;
 }
 
 export function MembersGrid({
@@ -69,6 +76,8 @@ export function MembersGrid({
   onSetAccess,
   onViewActivity,
   onInviteMember,
+  onSetStaff,
+  onMembershipsSynced,
 }: MembersGridProps) {
   // Trial status lives on the Quoox roster (gym_members, matched by email), NOT
   // on the members rows. Load it once when the grid mounts and gate the Trial
@@ -79,43 +88,50 @@ export function MembersGrid({
   >({});
   const [trialReviewMember, setTrialReviewMember] = useState<any | null>(null);
   const [trialReviewOpen, setTrialReviewOpen] = useState(false);
+  const [activityMember, setActivityMember] = useState<any | null>(null);
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [showEngagement, setShowEngagement] = useState(false);
   const [onlyUpcomingReviews, setOnlyUpcomingReviews] = useState(false);
   const [onlyNeedsBooking, setOnlyNeedsBooking] = useState(false);
   // Pipeline board view ("Current Trialists") vs the normal member grid.
   const [pipelineMode, setPipelineMode] = useState(false);
 
+  const loadRoster = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from("gym_members")
+        .select("email,product,joined_on,status,full_name");
+      if (!data) return;
+      const map: Record<string, GymRosterRow> = {};
+      for (const r of data) {
+        const key = String(r.email || "")
+          .toLowerCase()
+          .trim();
+        if (!key) continue;
+        const prev = map[key];
+        if (
+          !prev ||
+          r.status === "active" ||
+          (r.status === "paused" && prev.status !== "active")
+        ) {
+          map[key] = r as GymRosterRow;
+        }
+      }
+      setRosterMap(map);
+    } catch {
+      // gym_members may not exist / not readable — soft-fail (no trial data)
+    }
+  }, []);
+
   useEffect(() => {
     let mounted = true;
-    (async () => {
-      try {
-        const { data } = await supabase
-          .from("gym_members")
-          .select("email,product,joined_on,status,full_name");
-        if (!data || !mounted) return;
-        const map: Record<string, GymRosterRow> = {};
-        for (const r of data) {
-          const key = String(r.email || "")
-            .toLowerCase()
-            .trim();
-          if (!key) continue;
-          const prev = map[key];
-          if (
-            !prev ||
-            r.status === "active" ||
-            (r.status === "paused" && prev.status !== "active")
-          ) {
-            map[key] = r as GymRosterRow;
-          }
-        }
-        if (mounted) setRosterMap(map);
-      } catch {
-        // gym_members may not exist / not readable — soft-fail (no trial data)
-      }
-    })();
+    loadRoster().then(() => {
+      if (!mounted) return;
+    });
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [loadRoster]);
 
   // Load the review-call booking status map (email -> status/appointment).
   // Mirrored from the external calendar via the webhook; readable by staff.
@@ -152,6 +168,11 @@ export function MembersGrid({
       mounted = false;
     };
   }, []);
+
+  const handleViewActivity = (member: any) => {
+    setActivityMember(member);
+    setActivityOpen(true);
+  };
 
   const openTrialReview = (member: any) => {
     const gr =
@@ -221,12 +242,28 @@ export function MembersGrid({
         <Button
           type="button"
           size="sm"
+          variant={showEngagement ? "default" : "outline"}
+          className="gap-2"
+          onClick={() => {
+            setShowEngagement((v) => !v);
+            setPipelineMode(false);
+            setOnlyUpcomingReviews(false);
+            setOnlyNeedsBooking(false);
+          }}
+        >
+          <Activity className="h-4 w-4" />
+          {showEngagement ? "Showing activity" : "Member activity"}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
           variant={pipelineMode ? "default" : "outline"}
           className="gap-2"
           onClick={() => {
             setPipelineMode((v) => !v);
             setOnlyUpcomingReviews(false);
             setOnlyNeedsBooking(false);
+            setShowEngagement(false);
           }}
         >
           <KanbanSquare className="h-4 w-4" />
@@ -269,6 +306,30 @@ export function MembersGrid({
           </span>
         )}
       </div>
+      {showEngagement && (
+        <MemberEngagementBoard
+          staffSecret={staffSecret}
+          onViewMember={(m) => {
+            const full = members.find((x) => x.id === m.id) || m;
+            setActivityMember(full);
+            setActivityOpen(true);
+          }}
+        />
+      )}
+      {!pipelineMode && !showEngagement && (
+        <div className="mb-4 space-y-4">
+          <SyncMembershipsCard
+            onDone={() => {
+              loadRoster();
+              onMembershipsSynced?.();
+            }}
+          />
+          <NeedsLinkingCard
+            staffSecret={staffSecret}
+            onLinked={() => onMembershipsSynced?.()}
+          />
+        </div>
+      )}
       {pipelineMode ? (
         <CurrentTrialistsBoard
           members={members}
@@ -330,6 +391,29 @@ export function MembersGrid({
                         <Archive className="h-3 w-3" />
                         Past trial
                       </Badge>
+                    )}
+                  </div>
+                  <div className="pl-[52px] -mt-1 flex flex-wrap gap-1">
+                    {member.membership ? (
+                      <span
+                        className={`text-[11px] px-2 py-0.5 rounded-full border font-semibold ${
+                          /trial/i.test(member.membership)
+                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                            : /pt/i.test(member.membership)
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                              : "bg-muted text-muted-foreground border-border"
+                        }`}
+                      >
+                        {member.membership}
+                        {member.membership_status &&
+                        member.membership_status !== "active"
+                          ? ` · ${member.membership_status}`
+                          : ""}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted/50 text-muted-foreground border border-border/50">
+                        No membership on file
+                      </span>
                     )}
                   </div>
                   {tw && isActiveTrial && (
@@ -419,6 +503,31 @@ export function MembersGrid({
                       })}
                     </div>
                   </div>
+                  {onSetStaff && (
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`mem-${member.id}-staff`}
+                        checked={!!member.is_staff}
+                        onCheckedChange={async (c) => {
+                          const checked = !!c;
+                          if (
+                            checked &&
+                            !confirm(
+                              `Give ${member.full_name} staff access to member data?`,
+                            )
+                          )
+                            return;
+                          await onSetStaff(member.id, checked);
+                        }}
+                      />
+                      <Label
+                        htmlFor={`mem-${member.id}-staff`}
+                        className="text-xs font-semibold"
+                      >
+                        Staff
+                      </Label>
+                    </div>
+                  )}
                   <div className="flex flex-col gap-2 mt-auto">
                     {isActiveTrial && (
                       <Button
@@ -441,7 +550,15 @@ export function MembersGrid({
                     <Button
                       variant="outline"
                       className="w-full gap-2"
-                      onClick={() => onViewActivity(member)}
+                      onClick={() => {
+                        const gr = rosterMap[emailKey(member.email)];
+                        setActivityMember({
+                          ...member,
+                          product: member.product ?? gr?.product ?? null,
+                          joined_on: member.joined_on ?? gr?.joined_on ?? null,
+                        });
+                        setActivityOpen(true);
+                      }}
                     >
                       <History className="h-4 w-4" /> View Activity
                     </Button>
@@ -469,6 +586,12 @@ export function MembersGrid({
         staffSecret={staffSecret}
         open={trialReviewOpen}
         onOpenChange={setTrialReviewOpen}
+      />
+      <MemberActivityModal
+        member={activityMember}
+        staffSecret={staffSecret}
+        open={activityOpen}
+        onOpenChange={setActivityOpen}
       />
     </>
   );

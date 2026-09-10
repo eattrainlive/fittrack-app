@@ -40,12 +40,13 @@ import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { BaselineCard } from "@/components/BaselineCard";
+import { MemberGoalsCard } from "@/components/MemberGoalsCard";
 import {
   isTrialProduct,
   daysSince,
   getTrialBaselineCapturedAt,
 } from "@/lib/trialBaseline";
-import { isTrialEligible } from "@/lib/trialSummary";
+import { isTrialEligible, isMemberEligible } from "@/lib/trialSummary";
 
 const Index = () => {
   const [history, setHistory] = useState<any[]>([]);
@@ -58,6 +59,7 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showBaseline, setShowBaseline] = useState(false);
   const [showTrialProgress, setShowTrialProgress] = useState(false);
+  const [showMemberGoals, setShowMemberGoals] = useState(false);
   const navigate = useNavigate();
 
   const loadData = async () => {
@@ -117,9 +119,12 @@ const Index = () => {
         setShowBaseline(false);
       }
       setShowTrialProgress(!!member && isTrialEligible(member.product));
+      // Member goals card: non-trialists with an active membership.
+      setShowMemberGoals(!!member && isMemberEligible(member.product));
     } catch {
       setShowBaseline(false);
       setShowTrialProgress(false);
+      setShowMemberGoals(false);
     }
   };
 
@@ -243,6 +248,8 @@ const Index = () => {
       {showBaseline && (
         <BaselineCard onDismiss={() => setShowBaseline(false)} />
       )}
+
+      {showMemberGoals && <MemberGoalsCard />}
 
       {showTrialProgress && (
         <button

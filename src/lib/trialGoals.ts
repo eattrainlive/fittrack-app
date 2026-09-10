@@ -45,9 +45,9 @@ export interface TrialGoals {
   step_target?: number | null;
   sessions_per_week?: number | null;
   calorie_target?: number | null;
-  habit_1?: number | null;
-  habit_2?: number | null;
-  habit_3?: number | null;
+  habit_1?: string | null;
+  habit_2?: string | null;
+  habit_3?: string | null;
   captured_at?: string | null;
 }
 
@@ -80,15 +80,18 @@ export const saveTrialGoals = async (input: {
   stepTarget?: number | null;
   sessionsPerWeek?: number | null;
   calorieTarget?: number | null;
-  habitIds?: (number | null)[];
+  habitTexts?: (string | null)[];
 }): Promise<TrialGoals | null> => {
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const habitIds = (input.habitIds || []).slice(0, 3);
-  while (habitIds.length < 3) habitIds.push(null);
+  // Each habit slot stores the readable NAME (library habit) or a custom string.
+  const habitTexts = (input.habitTexts || [])
+    .slice(0, 3)
+    .map((h) => (h ?? "").trim() || null);
+  while (habitTexts.length < 3) habitTexts.push(null);
 
   const row: TrialGoals & { member_id: string } = {
     member_id: user.id,
@@ -96,9 +99,9 @@ export const saveTrialGoals = async (input: {
     step_target: input.stepTarget ?? null,
     sessions_per_week: input.sessionsPerWeek ?? null,
     calorie_target: input.calorieTarget ?? null,
-    habit_1: habitIds[0] ?? null,
-    habit_2: habitIds[1] ?? null,
-    habit_3: habitIds[2] ?? null,
+    habit_1: habitTexts[0] ?? null,
+    habit_2: habitTexts[1] ?? null,
+    habit_3: habitTexts[2] ?? null,
     captured_at: new Date().toISOString(),
   };
 
@@ -141,10 +144,27 @@ export const saveTrialGoals = async (input: {
     /* ignore */
   }
 
-  // Seed the 3 chosen habits into member_habits so the habit tracker/streaks
-  // work against them.
+  // Seed the chosen habits into member_habits so the habit tracker/streaks
+  // work against them. Resolve each habit text back to a library id where
+  // possible (custom-typed habits have no library id, so skip seeding those).
   try {
-    const validIds = habitIds.filter((h): h is number => h != null);
+    const lib = await getHabits();
+    const nameToId = new Map<string, number>();
+    for (const h of lib || []) {
+      if (h?.id != null)
+        nameToId.set(
+          String(h.name || "")
+            .toLowerCase()
+            .trim(),
+          Number(h.id),
+        );
+    }
+    const validIds: number[] = [];
+    for (const t of habitTexts) {
+      if (!t) continue;
+      const id = nameToId.get(t.toLowerCase().trim());
+      if (id != null) validIds.push(id);
+    }
     if (validIds.length) {
       await saveMemberHabits(
         validIds.map((habitId, i) => ({
