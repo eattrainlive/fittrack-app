@@ -15,13 +15,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
 import { Folder, Video, Plus, Trash2 } from "lucide-react";
 import {
   getEducationFolders,
@@ -152,112 +145,89 @@ const Education = () => {
       </div>
 
       {folders.length > 0 ? (
-        <Accordion type="single" collapsible className="w-full space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {folders.map((folder) => {
             const folderVids = videos.filter((v) => v.folderId === folder.id);
             return (
-              <AccordionItem
-                key={folder.id}
-                value={folder.id}
-                className="border border-border rounded-lg overflow-hidden data-[state=open]:border-primary/40"
-              >
-                <AccordionTrigger className="hover:no-underline px-4 py-4 bg-card hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-3 flex-1 text-left">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <Folder className="h-5 w-5 text-primary" />
+              <Card key={folder.id} className="overflow-hidden flex flex-col">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <Folder className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle className="font-heading tracking-wide text-lg">
+                          {folder.name}
+                        </CardTitle>
+                        {folder.description && (
+                          <CardDescription className="mt-1">
+                            {folder.description}
+                          </CardDescription>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-heading tracking-wide text-xl leading-none">
-                        {folder.name}
-                      </p>
-                      {folder.description && (
-                        <p className="text-sm text-muted-foreground mt-1 truncate">
-                          {folder.description}
-                        </p>
-                      )}
-                    </div>
-                    <Badge variant="secondary" className="shrink-0">
+                    <span className="text-xs text-muted-foreground shrink-0">
                       {folderVids.length} video
                       {folderVids.length !== 1 ? "s" : ""}
-                    </Badge>
+                    </span>
                   </div>
-                </AccordionTrigger>
-                <AccordionContent className="p-4 space-y-4">
-                  {isStaff && (
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-2"
-                        onClick={() => openAddVideo(folder)}
-                      >
-                        <Plus className="h-4 w-4" /> Add Video
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDeleteFolder(folder.id)}
-                      >
-                        <Trash2 className="h-4 w-4" /> Delete Section
-                      </Button>
-                    </div>
-                  )}
+                </CardHeader>
+                <div className="px-6 pb-6 space-y-3 flex-1">
                   {folderVids.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {folderVids.map((video) => (
-                        <Card
-                          key={video.id}
-                          className="overflow-hidden flex flex-col"
-                        >
-                          <div className="aspect-video w-full bg-muted">
-                            <iframe
-                              src={getEmbedUrl(video.url)}
-                              className="w-full h-full"
-                              frameBorder="0"
-                              allow="autoplay; fullscreen; picture-in-picture"
-                              allowFullScreen
-                              title={video.title}
-                            />
-                          </div>
-                          <CardHeader>
-                            <div className="flex justify-between items-start">
-                              <div className="min-w-0">
-                                <CardTitle className="font-heading tracking-wide text-lg">
-                                  {video.title}
-                                </CardTitle>
-                                {video.description && (
-                                  <CardDescription className="mt-1">
-                                    {video.description}
-                                  </CardDescription>
-                                )}
-                              </div>
-                              {isStaff && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0 -mt-2 -mr-2"
-                                  onClick={() => handleDeleteVideo(video.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </div>
-                          </CardHeader>
-                        </Card>
-                      ))}
-                    </div>
+                    folderVids.map((video) => (
+                      <div
+                        key={video.id}
+                        className="flex items-center justify-between gap-2 border border-border rounded-lg p-2"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Video className="h-4 w-4 text-primary shrink-0" />
+                          <span className="text-sm truncate">
+                            {video.title}
+                          </span>
+                        </div>
+                        {isStaff && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0 h-7 w-7"
+                            onClick={() => handleDeleteVideo(video.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    ))
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground border-2 border-dashed border-border rounded-lg">
-                      <Video className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                      <p className="text-sm">No videos in this section yet.</p>
-                    </div>
+                    <p className="text-sm text-muted-foreground italic">
+                      No videos in this folder yet.
+                    </p>
                   )}
-                </AccordionContent>
-              </AccordionItem>
+                </div>
+                {isStaff && (
+                  <div className="px-6 pb-6 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-2 flex-1"
+                      onClick={() => openAddVideo(folder)}
+                    >
+                      <Plus className="h-4 w-4" /> Add Video
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => handleDeleteFolder(folder.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </Card>
             );
           })}
-        </Accordion>
+        </div>
       ) : (
         <div className="text-center py-12 text-muted-foreground">
           <Folder className="h-12 w-12 mx-auto mb-4 opacity-20" />

@@ -3,31 +3,20 @@ import {
   Plus,
   Trash2,
   PlayCircle,
-  FileText,
   Loader2,
-  ImageIcon,
   ChevronUp,
   ChevronDown,
   Upload,
-  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   getResourceSections,
@@ -44,6 +33,13 @@ import {
   reorderSections,
 } from "@/lib/store";
 import { getEmbedUrl } from "@/lib/utils";
+import { ResourceItem } from "./ResourceItem";
+import {
+  AddSectionDialog,
+  AddResourceDialog,
+  EditResourceDialog,
+  VideoPlayerDialog,
+} from "./ResourceDialogs";
 
 const isVideo = (u: string) =>
   /vimeo|youtube|youtu\.be|player\./i.test(u || "");
@@ -81,7 +77,6 @@ export function ResourcesSection({
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoTitle, setVideoTitle] = useState("");
 
-  // Staff dialog state
   const [showAddSection, setShowAddSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState("");
   const [showAddResource, setShowAddResource] = useState(false);
@@ -97,6 +92,7 @@ export function ResourcesSection({
   const [progress, setProgress] = useState<string | null>(null);
   const [editing, setEditing] = useState<Resource | null>(null);
   const [editFile, setEditFile] = useState<File | null>(null);
+  const [openSection, setOpenSection] = useState<string | undefined>(undefined);
 
   const load = useCallback(async () => {
     const [secs, res] = await Promise.all([
@@ -163,7 +159,6 @@ export function ResourcesSection({
       }
       url = uploaded;
       type = "file";
-      // Auto-generate cover for PDFs; use image directly for image uploads
       if (resFile.type === "application/pdf") {
         thumbnail_url = await makePdfCover(resFile);
       } else if (resFile.type.startsWith("image/")) {
@@ -177,7 +172,6 @@ export function ResourcesSection({
       type = "video";
     }
 
-    // Manual cover override (takes precedence over auto-generated)
     if (coverFile) {
       const coverUrl = await uploadResourceFile(coverFile);
       if (coverUrl) thumbnail_url = coverUrl;
@@ -253,7 +247,6 @@ export function ResourcesSection({
     if (next < 0 || next >= sectionItems.length) return;
     const reordered = [...sectionItems];
     [reordered[index], reordered[next]] = [reordered[next], reordered[index]];
-    // Optimistic: update local state immediately
     setResources((prev) => {
       const updated = [...prev];
       for (const r of reordered) {
@@ -271,7 +264,6 @@ export function ResourcesSection({
     if (next < 0 || next >= sections.length) return;
     const reordered = [...sections];
     [reordered[index], reordered[next]] = [reordered[next], reordered[index]];
-    // Optimistic
     setSections(reordered);
     await reorderSections(reordered.map((s) => s.id));
     await load();
@@ -282,7 +274,7 @@ export function ResourcesSection({
       const f = files[i];
       setProgress(`Uploading ${i + 1} of ${files.length}…`);
       const url = await uploadResourceFile(f);
-      if (!url) continue; // skip failures, keep going
+      if (!url) continue;
       let title =
         f.name
           .replace(/\.[^.]+$/, "")
@@ -294,7 +286,7 @@ export function ResourcesSection({
         title = r.title;
         thumbnail_url = r.thumbnail_url;
       } else if (f.type.startsWith("image/")) {
-        thumbnail_url = url; // image is its own cover
+        thumbnail_url = url;
       }
       await addResource({
         page,
@@ -308,75 +300,6 @@ export function ResourcesSection({
     setProgress(null);
     await load();
   };
-
-  const renderResource = (
-    r: Resource,
-    sectionItems: Resource[],
-    index: number,
-  ) => (
-    <div
-      key={r.id}
-      className="w-full flex items-center gap-3 border border-border rounded-xl p-3 text-left active:scale-[0.99] transition"
-    >
-      <button
-        className="flex items-center gap-3 flex-1 min-w-0 text-left"
-        onClick={() => openResource(r)}
-      >
-        <div className="w-12 h-12 rounded-lg overflow-hidden bg-primary/10 flex items-center justify-center shrink-0">
-          {r.thumbnail_url ? (
-            <img
-              src={r.thumbnail_url}
-              alt=""
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-          ) : isVideo(r.url) ? (
-            <PlayCircle className="w-5 h-5 text-primary" />
-          ) : (
-            <FileText className="w-5 h-5 text-primary" />
-          )}
-        </div>
-        <div className="min-w-0">
-          <p className="font-bold text-sm truncate">{r.title}</p>
-          {r.description && (
-            <p className="text-xs text-muted-foreground truncate">
-              {r.description}
-            </p>
-          )}
-        </div>
-      </button>
-      {isStaff && (
-        <div className="flex items-center gap-0.5 shrink-0">
-          <button
-            disabled={index === 0}
-            onClick={() => moveResource(sectionItems, index, -1)}
-            className="p-1 text-muted-foreground hover:text-primary disabled:opacity-30 transition-colors"
-          >
-            <ChevronUp className="h-4 w-4" />
-          </button>
-          <button
-            disabled={index === sectionItems.length - 1}
-            onClick={() => moveResource(sectionItems, index, 1)}
-            className="p-1 text-muted-foreground hover:text-primary disabled:opacity-30 transition-colors"
-          >
-            <ChevronDown className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setEditing(r)}
-            className="p-1.5 text-muted-foreground hover:text-primary transition-colors"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => handleDeleteResource(r.id)}
-            className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-    </div>
-  );
 
   const uncategorised = resources.filter((r) => !r.section_id);
 
@@ -440,324 +363,196 @@ export function ResourcesSection({
             : "Your coach will add resources here soon."}
         </p>
       ) : (
-        <div className="space-y-6">
+        <Accordion
+          type="single"
+          collapsible
+          value={openSection}
+          onValueChange={setOpenSection}
+          className="w-full space-y-3"
+        >
           {sections.map((sec, secIdx) => {
             const items = resources.filter((r) => r.section_id === sec.id);
             if (items.length === 0 && !isStaff) return null;
             return (
-              <div key={sec.id} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-                    {sec.name}
-                  </h3>
-                  {isStaff && (
-                    <div className="flex items-center gap-0.5">
-                      <button
-                        disabled={secIdx === 0}
-                        onClick={() => moveSection(secIdx, -1)}
-                        className="p-1 text-muted-foreground hover:text-primary disabled:opacity-30 transition-colors"
+              <AccordionItem
+                key={sec.id}
+                value={sec.id}
+                className="border border-border rounded-lg overflow-hidden data-[state=open]:border-primary/40"
+              >
+                <AccordionTrigger className="hover:no-underline px-4 py-3.5 bg-card hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-3 flex-1 text-left">
+                    <PlayCircle className="h-5 w-5 text-primary shrink-0" />
+                    <span className="font-bold text-sm uppercase tracking-wider">
+                      {sec.name}
+                    </span>
+                    <Badge variant="secondary" className="shrink-0 ml-1">
+                      {items.length}
+                    </Badge>
+                    {isStaff && (
+                      <div
+                        className="flex items-center gap-0.5 shrink-0 ml-auto pr-2"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        disabled={secIdx === sections.length - 1}
-                        onClick={() => moveSection(secIdx, 1)}
-                        className="p-1 text-muted-foreground hover:text-primary disabled:opacity-30 transition-colors"
-                      >
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setResForm({
-                            title: "",
-                            url: "",
-                            description: "",
-                            section_id: sec.id,
-                          });
-                          setResFile(null);
-                          setCoverFile(null);
-                          setShowAddResource(true);
-                        }}
-                        className="p-1 text-muted-foreground hover:text-primary"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </button>
-                      <label
-                        className="p-1 text-muted-foreground hover:text-primary cursor-pointer"
-                        title="Bulk upload"
-                      >
-                        <Upload className="h-3.5 w-3.5" />
-                        <input
-                          type="file"
-                          multiple
-                          accept=".pdf,.png,.jpg,.jpeg,.webp"
-                          className="hidden"
-                          disabled={!!progress}
-                          onChange={(e) => {
-                            const files = Array.from(e.target.files || []);
-                            if (files.length) handleBulk(files, sec.id);
-                            e.target.value = "";
+                        <button
+                          disabled={secIdx === 0}
+                          onClick={() => moveSection(secIdx, -1)}
+                          className="p-1 text-muted-foreground hover:text-primary disabled:opacity-30 transition-colors"
+                        >
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          disabled={secIdx === sections.length - 1}
+                          onClick={() => moveSection(secIdx, 1)}
+                          className="p-1 text-muted-foreground hover:text-primary disabled:opacity-30 transition-colors"
+                        >
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setResForm({
+                              title: "",
+                              url: "",
+                              description: "",
+                              section_id: sec.id,
+                            });
+                            setResFile(null);
+                            setCoverFile(null);
+                            setShowAddResource(true);
                           }}
-                        />
-                      </label>
-                      <button
-                        onClick={() => handleDeleteSection(sec.id)}
-                        className="p-1 text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2">
+                          className="p-1 text-muted-foreground hover:text-primary"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                        <label
+                          className="p-1 text-muted-foreground hover:text-primary cursor-pointer"
+                          title="Bulk upload"
+                        >
+                          <Upload className="h-3.5 w-3.5" />
+                          <input
+                            type="file"
+                            multiple
+                            accept=".pdf,.png,.jpg,.jpeg,.webp"
+                            className="hidden"
+                            disabled={!!progress}
+                            onChange={(e) => {
+                              const files = Array.from(e.target.files || []);
+                              if (files.length) handleBulk(files, sec.id);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                        <button
+                          onClick={() => handleDeleteSection(sec.id)}
+                          className="p-1 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="p-4 space-y-2">
                   {items.length === 0 && isStaff ? (
                     <p className="text-xs text-muted-foreground italic py-2">
                       No resources in this section yet.
                     </p>
                   ) : (
-                    items.map((r, i) => renderResource(r, items, i))
+                    items.map((r, i) => (
+                      <ResourceItem
+                        key={r.id}
+                        r={r}
+                        sectionItems={items}
+                        index={i}
+                        isStaff={isStaff}
+                        onOpen={openResource}
+                        onEdit={setEditing}
+                        onDelete={handleDeleteResource}
+                        onMoveUp={() => moveResource(items, i, -1)}
+                        onMoveDown={() => moveResource(items, i, 1)}
+                      />
+                    ))
                   )}
-                </div>
-              </div>
+                </AccordionContent>
+              </AccordionItem>
             );
           })}
 
           {uncategorised.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-                Other
-              </h3>
-              <div className="space-y-2">
-                {uncategorised.map((r, i) =>
-                  renderResource(r, uncategorised, i),
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Add Section dialog */}
-      <Dialog open={showAddSection} onOpenChange={setShowAddSection}>
-        <DialogContent className="w-[92vw] max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Add Section</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label>Section name</Label>
-              <Input
-                value={newSectionName}
-                onChange={(e) => setNewSectionName(e.target.value)}
-                placeholder="e.g. Nutrition Tips"
-                onKeyDown={(e) => e.key === "Enter" && handleAddSection()}
-              />
-            </div>
-            <Button className="w-full" onClick={handleAddSection}>
-              Add Section
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Resource dialog */}
-      <Dialog open={showAddResource} onOpenChange={setShowAddResource}>
-        <DialogContent className="w-[92vw] max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Add Resource</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label>Title</Label>
-              <Input
-                value={resForm.title}
-                onChange={(e) =>
-                  setResForm({ ...resForm, title: e.target.value })
-                }
-                placeholder="Resource title"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Section</Label>
-              <Select
-                value={resForm.section_id}
-                onValueChange={(v) => setResForm({ ...resForm, section_id: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {sections.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>URL (video or link)</Label>
-              <Input
-                value={resForm.url}
-                onChange={(e) =>
-                  setResForm({ ...resForm, url: e.target.value })
-                }
-                placeholder="https://..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Or upload a file</Label>
-              <Input
-                type="file"
-                accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
-                onChange={(e) => {
-                  setResFile(e.target.files?.[0] || null);
-                  if (e.target.files?.[0]) setResForm({ ...resForm, url: "" });
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1.5">
-                <ImageIcon className="h-3.5 w-3.5" /> Cover image (optional)
-              </Label>
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setCoverFile(e.target.files?.[0] || null)}
-              />
-              <p className="text-[10px] text-muted-foreground">
-                Overrides the auto-generated cover for PDFs/videos/links.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label>Description (optional)</Label>
-              <Textarea
-                value={resForm.description}
-                onChange={(e) =>
-                  setResForm({ ...resForm, description: e.target.value })
-                }
-                placeholder="Short description"
-                rows={2}
-              />
-            </div>
-            <Button
-              className="w-full"
-              onClick={handleAddResource}
-              disabled={saving}
+            <AccordionItem
+              value="uncategorised"
+              className="border border-border rounded-lg overflow-hidden data-[state=open]:border-primary/40"
             >
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Add Resource"
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Resource dialog */}
-      <Dialog
-        open={!!editing}
-        onOpenChange={(o) => {
-          if (!o) {
-            setEditing(null);
-            setEditFile(null);
-          }
-        }}
-      >
-        <DialogContent className="w-[92vw] max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Edit resource</DialogTitle>
-          </DialogHeader>
-          {editing && (
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label>Title</Label>
-                <Input
-                  value={editing.title}
-                  onChange={(e) =>
-                    setEditing({ ...editing, title: e.target.value })
-                  }
-                  placeholder="Resource title"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Section</Label>
-                <select
-                  value={editing.section_id || ""}
-                  onChange={(e) =>
-                    setEditing({
-                      ...editing,
-                      section_id: e.target.value || null,
-                    })
-                  }
-                  className="w-full border border-border rounded-md h-10 px-2 text-sm bg-background"
-                >
-                  <option value="">Other (no section)</option>
-                  {sections.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1.5">
-                  <ImageIcon className="h-3.5 w-3.5" /> Replace cover image
-                  (optional)
-                </Label>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setEditFile(e.target.files?.[0] ?? null)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Description (optional)</Label>
-                <Textarea
-                  value={editing.description || ""}
-                  onChange={(e) =>
-                    setEditing({ ...editing, description: e.target.value })
-                  }
-                  placeholder="Short description"
-                  rows={2}
-                />
-              </div>
-              <Button className="w-full" onClick={saveEdit}>
-                Save changes
-              </Button>
-            </div>
+              <AccordionTrigger className="hover:no-underline px-4 py-3.5 bg-card hover:bg-muted/50 transition-colors">
+                <div className="flex items-center gap-3 flex-1 text-left">
+                  <PlayCircle className="h-5 w-5 text-primary shrink-0" />
+                  <span className="font-bold text-sm uppercase tracking-wider">
+                    Other
+                  </span>
+                  <Badge variant="secondary" className="shrink-0 ml-1">
+                    {uncategorised.length}
+                  </Badge>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="p-4 space-y-2">
+                {uncategorised.map((r, i) => (
+                  <ResourceItem
+                    key={r.id}
+                    r={r}
+                    sectionItems={uncategorised}
+                    index={i}
+                    isStaff={isStaff}
+                    onOpen={openResource}
+                    onEdit={setEditing}
+                    onDelete={handleDeleteResource}
+                    onMoveUp={() => moveResource(uncategorised, i, -1)}
+                    onMoveDown={() => moveResource(uncategorised, i, 1)}
+                  />
+                ))}
+              </AccordionContent>
+            </AccordionItem>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Video player modal */}
-      {videoUrl && (
-        <Dialog
-          open={!!videoUrl}
-          onOpenChange={(open) => {
-            if (!open) {
-              setVideoUrl(null);
-              setVideoTitle("");
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden bg-black border-none">
-            <DialogHeader className="p-4 absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent">
-              <DialogTitle className="text-white">{videoTitle}</DialogTitle>
-            </DialogHeader>
-            <div className="aspect-video w-full mt-10">
-              <iframe
-                src={getEmbedUrl(videoUrl)}
-                className="w-full h-full"
-                allow="autoplay; fullscreen; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-          </DialogContent>
-        </Dialog>
+        </Accordion>
       )}
+
+      <AddSectionDialog
+        open={showAddSection}
+        onOpenChange={setShowAddSection}
+        newSectionName={newSectionName}
+        setNewSectionName={setNewSectionName}
+        onAdd={handleAddSection}
+      />
+
+      <AddResourceDialog
+        open={showAddResource}
+        onOpenChange={setShowAddResource}
+        resForm={resForm}
+        setResForm={setResForm}
+        resFile={resFile}
+        setResFile={setResFile}
+        coverFile={coverFile}
+        setCoverFile={setCoverFile}
+        sections={sections}
+        saving={saving}
+        onAdd={handleAddResource}
+      />
+
+      <EditResourceDialog
+        editing={editing}
+        setEditing={setEditing}
+        editFile={editFile}
+        setEditFile={setEditFile}
+        sections={sections}
+        onSave={saveEdit}
+      />
+
+      <VideoPlayerDialog
+        videoUrl={videoUrl}
+        videoTitle={videoTitle}
+        onClose={() => {
+          setVideoUrl(null);
+          setVideoTitle("");
+        }}
+      />
     </div>
   );
 }
