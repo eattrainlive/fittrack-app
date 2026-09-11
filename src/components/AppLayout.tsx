@@ -7,7 +7,7 @@ import {
   LogIn,
   Download,
   Loader2,
-  Apple,
+  HeartHandshake,
   CloudOff,
   Cloud,
   CheckCircle2,
@@ -351,8 +351,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         />
         <NavItem
           to="/nutrition"
-          icon={<Apple className="h-6 w-6" />}
-          label="Nutrition"
+          icon={<HeartHandshake className="h-6 w-6" />}
+          label="Coaching"
           active={location.pathname === "/nutrition"}
         />
         <NavItem

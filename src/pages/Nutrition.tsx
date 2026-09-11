@@ -760,7 +760,7 @@ export default function Nutrition() {
       flag: "nutrition_education",
       name: "Education",
       icon: "🎥",
-      desc: "Nutrition videos & guides",
+      desc: "Videos & guides",
     },
     {
       key: "progress",
@@ -782,10 +782,11 @@ export default function Nutrition() {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-heading text-foreground uppercase tracking-tighter">
-              Nutrition
+              Coaching
             </h1>
             <p className="text-sm text-muted-foreground uppercase tracking-widest font-medium">
-              Phase {nutrition.phase} · {nutrition.goal.replace("_", " ")}
+              Your nutrition, habits &amp; guides · Phase {nutrition.phase} ·{" "}
+              {nutrition.goal.replace("_", " ")}
             </p>
           </div>
           <AlertDialog>
@@ -900,7 +901,7 @@ export default function Nutrition() {
         onClick={() => setNutSection(null)}
         className="flex items-center gap-1 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors"
       >
-        <ChevronLeft className="h-4 w-4" /> Nutrition
+        <ChevronLeft className="h-4 w-4" /> Coaching
       </button>
 
       {sectionOff ? (
