@@ -2,7 +2,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import "./pwa-manifest";
-import { registerServiceWorker } from "./sw-register";
+import { registerServiceWorker, startVersionGate } from "./sw-register";
 import { logError } from "./lib/errorLog";
 
 // Catch uncaught client errors so they land in error_log (staff can see them)
@@ -51,4 +51,6 @@ if (MACHINE_REDIRECTS[_slug]) {
   createRoot(document.getElementById("root")!).render(<App />);
   // Register the self-updating service worker (production only).
   registerServiceWorker();
+  // Runtime version gate — auto-reload stale installed PWAs on next open/focus.
+  startVersionGate();
 }

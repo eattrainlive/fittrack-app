@@ -53,6 +53,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // version.json must ALWAYS hit the network — the runtime version gate depends on it.
+  if (url.pathname === '/version.json') {
+    return;
+  }
+
   // Immutable hashed assets → cache-first.
   if (IMMUTABLE_PATTERN.test(url.pathname)) {
     event.respondWith(
