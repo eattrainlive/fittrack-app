@@ -73,6 +73,45 @@ export function AddSectionDialog({
   );
 }
 
+export function RenameSectionDialog({
+  open,
+  onOpenChange,
+  sectionName,
+  setSectionName,
+  onRename,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  sectionName: string;
+  setSectionName: (v: string) => void;
+  onRename: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[92vw] max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Rename Section</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label>Section name</Label>
+            <Input
+              value={sectionName}
+              onChange={(e) => setSectionName(e.target.value)}
+              placeholder="Section name"
+              onKeyDown={(e) => e.key === "Enter" && onRename()}
+              autoFocus
+            />
+          </div>
+          <Button className="w-full" onClick={onRename}>
+            Save
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function AddResourceDialog({
   open,
   onOpenChange,

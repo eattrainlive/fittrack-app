@@ -2359,9 +2359,12 @@ function MealPlansPage() {
         </button>
         <button
           onClick={() => setTab("build")}
-          className={`flex-1 text-sm font-bold py-2 rounded-md transition-all ${tab === "build" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+          className={`flex-1 text-sm font-bold py-2 rounded-md transition-all flex items-center justify-center gap-2 ${tab === "build" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
         >
           Build Your Own
+          <span className="text-[10px] font-bold uppercase tracking-wide bg-primary text-primary-foreground rounded-full px-2 py-0.5">
+            Soon
+          </span>
         </button>
       </div>
 
@@ -2372,15 +2375,7 @@ function MealPlansPage() {
           blurb="Full plans you can follow as-is."
         />
       ) : (
-        <div className="space-y-4">
-          {target && (
-            <div className="rounded-xl bg-primary/10 border border-primary/30 p-3 text-sm">
-              <span className="font-bold">Your target: {target} kcal/day.</span>{" "}
-              Pick meals from the options below to hit it.
-            </div>
-          )}
-          <RecipeCards targetCalories={target} />
-        </div>
+        <ComingSoon title="Build Your Own — Coming Soon" />
       )}
     </div>
   );

@@ -7,6 +7,7 @@ import {
   ChevronUp,
   ChevronDown,
   Upload,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ import {
   reorderResources,
   reorderSections,
 } from "@/lib/store";
+import { updateResourceSection } from "@/lib/resourceSections";
 import { getEmbedUrl } from "@/lib/utils";
 import { ResourceItem } from "./ResourceItem";
 import {
@@ -39,6 +41,7 @@ import {
   AddResourceDialog,
   EditResourceDialog,
   VideoPlayerDialog,
+  RenameSectionDialog,
 } from "./ResourceDialogs";
 
 const isVideo = (u: string) =>
@@ -93,6 +96,12 @@ export function ResourcesSection({
   const [editing, setEditing] = useState<Resource | null>(null);
   const [editFile, setEditFile] = useState<File | null>(null);
   const [openSection, setOpenSection] = useState<string | undefined>(undefined);
+  const [showRenameSection, setShowRenameSection] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [renameName, setRenameName] = useState("");
 
   const load = useCallback(async () => {
     const [secs, res] = await Promise.all([
@@ -137,6 +146,19 @@ export function ResourcesSection({
       return;
     }
     toast.success("Section deleted");
+    load();
+  };
+
+  const handleRenameSection = async (id: string, name: string) => {
+    if (!name.trim()) return;
+    const { error } = await updateResourceSection(id, name.trim());
+    if (error) {
+      toast.error("Couldn't rename section");
+      return;
+    }
+    toast.success("Section renamed");
+    setShowRenameSection(false);
+    setRenameTarget(null);
     load();
   };
 
@@ -442,6 +464,16 @@ export function ResourcesSection({
                           />
                         </label>
                         <button
+                          onClick={() => {
+                            setRenameTarget({ id: sec.id, name: sec.name });
+                            setRenameName(sec.name);
+                            setShowRenameSection(true);
+                          }}
+                          className="p-1 text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
                           onClick={() => handleDeleteSection(sec.id)}
                           className="p-1 text-muted-foreground hover:text-destructive"
                         >
@@ -552,6 +584,22 @@ export function ResourcesSection({
           setVideoUrl(null);
           setVideoTitle("");
         }}
+      />
+
+      <RenameSectionDialog
+        open={showRenameSection}
+        onOpenChange={(o) => {
+          setShowRenameSection(o);
+          if (!o) {
+            setRenameTarget(null);
+            setRenameName("");
+          }
+        }}
+        sectionName={renameName}
+        setSectionName={setRenameName}
+        onRename={() =>
+          renameTarget && handleRenameSection(renameTarget.id, renameName)
+        }
       />
     </div>
   );
