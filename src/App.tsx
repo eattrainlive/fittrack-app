@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import {
   AppErrorBoundary,
   installChunkErrorHandler,
@@ -16,7 +16,6 @@ import Progress from "./pages/Progress";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
-import Feed from "./pages/Feed";
 import Education from "./pages/Education";
 import Nutrition from "./pages/Nutrition";
 import TVDisplay from "./pages/TVDisplay";
@@ -32,14 +31,7 @@ import { useLocation, useNavigationType } from "react-router-dom";
 
 const queryClient = new QueryClient();
 
-const TAB_ROUTES = [
-  "/",
-  "/workouts",
-  "/progress",
-  "/nutrition",
-  "/feed",
-  "/profile",
-];
+const TAB_ROUTES = ["/", "/workouts", "/progress", "/nutrition", "/profile"];
 
 const USE_PAGE_TRANSITION = false; // disabled — fixes PWA white-screen on tab switch
 
@@ -104,7 +96,7 @@ const AppRoutes = () => {
               <Routes location={location}>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
-                <Route path="/feed" element={<Feed />} />
+                <Route path="/feed" element={<Navigate to="/" replace />} />
                 <Route path="/workouts" element={<Workouts />} />
                 <Route path="/exercises" element={<Exercises />} />
                 <Route path="/progress" element={<Progress />} />
@@ -130,7 +122,7 @@ const AppRoutes = () => {
             <Routes location={location}>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
-              <Route path="/feed" element={<Feed />} />
+              <Route path="/feed" element={<Navigate to="/" replace />} />
               <Route path="/workouts" element={<Workouts />} />
               <Route path="/exercises" element={<Exercises />} />
               <Route path="/progress" element={<Progress />} />

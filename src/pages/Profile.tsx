@@ -27,6 +27,8 @@ import {
   getPreferredDays,
   savePreferredDays,
   getMyGymMember,
+  getBodyweightHistory,
+  saveBodyweight,
 } from "@/lib/store";
 import {
   Select,
@@ -39,7 +41,12 @@ import { toast } from "sonner";
 const Profile = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
-  const [name, setName] = useState("John Doe");
+  const [name, setName] = useState("");
+  const [weight, setWeight] = useState<string>("");
+  const [height, setHeight] = useState<string>("");
+  const [avatarUrl, setAvatarUrl] = useState<string>("");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [passcode, setPasscode] = useState("");
   const [isStaff, setIsStaff] = useState(
     () => localStorage.getItem("fittrack_is_staff") === "true",
@@ -58,7 +65,16 @@ const Profile = () => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user) {
         setUser(user);
-        setName(user.user_metadata?.full_name || "John Doe");
+        setName(user.user_metadata?.full_name || "");
+        setHeight(
+          user.user_metadata?.height_cm != null
+            ? String(user.user_metadata.height_cm)
+            : "",
+        );
+        setAvatarUrl(user.user_metadata?.avatar_url || "");
+        const bw = getBodyweightHistory();
+        const latest = bw.length ? bw[bw.length - 1].weight : null;
+        setWeight(latest != null ? String(latest) : "");
         const gm = await getMyGymMember();
         setGymMember(gm);
       }
@@ -87,13 +103,67 @@ const Profile = () => {
     window.location.reload();
   };
 
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    try {
+      const { error: authErr } = await supabase.auth.updateUser({
+        data: {
+          full_name: name.trim() || null,
+          height_cm: height ? Number(height) : null,
+        },
+      });
+      if (authErr) throw authErr;
+
+      if (weight) {
+        const w = Number(weight);
+        if (!Number.isNaN(w) && w > 0) {
+          const { success } = await saveBodyweight({ weight: w });
+          if (!success) throw new Error("weight save failed");
+        }
+      }
+
+      await savePreferredDays(preferredDays);
+      toast.success("Profile updated");
+    } catch (e) {
+      console.error("profile save failed", e);
+      toast.error("Couldn't save your profile — try again");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const fileName = `avatars/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("images")
+        .upload(fileName, file);
+      if (upErr) throw upErr;
+      const { data } = supabase.storage.from("images").getPublicUrl(fileName);
+      setAvatarUrl(data.publicUrl);
+      const { error } = await supabase.auth.updateUser({
+        data: { avatar_url: data.publicUrl },
+      });
+      if (error) throw error;
+      toast.success("Photo updated");
+    } catch (err: any) {
+      toast.error("Photo upload failed: " + (err?.message ?? err));
+    } finally {
+      setUploadingAvatar(false);
+      e.target.value = "";
+    }
+  };
+
   const handleUnlockStaff = () => {
     if (passcode === "STAFF123") {
       localStorage.setItem("fittrack_is_staff", "true");
       setIsStaff(true);
       toast.success("Staff access unlocked!");
       setPasscode("");
-      // Refresh to update sidebar
       window.dispatchEvent(new Event("storage"));
       window.location.reload();
     } else {
@@ -108,6 +178,14 @@ const Profile = () => {
     window.dispatchEvent(new Event("storage"));
     window.location.reload();
   };
+
+  const initials =
+    (name || "")
+      .split(" ")
+      .map((w) => w[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "?";
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6 max-w-4xl mx-auto w-full">
@@ -146,10 +224,22 @@ const Profile = () => {
           <CardContent className="space-y-6">
             <div className="flex items-center gap-6">
               <Avatar className="h-24 w-24">
-                <AvatarImage src="https://github.com/shadcn.png" />
-                <AvatarFallback>JD</AvatarFallback>
+                <AvatarImage src={avatarUrl || undefined} />
+                <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
-              <Button variant="outline">Change Photo</Button>
+              <div className="relative">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                  disabled={uploadingAvatar}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  title="Change photo"
+                />
+                <Button variant="outline" disabled={uploadingAvatar}>
+                  {uploadingAvatar ? "Uploading…" : "Change Photo"}
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -166,18 +256,28 @@ const Profile = () => {
                 <Input
                   id="email"
                   type="email"
-                  value={user?.email || "john@example.com"}
+                  value={user?.email || ""}
                   disabled
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="weight">Weight (kg)</Label>
-                  <Input id="weight" type="number" defaultValue="82" />
+                  <Input
+                    id="weight"
+                    type="number"
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="height">Height (cm)</Label>
-                  <Input id="height" type="number" defaultValue="180" />
+                  <Input
+                    id="height"
+                    type="number"
+                    value={height}
+                    onChange={(e) => setHeight(e.target.value)}
+                  />
                 </div>
               </div>
             </div>
@@ -208,8 +308,12 @@ const Profile = () => {
               </Select>
             </div>
 
-            <Button className="w-full gap-2 text-primary-foreground font-bold">
-              <Save className="h-4 w-4" /> Save Changes
+            <Button
+              onClick={handleSaveProfile}
+              disabled={saving}
+              className="w-full gap-2 text-primary-foreground font-bold"
+            >
+              <Save className="h-4 w-4" /> {saving ? "Saving…" : "Save Changes"}
             </Button>
           </CardContent>
         </Card>
@@ -299,7 +403,7 @@ const Profile = () => {
                 className="w-full gap-2"
               >
                 <CloudUpload className="h-4 w-4" />
-                {isMigrating ? "Migrating..." : "Push Local Data to Cloud"}
+                {isMigrating ? "Migrating..." : "Push Local data to Cloud"}
               </Button>
               <Button
                 onClick={handleSync}

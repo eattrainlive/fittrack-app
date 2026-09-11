@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   LineChart,
   User,
-  Users,
   Bell,
   LogIn,
   Download,
@@ -355,12 +354,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           icon={<Apple className="h-6 w-6" />}
           label="Nutrition"
           active={location.pathname === "/nutrition"}
-        />
-        <NavItem
-          to="/feed"
-          icon={<Users className="h-6 w-6" />}
-          label="Feed"
-          active={location.pathname === "/feed"}
         />
         <NavItem
           to="/profile"
