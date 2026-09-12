@@ -21,6 +21,8 @@ type CheckInResult = {
   result: "granted" | "denied_lapsed" | "unknown_code";
   name?: string;
   membership?: string;
+  membership_status?: string;
+  paymentFailed?: boolean;
   time?: string;
 } | null;
 
@@ -28,6 +30,8 @@ type RecentCheckIn = {
   name: string;
   time: string;
   result: string;
+  membership?: string;
+  paymentFailed?: boolean;
 };
 
 type InputMode = "camera" | "scanner";
@@ -204,7 +208,7 @@ export default function CheckInKiosk() {
       const { data } = await supabase
         .from("scan_events")
         .select(
-          "id, result, method, created_at, gym_member_id, gym_members(full_name, email)",
+          "id, result, method, created_at, member_ref, gym_members(full_name, product, status)",
         )
         .order("created_at", { ascending: false })
         .limit(10);
@@ -217,6 +221,7 @@ export default function CheckInKiosk() {
               minute: "2-digit",
             }),
             result: r.result,
+            membership: r.gym_members?.product,
           })),
         );
       }
@@ -419,6 +424,14 @@ export default function CheckInKiosk() {
         )}
         {result.time && (
           <p className="text-sm text-muted-foreground">{result.time}</p>
+        )}
+        {result.paymentFailed && (
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/15 px-4 py-3 max-w-sm">
+            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+            <p className="text-sm font-bold text-amber-700 dark:text-amber-400 text-center">
+              Payment failed — please speak to a coach
+            </p>
+          </div>
         )}
         {!isGranted && (
           <p className="text-sm text-muted-foreground mt-4 max-w-sm text-center">
@@ -631,9 +644,19 @@ export default function CheckInKiosk() {
               {recent.map((r, i) => (
                 <div
                   key={i}
-                  className="flex items-center justify-between text-sm"
+                  className="flex items-center justify-between text-sm gap-2"
                 >
-                  <span className="truncate text-foreground">{r.name}</span>
+                  <span className="truncate text-foreground flex items-center gap-1.5">
+                    {r.paymentFailed && (
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                    )}
+                    {r.name}
+                    {r.membership && (
+                      <span className="text-muted-foreground text-xs hidden sm:inline">
+                        · {r.membership}
+                      </span>
+                    )}
+                  </span>
                   <span className="flex items-center gap-1.5 shrink-0">
                     <span
                       className={`h-2 w-2 rounded-full ${
