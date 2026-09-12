@@ -41,6 +41,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { BaselineCard } from "@/components/BaselineCard";
 import { MemberGoalsCard } from "@/components/MemberGoalsCard";
+import { CheckInCodeCard } from "@/components/CheckInCodeCard";
 import {
   isTrialProduct,
   daysSince,
@@ -248,6 +249,8 @@ const Index = () => {
       {showBaseline && (
         <BaselineCard onDismiss={() => setShowBaseline(false)} />
       )}
+
+      <CheckInCodeCard />
 
       {showMemberGoals && <MemberGoalsCard />}
 

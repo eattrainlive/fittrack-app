@@ -96,6 +96,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
 import { supabase } from "@/lib/supabase";
+import { getProgramCoverImage } from "@/lib/programCovers";
 
 const PROGRESSION_OPTIONS = [
   {
@@ -386,25 +387,8 @@ const sessionTitle = (program: any, workout: any) => {
   return `${program.stream || (program.type === "GroupPT" ? "Group PT" : "Workout")} · ${weekLabel(program, workout.week)} · ${theme}`;
 };
 
-const getCoverImage = (prog: any, cat?: string) => {
-  if (prog?.coverImage) return prog.coverImage;
-  const category =
-    cat ||
-    (prog?.type === "GroupPT" ? "Group PT" : prog?.stream || "Foundations");
-  if (category === "Stronger") {
-    return "https://vibe.filesafe.space/1783496939163756206/attachments/537d7107-ea07-4065-b402-b1421aa5f38d.png";
-  }
-  if (category === "Foundations") {
-    return "https://vibe.filesafe.space/1783496939163756206/attachments/26d68c54-8cd0-49cc-8c57-8add846cdfdb.png";
-  }
-  if (category === "Fusion") {
-    return "https://vibe.filesafe.space/1783496939163756206/attachments/30e70910-c8f2-4dcf-9782-e1f57a34385d.png";
-  }
-  if (category === "Performance") {
-    return "https://vibe.filesafe.space/1783496939163756206/attachments/1f005e60-ccc4-437f-83ce-cafa4593e109.png";
-  }
-  return "https://vibe.filesafe.space/1783496939163756206/assets/d81fb983-0fbc-4056-ae4e-83766de15850.png";
-};
+const getCoverImage = (prog: any, cat?: string) =>
+  getProgramCoverImage(prog, cat);
 
 const Workouts = () => {
   const navigate = useNavigate();

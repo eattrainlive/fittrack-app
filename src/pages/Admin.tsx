@@ -105,7 +105,8 @@ import {
 import JSZip from "jszip";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
+import { QrCode } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { MembersGrid } from "@/components/MembersGrid";
 import SyncErrorsPanel from "@/components/SyncErrorsPanel";
@@ -254,6 +255,7 @@ function applyWarmupFireupSupersets(exercises: any[]) {
 }
 
 const Admin = () => {
+  const navigate = useNavigate();
   const isStaff = localStorage.getItem("fittrack_is_staff") === "true";
 
   if (!isStaff) {
@@ -2698,6 +2700,9 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
     <div className="flex-1 space-y-6 p-8 pt-6 max-w-5xl mx-auto w-full">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-4xl font-heading tracking-wider">Staff Hub</h2>
+        <Button onClick={() => navigate("/checkin")} className="gap-2 shrink-0">
+          <QrCode className="h-4 w-4" /> Check-in Kiosk
+        </Button>
       </div>
 
       <Tabs
