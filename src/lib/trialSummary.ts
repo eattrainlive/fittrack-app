@@ -83,6 +83,10 @@ export interface ProgressSummary {
     focusAreas?: string[] | null;
   };
   sessionsPerWeekActual: number;
+  // gym visits (entry scans) in window
+  gymVisits: number;
+  gymScansTotal: number;
+  gymVisitDates: string[];
 }
 
 const longestStreak = (dates: string[]): number => {
@@ -525,6 +529,28 @@ export const getProgressSummary = async (opts: {
     // ignore
   }
 
+  // ── Gym visits (scan_events entry scans, keyed by member_ref = user_id) ────
+  let gymVisits = 0;
+  let gymScansTotal = 0;
+  let gymVisitDates: string[] = [];
+  try {
+    const { data: scans } = await supabase
+      .from("scan_events")
+      .select("created_at,result")
+      .eq("member_ref", userId);
+    const days = new Set<string>();
+    for (const sc of scans || []) {
+      const d = (sc.created_at || "").slice(0, 10);
+      if (!d || !inWindow(d)) continue;
+      gymScansTotal++;
+      if (String(sc.result || "").toLowerCase() === "granted") days.add(d);
+    }
+    gymVisits = days.size;
+    gymVisitDates = Array.from(days).sort();
+  } catch {
+    // scan_events may not exist — ignore
+  }
+
   return {
     firstName,
     memberType: opts.memberType || "default",
@@ -555,6 +581,9 @@ export const getProgressSummary = async (opts: {
     reviewBooked,
     reviewStatus,
     reviewAt,
+    gymVisits,
+    gymScansTotal,
+    gymVisitDates,
   };
 };
 

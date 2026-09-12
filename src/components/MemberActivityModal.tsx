@@ -7,6 +7,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Loader2,
   Target,
@@ -15,10 +16,15 @@ import {
   Footprints,
   Salad,
   Dumbbell,
+  Calendar,
+  TrendingUp,
+  Flame,
+  DoorOpen,
   CalendarDays,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getMemberActivity } from "@/lib/store";
+import type { ProgressSummary } from "@/lib/trialSummary";
 
 interface MemberActivityModalProps {
   member: any | null;
@@ -41,6 +47,7 @@ interface MemberGoals {
   habit_2?: string | null;
   habit_3?: string | null;
   focus?: string | null;
+  reviewDue?: string | null;
 }
 
 const goalLabel = (g?: string | null) => {
@@ -60,8 +67,8 @@ export function MemberActivityModal({
 }: MemberActivityModalProps) {
   const [activity, setActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [goals, setGoals] = useState<MemberGoals | null>(null);
-  const [goalsLoading, setGoalsLoading] = useState(false);
+  const [summary, setSummary] = useState<ProgressSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   useEffect(() => {
     if (!open || !member) return;
@@ -71,13 +78,16 @@ export function MemberActivityModal({
       setActivity(a);
       setLoading(false);
     });
-    // Fetch goals via progress-summary (staff mode) so we get the goals block
-    setGoalsLoading(true);
-    setGoals(null);
+
+    // Fetch the full progress summary in staff mode so we get goals + the
+    // full activity breakdown (PT, classes, gym visits, volume, streak…).
+    setSummaryLoading(true);
+    setSummary(null);
     (async () => {
       try {
-        const start = new Date(Date.now() - 90 * 86400000).toISOString();
-        const end = new Date().toISOString();
+        if (!staffSecret) throw new Error("Missing staff secret");
+        // Members use a rolling 90-day window; leave start/end blank so the
+        // function derives it from member_goals.set_at (or today-90).
         const { data, error } = await supabase.functions.invoke(
           "progress-summary",
           {
@@ -85,24 +95,25 @@ export function MemberActivityModal({
               staffSecret,
               memberUserId: member.id,
               memberEmail: member.email,
-              start,
-              end,
               memberType: "member",
             },
           },
         );
         if (error) throw error;
-        if (data?.goals) setGoals(data.goals);
+        if (data && !data.error) setSummary(data as ProgressSummary);
       } catch (e) {
-        // Goals might not be set yet — that's fine
-        console.error("Goals fetch failed", e);
+        console.error("Activity summary fetch failed", e);
       } finally {
-        setGoalsLoading(false);
+        setSummaryLoading(false);
       }
     })();
   }, [open, member, staffSecret]);
 
   if (!member) return null;
+
+  const goals: MemberGoals | null = summary?.goals
+    ? (summary.goals as any)
+    : null;
 
   const hasGoals =
     goals &&
@@ -118,28 +129,158 @@ export function MemberActivityModal({
       goals.habit_3 ||
       (Array.isArray(goals.focus_areas) && goals.focus_areas.length));
 
+  const s = summary;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Target className="h-4 w-4 text-primary" />
             {member.full_name || member.email}
+            <span className="text-xs font-normal text-muted-foreground">
+              · Activity
+            </span>
           </DialogTitle>
           <DialogDescription className="text-xs">
             {member.email}
             {member.membership && (
               <span className="ml-1">· {member.membership}</span>
             )}
+            {goals?.reviewDue && (
+              <span className="ml-1">
+                · Review due{" "}
+                {new Date(goals.reviewDue + "T00:00:00").toLocaleDateString(
+                  "en-GB",
+                  { day: "numeric", month: "short" },
+                )}
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Activity breakdown tiles */}
+        {summaryLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading activity…
+          </div>
+        ) : s ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <Card className="bg-muted/30">
+              <CardContent className="p-3 space-y-1">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <Dumbbell className="w-3 h-3 text-primary" /> Coached PT
+                </p>
+                <p className="font-heading text-lg">
+                  {s.coachedUsed} / {s.coachedTotal}
+                </p>
+                {s.coachedUpcoming > 0 && (
+                  <p className="text-[10px] text-muted-foreground">
+                    +{s.coachedUpcoming} booked
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-muted/30">
+              <CardContent className="p-3 space-y-1">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <Calendar className="w-3 h-3 text-primary" /> Classes
+                </p>
+                <p className="font-heading text-lg">+{s.classesCount}</p>
+                <p className="text-[10px] text-muted-foreground">unlimited</p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-muted/30">
+              <CardContent className="p-3 space-y-1">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <DoorOpen className="w-3 h-3 text-primary" /> Gym Visits
+                </p>
+                <p className="font-heading text-lg">{s.gymVisits}</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {s.gymScansTotal}{" "}
+                  {s.gymScansTotal === 1 ? "entry" : "entries"}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-muted/30">
+              <CardContent className="p-3 space-y-1">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <TrendingUp className="w-3 h-3 text-primary" /> Lifted
+                </p>
+                <p className="font-heading text-lg">
+                  {s.totalVolumeKg.toLocaleString()} kg
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {s.loggedSessions} sessions logged
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-muted/30">
+              <CardContent className="p-3 space-y-1">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <Flame className="w-3 h-3 text-primary" /> Streak
+                </p>
+                <p className="font-heading text-lg">{s.bestStreak} days</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {s.totalCheckins} checkins
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-muted/30">
+              <CardContent className="p-3 space-y-1">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <Salad className="w-3 h-3 text-primary" /> Nutrition
+                </p>
+                <p className="font-heading text-lg">{s.daysLogged}</p>
+                <p className="text-[10px] text-muted-foreground">days logged</p>
+              </CardContent>
+            </Card>
+          </div>
+        ) : null}
+
+        {/* Strength wins */}
+        {!summaryLoading && s && s.prs.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Strength Wins
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {s.prs.map((pr) => (
+                <div
+                  key={pr.exercise}
+                  className="p-2.5 rounded-lg bg-muted/30 border border-border text-xs flex items-center justify-between"
+                >
+                  <div>
+                    <p className="font-semibold capitalize truncate">
+                      {pr.exercise.replace(/_/g, " ")}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {pr.start} → {pr.now} kg
+                    </p>
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className="text-xs font-bold text-primary"
+                  >
+                    +{pr.gain} kg
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Goals block */}
         <div className="space-y-3">
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
             Their goals
           </p>
-          {goalsLoading ? (
+          {summaryLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" /> Loading goals…
             </div>
@@ -166,6 +307,11 @@ export function MemberActivityModal({
                   <span className="flex items-center gap-1">
                     <Dumbbell className="h-3 w-3" />
                     {goals!.sessions_per_week}/wk
+                    {s && (
+                      <span className="text-muted-foreground">
+                        (actual {s.sessionsPerWeekActual})
+                      </span>
+                    )}
                   </span>
                 )}
                 {goals!.start_weight != null && (

@@ -18,6 +18,7 @@ import {
   Sparkles,
   CalendarCheck,
   CalendarX,
+  DoorOpen,
 } from "lucide-react";
 import {
   Dialog,
