@@ -69,7 +69,9 @@ export const refreshActiveProgramFromServer = async (userId: string) => {
  * shows the right programme.
  */
 export const onUserSignIn = async (userId: string) => {
-  clearUserCaches();
+  // Do NOT clear caches here — App.tsx already calls onUserSignOut() on a
+  // genuine user switch. Clearing here would wipe fittrack_is_staff on every
+  // auth event (INITIAL_SESSION, TOKEN_REFRESHED) and lock the coach out.
   await refreshActiveProgramFromServer(userId);
 };
 

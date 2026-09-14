@@ -77,7 +77,6 @@ import {
 } from "@/lib/store";
 import { dateAllSessions, dateWeekSessions } from "@/lib/programDates";
 import { resolveTrackingType } from "@/lib/tracking";
-import { mapProgramExercise } from "@/lib/programExerciseMapper";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus,
@@ -1921,8 +1920,24 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         scaled_allowed: wowScaledAllowed,
         week_start: wowWeekStart,
         exercises:
-          progWorkouts[0]?.exercises?.map((e: any) => mapProgramExercise(e)) ||
-          [],
+          progWorkouts[0]?.exercises?.map((e: any) => ({
+            isSection: e.isSection,
+            sectionType: e.sectionType || "Normal",
+            description: e.description,
+            blockType: e.blockType || "Strength",
+            name: e.name,
+            sets: e.sets,
+            reps: e.reps,
+            weight: e.weight,
+            distance: e.distance,
+            timeMins: e.timeMins,
+            timeSecs: e.timeSecs,
+            rest: e.rest || 0,
+            linkedToNext: e.linkedToNext,
+            eachSide: e.eachSide,
+            staffNotes: e.staffNotes,
+            coachingNotes: e.coachingNotes,
+          })) || [],
       };
       saveWorkoutOfWeek(wow).then(async (r) => {
         if (r.success) {
@@ -1955,9 +1970,25 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
             : newProgDays,
         weekNotes: progWeekNotes,
         workouts: progWorkouts.map((w) => {
-          const exercises = w.exercises.map((e: any) =>
-            mapProgramExercise(e, resolveTrackingType(e, w.exercises)),
-          );
+          const exercises = w.exercises.map((e: any) => ({
+            isSection: e.isSection,
+            sectionType: e.sectionType || "Normal",
+            description: e.description,
+            blockType: e.blockType || "Strength",
+            name: e.name,
+            sets: e.sets,
+            reps: e.reps,
+            weight: e.weight,
+            distance: e.distance,
+            timeMins: e.timeMins,
+            timeSecs: e.timeSecs,
+            rest: e.rest || 0,
+            trackingType: resolveTrackingType(e, exercises),
+            linkedToNext: e.linkedToNext,
+            eachSide: e.eachSide,
+            staffNotes: e.staffNotes,
+            coachingNotes: e.coachingNotes,
+          }));
           applyWarmupFireupSupersets(exercises);
           return {
             name: w.name,
@@ -2048,7 +2079,23 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           date: w.date,
           exercises: w.exercises.map((e: any, eIdx: number) => ({
             id: Date.now() + eIdx + Math.random(),
-            ...mapProgramExercise(e, e.trackingType || undefined),
+            isSection: e.isSection,
+            sectionType: e.sectionType || "Normal",
+            description: e.description,
+            blockType: e.blockType || "Strength",
+            name: e.name,
+            sets: e.sets,
+            reps: e.reps,
+            weight: e.weight || 0,
+            distance: e.distance || 0,
+            timeMins: e.timeMins || 0,
+            timeSecs: e.timeSecs || 0,
+            rest: e.rest || 0,
+            linkedToNext: e.linkedToNext || false,
+            trackingType: e.trackingType || undefined,
+            eachSide: e.eachSide || false,
+            staffNotes: e.staffNotes || "",
+            coachingNotes: e.coachingNotes || "",
           })),
         }))
       : [];
@@ -2218,9 +2265,25 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           : newProgDays,
       weekNotes: progWeekNotes,
       workouts: workoutsToSave.map((w) => {
-        const exercises = w.exercises.map((e: any) =>
-          mapProgramExercise(e, resolveTrackingType(e, w.exercises)),
-        );
+        const exercises = w.exercises.map((e: any) => ({
+          isSection: e.isSection,
+          sectionType: e.sectionType || "Normal",
+          description: e.description,
+          blockType: e.blockType || "Strength",
+          name: e.name,
+          sets: e.sets,
+          reps: e.reps,
+          weight: e.weight,
+          distance: e.distance,
+          timeMins: e.timeMins,
+          timeSecs: e.timeSecs,
+          rest: e.rest || 0,
+          linkedToNext: e.linkedToNext,
+          trackingType: resolveTrackingType(e, exercises),
+          eachSide: e.eachSide,
+          staffNotes: e.staffNotes,
+          coachingNotes: e.coachingNotes,
+        }));
         applyWarmupFireupSupersets(exercises);
         return {
           name: w.name,

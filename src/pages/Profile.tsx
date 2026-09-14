@@ -165,7 +165,7 @@ const Profile = () => {
       toast.success("Staff access unlocked!");
       setPasscode("");
       window.dispatchEvent(new Event("storage"));
-      window.location.reload();
+      navigate("/admin");
     } else {
       toast.error("Incorrect passcode");
     }

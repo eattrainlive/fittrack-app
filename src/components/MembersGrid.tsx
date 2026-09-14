@@ -27,6 +27,7 @@ import { isTrialEligible } from "@/lib/trialSummary";
 import { CoachTrialReviewModal } from "@/components/CoachTrialReviewModal";
 import { CurrentTrialistsBoard } from "@/components/CurrentTrialistsBoard";
 import SyncMembershipsCard from "@/components/SyncMembershipsCard";
+import SyncPaxtonCard from "@/components/SyncPaxtonCard";
 import { NeedsLinkingCard } from "@/components/NeedsLinkingCard";
 import { MemberActivityModal } from "@/components/MemberActivityModal";
 import { MemberEngagementBoard } from "@/components/MemberEngagementBoard";
@@ -324,6 +325,10 @@ export function MembersGrid({
               loadRoster();
               onMembershipsSynced?.();
             }}
+          />
+          <SyncPaxtonCard
+            staffSecret={staffSecret}
+            onDone={() => onMembershipsSynced?.()}
           />
           <NeedsLinkingCard
             staffSecret={staffSecret}
