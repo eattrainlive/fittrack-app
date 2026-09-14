@@ -1,10 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  Dumbbell,
-  Calendar,
-  TrendingUp,
-  Flame,
-  Salad,
   Copy,
   ExternalLink,
   AlertTriangle,
@@ -18,8 +13,8 @@ import {
   Sparkles,
   CalendarCheck,
   CalendarX,
-  DoorOpen,
 } from "lucide-react";
+import { ActivityWinsGrid } from "@/components/ActivityWinsGrid";
 import {
   Dialog,
   DialogContent,
@@ -356,59 +351,7 @@ export function CoachTrialReviewModal({
             </div>
 
             {/* Headline Wins Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <Card className="bg-muted/30">
-                <CardContent className="p-3 space-y-1">
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                    <Dumbbell className="w-3 h-3 text-primary" /> Coached PT
-                  </p>
-                  <p className="font-heading text-lg">
-                    {s.coachedUsed} / {s.coachedTotal}
-                  </p>
-                  {s.coachedUpcoming > 0 && (
-                    <p className="text-[10px] text-muted-foreground">
-                      +{s.coachedUpcoming} booked
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/30">
-                <CardContent className="p-3 space-y-1">
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-primary" /> Classes
-                  </p>
-                  <p className="font-heading text-lg">+{s.classesCount}</p>
-                  <p className="text-[10px] text-muted-foreground">unlimited</p>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/30">
-                <CardContent className="p-3 space-y-1">
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                    <TrendingUp className="w-3 h-3 text-primary" /> Lifted
-                  </p>
-                  <p className="font-heading text-lg">
-                    {s.totalVolumeKg.toLocaleString()} kg
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {s.loggedSessions} sessions
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/30">
-                <CardContent className="p-3 space-y-1">
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                    <Flame className="w-3 h-3 text-primary" /> Streak
-                  </p>
-                  <p className="font-heading text-lg">{s.bestStreak} days</p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {s.totalCheckins} checkins
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+            <ActivityWinsGrid s={s} />
 
             {/* Agreed Goals vs Actual */}
             {s.goals && (

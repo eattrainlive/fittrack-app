@@ -97,6 +97,8 @@ import { useNavigate } from "react-router-dom";
 
 import { supabase } from "@/lib/supabase";
 import { getProgramCoverImage } from "@/lib/programCovers";
+import { trackingOf } from "@/lib/tracking";
+import { ConditioningTimer } from "@/components/ConditioningTimer";
 
 const PROGRESSION_OPTIONS = [
   {
@@ -274,14 +276,6 @@ const TimeStepper = ({
     />
   </div>
 );
-
-const trackingOf = (ex: any, exerciseLibrary: any[]) => {
-  const libEx = exerciseLibrary.find((le) => String(le.id) === String(ex.name));
-  const t = ex.trackingType ?? libEx?.trackingType ?? "Weight & Reps";
-  return (Array.isArray(t) ? t : String(t).split(/[;,]/))
-    .map((s: string) => s.trim())
-    .filter(Boolean);
-};
 
 const columnsFor = (ex: any, exerciseLibrary: any[]) => {
   const t = trackingOf(ex, exerciseLibrary);
@@ -497,6 +491,9 @@ const Workouts = () => {
     day?: number;
     stream?: string;
   }>({});
+  const [conditioningResults, setConditioningResults] = useState<
+    Record<string, any>
+  >({});
   const isActiveWorkout = useMemo(() => {
     if (activeProgram) return true;
     if (workoutName.trim() !== "") return true;
@@ -1149,13 +1146,21 @@ const Workouts = () => {
       };
     }
 
+    // Attach conditioning scores to their section objects before saving.
+    const exercisesWithResults = exercises.map((ex: any) => {
+      if (!ex.isSection) return ex;
+      const sectionId = ex.id;
+      const result = sectionId ? conditioningResults[sectionId] : undefined;
+      return result ? { ...ex, result } : ex;
+    });
+
     // Generate an ID before saving so we can dedupe
     const sessionWorkoutId = Date.now().toString();
 
     const { success, error } = await saveWorkoutToHistory({
       id: sessionWorkoutId,
       name: workoutName,
-      exercises,
+      exercises: exercisesWithResults,
       volume: totalVolume,
       duration: duration,
       reward: earnedReward || null,
@@ -2683,6 +2688,19 @@ const Workouts = () => {
                                   ? "Superset"
                                   : "Regular"}
                               </span>
+                              {currentBlock.section?.sectionType &&
+                                currentBlock.section.sectionType !== "Normal" &&
+                                currentBlock.section.sectionType !==
+                                  "AI Engine" &&
+                                currentBlock.section.sectionType !==
+                                  "Circuit" && (
+                                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-primary text-primary-foreground">
+                                    {currentBlock.section.sectionType}
+                                    {currentBlock.section.timeCapMins
+                                      ? ` · ${currentBlock.section.timeCapMins} min`
+                                      : ""}
+                                  </span>
+                                )}
                             </div>
                           </div>
 
@@ -2759,6 +2777,19 @@ const Workouts = () => {
                                 : "Regular"}{" "}
                               · {currentBlock.exercises.length} Exercises
                             </span>
+                            {currentBlock.section?.sectionType &&
+                              currentBlock.section.sectionType !== "Normal" &&
+                              currentBlock.section.sectionType !==
+                                "AI Engine" &&
+                              currentBlock.section.sectionType !==
+                                "Circuit" && (
+                                <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-2 py-0.5 rounded-full mt-1 w-fit">
+                                  {currentBlock.section.sectionType}
+                                  {currentBlock.section.timeCapMins
+                                    ? ` · ${currentBlock.section.timeCapMins} min`
+                                    : ""}
+                                </span>
+                              )}
                           </div>
                           {isTimerVisible && (
                             <div
@@ -2785,6 +2816,34 @@ const Workouts = () => {
                               Superset
                             </span>
                           )}
+                          {(() => {
+                            const st = currentBlock.section?.sectionType;
+                            if (
+                              st === "AMRAP" ||
+                              st === "For Time" ||
+                              st === "EMOM"
+                            ) {
+                              const sectionId =
+                                currentBlock.section?.id || currentBlock.id;
+                              const capMins = currentBlock.section?.timeCapMins
+                                ? Number(currentBlock.section.timeCapMins)
+                                : undefined;
+                              return (
+                                <ConditioningTimer
+                                  type={st as any}
+                                  capMins={capMins}
+                                  initialResult={conditioningResults[sectionId]}
+                                  onSaveResult={(result: any) =>
+                                    setConditioningResults((prev) => ({
+                                      ...prev,
+                                      [sectionId]: result,
+                                    }))
+                                  }
+                                />
+                              );
+                            }
+                            return null;
+                          })()}
                           {currentBlock.exercises.map(
                             (exercise: any, exIdx: number) => {
                               const libraryExercise = exerciseLibrary.find(

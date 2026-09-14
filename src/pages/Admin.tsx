@@ -76,6 +76,7 @@ import {
   deleteProgramRow,
 } from "@/lib/store";
 import { dateAllSessions, dateWeekSessions } from "@/lib/programDates";
+import { resolveTrackingType } from "@/lib/tracking";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus,
@@ -1982,6 +1983,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
             timeMins: e.timeMins,
             timeSecs: e.timeSecs,
             rest: e.rest || 0,
+            trackingType: resolveTrackingType(e, exercises),
             linkedToNext: e.linkedToNext,
             eachSide: e.eachSide,
             staffNotes: e.staffNotes,
@@ -2090,6 +2092,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
             timeSecs: e.timeSecs || 0,
             rest: e.rest || 0,
             linkedToNext: e.linkedToNext || false,
+            trackingType: e.trackingType || undefined,
             eachSide: e.eachSide || false,
             staffNotes: e.staffNotes || "",
             coachingNotes: e.coachingNotes || "",
@@ -2097,7 +2100,37 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         }))
       : [];
 
-    setProgWorkouts(workouts);
+    // Backfill: if any exercise has a missing/empty trackingType, resolve it
+    // from the library now so the saved programme is member-independent. This
+    // is a one-touch self-correction — the next save bakes it permanently.
+    let needsBackfill = false;
+    const backfilled = workouts.map((w: any) => ({
+      ...w,
+      exercises: (w.exercises || []).map((e: any) => {
+        const tt = e.trackingType;
+        const hasTT =
+          (Array.isArray(tt) && tt.length > 0) ||
+          (typeof tt === "string" && tt.trim());
+        if (!hasTT) {
+          needsBackfill = true;
+          return {
+            ...e,
+            trackingType: resolveTrackingType(e, exercises),
+          };
+        }
+        return e;
+      }),
+    }));
+    setProgWorkouts(backfilled);
+    if (needsBackfill) {
+      // Persist the backfilled tracking types so members get them immediately.
+      const progId = prog.id;
+      const allProgs = programs.map((p) =>
+        p.id === progId ? { ...p, workouts: backfilled } : p,
+      );
+      setPrograms(allProgs);
+      savePrograms(allProgs);
+    }
     setSelectedWorkoutIndex(0);
     setProgViewMode("day");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2246,6 +2279,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           timeSecs: e.timeSecs,
           rest: e.rest || 0,
           linkedToNext: e.linkedToNext,
+          trackingType: resolveTrackingType(e, exercises),
           eachSide: e.eachSide,
           staffNotes: e.staffNotes,
           coachingNotes: e.coachingNotes,
@@ -4572,12 +4606,69 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                       <SelectItem value="Circuit">
                                                         Circuit Block
                                                       </SelectItem>
+                                                      <SelectItem value="For Time">
+                                                        For Time Block
+                                                      </SelectItem>
                                                       <SelectItem value="AI Engine">
                                                         AI Engine Builder
                                                       </SelectItem>
                                                     </SelectContent>
                                                   </Select>
                                                 </div>
+                                                {(pe.sectionType === "AMRAP" ||
+                                                  pe.sectionType === "EMOM" ||
+                                                  pe.sectionType ===
+                                                    "For Time") && (
+                                                  <div className="space-y-2">
+                                                    <Label>
+                                                      Time Cap (mins)
+                                                    </Label>
+                                                    <Input
+                                                      type="number"
+                                                      inputMode="numeric"
+                                                      value={
+                                                        pe.timeCapMins ?? ""
+                                                      }
+                                                      onChange={(e) =>
+                                                        updateProgExercise(
+                                                          pe.id,
+                                                          "timeCapMins",
+                                                          e.target.value
+                                                            ? parseInt(
+                                                                e.target.value,
+                                                              )
+                                                            : undefined,
+                                                        )
+                                                      }
+                                                      placeholder="e.g. 15"
+                                                      className="w-full"
+                                                    />
+                                                  </div>
+                                                )}
+                                                {(pe.sectionType === "AMRAP" ||
+                                                  pe.sectionType === "EMOM" ||
+                                                  pe.sectionType ===
+                                                    "For Time") && (
+                                                  <div className="space-y-2">
+                                                    <Label>
+                                                      Score Target (optional)
+                                                    </Label>
+                                                    <Input
+                                                      value={
+                                                        pe.targetNote ?? ""
+                                                      }
+                                                      onChange={(e) =>
+                                                        updateProgExercise(
+                                                          pe.id,
+                                                          "targetNote",
+                                                          e.target.value,
+                                                        )
+                                                      }
+                                                      placeholder="e.g. 8+ rounds"
+                                                      className="w-full"
+                                                    />
+                                                  </div>
+                                                )}
                                                 <div className="space-y-2 md:col-span-2">
                                                   <Label>
                                                     Description / Time

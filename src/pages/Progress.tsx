@@ -38,6 +38,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Trophy, Plus, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { PastWorkouts } from "@/components/PastWorkouts";
 
 const Progress = () => {
   const [bodyweightData, setBodyweightData] = useState<any[]>([]);
@@ -193,6 +194,7 @@ const Progress = () => {
         <TabsList>
           <TabsTrigger value="charts">Charts & Bodyweight</TabsTrigger>
           <TabsTrigger value="prs">Personal Records</TabsTrigger>
+          <TabsTrigger value="history">Past Workouts</TabsTrigger>
         </TabsList>
 
         <TabsContent value="charts" className="space-y-4">
@@ -577,6 +579,10 @@ const Progress = () => {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-4">
+          <PastWorkouts />
         </TabsContent>
       </Tabs>
     </div>

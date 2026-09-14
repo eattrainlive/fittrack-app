@@ -16,14 +16,17 @@ import {
   Footprints,
   Salad,
   Dumbbell,
-  Calendar,
-  TrendingUp,
-  Flame,
-  DoorOpen,
   CalendarDays,
+  DoorOpen,
+  Calendar,
+  TrendingDown,
+  TrendingUp,
+  Minus,
 } from "lucide-react";
+import { ActivityWinsGrid } from "@/components/ActivityWinsGrid";
+import { CoachPastWorkouts } from "@/components/CoachPastWorkouts";
 import { supabase } from "@/lib/supabase";
-import { getMemberActivity } from "@/lib/store";
+import { getExercises } from "@/lib/store";
 import type { ProgressSummary } from "@/lib/trialSummary";
 
 interface MemberActivityModalProps {
@@ -50,6 +53,27 @@ interface MemberGoals {
   reviewDue?: string | null;
 }
 
+interface MemberActivity {
+  pt: {
+    used: number;
+    allowance: number | null;
+    cycleStart: string | null;
+    resetDate: string | null;
+  };
+  monthToDate: { classes: number; gymVisits: number; sessionsLogged: number };
+  rolling30: { classes: number; gymVisits: number; sessionsLogged: number };
+  months: {
+    label: string;
+    ym: string;
+    pt: number | null;
+    classes: number;
+    gymVisits: number;
+    sessionsLogged: number;
+  }[];
+  trend: "down" | "up" | "stable";
+  member: { membership: string | null; membership_status: string | null };
+}
+
 const goalLabel = (g?: string | null) => {
   if (!g) return null;
   if (g === "fat_loss") return "Fat loss";
@@ -59,35 +83,66 @@ const goalLabel = (g?: string | null) => {
   return g;
 };
 
+const fmtDate = (iso: string | null) => {
+  if (!iso) return "";
+  return new Date(iso + "T00:00:00").toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+  });
+};
+
+const currentMonthYm = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+
+function MtdTile({
+  icon,
+  label,
+  value,
+  rolling,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  rolling: number;
+}) {
+  return (
+    <Card className="bg-muted/30">
+      <CardContent className="p-3 space-y-1">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+          {icon} {label}
+        </p>
+        <p className="font-heading text-lg">{value}</p>
+        <p className="text-[10px] text-muted-foreground">
+          {rolling} last 30 days
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function MemberActivityModal({
   member,
   staffSecret,
   open,
   onOpenChange,
 }: MemberActivityModalProps) {
-  const [activity, setActivity] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<ProgressSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [act, setAct] = useState<MemberActivity | null>(null);
+  const [actLoading, setActLoading] = useState(false);
+  const [exercises] = useState<any[]>(getExercises());
 
   useEffect(() => {
     if (!open || !member) return;
-    setLoading(true);
-    setActivity([]);
-    getMemberActivity(member.id).then((a) => {
-      setActivity(a);
-      setLoading(false);
-    });
 
-    // Fetch the full progress summary in staff mode so we get goals + the
-    // full activity breakdown (PT, classes, gym visits, volume, streak…).
+    // Full progress summary in staff mode (goals, nutrition, PRs, streak).
     setSummaryLoading(true);
     setSummary(null);
     (async () => {
       try {
         if (!staffSecret) throw new Error("Missing staff secret");
-        // Members use a rolling 90-day window; leave start/end blank so the
-        // function derives it from member_goals.set_at (or today-90).
         const { data, error } = await supabase.functions.invoke(
           "progress-summary",
           {
@@ -105,6 +160,31 @@ export function MemberActivityModal({
         console.error("Activity summary fetch failed", e);
       } finally {
         setSummaryLoading(false);
+      }
+    })();
+
+    // Member-activity edge function (PT allowance, MTD, 3-month trend).
+    setActLoading(true);
+    setAct(null);
+    (async () => {
+      try {
+        if (!staffSecret) throw new Error("Missing staff secret");
+        const { data, error } = await supabase.functions.invoke(
+          "member-activity",
+          {
+            body: {
+              staffSecret,
+              memberUserId: member.id,
+              memberEmail: member.email,
+            },
+          },
+        );
+        if (error) throw error;
+        if (data && !data.error) setAct(data as MemberActivity);
+      } catch (e) {
+        console.error("Member-activity fetch failed", e);
+      } finally {
+        setActLoading(false);
       }
     })();
   }, [open, member, staffSecret]);
@@ -130,6 +210,7 @@ export function MemberActivityModal({
       (Array.isArray(goals.focus_areas) && goals.focus_areas.length));
 
   const s = summary;
+  const curYm = currentMonthYm();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -159,78 +240,188 @@ export function MemberActivityModal({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Activity breakdown tiles */}
-        {summaryLoading ? (
+        {actLoading && !act ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading activity…
           </div>
-        ) : s ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <Card className="bg-muted/30">
-              <CardContent className="p-3 space-y-1">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                  <Dumbbell className="w-3 h-3 text-primary" /> Coached PT
-                </p>
-                <p className="font-heading text-lg">
-                  {s.coachedUsed} / {s.coachedTotal}
-                </p>
-                {s.coachedUpcoming > 0 && (
-                  <p className="text-[10px] text-muted-foreground">
-                    +{s.coachedUpcoming} booked
-                  </p>
+        ) : act ? (
+          <div className="space-y-4">
+            {/* PT allowance bar — only for PT members */}
+            {act.pt.allowance != null && (
+              <Card className="bg-muted/20 border-primary/30">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1">
+                      <Dumbbell className="w-3.5 h-3.5" /> PT sessions this
+                      cycle
+                    </p>
+                    {act.pt.resetDate && (
+                      <span className="text-[11px] text-muted-foreground">
+                        resets {fmtDate(act.pt.resetDate)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-end justify-between">
+                    <p className="font-heading text-2xl">
+                      {act.pt.used}
+                      <span className="text-muted-foreground text-base">
+                        {" "}
+                        of {act.pt.allowance}
+                      </span>
+                    </p>
+                    <span className="text-xs text-muted-foreground">used</span>
+                  </div>
+                  <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(100, Math.round((act.pt.used / act.pt.allowance) * 100))}%`,
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Month-to-date tiles */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                This month
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <MtdTile
+                  icon={<Calendar className="w-3 h-3 text-primary" />}
+                  label="Classes"
+                  value={act.monthToDate.classes}
+                  rolling={act.rolling30.classes}
+                />
+                <MtdTile
+                  icon={<DoorOpen className="w-3 h-3 text-primary" />}
+                  label="Gym visits"
+                  value={act.monthToDate.gymVisits}
+                  rolling={act.rolling30.gymVisits}
+                />
+                <MtdTile
+                  icon={<TrendingUp className="w-3 h-3 text-primary" />}
+                  label="Sessions logged"
+                  value={act.monthToDate.sessionsLogged}
+                  rolling={act.rolling30.sessionsLogged}
+                />
+              </div>
+            </div>
+
+            {/* 3-month breakdown */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                3-month breakdown
+              </p>
+              <div className="rounded-lg border border-border overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-muted/30 text-muted-foreground">
+                      <th className="text-left font-medium px-3 py-2"></th>
+                      {act.months.map((m) => (
+                        <th
+                          key={m.ym}
+                          className={`text-right font-medium px-3 py-2 ${m.ym === curYm ? "text-foreground font-bold" : ""}`}
+                        >
+                          {m.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {act.pt.allowance != null && (
+                      <tr className="border-t border-border">
+                        <td className="px-3 py-2 text-muted-foreground flex items-center gap-1">
+                          <Dumbbell className="w-3 h-3" /> PT
+                        </td>
+                        {act.months.map((m) => (
+                          <td
+                            key={m.ym}
+                            className="text-right px-3 py-2 tabular-nums"
+                          >
+                            {m.pt ?? 0}
+                          </td>
+                        ))}
+                      </tr>
+                    )}
+                    <tr className="border-t border-border">
+                      <td className="px-3 py-2 text-muted-foreground flex items-center gap-1">
+                        <Calendar className="w-3 h-3" /> Classes
+                      </td>
+                      {act.months.map((m) => (
+                        <td
+                          key={m.ym}
+                          className="text-right px-3 py-2 tabular-nums"
+                        >
+                          {m.classes}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="border-t border-border">
+                      <td className="px-3 py-2 text-muted-foreground flex items-center gap-1">
+                        <DoorOpen className="w-3 h-3" /> Gym visits
+                      </td>
+                      {act.months.map((m) => (
+                        <td
+                          key={m.ym}
+                          className="text-right px-3 py-2 tabular-nums"
+                        >
+                          {m.gymVisits}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="border-t border-border">
+                      <td className="px-3 py-2 text-muted-foreground flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3" /> Sessions logged
+                      </td>
+                      {act.months.map((m) => (
+                        <td
+                          key={m.ym}
+                          className="text-right px-3 py-2 tabular-nums"
+                        >
+                          {m.sessionsLogged}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div
+                className={`flex items-center gap-1.5 text-xs ${act.trend === "down" ? "text-amber-600 dark:text-amber-500" : act.trend === "up" ? "text-emerald-600 dark:text-emerald-500" : "text-muted-foreground"}`}
+              >
+                {act.trend === "down" ? (
+                  <>
+                    <TrendingDown className="w-3.5 h-3.5" /> Trending down —
+                    worth a check-in
+                  </>
+                ) : act.trend === "up" ? (
+                  <>
+                    <TrendingUp className="w-3.5 h-3.5" /> Trending up —
+                    building momentum
+                  </>
+                ) : (
+                  <>
+                    <Minus className="w-3.5 h-3.5" /> Stable this quarter
+                  </>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
-            <Card className="bg-muted/30">
-              <CardContent className="p-3 space-y-1">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-primary" /> Classes
-                </p>
-                <p className="font-heading text-lg">+{s.classesCount}</p>
-                <p className="text-[10px] text-muted-foreground">unlimited</p>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-muted/30">
-              <CardContent className="p-3 space-y-1">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                  <DoorOpen className="w-3 h-3 text-primary" /> Gym Visits
-                </p>
-                <p className="font-heading text-lg">{s.gymVisits}</p>
-                <p className="text-[10px] text-muted-foreground">
-                  {s.gymScansTotal}{" "}
-                  {s.gymScansTotal === 1 ? "entry" : "entries"}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-muted/30">
-              <CardContent className="p-3 space-y-1">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                  <TrendingUp className="w-3 h-3 text-primary" /> Lifted
-                </p>
-                <p className="font-heading text-lg">
-                  {s.totalVolumeKg.toLocaleString()} kg
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  {s.loggedSessions} sessions logged
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-muted/30">
-              <CardContent className="p-3 space-y-1">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                  <Flame className="w-3 h-3 text-primary" /> Streak
-                </p>
-                <p className="font-heading text-lg">{s.bestStreak} days</p>
-                <p className="text-[10px] text-muted-foreground">
-                  {s.totalCheckins} checkins
-                </p>
-              </CardContent>
-            </Card>
-
+        {/* Full breakdown (PRs, nutrition, streak from progress-summary) */}
+        {summaryLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading summary…
+          </div>
+        ) : s ? (
+          <div className="space-y-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Rolling 90 days
+            </p>
+            <ActivityWinsGrid s={s} />
             <Card className="bg-muted/30">
               <CardContent className="p-3 space-y-1">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
@@ -379,42 +570,16 @@ export function MemberActivityModal({
           )}
         </div>
 
-        {/* Recent activity */}
+        {/* Past workouts — editable via workout-admin */}
         <div className="space-y-2">
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Recent sessions
+            Past workouts
           </p>
-          {loading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" /> Loading…
-            </div>
-          ) : activity.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No sessions logged yet.
-            </p>
-          ) : (
-            <div className="space-y-1 max-h-48 overflow-y-auto">
-              {activity.slice(0, 10).map((w, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between text-xs rounded-md border border-border/50 bg-muted/20 px-2 py-1.5"
-                >
-                  <span className="truncate">
-                    {w.name || w.program || "Workout"}
-                  </span>
-                  <span className="text-muted-foreground shrink-0 ml-2">
-                    {w.date
-                      ? new Date(w.date).toLocaleDateString("en-GB", {
-                          day: "2-digit",
-                          month: "short",
-                        })
-                      : "—"}
-                    {w.volume ? ` · ${w.volume}kg` : ""}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+          <CoachPastWorkouts
+            staffSecret={staffSecret}
+            memberUserId={member.id}
+            exercises={exercises}
+          />
         </div>
       </DialogContent>
     </Dialog>

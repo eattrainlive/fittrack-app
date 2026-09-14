@@ -27,6 +27,7 @@ import CheckInKiosk from "./pages/CheckInKiosk";
 import { useEffect, useState } from "react";
 import { syncFromSupabase, syncProfile } from "./lib/store";
 import { supabase } from "./lib/supabase";
+import { onUserSignIn, onUserSignOut } from "./lib/userCache";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocation, useNavigationType } from "react-router-dom";
 
@@ -158,24 +159,20 @@ const AppContent = () => {
       if (session?.user) {
         const storedUid = localStorage.getItem("fittrack_current_uid");
         if (storedUid && storedUid !== session.user.id) {
-          // Clear user-specific cache
-          localStorage.removeItem("fittrack_history");
-          localStorage.removeItem("fittrack_active_program");
-          localStorage.removeItem("fittrack_bodyweight");
-          localStorage.removeItem("fittrack_active_workout");
-          localStorage.removeItem("fittrack_prs");
+          // User switched accounts on the same device — clear the previous
+          // user's local caches so their programme/habits/data never leak.
+          onUserSignOut();
         }
         localStorage.setItem("fittrack_current_uid", session.user.id);
 
+        // Always refresh the active programme from the server for THIS
+        // user so getActiveProgram() (localStorage) reflects them.
+        onUserSignIn(session.user.id);
         syncFromSupabase();
         syncProfile();
       } else if (event === "SIGNED_OUT") {
+        onUserSignOut();
         localStorage.removeItem("fittrack_current_uid");
-        localStorage.removeItem("fittrack_history");
-        localStorage.removeItem("fittrack_active_program");
-        localStorage.removeItem("fittrack_bodyweight");
-        localStorage.removeItem("fittrack_active_workout");
-        localStorage.removeItem("fittrack_prs");
       }
     });
   }, []);

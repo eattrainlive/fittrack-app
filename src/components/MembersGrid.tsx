@@ -30,6 +30,7 @@ import SyncMembershipsCard from "@/components/SyncMembershipsCard";
 import { NeedsLinkingCard } from "@/components/NeedsLinkingCard";
 import { MemberActivityModal } from "@/components/MemberActivityModal";
 import { MemberEngagementBoard } from "@/components/MemberEngagementBoard";
+import { CheckInReport } from "@/components/CheckInReport";
 
 const TRIAL_LENGTH_DAYS = 30;
 
@@ -581,6 +582,9 @@ export function MembersGrid({
           )}
         </div>
       )}
+
+      <CheckInReport />
+
       <CoachTrialReviewModal
         member={trialReviewMember}
         staffSecret={staffSecret}

@@ -8,31 +8,28 @@ import {
   ScanLine,
   Search,
   ArrowLeft,
-  Clock,
   Camera,
   Keyboard,
 } from "lucide-react";
+import {
+  RecentCheckIns,
+  type RecentCheckIn,
+} from "@/components/RecentCheckIns";
 
 const STAFF_SECRET =
   import.meta.env.VITE_STAFF_SECRET ||
   "42a37f4a3f9ceed78d7928187bfc339d25af43d79d5fb0b0";
 
 type CheckInResult = {
-  result: "granted" | "denied_lapsed" | "unknown_code";
+  result: "granted" | "denied_lapsed" | "unknown_code" | "no_membership";
   name?: string;
   membership?: string;
   membership_status?: string;
   paymentFailed?: boolean;
+  checkinFor?: string;
+  bookingAt?: string | null;
   time?: string;
 } | null;
-
-type RecentCheckIn = {
-  name: string;
-  time: string;
-  result: string;
-  membership?: string;
-  paymentFailed?: boolean;
-};
 
 type InputMode = "camera" | "scanner";
 
@@ -202,26 +199,28 @@ export default function CheckInKiosk() {
     return () => clearInterval(interval);
   }, [refocus]);
 
-  // Load recent check-ins
+  // Load recent check-ins — read member_name directly from scan_events so
+  // app users with no membership still show their name (not "Member").
   const loadRecent = useCallback(async () => {
     try {
       const { data } = await supabase
         .from("scan_events")
         .select(
-          "id, result, method, created_at, member_ref, gym_members(full_name, product, status)",
+          "id, result, method, created_at, member_name, checkin_for, member_ref, gym_members(full_name, product, status)",
         )
         .order("created_at", { ascending: false })
         .limit(10);
       if (data) {
         setRecent(
           data.map((r: any) => ({
-            name: r.gym_members?.full_name || "Member",
+            name: r.member_name || r.gym_members?.full_name || "Unknown",
             time: new Date(r.created_at).toLocaleTimeString("en-GB", {
               hour: "2-digit",
               minute: "2-digit",
             }),
             result: r.result,
             membership: r.gym_members?.product,
+            checkinFor: r.checkin_for,
           })),
         );
       }
@@ -259,6 +258,7 @@ export default function CheckInKiosk() {
                   minute: "2-digit",
                 }),
               result: data.result,
+              checkinFor: data.checkinFor,
             },
             ...prev,
           ].slice(0, 10),
@@ -374,6 +374,8 @@ export default function CheckInKiosk() {
   if (result) {
     const isGranted = result.result === "granted";
     const isUnknown = result.result === "unknown_code";
+    const isNoMembership = result.result === "no_membership";
+    const isAmber = isNoMembership; // no_membership → amber
     return (
       <div
         className={`min-h-screen flex flex-col items-center justify-center p-8 ${
@@ -410,7 +412,9 @@ export default function CheckInKiosk() {
             ? "Checked in"
             : isUnknown
               ? "Not recognised"
-              : "See coach"}
+              : isNoMembership
+                ? "No membership"
+                : "See coach"}
         </p>
         {result.name && result.name !== "Error" && (
           <p className="text-2xl font-bold text-foreground mb-1">
@@ -420,6 +424,11 @@ export default function CheckInKiosk() {
         {result.membership && (
           <p className="text-lg text-muted-foreground mb-1">
             {result.membership}
+          </p>
+        )}
+        {result.checkinFor && (
+          <p className="text-base font-bold text-foreground mb-1">
+            {result.checkinFor}
           </p>
         )}
         {result.time && (
@@ -437,7 +446,9 @@ export default function CheckInKiosk() {
           <p className="text-sm text-muted-foreground mt-4 max-w-sm text-center">
             {isUnknown
               ? "Code not recognised — try manual check-in"
-              : "Membership not active — please see a coach"}
+              : isNoMembership
+                ? "On the app — no membership on file. Check with a coach."
+                : "Membership not active — please see a coach"}
           </p>
         )}
         <p className="text-xs text-muted-foreground/60 mt-8">Tap to continue</p>
@@ -635,47 +646,7 @@ export default function CheckInKiosk() {
           Check in manually
         </button>
 
-        {recent.length > 0 && (
-          <div className="bg-card border border-border rounded-xl p-3">
-            <p className="text-xs font-bold uppercase text-muted-foreground mb-2 flex items-center gap-1">
-              <Clock className="h-3 w-3" /> Recent check-ins
-            </p>
-            <div className="space-y-1.5 max-h-32 overflow-y-auto">
-              {recent.map((r, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between text-sm gap-2"
-                >
-                  <span className="truncate text-foreground flex items-center gap-1.5">
-                    {r.paymentFailed && (
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                    )}
-                    {r.name}
-                    {r.membership && (
-                      <span className="text-muted-foreground text-xs hidden sm:inline">
-                        · {r.membership}
-                      </span>
-                    )}
-                  </span>
-                  <span className="flex items-center gap-1.5 shrink-0">
-                    <span
-                      className={`h-2 w-2 rounded-full ${
-                        r.result === "granted"
-                          ? "bg-primary"
-                          : r.result === "unknown_code"
-                            ? "bg-destructive"
-                            : "bg-amber-500"
-                      }`}
-                    />
-                    <span className="text-muted-foreground text-xs">
-                      {r.time}
-                    </span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {recent.length > 0 && <RecentCheckIns recent={recent} />}
       </div>
     </div>
   );

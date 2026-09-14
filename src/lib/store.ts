@@ -64,7 +64,7 @@ const enqueue = (store: DirtyStore) => {
   q.push({ store, timestamp: Date.now() });
   setQueue(q);
 };
-const dequeue = (store: DirtyStore) =>
+export const dequeue = (store: DirtyStore) =>
   setQueue(getQueue().filter((x) => x.store !== store));
 
 // Flush all queued writes (called on load + online event)
