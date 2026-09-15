@@ -215,7 +215,7 @@ const Stepper = ({
   >
     <button
       type="button"
-      className={`h-full w-8 shrink-0 rounded-l-md flex items-center justify-center bg-muted/30 text-muted-foreground active:bg-muted ${completed ? "opacity-0 pointer-events-none" : ""}`}
+      className={`h-full w-7 shrink-0 rounded-l-md flex items-center justify-center bg-muted/30 text-muted-foreground active:bg-muted ${completed ? "opacity-0 pointer-events-none" : ""}`}
       onClick={() => onChange(Math.max(0, (value || 0) - step))}
     >
       <Minus className="h-3 w-3" />
@@ -223,7 +223,7 @@ const Stepper = ({
     <input
       type="number"
       inputMode={isDecimal ? "decimal" : "numeric"}
-      className="flex-1 min-w-0 tabular-nums text-center font-semibold text-sm sm:text-base bg-transparent border-none p-0 focus:outline-none focus:ring-0 text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      className="flex-1 min-w-[2.75ch] tabular-nums text-center font-semibold text-sm sm:text-base bg-transparent border-none p-0 focus:outline-none focus:ring-0 text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       value={value === 0 || value === undefined ? "" : value}
       onChange={(e) =>
         onChange(
@@ -236,7 +236,7 @@ const Stepper = ({
     />
     <button
       type="button"
-      className={`h-full w-8 shrink-0 rounded-r-md flex items-center justify-center bg-muted/30 text-muted-foreground active:bg-muted ${completed ? "opacity-0 pointer-events-none" : ""}`}
+      className={`h-full w-7 shrink-0 rounded-r-md flex items-center justify-center bg-muted/30 text-muted-foreground active:bg-muted ${completed ? "opacity-0 pointer-events-none" : ""}`}
       onClick={() => onChange((value || 0) + step)}
     >
       <Plus className="h-3 w-3" />
@@ -258,7 +258,7 @@ const TimeStepper = ({
     <input
       type="number"
       inputMode="numeric"
-      className="w-8 min-w-0 tabular-nums text-right font-semibold text-sm sm:text-base bg-transparent border-none p-0 focus:outline-none focus:ring-0 text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      className="w-8 min-w-[2ch] tabular-nums text-right font-semibold text-sm sm:text-base bg-transparent border-none p-0 focus:outline-none focus:ring-0 text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       value={mins === 0 || mins === undefined ? "" : mins}
       onChange={(e) => onChangeMins(parseInt(e.target.value) || 0)}
       placeholder="0"
@@ -267,7 +267,7 @@ const TimeStepper = ({
     <input
       type="number"
       inputMode="numeric"
-      className="w-8 min-w-0 tabular-nums text-left font-semibold text-sm sm:text-base bg-transparent border-none p-0 focus:outline-none focus:ring-0 text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      className="w-8 min-w-[2ch] tabular-nums text-left font-semibold text-sm sm:text-base bg-transparent border-none p-0 focus:outline-none focus:ring-0 text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       value={
         secs === 0 || secs === undefined ? "" : secs.toString().padStart(2, "0")
       }
@@ -282,10 +282,6 @@ const columnsFor = (ex: any, exerciseLibrary: any[]) => {
   const libEx = exerciseLibrary.find(
     (le: any) => String(le.id) === String(ex.name),
   );
-  const isBodyweight =
-    String(ex.equipment ?? libEx?.equipment ?? "")
-      .trim()
-      .toLowerCase() === "bodyweight";
   const sets = Array.isArray(ex.setsData) ? ex.setsData : [];
   const usedReps = sets.some((s: any) => (+s.reps || 0) > 0);
   const usedTime = sets.some(
@@ -302,7 +298,7 @@ const columnsFor = (ex: any, exerciseLibrary: any[]) => {
   const canWeight = canWR || canWD;
 
   const cols: any[] = [];
-  if (canWeight && !isBodyweight)
+  if (canWeight)
     cols.push({ field: "weight", label: "KG", step: 2.5, decimal: true });
   if (canWR && (usedReps || (!canTime && !canDist && !canWD)))
     cols.push({ field: "reps", label: "REPS", step: 1 });
@@ -2857,7 +2853,7 @@ const Workouts = () => {
                               return (
                                 <div
                                   key={exercise.id}
-                                  className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3"
+                                  className="bg-card border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-3"
                                 >
                                   <div className="space-y-2 w-full">
                                     <div className="flex items-center justify-between gap-2">
@@ -3351,7 +3347,7 @@ const Workouts = () => {
                                     <div
                                       className="grid items-center gap-y-2 gap-x-1"
                                       style={{
-                                        gridTemplateColumns: `28px repeat(${cols.length}, minmax(0,1fr)) 40px`,
+                                        gridTemplateColumns: `24px repeat(${cols.length}, minmax(0,1fr)) 32px`,
                                       }}
                                     >
                                       <div className="text-center font-bold text-[10px] text-muted-foreground uppercase tracking-wider">

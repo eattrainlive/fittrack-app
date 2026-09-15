@@ -69,6 +69,7 @@ interface MembersGridProps {
   onViewActivity: (member: any) => void;
   onInviteMember?: (member: { name: string; email: string }) => void;
   onSetStaff?: (memberId: string, isStaff: boolean) => Promise<void>;
+  onSetOnlineClient?: (memberId: string, value: boolean) => void;
   onMembershipsSynced?: () => void;
 }
 
@@ -79,6 +80,7 @@ export function MembersGrid({
   onViewActivity,
   onInviteMember,
   onSetStaff,
+  onSetOnlineClient,
   onMembershipsSynced,
 }: MembersGridProps) {
   // Trial status lives on the Quoox roster (gym_members, matched by email), NOT
@@ -400,6 +402,11 @@ export function MembersGrid({
                     )}
                   </div>
                   <div className="pl-[52px] -mt-1 flex flex-wrap gap-1">
+                    {member.online_client && (
+                      <span className="text-[11px] px-2 py-0.5 rounded-full border font-semibold bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30">
+                        Online client
+                      </span>
+                    )}
                     {member.membership ? (
                       <span
                         className={`text-[11px] px-2 py-0.5 rounded-full border font-semibold ${
@@ -531,6 +538,23 @@ export function MembersGrid({
                         className="text-xs font-semibold"
                       >
                         Staff
+                      </Label>
+                    </div>
+                  )}
+                  {onSetOnlineClient && (
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`mem-${member.id}-online`}
+                        checked={!!member.online_client}
+                        onCheckedChange={(c) =>
+                          onSetOnlineClient(member.id, !!c)
+                        }
+                      />
+                      <Label
+                        htmlFor={`mem-${member.id}-online`}
+                        className="text-xs font-semibold"
+                      >
+                        Online client
                       </Label>
                     </div>
                   )}

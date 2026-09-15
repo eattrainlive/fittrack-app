@@ -112,6 +112,8 @@ import { QrCode } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { MembersGrid } from "@/components/MembersGrid";
 import SyncErrorsPanel from "@/components/SyncErrorsPanel";
+import { AccountabilitySettings } from "@/components/AccountabilitySettings";
+import { AccountabilityCoachPanel } from "@/components/AccountabilityCoachPanel";
 import {
   propagateAcrossRounds,
   propagateSessionAcrossRounds,
@@ -686,6 +688,29 @@ const Admin = () => {
     } catch (e: any) {
       console.error("setStaff error:", e);
       toast.error(`Failed to update staff status: ${e.message}`);
+      await loadMembers();
+    }
+  };
+
+  const handleSetOnlineClient = async (memberId: string, value: boolean) => {
+    setMembers(
+      members.map((m: any) =>
+        m.id === memberId ? { ...m, online_client: value } : m,
+      ),
+    );
+    try {
+      await manageMembers({
+        action: "setOnlineClient",
+        memberId,
+        value,
+        staffSecret,
+      });
+      toast.success(
+        value ? "Marked as online client" : "Removed online client flag",
+      );
+      await loadMembers();
+    } catch (e: any) {
+      toast.error(`Failed to update: ${e.message}`);
       await loadMembers();
     }
   };
@@ -2692,6 +2717,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           <TabsTrigger value="display">TV Display</TabsTrigger>
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="nutrition">Nutrition</TabsTrigger>
+          <TabsTrigger value="accountability">Accountability</TabsTrigger>
 
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
@@ -5720,6 +5746,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
             onViewActivity={handleViewActivity}
             onInviteMember={handleInviteFromBoard}
             onSetStaff={handleSetStaff}
+            onSetOnlineClient={handleSetOnlineClient}
           />
         </TabsContent>
 
@@ -6375,6 +6402,10 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           )}
         </TabsContent>
 
+        <TabsContent value="accountability" className="space-y-6 mt-6">
+          <AccountabilityCoachPanel />
+        </TabsContent>
+
         <TabsContent value="notifications" className="space-y-6 mt-6">
           <Card className="bg-card border-border">
             <CardHeader>
@@ -6838,6 +6869,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
 
         <TabsContent value="settings" className="space-y-6 mt-6">
           <SyncErrorsPanel />
+          <AccountabilitySettings />
           <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle>AI Settings</CardTitle>

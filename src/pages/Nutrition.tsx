@@ -67,6 +67,7 @@ import {
 } from "@/components/ui/dialog";
 import { getEmbedUrl } from "@/lib/utils";
 import { ResourcesSection } from "@/components/ResourcesSection";
+import { AccountabilityCard } from "@/components/AccountabilityCard";
 import { RecipeCards } from "@/components/RecipeCards";
 import {
   getHabits,
@@ -841,6 +842,8 @@ export default function Nutrition() {
             recordCoachingInterest={recordCoachingInterest}
           />
         )}
+
+        <AccountabilityCard />
 
         <div className="grid grid-cols-2 gap-4">
           {TILES.map((t) => {

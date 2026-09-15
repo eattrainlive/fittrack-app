@@ -228,6 +228,11 @@ export function MemberActivityModal({
             {member.membership && (
               <span className="ml-1">· {member.membership}</span>
             )}
+            {member.online_client && (
+              <span className="ml-1 font-semibold text-sky-600 dark:text-sky-400">
+                · Online client
+              </span>
+            )}
             {goals?.reviewDue && (
               <span className="ml-1">
                 · Review due{" "}
@@ -246,8 +251,15 @@ export function MemberActivityModal({
           </div>
         ) : act ? (
           <div className="space-y-4">
-            {/* PT allowance bar — only for PT members */}
-            {act.pt.allowance != null && (
+            {member.online_client && (
+              <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 text-sm text-sky-700 dark:text-sky-300">
+                Online client — gym attendance (PT, classes, gym visits) is not
+                tracked. App-logged activity (sessions, nutrition, goals) below
+                still applies.
+              </div>
+            )}
+            {/* PT allowance bar — only for PT members (hidden for online clients) */}
+            {!member.online_client && act.pt.allowance != null && (
               <Card className="bg-muted/20 border-primary/30">
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-center justify-between">
@@ -292,14 +304,16 @@ export function MemberActivityModal({
                 <MtdTile
                   icon={<Calendar className="w-3 h-3 text-primary" />}
                   label="Classes"
-                  value={act.monthToDate.classes}
-                  rolling={act.rolling30.classes}
+                  value={member.online_client ? 0 : act.monthToDate.classes}
+                  rolling={member.online_client ? 0 : act.rolling30.classes}
                 />
                 <MtdTile
                   icon={<DoorOpen className="w-3 h-3 text-primary" />}
-                  label="Gym visits"
-                  value={act.monthToDate.gymVisits}
-                  rolling={act.rolling30.gymVisits}
+                  label={
+                    member.online_client ? "Gym visits (N/A)" : "Gym visits"
+                  }
+                  value={member.online_client ? 0 : act.monthToDate.gymVisits}
+                  rolling={member.online_client ? 0 : act.rolling30.gymVisits}
                 />
                 <MtdTile
                   icon={<TrendingUp className="w-3 h-3 text-primary" />}
@@ -331,7 +345,7 @@ export function MemberActivityModal({
                     </tr>
                   </thead>
                   <tbody>
-                    {act.pt.allowance != null && (
+                    {!member.online_client && act.pt.allowance != null && (
                       <tr className="border-t border-border">
                         <td className="px-3 py-2 text-muted-foreground flex items-center gap-1">
                           <Dumbbell className="w-3 h-3" /> PT
@@ -346,7 +360,9 @@ export function MemberActivityModal({
                         ))}
                       </tr>
                     )}
-                    <tr className="border-t border-border">
+                    <tr
+                      className={`border-t border-border ${member.online_client ? "opacity-40" : ""}`}
+                    >
                       <td className="px-3 py-2 text-muted-foreground flex items-center gap-1">
                         <Calendar className="w-3 h-3" /> Classes
                       </td>
@@ -355,11 +371,13 @@ export function MemberActivityModal({
                           key={m.ym}
                           className="text-right px-3 py-2 tabular-nums"
                         >
-                          {m.classes}
+                          {member.online_client ? "—" : m.classes}
                         </td>
                       ))}
                     </tr>
-                    <tr className="border-t border-border">
+                    <tr
+                      className={`border-t border-border ${member.online_client ? "opacity-40" : ""}`}
+                    >
                       <td className="px-3 py-2 text-muted-foreground flex items-center gap-1">
                         <DoorOpen className="w-3 h-3" /> Gym visits
                       </td>
@@ -368,7 +386,7 @@ export function MemberActivityModal({
                           key={m.ym}
                           className="text-right px-3 py-2 tabular-nums"
                         >
-                          {m.gymVisits}
+                          {member.online_client ? "—" : m.gymVisits}
                         </td>
                       ))}
                     </tr>
@@ -421,7 +439,7 @@ export function MemberActivityModal({
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Rolling 90 days
             </p>
-            <ActivityWinsGrid s={s} />
+            <ActivityWinsGrid s={s} onlineClient={!!member.online_client} />
             <Card className="bg-muted/30">
               <CardContent className="p-3 space-y-1">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">

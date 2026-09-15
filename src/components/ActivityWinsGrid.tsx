@@ -7,18 +7,24 @@ import type { ProgressSummary } from "@/lib/trialSummary";
  * member activity modal so both show the identical tile set (Coached PT,
  * Classes, Gym Visits, Lifted, Streak).
  */
-export function ActivityWinsGrid({ s }: { s: ProgressSummary }) {
+export function ActivityWinsGrid({
+  s,
+  onlineClient = false,
+}: {
+  s: ProgressSummary;
+  onlineClient?: boolean;
+}) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-      <Card className="bg-muted/30">
+      <Card className={`bg-muted/30 ${onlineClient ? "opacity-40" : ""}`}>
         <CardContent className="p-3 space-y-1">
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
             <Dumbbell className="w-3 h-3 text-primary" /> Coached PT
           </p>
           <p className="font-heading text-lg">
-            {s.coachedUsed} / {s.coachedTotal}
+            {onlineClient ? "N/A" : `${s.coachedUsed} / ${s.coachedTotal}`}
           </p>
-          {s.coachedUpcoming > 0 && (
+          {!onlineClient && s.coachedUpcoming > 0 && (
             <p className="text-[10px] text-muted-foreground">
               +{s.coachedUpcoming} booked
             </p>
@@ -26,25 +32,33 @@ export function ActivityWinsGrid({ s }: { s: ProgressSummary }) {
         </CardContent>
       </Card>
 
-      <Card className="bg-muted/30">
+      <Card className={`bg-muted/30 ${onlineClient ? "opacity-40" : ""}`}>
         <CardContent className="p-3 space-y-1">
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
             <Calendar className="w-3 h-3 text-primary" /> Classes
           </p>
-          <p className="font-heading text-lg">+{s.classesCount}</p>
-          <p className="text-[10px] text-muted-foreground">unlimited</p>
+          <p className="font-heading text-lg">
+            {onlineClient ? "N/A" : `+${s.classesCount}`}
+          </p>
+          {!onlineClient && (
+            <p className="text-[10px] text-muted-foreground">unlimited</p>
+          )}
         </CardContent>
       </Card>
 
-      <Card className="bg-muted/30">
+      <Card className={`bg-muted/30 ${onlineClient ? "opacity-40" : ""}`}>
         <CardContent className="p-3 space-y-1">
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
             <DoorOpen className="w-3 h-3 text-primary" /> Gym Visits
           </p>
-          <p className="font-heading text-lg">{s.gymVisits}</p>
-          <p className="text-[10px] text-muted-foreground">
-            {s.gymScansTotal} {s.gymScansTotal === 1 ? "entry" : "entries"}
+          <p className="font-heading text-lg">
+            {onlineClient ? "N/A" : s.gymVisits}
           </p>
+          {!onlineClient && (
+            <p className="text-[10px] text-muted-foreground">
+              {s.gymScansTotal} {s.gymScansTotal === 1 ? "entry" : "entries"}
+            </p>
+          )}
         </CardContent>
       </Card>
 
