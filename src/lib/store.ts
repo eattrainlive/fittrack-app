@@ -982,6 +982,7 @@ export const saveWorkoutToHistory = async (
           volume: newWorkout.volume ?? 0,
           reward: newWorkout.reward ?? null,
           duration: newWorkout.duration ?? null,
+          type: newWorkout.type ?? "strength",
           data: newWorkout,
         },
         { onConflict: "id" },

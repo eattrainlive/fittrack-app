@@ -38,6 +38,7 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { toast } from "sonner";
 import { downloadSourceCode } from "@/lib/download";
+import { InstallPromptBanner } from "@/components/InstallPromptBanner";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -330,6 +331,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 overflow-y-auto overflow-x-hidden">
         {children}
       </main>
+
+      <InstallPromptBanner />
 
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border flex items-center justify-around h-16 select-none">
         <NavItem

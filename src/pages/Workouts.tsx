@@ -25,6 +25,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { PbModal } from "@/components/PbModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -99,6 +100,7 @@ import { supabase } from "@/lib/supabase";
 import { getProgramCoverImage } from "@/lib/programCovers";
 import { trackingOf } from "@/lib/tracking";
 import { ConditioningTimer } from "@/components/ConditioningTimer";
+import { AdLibLogSheet } from "@/components/AdLibLogSheet";
 
 const PROGRESSION_OPTIONS = [
   {
@@ -465,6 +467,7 @@ const Workouts = () => {
     displayName?: string;
   } | null>(null);
   const [pbModal, setPbModal] = useState<any[] | null>(null);
+  const [adLibOpen, setAdLibOpen] = useState(false);
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [quickOverviewWorkout, setQuickOverviewWorkout] = useState<any>(null);
   const [templateForChooser, setTemplateForChooser] = useState<any>(null);
@@ -3653,14 +3656,14 @@ const Workouts = () => {
         open={!!rewardModal}
         onOpenChange={(open) => !open && setRewardModal(null)}
       >
-        <DialogContent className="w-[92vw] max-w-sm text-center bg-card border-border overflow-hidden">
-          <DialogHeader>
+        <DialogContent className="w-[92vw] max-w-sm text-center bg-card border-border max-h-[85dvh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="text-2xl font-heading tracking-wider text-center">
               Workout Complete!
             </DialogTitle>
           </DialogHeader>
           {rewardModal && (
-            <div className="py-6 flex flex-col items-center gap-4 animate-in zoom-in duration-500">
+            <div className="py-6 flex flex-col items-center gap-4 animate-in zoom-in duration-500 overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]">
               <div className="text-8xl animate-bounce mt-4">
                 {rewardModal.emoji}
               </div>
@@ -3695,80 +3698,32 @@ const Workouts = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={!!pbModal}
-        onOpenChange={(open) => !open && setPbModal(null)}
-      >
-        <DialogContent className="w-[92vw] max-w-sm text-center bg-card border-border overflow-hidden">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-heading tracking-wider text-center">
-              🏆 New Personal Record!
-            </DialogTitle>
-          </DialogHeader>
-          {pbModal && (
-            <div className="py-6 flex flex-col items-center gap-4 animate-in zoom-in duration-500">
-              <div className="text-6xl mt-2 mb-4">🏆</div>
-              <div className="space-y-3 w-full">
-                {pbModal.map((pb, i) => {
-                  const libEx = exerciseLibrary.find(
-                    (e) => String(e.id) === String(pb.exercise),
-                  );
-                  return (
-                    <div
-                      key={i}
-                      className="bg-muted/50 p-3 rounded-lg border border-border"
-                    >
-                      <p className="font-bold text-lg">
-                        {libEx?.name || pb.exercise}
-                      </p>
-                      <p className="text-primary font-heading tracking-wider text-2xl">
-                        {pb.weight}kg &times; {pb.reps}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="flex flex-col gap-2 w-full mt-4">
-                <Button
-                  className="w-full text-lg h-12 font-bold tracking-wide"
-                  onClick={() => {
-                    saveCommunityPost({
-                      id: "pb_" + Date.now(),
-                      user: { name: "You", avatar: "ME" },
-                      date: new Date().toISOString(),
-                      type: "pb",
-                      pbs: pbModal.map((p) => ({
-                        exercise: p.exercise,
-                        weight: p.weight,
-                        reps: p.reps,
-                      })),
-                      likes: 0,
-                      comments: 0,
-                    });
-                    toast.success("Shared to feed!");
-                    setPbModal(null);
-                  }}
-                >
-                  Share to feed
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full"
-                  onClick={() => setPbModal(null)}
-                >
-                  Not now
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <PbModal
+        pbModal={pbModal}
+        onClose={() => setPbModal(null)}
+        onShare={(pbs) =>
+          saveCommunityPost({
+            id: "pb_" + Date.now(),
+            user: { name: "You", avatar: "ME" },
+            date: new Date().toISOString(),
+            type: "pb",
+            pbs: pbs.map((p) => ({
+              exercise: p.exercise,
+              weight: p.weight,
+              reps: p.reps,
+            })),
+            likes: 0,
+            comments: 0,
+          })
+        }
+        exerciseLibrary={exerciseLibrary}
+      />
 
       <Dialog
         open={!!templateForChooser}
         onOpenChange={(open) => !open && setTemplateForChooser(null)}
       >
-        <DialogContent className="w-[92vw] max-w-sm bg-card border-border overflow-hidden">
+        <DialogContent className="w-[92vw] max-w-sm bg-card border-border max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading tracking-wider text-2xl uppercase">
               How many days a week can you train?
@@ -3796,7 +3751,7 @@ const Workouts = () => {
       </Dialog>
 
       <Dialog open={showWowLogger} onOpenChange={setShowWowLogger}>
-        <DialogContent className="w-[92vw] max-w-sm bg-card border-border overflow-hidden">
+        <DialogContent className="w-[92vw] max-w-sm bg-card border-border max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading tracking-wider text-2xl uppercase">
               Log Your Score
@@ -4177,6 +4132,21 @@ const Workouts = () => {
             })()}
         </DialogContent>
       </Dialog>
+
+      {/* Ad-lib logging FAB */}
+      <button
+        onClick={() => setAdLibOpen(true)}
+        className="fixed bottom-20 right-4 z-40 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+        style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
+        aria-label="Log activity or workout"
+      >
+        <Plus className="h-6 w-6" />
+      </button>
+      <AdLibLogSheet
+        open={adLibOpen}
+        onOpenChange={setAdLibOpen}
+        onPBs={(pbs) => setPbModal(pbs)}
+      />
     </div>
   );
 };

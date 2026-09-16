@@ -14,6 +14,7 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import { InstallAuthTip } from "@/components/InstallPromptBanner";
 
 const MIN_PASSWORD = 8;
 
@@ -225,6 +226,8 @@ const Auth = () => {
             Sign in to track your progress and access programs.
           </p>
         </div>
+
+        <InstallAuthTip />
 
         <Tabs value={tabValue} onValueChange={setTabValue} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-6">

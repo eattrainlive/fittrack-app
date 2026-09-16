@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Save, ChevronRight, Loader2 } from "lucide-react";
+import { Trash2, Save, ChevronRight, Loader2, Activity } from "lucide-react";
 import { toast } from "sonner";
 import { trackingOf } from "@/lib/tracking";
 import { formatConditioningResult } from "@/components/ConditioningTimer";
@@ -124,9 +124,25 @@ export function PastWorkouts() {
     <div className="space-y-2">
       <div className="space-y-1 max-h-96 overflow-y-auto">
         {workouts.map((w: any) => {
+          const isActivity = w.type === "activity";
           const exCount = (w.exercises || []).filter(
             (e: any) => !e.isSection,
           ).length;
+          const subLine = isActivity
+            ? [
+                w.duration ? `${w.duration} min` : "",
+                w.distance ? `${w.distance}${w.distanceUnit || "km"}` : "",
+                w.calories ? `${w.calories} cal` : "",
+                w.note || "",
+              ]
+                .filter(Boolean)
+                .join(" · ")
+            : [
+                exCount ? `${exCount} exercises` : "",
+                w.volume ? `${w.volume.toLocaleString()}kg` : "",
+              ]
+                .filter(Boolean)
+                .join(" · ");
           return (
             <div
               key={w.id}
@@ -136,15 +152,19 @@ export function PastWorkouts() {
                 onClick={() => openEdit(w)}
                 className="flex-1 flex items-center justify-between text-left px-3 py-2"
               >
-                <div>
-                  <p className="text-sm font-medium truncate">
-                    {w.name || w.program || "Workout"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {w.date ? fmtDate(w.date) : "—"}
-                    {exCount ? ` · ${exCount} exercises` : ""}
-                    {w.volume ? ` · ${w.volume.toLocaleString()}kg` : ""}
-                  </p>
+                <div className="flex items-center gap-2 min-w-0">
+                  {isActivity ? (
+                    <Activity className="h-4 w-4 text-primary shrink-0" />
+                  ) : null}
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {w.name || w.program || "Workout"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {w.date ? fmtDate(w.date) : "—"}
+                      {subLine ? ` · ${subLine}` : ""}
+                    </p>
+                  </div>
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
               </button>
