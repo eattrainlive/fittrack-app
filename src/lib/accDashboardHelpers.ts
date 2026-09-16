@@ -28,14 +28,15 @@ export const sparklinePoints = (
   return sorted.slice(-14).map((e) => e.weight);
 };
 
-/** Compute a habit streak (consecutive days checked in). */
+/** Compute a habit streak (consecutive days checked in).
+ *  Matches by member_habit_id (preferred) or habit_id (legacy). */
 export const habitStreak = (
-  checkins: { date: string; habit_id: string }[],
+  checkins: { date: string; habit_id?: string; member_habit_id?: string }[],
   habitId: string,
 ): number => {
   const days = new Set(
     checkins
-      .filter((c) => c.habit_id === habitId)
+      .filter((c) => c.member_habit_id === habitId || c.habit_id === habitId)
       .map((c) => c.date.slice(0, 10)),
   );
   let streak = 0;
@@ -48,9 +49,10 @@ export const habitStreak = (
   return streak;
 };
 
-/** Count habit check-ins this week (Mon–Sun). */
+/** Count habit check-ins this week (Mon–Sun).
+ *  Matches by member_habit_id (preferred) or habit_id (legacy). */
 export const habitWeekCount = (
-  checkins: { date: string; habit_id: string }[],
+  checkins: { date: string; habit_id?: string; member_habit_id?: string }[],
   habitId: string,
 ): number => {
   const now = new Date();
@@ -60,7 +62,9 @@ export const habitWeekCount = (
   monday.setHours(0, 0, 0, 0);
   const startTs = monday.getTime();
   return checkins.filter(
-    (c) => c.habit_id === habitId && new Date(c.date).getTime() >= startTs,
+    (c) =>
+      (c.member_habit_id === habitId || c.habit_id === habitId) &&
+      new Date(c.date).getTime() >= startTs,
   ).length;
 };
 

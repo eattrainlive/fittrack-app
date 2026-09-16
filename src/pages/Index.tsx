@@ -15,6 +15,7 @@ import {
   Trophy,
   Dumbbell,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import {
   Area,
@@ -39,7 +40,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { BaselineCard } from "@/components/BaselineCard";
 import { MemberGoalsCard } from "@/components/MemberGoalsCard";
 import { CheckInCodeCard } from "@/components/CheckInCodeCard";
 import {
@@ -246,10 +246,6 @@ const Index = () => {
         </p>
       </div>
 
-      {showBaseline && (
-        <BaselineCard onDismiss={() => setShowBaseline(false)} />
-      )}
-
       <CheckInCodeCard />
 
       {showMemberGoals && <MemberGoalsCard />}
@@ -257,20 +253,22 @@ const Index = () => {
       {showTrialProgress && (
         <button
           onClick={() => navigate("/my-trial")}
-          className="w-full flex items-center gap-3 bg-card border border-border border-l-4 border-l-primary rounded-xl p-3 text-left shadow-sm active:scale-[0.99] transition"
+          className="w-full flex items-center gap-3 bg-primary/10 border border-primary/30 rounded-xl p-3 text-left shadow-sm active:scale-[0.99] transition"
         >
-          <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
-            <TrendingUp className="w-5 h-5 text-primary" />
+          <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+            <Sparkles className="w-5 h-5 text-primary" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
-              Your trial
+              Your Trial
             </p>
             <p className="font-heading text-lg tracking-wide uppercase leading-none">
-              See your 30-day progress
+              {showBaseline ? "Set up your 30 days" : "Your 30-day progress"}
             </p>
             <p className="text-xs text-muted-foreground truncate">
-              PT sessions, strength wins &amp; how far you've come
+              {showBaseline
+                ? "Welcome — let's get you started"
+                : "Sessions, wins & how far you've come"}
             </p>
           </div>
           <ChevronRight className="w-5 h-5 text-primary shrink-0" />

@@ -113,6 +113,9 @@ import { supabase } from "@/lib/supabase";
 import { MembersGrid } from "@/components/MembersGrid";
 import SyncErrorsPanel from "@/components/SyncErrorsPanel";
 import { AccountabilitySettings } from "@/components/AccountabilitySettings";
+import { TrialHubSettings } from "@/components/TrialHubSettings";
+import { CoachWhatsAppSettings } from "@/components/CoachWhatsAppSettings";
+import { TrialWeekContentEditor } from "@/components/TrialWeekContentEditor";
 import { AccountabilityCoachPanel } from "@/components/AccountabilityCoachPanel";
 import {
   propagateAcrossRounds,
@@ -6870,6 +6873,9 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         <TabsContent value="settings" className="space-y-6 mt-6">
           <SyncErrorsPanel />
           <AccountabilitySettings />
+          <CoachWhatsAppSettings />
+          <TrialHubSettings />
+          <TrialWeekContentEditor />
           <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle>AI Settings</CardTitle>

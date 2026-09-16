@@ -14,7 +14,11 @@ export interface PreviewData {
   weekContent: AccWeekContent | null;
   checkins: AccCheckin[];
   bwEntries: { date: string; weight: number }[];
-  habitCheckins: { date: string; habit_id: string }[];
+  habitCheckins: {
+    date: string;
+    habit_id: string;
+    member_habit_id?: string | null;
+  }[];
   memberHabits: { id: string; name: string }[];
   photos: any[];
   latestMeas: any;
@@ -105,7 +109,11 @@ const demoHabits = [
   { id: demoHabitId(4), name: "Steps target" },
 ];
 
-const demoHabitCheckins: { date: string; habit_id: string }[] = [];
+const demoHabitCheckins: {
+  date: string;
+  habit_id: string;
+  member_habit_id?: string | null;
+}[] = [];
 // ~6 days of check-ins per habit over the last week
 for (let h = 1; h <= 4; h++) {
   for (let d = 0; d < 6; d++) {
@@ -284,7 +292,7 @@ export const loadRealClientData = async (
     supabase.from("member_habits").select("id, name").eq("user_id", userId),
     supabase
       .from("habit_checkins")
-      .select("date, habit_id")
+      .select("date, habit_id, member_habit_id")
       .eq("user_id", userId),
     supabase
       .from("member_photos")

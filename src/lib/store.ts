@@ -164,7 +164,15 @@ export const flushRetryQueue = async () => {
       if (local) {
         const prs = JSON.parse(local);
         if (prs.length > 0) {
-          const rows = prs.map((p: any) => ({ ...p, user_id: user.id }));
+          // Sanitise: coerce weight/reps to numbers so a stray string like
+          // "10/10" (each-side rep notation) can never hit the integer column.
+          const clean = prs.map((p: any) => ({
+            ...p,
+            weight: Number(p.weight) || 0,
+            reps: parseInt(String(p.reps)) || 0,
+          }));
+          localStorage.setItem("fittrack_prs", JSON.stringify(clean)); // heal local copy
+          const rows = clean.map((p: any) => ({ ...p, user_id: user.id }));
           const { error: _pe } = await supabase
             .from("personal_records")
             .upsert(rows, { onConflict: "user_id, exercise" });
@@ -1031,20 +1039,22 @@ export const detectAndSavePBs = async (exercises: any[]) => {
     if (ex.isSection || !ex.name) continue;
     const sets = Array.isArray(ex.setsData) ? ex.setsData : [];
     const best = sets.reduce(
-      (m: number, s: any) => Math.max(m, s.weight || 0),
+      (m: number, s: any) => Math.max(m, Number(s.weight) || 0),
       0,
     );
     if (best <= 0) continue; // skip bodyweight/cardio/no-weight
     const bestSet = sets
-      .filter((s: any) => (s.weight || 0) === best)
-      .sort((a: any, b: any) => (b.reps || 0) - (a.reps || 0))[0];
+      .filter((s: any) => (Number(s.weight) || 0) === best)
+      .sort(
+        (a: any, b: any) => (Number(b.reps) || 0) - (Number(a.reps) || 0),
+      )[0];
     const prev = byName[ex.name];
-    if (!prev || best > prev.weight) {
+    if (!prev || best > Number(prev.weight) || 0) {
       const rec = {
         id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
         exercise: ex.name,
-        weight: best,
-        reps: bestSet?.reps || 0,
+        weight: Number(best) || 0,
+        reps: parseInt(String(bestSet?.reps)) || 0,
         date: new Date().toISOString().split("T")[0],
       };
       byName[ex.name] = rec;
@@ -1089,7 +1099,8 @@ export const savePersonalRecord = (exerciseId: string, weight: number) => {
     id: Date.now().toString(),
     exercise: exerciseId,
     exerciseId,
-    weight,
+    weight: Number(weight) || 0,
+    reps: 0,
     date,
   }; // kept exerciseId for backwards compat in Progress.tsx
   prs.push(newPr);

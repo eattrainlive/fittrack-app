@@ -4,10 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dumbbell, Loader2, CheckCircle2 } from "lucide-react";
+import {
+  Dumbbell,
+  Loader2,
+  CheckCircle2,
+  ChevronLeft,
+  Mail,
+} from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+
+const MIN_PASSWORD = 8;
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -17,9 +25,19 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
   const [tabValue, setTabValue] = useState("login");
   const [justSignedUp, setJustSignedUp] = useState(false);
+
+  // Forgot-password mode
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  // Confirm-password error
+  const [pwError, setPwError] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +62,18 @@ const Auth = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate password match + length before anything
+    if (password.length < MIN_PASSWORD) {
+      setPwError(`Password must be at least ${MIN_PASSWORD} characters`);
+      return;
+    }
+    if (password !== confirmPassword) {
+      setPwError("Passwords don't match");
+      return;
+    }
+    setPwError(null);
+
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -74,6 +104,114 @@ const Auth = () => {
     }
     setLoading(false);
   };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetting(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      // Don't reveal whether the email exists — always show the same message.
+      if (error) {
+        console.error("Password reset error:", error.message);
+      }
+      setResetSent(true);
+    } catch (err) {
+      console.error("Password reset error:", err);
+      setResetSent(true);
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  // ── Forgot password mode ──────────────────────────────────────────────
+  if (forgotMode) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background">
+        <div className="w-full max-w-md px-6 space-y-6">
+          <div className="flex flex-col items-center space-y-2 text-center pt-8 pb-4">
+            <Dumbbell className="h-12 w-12 text-primary" />
+            <h1 className="text-4xl font-heading tracking-wider uppercase">
+              FitTrack
+            </h1>
+          </div>
+
+          {resetSent ? (
+            <div className="space-y-6 text-center py-8">
+              <div className="mx-auto h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
+                <Mail className="h-7 w-7 text-primary" />
+              </div>
+              <div className="space-y-3">
+                <h2 className="text-xl font-heading uppercase tracking-wide">
+                  Check your email
+                </h2>
+                <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+                  If that email's registered, we've sent a link to reset your
+                  password.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => {
+                  setForgotMode(false);
+                  setResetSent(false);
+                  setResetEmail("");
+                }}
+              >
+                <ChevronLeft className="w-4 h-4" /> Back to login
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleResetPassword} className="space-y-6">
+              <div className="text-center space-y-2 pb-2">
+                <h2 className="text-2xl font-heading uppercase tracking-wide">
+                  Reset password
+                </h2>
+                <p className="text-muted-foreground text-sm">
+                  Enter your email and we'll send you a link to set a new
+                  password.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">Email</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  placeholder="m@example.com"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  required
+                  disabled={resetting}
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full text-primary-foreground font-bold h-12 rounded-xl"
+                disabled={resetting}
+              >
+                {resetting ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
+                Send reset link
+              </Button>
+
+              <Button
+                variant="ghost"
+                className="w-full gap-2"
+                onClick={() => setForgotMode(false)}
+              >
+                <ChevronLeft className="w-4 h-4" /> Back to login
+              </Button>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background">
@@ -112,12 +250,13 @@ const Auth = () => {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="password">Password</Label>
-                    <a
-                      href="#"
+                    <button
+                      type="button"
+                      onClick={() => setForgotMode(true)}
                       className="text-xs text-primary hover:underline"
                     >
                       Forgot password?
-                    </a>
+                    </button>
                   </div>
                   <Input
                     id="password"
@@ -197,11 +336,33 @@ const Auth = () => {
                       id="signup-password"
                       type="password"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        if (pwError) setPwError(null);
+                      }}
                       required
                       disabled={loading}
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-confirm">Confirm password</Label>
+                    <Input
+                      id="signup-confirm"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        if (pwError) setPwError(null);
+                      }}
+                      required
+                      disabled={loading}
+                    />
+                  </div>
+                  {pwError && (
+                    <p className="text-sm text-destructive font-medium">
+                      {pwError}
+                    </p>
+                  )}
                 </div>
                 <Button
                   type="submit"

@@ -68,6 +68,8 @@ import {
 import { getEmbedUrl } from "@/lib/utils";
 import { ResourcesSection } from "@/components/ResourcesSection";
 import { AccountabilityCard } from "@/components/AccountabilityCard";
+import { CoachWhatsAppButton } from "@/components/CoachWhatsAppButton";
+import { ScheduleCard } from "@/components/ScheduleCard";
 import { RecipeCards } from "@/components/RecipeCards";
 import {
   getHabits,
@@ -843,7 +845,9 @@ export default function Nutrition() {
           />
         )}
 
+        <ScheduleCard />
         <AccountabilityCard />
+        <CoachWhatsAppButton context="general" />
 
         <div className="grid grid-cols-2 gap-4">
           {TILES.map((t) => {

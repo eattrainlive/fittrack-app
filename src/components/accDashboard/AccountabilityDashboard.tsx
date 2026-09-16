@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { Loader2, Eye } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { saveHabitCheckin, deleteHabitCheckin } from "@/lib/habitCheckins";
+import { toast } from "@/components/ui/sonner";
 import {
   getActiveCohort,
   getMyClientRecord,
@@ -76,7 +78,7 @@ export function AccountabilityDashboard({
     { date: string; weight: number }[]
   >(previewData?.bwEntries ?? []);
   const [habitCheckins, setHabitCheckins] = useState<
-    { date: string; habit_id: string }[]
+    { date: string; habit_id: string | null; member_habit_id?: string | null }[]
   >(previewData?.habitCheckins ?? []);
   const [memberHabits, setMemberHabits] = useState<
     { id: string; name: string }[]
@@ -140,7 +142,7 @@ export function AccountabilityDashboard({
     setMemberHabits((mh ?? []) as any);
     const { data: hc } = await supabase
       .from("habit_checkins")
-      .select("date, habit_id")
+      .select("date, habit_id, member_habit_id")
       .eq("user_id", user.id);
     setHabitCheckins((hc ?? []) as any);
 
@@ -293,8 +295,50 @@ export function AccountabilityDashboard({
   const habitRings: HabitRingData[] = memberHabits.map((h) => ({
     id: h.id,
     name: h.name,
-    checkins: habitCheckins,
+    checkins: habitCheckins.filter(
+      (c) => c.member_habit_id === h.id || c.habit_id === h.id,
+    ),
   }));
+
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  // Toggle a single habit's check-in for today (on/off) with optimistic update.
+  const handleToggleHabit = async (habitId: string) => {
+    if (readOnly) return;
+    const doneToday = habitCheckins.some(
+      (c) =>
+        c.date.slice(0, 10) === todayStr &&
+        (c.member_habit_id === habitId || c.habit_id === habitId),
+    );
+
+    // Optimistic update
+    if (doneToday) {
+      setHabitCheckins((prev) =>
+        prev.filter(
+          (c) =>
+            !(
+              c.date.slice(0, 10) === todayStr &&
+              (c.member_habit_id === habitId || c.habit_id === habitId)
+            ),
+        ),
+      );
+    } else {
+      setHabitCheckins((prev) => [
+        ...prev,
+        { date: todayStr, habit_id: null, member_habit_id: habitId },
+      ]);
+    }
+
+    const payload = { member_habit_id: habitId, date: todayStr };
+    const res = doneToday
+      ? await deleteHabitCheckin(payload)
+      : await saveHabitCheckin(payload);
+
+    if (!res?.success) {
+      toast.error("Couldn't update habit — try again");
+      load();
+    }
+  };
 
   // Inches off (sum of measurement deltas)
   const inchesOff = (() => {
@@ -363,10 +407,12 @@ export function AccountabilityDashboard({
 
       <HabitsCard
         habits={habitRings}
+        onToggleHabit={handleToggleHabit}
         onLogToday={() => {
           if (readOnly) return;
           window.location.hash = "#log-habits";
         }}
+        today={todayStr}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -407,12 +453,16 @@ export function AccountabilityDashboard({
 
 // Local simple streak to avoid circular import
 function habitStreakSimple(
-  checkins: { date: string; habit_id: string }[],
+  checkins: {
+    date: string;
+    habit_id: string | null;
+    member_habit_id?: string | null;
+  }[],
   habitId: string,
 ): number {
   const days = new Set(
     checkins
-      .filter((c) => c.habit_id === habitId)
+      .filter((c) => c.member_habit_id === habitId || c.habit_id === habitId)
       .map((c) => c.date.slice(0, 10)),
   );
   let streak = 0;
