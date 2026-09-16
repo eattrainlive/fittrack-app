@@ -12,6 +12,7 @@ import {
   Cloud,
   CheckCircle2,
   Lock,
+  Calendar,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -354,6 +355,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           icon={<HeartHandshake className="h-6 w-6" />}
           label="Coaching"
           active={location.pathname === "/nutrition"}
+        />
+        <NavItem
+          to="/schedule"
+          icon={<Calendar className="h-6 w-6" />}
+          label="Schedule"
+          active={location.pathname === "/schedule"}
         />
         <NavItem
           to="/profile"
