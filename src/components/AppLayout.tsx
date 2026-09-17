@@ -39,6 +39,8 @@ import { Button } from "./ui/button";
 import { toast } from "sonner";
 import { downloadSourceCode } from "@/lib/download";
 import { InstallPromptBanner } from "@/components/InstallPromptBanner";
+import { OnboardingTour } from "@/components/OnboardingTour";
+import { isTourDone } from "@/lib/onboardingTour";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -55,6 +57,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [membershipAllowed, setMembershipAllowed] = useState<boolean | null>(
     null,
   );
+  const [showTour, setShowTour] = useState(false);
 
   const handleDownloadSource = () => {
     downloadSourceCode(setIsZipping);
@@ -114,6 +117,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       unsubSync();
     };
   }, []);
+
+  // Show the onboarding tour once for members who haven't seen it.
+  useEffect(() => {
+    if (!user) return;
+    // Staff / kiosk views skip the tour.
+    if (localStorage.getItem("fittrack_is_staff") === "true") return;
+    let cancelled = false;
+    (async () => {
+      const done = await isTourDone();
+      if (!cancelled && !done) setShowTour(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const handleMarkRead = async (id: string) => {
     await markNotificationRead(id);
@@ -346,6 +364,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           icon={<Dumbbell className="h-6 w-6" />}
           label="Workouts"
           active={location.pathname === "/workouts"}
+          dataTour="log-workout"
         />
         <NavItem
           to="/progress"
@@ -372,6 +391,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           active={location.pathname === "/profile"}
         />
       </nav>
+
+      <OnboardingTour active={showTour} onComplete={() => setShowTour(false)} />
     </div>
   );
 }
@@ -381,15 +402,18 @@ function NavItem({
   icon,
   label,
   active,
+  dataTour,
 }: {
   to: string;
   icon: React.ReactNode;
   label: string;
   active: boolean;
+  dataTour?: string;
 }) {
   return (
     <Link
       to={to}
+      data-tour={dataTour}
       className={`flex flex-col items-center justify-center w-full py-1 gap-1 ${active ? "text-primary" : "text-muted-foreground"}`}
     >
       {icon}

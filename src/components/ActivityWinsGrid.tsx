@@ -1,4 +1,11 @@
-import { Dumbbell, Calendar, TrendingUp, Flame, DoorOpen } from "lucide-react";
+import {
+  Dumbbell,
+  Calendar,
+  TrendingUp,
+  Flame,
+  DoorOpen,
+  HeartPulse,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import type { ProgressSummary } from "@/lib/trialSummary";
 
@@ -15,7 +22,7 @@ export function ActivityWinsGrid({
   onlineClient?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
       <Card className={`bg-muted/30 ${onlineClient ? "opacity-40" : ""}`}>
         <CardContent className="p-3 space-y-1">
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
@@ -72,6 +79,18 @@ export function ActivityWinsGrid({
           </p>
           <p className="text-[10px] text-muted-foreground">
             {s.loggedSessions} sessions
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-muted/30">
+        <CardContent className="p-3 space-y-1">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <HeartPulse className="w-3 h-3 text-primary" /> Activities
+          </p>
+          <p className="font-heading text-lg">{s.activitiesCount ?? 0}</p>
+          <p className="text-[10px] text-muted-foreground">
+            {s.activitiesCount === 1 ? "cardio log" : "cardio logs"}
           </p>
         </CardContent>
       </Card>

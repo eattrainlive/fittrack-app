@@ -4657,6 +4657,29 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                     className="min-h-[80px]"
                                                   />
                                                 </div>
+                                                <div className="flex items-center justify-between gap-3 md:col-span-2 rounded-lg border border-border bg-muted/30 p-3">
+                                                  <div className="space-y-0.5">
+                                                    <Label className="text-sm font-bold">
+                                                      Members pick one option
+                                                    </Label>
+                                                    <p className="text-xs text-muted-foreground leading-snug">
+                                                      Offer this section's
+                                                      supersets as alternatives
+                                                      — the member logs only the
+                                                      one they choose.
+                                                    </p>
+                                                  </div>
+                                                  <Switch
+                                                    checked={!!pe.pickOne}
+                                                    onCheckedChange={(v) =>
+                                                      updateProgExercise(
+                                                        pe.id,
+                                                        "pickOne",
+                                                        v,
+                                                      )
+                                                    }
+                                                  />
+                                                </div>
                                                 {pe.sectionType ===
                                                   "AI Engine" && (
                                                   <div className="md:col-span-2 pt-2">

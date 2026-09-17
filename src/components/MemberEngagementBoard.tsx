@@ -31,7 +31,7 @@ interface EngagementMember {
   score: number;
   band: "thriving" | "slipping" | "atRisk";
   attendance: { attended: number; total: number };
-  app: { workouts: number; lastLoginDays: number | null };
+  app: { workouts: number; activities: number; lastLoginDays: number | null };
   habits: { checkins: number; bestStreak: number };
   sessionsTarget: number | null;
   lastSessionDays: number | null;
@@ -266,7 +266,7 @@ export function MemberEngagementBoard({
               </button>
               {expanded === m.id && (
                 <div className="px-3 pb-3 pt-1 space-y-2 border-t border-border/50">
-                  <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                     <div className="rounded-md bg-background border border-border/50 p-2">
                       <p className="text-muted-foreground text-[10px] uppercase tracking-wide flex items-center gap-1">
                         <Dumbbell className="h-2.5 w-2.5" /> Sessions
@@ -276,6 +276,18 @@ export function MemberEngagementBoard({
                       </p>
                       <p className="text-muted-foreground">
                         {m.app.workouts} logged in app
+                      </p>
+                    </div>
+                    <div className="rounded-md bg-background border border-border/50 p-2">
+                      <p className="text-muted-foreground text-[10px] uppercase tracking-wide flex items-center gap-1">
+                        <Activity className="h-2.5 w-2.5" /> Activities
+                      </p>
+                      <p className="font-semibold">
+                        {m.app.activities || 0}{" "}
+                        {(m.app.activities || 0) === 1 ? "log" : "logs"}
+                      </p>
+                      <p className="text-muted-foreground">
+                        swim · cycle · run…
                       </p>
                     </div>
                     <div className="rounded-md bg-background border border-border/50 p-2">

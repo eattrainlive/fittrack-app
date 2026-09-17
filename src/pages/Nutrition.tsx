@@ -855,6 +855,13 @@ export default function Nutrition() {
             return (
               <button
                 key={t.key}
+                data-tour={
+                  t.key === "habits"
+                    ? "habits"
+                    : t.key === "education"
+                      ? "education"
+                      : undefined
+                }
                 disabled={!on}
                 onClick={() => on && setNutSection(t.key)}
                 className={`flex flex-col gap-3 p-4 rounded-xl border text-left transition-all ${

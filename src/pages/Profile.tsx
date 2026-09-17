@@ -17,6 +17,7 @@ import {
   CloudUpload,
   CloudDownload,
   BookOpen,
+  Sparkles,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
@@ -30,6 +31,7 @@ import {
   getBodyweightHistory,
   saveBodyweight,
 } from "@/lib/store";
+import { resetTour } from "@/lib/onboardingTour";
 import {
   Select,
   SelectContent,
@@ -84,6 +86,13 @@ const Profile = () => {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/auth");
+  };
+
+  const handleReplayTour = async () => {
+    await resetTour();
+    navigate("/");
+    // Reload so AppLayout re-checks the tour flag.
+    setTimeout(() => window.location.reload(), 200);
   };
 
   const [isMigrating, setIsMigrating] = useState(false);
@@ -200,6 +209,13 @@ const Profile = () => {
             className="gap-2"
           >
             <BookOpen className="h-4 w-4" /> Education
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleReplayTour}
+            className="gap-2"
+          >
+            <Sparkles className="h-4 w-4" /> Replay tour
           </Button>
           <Button
             variant="destructive"

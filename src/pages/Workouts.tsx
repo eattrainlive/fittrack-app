@@ -39,7 +39,6 @@ import {
 import {
   Dumbbell,
   Plus,
-  Minus,
   Trash2,
   PlayCircle,
   History,
@@ -97,290 +96,37 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
 import { supabase } from "@/lib/supabase";
-import { getProgramCoverImage } from "@/lib/programCovers";
-import { trackingOf } from "@/lib/tracking";
 import { ConditioningTimer } from "@/components/ConditioningTimer";
 import { AdLibLogSheet } from "@/components/AdLibLogSheet";
 
-const PROGRESSION_OPTIONS = [
-  {
-    key: "tempo",
-    label: "Slower tempo",
-    icon: <Timer className="h-4 w-4 text-primary" />,
-    cue: "Keep the same weight and slow it down — around 3 seconds lowering, 1 second lifting. You work harder and build control without adding load. Great when the weight feels right but you want more challenge.",
-  },
-  {
-    key: "reps",
-    label: "Max reps on last set",
-    icon: <Repeat className="h-4 w-4 text-primary" />,
-    cue: "Keep your weight the same. On your final set only, aim for as many clean reps as you can and try to beat last time. Stop the set the moment form slips — quality over numbers.",
-  },
-  {
-    key: "weight",
-    label: "Small weight increase",
-    icon: <Plus className="h-4 w-4 text-primary" />,
-    cue: "Only if last session felt strong and every rep was clean: add a little — about 2.5kg, or 2kg on dumbbells. Small jumps keep progress steady and safe. If in doubt, stay where you are for another week.",
-  },
-];
-
-const REWARD_ITEMS = [
-  { weight: 0.2, name: "Apple", plural: "Apples", emoji: "🍎" },
-  { weight: 1, name: "Chicken", plural: "Chickens", emoji: "🐔" },
-  { weight: 2, name: "Brick", plural: "Bricks", emoji: "🧱" },
-  { weight: 5, name: "Cat", plural: "Cats", emoji: "🐈" },
-  { weight: 7, name: "Bowling Ball", plural: "Bowling Balls", emoji: "🎳" },
-  { weight: 10, name: "Watermelon", plural: "Watermelons", emoji: "🍉" },
-  { weight: 15, name: "Car Tire", plural: "Car Tires", emoji: "🛞" },
-  { weight: 20, name: "Microwave", plural: "Microwaves", emoji: "📻" },
-  { weight: 40, name: "Toilet", plural: "Toilets", emoji: "🚽" },
-  { weight: 50, name: "Large Dog", plural: "Large Dogs", emoji: "🐕" },
-  { weight: 100, name: "Baby Elephant", plural: "Baby Elephants", emoji: "🐘" },
-  { weight: 200, name: "Motorcycle", plural: "Motorcycles", emoji: "🏍️" },
-  { weight: 250, name: "Grizzly Bear", plural: "Grizzly Bears", emoji: "🐻" },
-  {
-    weight: 300,
-    name: "Vending Machine",
-    plural: "Vending Machines",
-    emoji: "🥤",
-  },
-  { weight: 500, name: "Horse", plural: "Horses", emoji: "🐎" },
-  {
-    weight: 1000,
-    name: "Great White Shark",
-    plural: "Great White Sharks",
-    emoji: "🦈",
-  },
-  { weight: 1500, name: "Hippopotamus", plural: "Hippopotamuses", emoji: "🦛" },
-  { weight: 2000, name: "Rhinoceros", plural: "Rhinoceroses", emoji: "🦏" },
-  { weight: 3000, name: "Killer Whale", plural: "Killer Whales", emoji: "🐋" },
-  { weight: 4000, name: "Helicopter", plural: "Helicopters", emoji: "🚁" },
-  {
-    weight: 5000,
-    name: "Monster Truck",
-    plural: "Monster Trucks",
-    emoji: "🛻",
-  },
-  { weight: 7500, name: "T-Rex", plural: "T-Rexes", emoji: "🦖" },
-  { weight: 10000, name: "School Bus", plural: "School Buses", emoji: "🚌" },
-  { weight: 15000, name: "Fighter Jet", plural: "Fighter Jets", emoji: "🛩️" },
-  {
-    weight: 25000,
-    name: "Humpback Whale",
-    plural: "Humpback Whales",
-    emoji: "🐳",
-  },
-  {
-    weight: 50000,
-    name: "Space Shuttle",
-    plural: "Space Shuttles",
-    emoji: "🚀",
-  },
-  { weight: 150000, name: "Blue Whale", plural: "Blue Whales", emoji: "🐋" },
-  { weight: 400000, name: "Boeing 747", plural: "Boeing 747s", emoji: "✈️" },
-];
-
-const playPing = () => {
-  try {
-    const AudioContext =
-      window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
-    const osc = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(1000, ctx.currentTime);
-
-    gainNode.gain.setValueAtTime(1, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-
-    osc.connect(gainNode);
-    gainNode.connect(ctx.destination);
-
-    osc.start();
-    osc.stop(ctx.currentTime + 0.5);
-  } catch (e) {
-    console.error("Audio playback failed", e);
-  }
-};
-
-const Stepper = ({
-  value,
-  onChange,
-  step = 1,
-  completed,
-  isDecimal = false,
-  className = "",
-}: any) => (
-  <div
-    className={`flex items-center justify-between w-full h-11 rounded-md bg-background border transition-colors focus-within:ring-1 focus-within:ring-primary ${completed ? "border-transparent bg-transparent" : "border-border"} ${className}`}
-  >
-    <button
-      type="button"
-      className={`h-full w-7 shrink-0 rounded-l-md flex items-center justify-center bg-muted/30 text-muted-foreground active:bg-muted ${completed ? "opacity-0 pointer-events-none" : ""}`}
-      onClick={() => onChange(Math.max(0, (value || 0) - step))}
-    >
-      <Minus className="h-3 w-3" />
-    </button>
-    <input
-      type="number"
-      inputMode={isDecimal ? "decimal" : "numeric"}
-      className="flex-1 min-w-[2.75ch] tabular-nums text-center font-semibold text-sm sm:text-base bg-transparent border-none p-0 focus:outline-none focus:ring-0 text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-      value={value === 0 || value === undefined ? "" : value}
-      onChange={(e) =>
-        onChange(
-          isDecimal
-            ? parseFloat(e.target.value) || 0
-            : parseInt(e.target.value) || 0,
-        )
-      }
-      placeholder="0"
-    />
-    <button
-      type="button"
-      className={`h-full w-7 shrink-0 rounded-r-md flex items-center justify-center bg-muted/30 text-muted-foreground active:bg-muted ${completed ? "opacity-0 pointer-events-none" : ""}`}
-      onClick={() => onChange((value || 0) + step)}
-    >
-      <Plus className="h-3 w-3" />
-    </button>
-  </div>
-);
-
-const TimeStepper = ({
-  mins,
-  secs,
-  onChangeMins,
-  onChangeSecs,
-  completed,
-  className = "",
-}: any) => (
-  <div
-    className={`flex items-center justify-center w-full h-11 rounded-md bg-background border transition-colors focus-within:ring-1 focus-within:ring-primary ${completed ? "border-transparent bg-transparent" : "border-border"} ${className}`}
-  >
-    <input
-      type="number"
-      inputMode="numeric"
-      className="w-8 min-w-[2ch] tabular-nums text-right font-semibold text-sm sm:text-base bg-transparent border-none p-0 focus:outline-none focus:ring-0 text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-      value={mins === 0 || mins === undefined ? "" : mins}
-      onChange={(e) => onChangeMins(parseInt(e.target.value) || 0)}
-      placeholder="0"
-    />
-    <span className="text-muted-foreground font-bold mx-0.5">:</span>
-    <input
-      type="number"
-      inputMode="numeric"
-      className="w-8 min-w-[2ch] tabular-nums text-left font-semibold text-sm sm:text-base bg-transparent border-none p-0 focus:outline-none focus:ring-0 text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-      value={
-        secs === 0 || secs === undefined ? "" : secs.toString().padStart(2, "0")
-      }
-      onChange={(e) => onChangeSecs(parseInt(e.target.value) || 0)}
-      placeholder="00"
-    />
-  </div>
-);
-
-const columnsFor = (ex: any, exerciseLibrary: any[]) => {
-  const t = trackingOf(ex, exerciseLibrary);
-  const libEx = exerciseLibrary.find(
-    (le: any) => String(le.id) === String(ex.name),
-  );
-  const sets = Array.isArray(ex.setsData) ? ex.setsData : [];
-  const usedReps = sets.some((s: any) => (+s.reps || 0) > 0);
-  const usedTime = sets.some(
-    (s: any) => (+s.timeMins || 0) > 0 || (+s.timeSecs || 0) > 0,
-  );
-  const usedDist = sets.some((s: any) => (+s.distance || 0) > 0);
-
-  const canWR = t.includes("Weight & Reps");
-  const canWD = t.includes("Weight & Distance");
-  const canRepsOnly = t.includes("Reps Only");
-  const canTime = t.includes("Time Only") || t.includes("Distance & Time");
-  const canDist = t.includes("Distance & Time") || canWD;
-  const canCals = t.includes("Calories");
-  const canWeight = canWR || canWD;
-
-  const cols: any[] = [];
-  if (canWeight)
-    cols.push({ field: "weight", label: "KG", step: 2.5, decimal: true });
-  if (canWR && (usedReps || (!canTime && !canDist && !canWD)))
-    cols.push({ field: "reps", label: "REPS", step: 1 });
-  if (canDist && (usedDist || canWD))
-    cols.push({ field: "distance", label: "DIST", step: 0.1, decimal: true });
-  if (canTime && (usedTime || (!canWR && !canWD && !usedDist)))
-    cols.push({ field: "time", label: "TIME", isTime: true });
-  if (canCals) cols.push({ field: "calories", label: "CALS", step: 1 });
-  if (canRepsOnly) cols.push({ field: "reps", label: "REPS", step: 1 });
-
-  return cols.length ? cols : [{ field: "reps", label: "REPS", step: 1 }];
-};
-
-const fmtLastTime = (s: any, tracking: string[]) => {
-  if (!s) return "";
-  const t = (x: string) => tracking.includes(x);
-  const time =
-    s.timeMins || 0 || s.timeSecs || 0
-      ? `${s.timeMins ? s.timeMins + "m " : ""}${s.timeSecs ? s.timeSecs + "s" : ""}`.trim()
-      : "";
-  if (t("Calories") && (s.calories || s.reps))
-    return `${s.calories || s.reps} cals`;
-  if (t("Weight & Distance") && (s.weight || s.distance))
-    return `${s.weight}kg · ${s.distance}m`;
-  if (t("Distance & Time"))
-    return [s.distance ? s.distance + "m" : "", time]
-      .filter(Boolean)
-      .join(" in ");
-  if (t("Time Only") && time) return time;
-  if (t("Reps Only") && s.reps) return `${s.reps} reps`;
-  return s.weight
-    ? `${s.weight}kg × ${s.reps}`
-    : s.reps
-      ? `${s.reps} reps`
-      : "";
-};
-
-const fmtSet = (s: any, tracking: string[]) => {
-  if (!s) return "";
-  const t = (x: string) => tracking.includes(x);
-  const time =
-    s.timeMins || 0 || s.timeSecs || 0
-      ? `${s.timeMins ? s.timeMins + "m " : ""}${s.timeSecs ? s.timeSecs + "s" : ""}`.trim()
-      : "";
-  if (t("Calories") && (s.calories || 0 || s.reps || 0))
-    return `${s.calories || s.reps} cals`;
-  if (t("Weight & Distance") && (s.weight || 0 || s.distance || 0))
-    return `${s.weight || 0}kg · ${s.distance || 0}m`;
-  if (t("Distance & Time")) {
-    const parts = [s.distance || 0 ? s.distance + "m" : "", time].filter(
-      Boolean,
-    );
-    if (parts.length) return parts.join(" in ");
-  }
-  if (t("Time Only") && time) return time;
-  if (t("Reps Only") && (s.reps || 0)) return `${s.reps} reps`;
-  if ((s.weight || 0) > 0) return `${s.weight}kg × ${s.reps || 0}`;
-  if ((s.reps || 0) > 0) return `${s.reps} reps`;
-  return "";
-};
-
-const weekLabel = (program: any, week: number) => {
-  const wc = program?.weekNotes?.[week]?.start_date;
-  if (!wc) return `Week ${week}`;
-  const d = new Date(wc + "T00:00:00");
-  return `W/C ${d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`;
-};
-
-const sessionTitle = (program: any, workout: any) => {
-  const theme =
-    workout.name &&
-    !workout.name.toLowerCase().startsWith("week ") &&
-    !workout.name.toLowerCase().startsWith("day ")
-      ? workout.name
-      : `Day ${workout.day}`;
-  return `${program.stream || (program.type === "GroupPT" ? "Group PT" : "Workout")} · ${weekLabel(program, workout.week)} · ${theme}`;
-};
-
-const getCoverImage = (prog: any, cat?: string) =>
-  getProgramCoverImage(prog, cat);
+import {
+  PROGRESSION_OPTIONS,
+  REWARD_ITEMS,
+  playPing,
+} from "@/lib/workoutConstants";
+import {
+  Stepper,
+  TimeStepper,
+  columnsFor,
+  fmtSet,
+  fmtLastTime,
+  weekLabel,
+  sessionTitle,
+  getCoverImage,
+} from "@/lib/workoutHelpers";
+import { trackingOf } from "@/lib/tracking";
+import { WorkoutOverviewSections } from "@/components/WorkoutOverviewSections";
+import { PickOneSelector } from "@/components/PickOneSelector";
+import { exercisesForSave } from "@/lib/pickOneFilter";
+import {
+  pickOneOptionsForBlock,
+  skippedPickOneBlocks,
+  nextVisibleBlock,
+  prevVisibleBlock,
+  visibleBlockCount,
+  visibleBlockPosition,
+} from "@/lib/pickOneBlocks";
+import { useViewModeGuard } from "@/lib/workoutRestore";
 
 const Workouts = () => {
   const navigate = useNavigate();
@@ -492,6 +238,10 @@ const Workouts = () => {
   }>({});
   const [conditioningResults, setConditioningResults] = useState<
     Record<string, any>
+  >({});
+  // pickOne finisher: sectionId -> chosen option index (within the section's option blocks). null = no choice yet.
+  const [pickOneChoices, setPickOneChoices] = useState<
+    Record<string, number | null>
   >({});
   const isActiveWorkout = useMemo(() => {
     if (activeProgram) return true;
@@ -716,6 +466,8 @@ const Workouts = () => {
         if (parsed.workoutName) setWorkoutName(parsed.workoutName);
         if (parsed.exercises && parsed.exercises.length > 0)
           setExercises(parsed.exercises);
+        if (parsed.pickOneChoices !== undefined)
+          setPickOneChoices(parsed.pickOneChoices);
         if (parsed.currentBlockIndex !== undefined)
           setCurrentBlockIndex(parsed.currentBlockIndex);
         if (parsed.lastSeenSectionId !== undefined)
@@ -725,7 +477,8 @@ const Workouts = () => {
         if (parsed.restEndsAt !== undefined) setRestEndsAt(parsed.restEndsAt);
         if (parsed.pausedTimeLeft !== undefined)
           setPausedTimeLeft(parsed.pausedTimeLeft);
-        if (parsed.viewMode) setViewMode(parsed.viewMode);
+        if (parsed.viewMode === "active") setViewMode("active");
+        else setViewMode("browse");
         if (parsed.startTime !== undefined) setStartTime(parsed.startTime);
         if (parsed.activeWorkoutMeta !== undefined)
           setActiveWorkoutMeta(parsed.activeWorkoutMeta);
@@ -734,6 +487,15 @@ const Workouts = () => {
       }
     }
   }, []);
+
+  // Belt-and-braces: reset to browse if the current mode's required data is missing.
+  useViewModeGuard(
+    viewMode,
+    setViewMode,
+    selectedTemplate,
+    quickOverviewWorkout,
+    currentWow,
+  );
 
   // Persist active workout session
   useEffect(() => {
@@ -748,6 +510,7 @@ const Workouts = () => {
           JSON.stringify({
             workoutName,
             exercises,
+            pickOneChoices,
             currentBlockIndex,
             lastSeenSectionId,
             showSectionSlide,
@@ -777,6 +540,7 @@ const Workouts = () => {
   }, [
     workoutName,
     exercises,
+    pickOneChoices,
     currentBlockIndex,
     lastSeenSectionId,
     showSectionSlide,
@@ -1104,12 +868,14 @@ const Workouts = () => {
     setIsSaving(true);
 
     // Calculate total duration (difference between start time and now)
+    // Only save/log the chosen option of any pickOne section.
+    const savedExercises = exercisesForSave(exercises, pickOneChoices);
     let duration = 45;
     if (startTime) {
       duration = Math.max(1, Math.round((Date.now() - startTime) / 60000));
     }
 
-    const totalVolume = exercises.reduce((acc, ex) => {
+    const totalVolume = savedExercises.reduce((acc, ex) => {
       if (ex.isSection || !ex.setsData) return acc;
       const completedSets = ex.setsData.filter((s: any) => s.completed);
       const setsToCount =
@@ -1146,7 +912,7 @@ const Workouts = () => {
     }
 
     // Attach conditioning scores to their section objects before saving.
-    const exercisesWithResults = exercises.map((ex: any) => {
+    const exercisesWithResults = savedExercises.map((ex: any) => {
       if (!ex.isSection) return ex;
       const sectionId = ex.id;
       const result = sectionId ? conditioningResults[sectionId] : undefined;
@@ -1181,7 +947,7 @@ const Workouts = () => {
       console.error("Cloud sync error:", error);
     }
 
-    const newPBs = await detectAndSavePBs(exercises);
+    const newPBs = await detectAndSavePBs(savedExercises);
     if (newPBs.length > 0) {
       setPbModal(newPBs);
     } else if (earnedReward && totalVolume > 0) {
@@ -2412,140 +2178,10 @@ const Workouts = () => {
             <Play className="h-5 w-5 mr-2 fill-current" /> Start Workout
           </Button>
 
-          <div className="space-y-4 mt-6">
-            {(() => {
-              const sections: any[] = [];
-              let currentSection: any = null;
-              let currentGroup: any[] = [];
-
-              quickOverviewWorkout.workout.exercises?.forEach((ex: any) => {
-                if (ex.isSection) {
-                  if (currentSection || currentGroup.length > 0) {
-                    sections.push({
-                      section: currentSection,
-                      exercises: currentGroup,
-                    });
-                  }
-                  currentSection = ex;
-                  currentGroup = [];
-                } else {
-                  currentGroup.push(ex);
-                }
-              });
-              if (currentSection || currentGroup.length > 0) {
-                sections.push({
-                  section: currentSection,
-                  exercises: currentGroup,
-                });
-              }
-
-              return sections.map((sec, idx) => (
-                <Card
-                  key={idx}
-                  className="bg-card border-border overflow-hidden"
-                >
-                  <CardContent className="p-0">
-                    <div className="bg-muted/50 p-3 border-b border-border flex justify-between items-center">
-                      <span className="font-bold text-sm tracking-wider uppercase">
-                        {sec.section ? sec.section.name : `Block ${idx + 1}`}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-medium">
-                        {sec.exercises.length} exercises
-                      </span>
-                    </div>
-                    <div className="p-3 space-y-3">
-                      {sec.exercises.map((ex: any, exIdx: number) => {
-                        const libEx = exerciseLibrary.find(
-                          (e) => String(e.id) === String(ex.name),
-                        );
-
-                        const setsCount = ex.setsData?.length || ex.sets || 3;
-                        const firstSet = ex.setsData?.[0] || ex || {};
-
-                        const rawTrack =
-                          ex.trackingType ??
-                          libEx?.trackingType ??
-                          "Weight & Reps";
-                        const trackingArray = (
-                          Array.isArray(rawTrack)
-                            ? rawTrack
-                            : String(rawTrack).split(/[;,]/)
-                        )
-                          .map((s) => s.trim())
-                          .filter(Boolean);
-
-                        const dist = firstSet.distance || ex.distance || 0;
-                        const mins = firstSet.timeMins || ex.timeMins || 0;
-                        const secs = firstSet.timeSecs || ex.timeSecs || 0;
-                        const cals =
-                          firstSet.calories ||
-                          ex.calories ||
-                          (trackingArray.includes("Calories")
-                            ? firstSet.reps || ex.reps || 0
-                            : 0);
-                        const reps = firstSet.reps || ex.reps || 0;
-
-                        let details = [];
-                        if (
-                          trackingArray.includes("Weight & Distance") &&
-                          (firstSet.weight || ex.weight || 0) > 0
-                        )
-                          details.push(`${firstSet.weight || ex.weight}kg`);
-                        if (trackingArray.includes("Weight & Distance") && dist)
-                          details.push(`${dist}m`);
-                        if (trackingArray.includes("Distance & Time") && dist)
-                          details.push(`${dist}m`);
-                        if (
-                          (trackingArray.includes("Time Only") ||
-                            trackingArray.includes("Distance & Time")) &&
-                          (mins || secs)
-                        )
-                          details.push(
-                            `${mins ? mins + "m " : ""}${secs ? secs + "s" : ""}`.trim(),
-                          );
-                        if (trackingArray.includes("Calories") && cals)
-                          details.push(`${cals} cals`);
-                        if (trackingArray.includes("Weight & Reps") && reps)
-                          details.push(`${reps} reps`);
-                        if (trackingArray.includes("Reps Only") && reps)
-                          details.push(`${reps} reps`);
-                        if (details.length === 0 && reps)
-                          details.push(`${reps} reps`);
-                        const detailStr = details.join(", ");
-
-                        return (
-                          <div
-                            key={exIdx}
-                            className="flex justify-between items-center"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 bg-muted rounded-md flex items-center justify-center shrink-0">
-                                <Dumbbell className="h-5 w-5 text-muted-foreground/50" />
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="font-bold text-sm leading-tight">
-                                  {libEx ? libEx.name : ex.name || "Unknown"}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {setsCount} sets{" "}
-                                  {detailStr ? `× ${detailStr}` : ""}
-                                </span>
-                              </div>
-                            </div>
-                            {ex.linkedToNext && (
-                              <span className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary px-2 py-0.5 rounded-sm">
-                                Superset
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              ));
-            })()}
-          </div>
+          <WorkoutOverviewSections
+            exercises={quickOverviewWorkout.workout.exercises}
+            exerciseLibrary={exerciseLibrary}
+          />
         </div>
       )}
 
@@ -2768,7 +2404,7 @@ const Workouts = () => {
                             <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                               {currentBlock.section
                                 ? currentBlock.section.name
-                                : `Block ${currentBlockIndex + 1} of ${blocks.length}`}
+                                : `Block ${visibleBlockPosition(blocks, pickOneChoices, currentBlockIndex)} of ${visibleBlockCount(blocks, pickOneChoices)}`}
                             </span>
                             <span className="text-sm font-bold">
                               {currentBlock.type === "superset"
@@ -2810,6 +2446,115 @@ const Workouts = () => {
                               : "space-y-4"
                           }
                         >
+                          {(() => {
+                            const options = pickOneOptionsForBlock(
+                              blocks,
+                              currentBlockIndex,
+                            );
+                            if (!options) return null;
+                            const sectionId = currentBlock.section.id;
+                            const chosen = pickOneChoices[sectionId];
+                            const chosenBlockIdx =
+                              chosen != null && chosen < options.length
+                                ? options[chosen].blockIndex
+                                : null;
+                            return (
+                              <div className="space-y-3 mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[11px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-2 py-1 rounded-full">
+                                    Pick one
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    Choose one option to finish
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {options.map((opt, oi) => {
+                                    const isChosen =
+                                      chosenBlockIdx === opt.blockIndex;
+                                    const firstLib = exerciseLibrary.find(
+                                      (e) =>
+                                        String(e.id) ===
+                                        String(opt.exercises[0]?.name),
+                                    );
+                                    const label = firstLib
+                                      ? firstLib.name
+                                      : opt.label;
+                                    return (
+                                      <button
+                                        key={opt.blockIndex}
+                                        onClick={() =>
+                                          setPickOneChoices((prev) => ({
+                                            ...prev,
+                                            [sectionId]: oi,
+                                          }))
+                                        }
+                                        className={`text-left p-3 rounded-xl border-2 transition-all ${
+                                          isChosen
+                                            ? "border-primary bg-primary/10"
+                                            : "border-border bg-card hover:border-primary/40"
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span
+                                            className={`h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                              isChosen
+                                                ? "border-primary bg-primary text-primary-foreground"
+                                                : "border-muted-foreground/40"
+                                            }`}
+                                          >
+                                            {isChosen && (
+                                              <Check className="h-3 w-3" />
+                                            )}
+                                          </span>
+                                          <span className="font-bold text-sm uppercase tracking-wide leading-tight">
+                                            {label}
+                                          </span>
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground mt-1.5 leading-snug">
+                                          {opt.exercises
+                                            .map((e: any) => {
+                                              const le = exerciseLibrary.find(
+                                                (x) =>
+                                                  String(x.id) ===
+                                                  String(e.name),
+                                              );
+                                              return le ? le.name : e.name;
+                                            })
+                                            .join(" + ")}
+                                        </p>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                {chosenBlockIdx !== currentBlockIndex &&
+                                  chosenBlockIdx != null && (
+                                    <button
+                                      onClick={() =>
+                                        setCurrentBlockIndex(chosenBlockIdx)
+                                      }
+                                      className="text-xs text-primary font-bold underline-offset-2 underline"
+                                    >
+                                      Switch to chosen option →
+                                    </button>
+                                  )}
+                                {chosenBlockIdx === currentBlockIndex &&
+                                  options.length > 1 && (
+                                    <button
+                                      onClick={() =>
+                                        setPickOneChoices((prev) => ({
+                                          ...prev,
+                                          [sectionId]: null,
+                                        }))
+                                      }
+                                      className="text-xs text-muted-foreground font-bold underline-offset-2 underline hover:text-foreground"
+                                    >
+                                      ← Switch option
+                                    </button>
+                                  )}
+                              </div>
+                            );
+                          })()}
                           {currentBlock.type === "superset" && (
                             <span className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                               Superset
@@ -2843,388 +2588,349 @@ const Workouts = () => {
                             }
                             return null;
                           })()}
-                          {currentBlock.exercises.map(
-                            (exercise: any, exIdx: number) => {
-                              const libraryExercise = exerciseLibrary.find(
-                                (e) => String(e.id) === String(exercise.name),
-                              );
-                              const cols = columnsFor(
-                                exercise,
-                                exerciseLibrary,
-                              );
+                          {(() => {
+                            const options = pickOneOptionsForBlock(
+                              blocks,
+                              currentBlockIndex,
+                            );
+                            // Not a pickOne section → render normally.
+                            if (!options) return "render";
+                            const sectionId = currentBlock.section.id;
+                            const chosen = pickOneChoices[sectionId];
+                            const chosenBlockIdx =
+                              chosen != null && chosen < options.length
+                                ? options[chosen].blockIndex
+                                : null;
+                            // No choice yet → prompt only (don't render sets).
+                            if (chosenBlockIdx == null) return null;
+                            // Only render the chosen option's block.
+                            return chosenBlockIdx === currentBlockIndex
+                              ? "render"
+                              : null;
+                          })() === "render" &&
+                            currentBlock.exercises.map(
+                              (exercise: any, exIdx: number) => {
+                                const libraryExercise = exerciseLibrary.find(
+                                  (e) => String(e.id) === String(exercise.name),
+                                );
+                                const cols = columnsFor(
+                                  exercise,
+                                  exerciseLibrary,
+                                );
 
-                              return (
-                                <div
-                                  key={exercise.id}
-                                  className="bg-card border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-3"
-                                >
-                                  <div className="space-y-2 w-full">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <span className="font-heading text-2xl tracking-wide leading-none uppercase">
-                                          {libraryExercise
-                                            ? libraryExercise.name
-                                            : exercise.name ||
-                                              "Select Exercise"}
-                                        </span>
-                                        {exercise.blockType && (
-                                          <span className="text-[10px] uppercase bg-primary/20 text-primary px-2 py-0.5 rounded-full font-bold">
-                                            {exercise.blockType}
+                                return (
+                                  <div
+                                    key={exercise.id}
+                                    className="bg-card border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-3"
+                                  >
+                                    <div className="space-y-2 w-full">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className="font-heading text-2xl tracking-wide leading-none uppercase">
+                                            {libraryExercise
+                                              ? libraryExercise.name
+                                              : exercise.name ||
+                                                "Select Exercise"}
                                           </span>
-                                        )}
-                                        {exercise.eachSide && (
-                                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                                            Each Side
-                                          </span>
+                                          {exercise.blockType && (
+                                            <span className="text-[10px] uppercase bg-primary/20 text-primary px-2 py-0.5 rounded-full font-bold">
+                                              {exercise.blockType}
+                                            </span>
+                                          )}
+                                          {exercise.eachSide && (
+                                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                              Each Side
+                                            </span>
+                                          )}
+                                        </div>
+                                        {libraryExercise?.videoUrl && (
+                                          <Dialog>
+                                            <DialogTrigger asChild>
+                                              <button
+                                                aria-label="Watch video"
+                                                className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-primary/40 text-primary shrink-0"
+                                              >
+                                                <PlayCircle className="h-4 w-4" />
+                                              </button>
+                                            </DialogTrigger>
+                                            <DialogContent className="sm:max-w-[600px] bg-card border-border">
+                                              <DialogHeader>
+                                                <DialogTitle className="font-heading tracking-wider">
+                                                  {libraryExercise.name}{" "}
+                                                  Tutorial
+                                                </DialogTitle>
+                                              </DialogHeader>
+                                              <div className="aspect-video mt-4 rounded-md overflow-hidden bg-muted">
+                                                <iframe
+                                                  src={getEmbedUrl(
+                                                    libraryExercise.videoUrl,
+                                                  )}
+                                                  className="w-full h-full"
+                                                  allow="autoplay; fullscreen; picture-in-picture"
+                                                  allowFullScreen
+                                                ></iframe>
+                                              </div>
+                                            </DialogContent>
+                                          </Dialog>
                                         )}
                                       </div>
-                                      {libraryExercise?.videoUrl && (
-                                        <Dialog>
-                                          <DialogTrigger asChild>
-                                            <button
-                                              aria-label="Watch video"
-                                              className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-primary/40 text-primary shrink-0"
-                                            >
-                                              <PlayCircle className="h-4 w-4" />
-                                            </button>
-                                          </DialogTrigger>
-                                          <DialogContent className="sm:max-w-[600px] bg-card border-border">
-                                            <DialogHeader>
-                                              <DialogTitle className="font-heading tracking-wider">
-                                                {libraryExercise.name} Tutorial
-                                              </DialogTitle>
-                                            </DialogHeader>
-                                            <div className="aspect-video mt-4 rounded-md overflow-hidden bg-muted">
-                                              <iframe
-                                                src={getEmbedUrl(
-                                                  libraryExercise.videoUrl,
-                                                )}
-                                                className="w-full h-full"
-                                                allow="autoplay; fullscreen; picture-in-picture"
-                                                allowFullScreen
-                                              ></iframe>
-                                            </div>
-                                          </DialogContent>
-                                        </Dialog>
-                                      )}
-                                    </div>
 
-                                    <div className="flex flex-wrap items-center gap-2 mt-2 mb-3">
-                                      {libraryExercise && (
-                                        <Dialog
-                                          onOpenChange={(open) => {
-                                            if (!open) setAltSearch("");
-                                          }}
-                                        >
-                                          <DialogTrigger asChild>
-                                            <button className="inline-flex items-center gap-1 h-8 px-2.5 rounded-full border border-border text-xs font-bold shrink-0">
-                                              <RefreshCw className="h-3.5 w-3.5" />{" "}
-                                              Swap
-                                            </button>
-                                          </DialogTrigger>
-                                          <DialogContent className="sm:max-w-[400px] bg-card border-border max-h-[80vh] overflow-y-auto">
-                                            <DialogHeader>
-                                              <DialogTitle className="font-heading tracking-wider">
-                                                Alternative Exercises
-                                              </DialogTitle>
-                                            </DialogHeader>
-                                            {(() => {
-                                              const REASONS: [
-                                                string,
-                                                string,
-                                              ][] = [
-                                                ["alt_regress", "Easier"],
-                                                ["alt_progress", "Harder"],
-                                                [
-                                                  "alt_joint_friendly",
-                                                  "Joint-friendly",
-                                                ],
-                                                [
-                                                  "alt_equipment",
-                                                  "Different kit",
-                                                ],
-                                                ["alt_home", "At home"],
-                                                ["alt_same_pattern", "Similar"],
-                                              ];
-                                              const byName: Record<
-                                                string,
-                                                any
-                                              > = {};
-                                              exerciseLibrary.forEach((e) => {
-                                                byName[
-                                                  String(e.name)
-                                                    .toLowerCase()
-                                                    .trim()
-                                                ] = e;
-                                              });
-                                              const resolveAlts = (
-                                                cell: string,
-                                              ) =>
-                                                String(cell || "")
-                                                  .split(/[,/]| or /i)
-                                                  .map((s) => s.trim())
-                                                  .filter(Boolean)
-                                                  .map(
-                                                    (tok) =>
-                                                      byName[tok.toLowerCase()],
-                                                  )
-                                                  .filter(Boolean);
-                                              const STRENGTH_BLOCKLIST = [
-                                                /back squat/i,
-                                                /front squat/i,
-                                                /deadlift/i,
-                                                /bench press/i,
-                                                /overhead press/i,
-                                                /push press/i,
-                                                /clean|snatch|jerk/i,
-                                                /nordic/i,
-                                                /ghd/i,
-                                                /pull ?up|chin ?up|muscle ?up/i,
-                                                /pistol/i,
-                                                /renegade/i,
-                                                /box jump/i,
-                                                /get ?up/i,
-                                                /sled/i,
-                                              ];
-                                              const beginnerSafe = (ex: any) =>
-                                                String(
-                                                  ex.difficulty || "",
-                                                ).toLowerCase() ===
-                                                  "beginner" &&
-                                                !STRENGTH_BLOCKLIST.some((rx) =>
-                                                  rx.test(ex.name),
-                                                );
-                                              const isFoundations =
-                                                activeProgram?.stream ===
-                                                "Foundations";
-                                              const row =
-                                                enrichment[
-                                                  String(libraryExercise.id)
+                                      <div className="flex flex-wrap items-center gap-2 mt-2 mb-3">
+                                        {libraryExercise && (
+                                          <Dialog
+                                            onOpenChange={(open) => {
+                                              if (!open) setAltSearch("");
+                                            }}
+                                          >
+                                            <DialogTrigger asChild>
+                                              <button className="inline-flex items-center gap-1 h-8 px-2.5 rounded-full border border-border text-xs font-bold shrink-0">
+                                                <RefreshCw className="h-3.5 w-3.5" />{" "}
+                                                Swap
+                                              </button>
+                                            </DialogTrigger>
+                                            <DialogContent className="sm:max-w-[400px] bg-card border-border max-h-[80vh] overflow-y-auto">
+                                              <DialogHeader>
+                                                <DialogTitle className="font-heading tracking-wider">
+                                                  Alternative Exercises
+                                                </DialogTitle>
+                                              </DialogHeader>
+                                              {(() => {
+                                                const REASONS: [
+                                                  string,
+                                                  string,
+                                                ][] = [
+                                                  ["alt_regress", "Easier"],
+                                                  ["alt_progress", "Harder"],
+                                                  [
+                                                    "alt_joint_friendly",
+                                                    "Joint-friendly",
+                                                  ],
+                                                  [
+                                                    "alt_equipment",
+                                                    "Different kit",
+                                                  ],
+                                                  ["alt_home", "At home"],
+                                                  [
+                                                    "alt_same_pattern",
+                                                    "Similar",
+                                                  ],
                                                 ];
-                                              const seen = new Set<string>([
-                                                String(libraryExercise.id),
-                                              ]);
-                                              let suggestions = row
-                                                ? REASONS.flatMap(
-                                                    ([col, label]) =>
-                                                      resolveAlts(row[col]).map(
-                                                        (ex) => ({ ex, label }),
-                                                      ),
-                                                  ).filter(
-                                                    (s) =>
-                                                      !seen.has(
-                                                        String(s.ex.id),
-                                                      ) &&
-                                                      seen.add(String(s.ex.id)),
-                                                  )
-                                                : [];
-                                              if (isFoundations) {
-                                                suggestions =
-                                                  suggestions.filter(
-                                                    (s) =>
-                                                      s.label !== "Harder" &&
-                                                      beginnerSafe(s.ex),
+                                                const byName: Record<
+                                                  string,
+                                                  any
+                                                > = {};
+                                                exerciseLibrary.forEach((e) => {
+                                                  byName[
+                                                    String(e.name)
+                                                      .toLowerCase()
+                                                      .trim()
+                                                  ] = e;
+                                                });
+                                                const resolveAlts = (
+                                                  cell: string,
+                                                ) =>
+                                                  String(cell || "")
+                                                    .split(/[,/]| or /i)
+                                                    .map((s) => s.trim())
+                                                    .filter(Boolean)
+                                                    .map(
+                                                      (tok) =>
+                                                        byName[
+                                                          tok.toLowerCase()
+                                                        ],
+                                                    )
+                                                    .filter(Boolean);
+                                                const STRENGTH_BLOCKLIST = [
+                                                  /back squat/i,
+                                                  /front squat/i,
+                                                  /deadlift/i,
+                                                  /bench press/i,
+                                                  /overhead press/i,
+                                                  /push press/i,
+                                                  /clean|snatch|jerk/i,
+                                                  /nordic/i,
+                                                  /ghd/i,
+                                                  /pull ?up|chin ?up|muscle ?up/i,
+                                                  /pistol/i,
+                                                  /renegade/i,
+                                                  /box jump/i,
+                                                  /get ?up/i,
+                                                  /sled/i,
+                                                ];
+                                                const beginnerSafe = (
+                                                  ex: any,
+                                                ) =>
+                                                  String(
+                                                    ex.difficulty || "",
+                                                  ).toLowerCase() ===
+                                                    "beginner" &&
+                                                  !STRENGTH_BLOCKLIST.some(
+                                                    (rx) => rx.test(ex.name),
                                                   );
-                                              }
-                                              // Fallback heuristic if no enrichment suggestions
-                                              if (suggestions.length === 0) {
-                                                const norm = (v: any) =>
-                                                  Array.isArray(v)
-                                                    ? v
-                                                        .map((s: any) =>
-                                                          String(s).trim(),
-                                                        )
-                                                        .filter(Boolean)
-                                                    : String(v || "")
-                                                        .split(",")
-                                                        .map((s: string) =>
-                                                          s.trim(),
-                                                        )
-                                                        .filter(Boolean);
-                                                const origCat = norm(
-                                                  libraryExercise.category,
-                                                );
-                                                const origMv = norm(
-                                                  libraryExercise.movementType,
-                                                );
-                                                const origTt = norm(
-                                                  libraryExercise.trackingType,
-                                                ).join();
-                                                const heur = exerciseLibrary
-                                                  .filter((ex) => {
-                                                    if (
-                                                      String(ex.id) ===
-                                                      String(libraryExercise.id)
+                                                const isFoundations =
+                                                  activeProgram?.stream ===
+                                                  "Foundations";
+                                                const row =
+                                                  enrichment[
+                                                    String(libraryExercise.id)
+                                                  ];
+                                                const seen = new Set<string>([
+                                                  String(libraryExercise.id),
+                                                ]);
+                                                let suggestions = row
+                                                  ? REASONS.flatMap(
+                                                      ([col, label]) =>
+                                                        resolveAlts(
+                                                          row[col],
+                                                        ).map((ex) => ({
+                                                          ex,
+                                                          label,
+                                                        })),
+                                                    ).filter(
+                                                      (s) =>
+                                                        !seen.has(
+                                                          String(s.ex.id),
+                                                        ) &&
+                                                        seen.add(
+                                                          String(s.ex.id),
+                                                        ),
                                                     )
-                                                      return false;
-                                                    if (
-                                                      isFoundations &&
-                                                      !beginnerSafe(ex)
-                                                    )
-                                                      return false;
-                                                    if (
-                                                      origCat.length &&
-                                                      !norm(ex.category).some(
-                                                        (c: string) =>
-                                                          origCat.includes(c),
-                                                      )
-                                                    )
-                                                      return false;
-                                                    return true;
-                                                  })
-                                                  .map((ex) => {
-                                                    let s = 0;
-                                                    if (
-                                                      (ex.muscle || "") ===
-                                                      (libraryExercise.muscle ||
-                                                        "")
-                                                    )
-                                                      s += 3;
-                                                    if (
-                                                      norm(
-                                                        ex.movementType,
-                                                      ).some((m: string) =>
-                                                        origMv.includes(m),
-                                                      )
-                                                    )
-                                                      s += 3;
-                                                    if (
-                                                      norm(
-                                                        ex.trackingType,
-                                                      ).join() === origTt
-                                                    )
-                                                      s += 2;
-                                                    if (
-                                                      (ex.difficulty || "") ===
-                                                      (libraryExercise.difficulty ||
-                                                        "")
-                                                    )
-                                                      s += 1;
-                                                    if (
-                                                      (ex.equipment || "") ===
-                                                      (libraryExercise.equipment ||
-                                                        "")
-                                                    )
-                                                      s += 1;
-                                                    return { ex, s };
-                                                  })
-                                                  .filter((x) => x.s > 0)
-                                                  .sort((a, b) => b.s - a.s)
-                                                  .slice(0, 8)
-                                                  .map((x) => ({
-                                                    ex: x.ex,
-                                                    label: "Similar",
-                                                  }));
-                                                suggestions = heur;
-                                              }
-                                              return (
-                                                <>
-                                                  <div className="mt-4 space-y-2">
-                                                    {suggestions.length ===
-                                                      0 && (
-                                                      <p className="text-sm text-muted-foreground text-center py-4">
-                                                        No close alternatives
-                                                        found.
-                                                      </p>
-                                                    )}
-                                                    {suggestions.map(
-                                                      ({ ex: alt, label }) => (
-                                                        <div
-                                                          key={alt.id}
-                                                          className="flex items-center justify-between p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors"
-                                                        >
-                                                          <div className="flex flex-col gap-1">
-                                                            <div className="flex items-center gap-2">
-                                                              <span className="font-bold text-sm">
-                                                                {alt.name}
-                                                              </span>
-                                                              <span className="bg-primary/15 text-primary px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                                                                {label}
-                                                              </span>
-                                                            </div>
-                                                            <span className="text-xs text-muted-foreground">
-                                                              {alt.equipment ||
-                                                                "Any equipment"}
-                                                              {alt.difficulty
-                                                                ? ` · ${alt.difficulty}`
-                                                                : ""}
-                                                            </span>
-                                                          </div>
-                                                          <Button
-                                                            size="sm"
-                                                            variant="secondary"
-                                                            onClick={() => {
-                                                              updateExercise(
-                                                                exercise.id,
-                                                                "name",
-                                                                alt.id,
-                                                              );
-                                                              document.dispatchEvent(
-                                                                new KeyboardEvent(
-                                                                  "keydown",
-                                                                  {
-                                                                    key: "Escape",
-                                                                  },
-                                                                ),
-                                                              );
-                                                            }}
-                                                          >
-                                                            Select
-                                                          </Button>
-                                                        </div>
-                                                      ),
-                                                    )}
-                                                  </div>
-                                                  <div className="pt-4 mt-2 border-t border-border">
-                                                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
-                                                      Or search all exercises
-                                                    </p>
-                                                    <div className="relative">
-                                                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                                      <Input
-                                                        value={altSearch}
-                                                        onChange={(e) =>
-                                                          setAltSearch(
-                                                            e.target.value,
+                                                  : [];
+                                                if (isFoundations) {
+                                                  suggestions =
+                                                    suggestions.filter(
+                                                      (s) =>
+                                                        s.label !== "Harder" &&
+                                                        beginnerSafe(s.ex),
+                                                    );
+                                                }
+                                                // Fallback heuristic if no enrichment suggestions
+                                                if (suggestions.length === 0) {
+                                                  const norm = (v: any) =>
+                                                    Array.isArray(v)
+                                                      ? v
+                                                          .map((s: any) =>
+                                                            String(s).trim(),
                                                           )
-                                                        }
-                                                        placeholder="Search exercises…"
-                                                        className="pl-9"
-                                                      />
-                                                    </div>
-                                                    <div className="mt-2 max-h-[40vh] overflow-y-auto space-y-1">
-                                                      {exerciseLibrary
-                                                        .filter(
-                                                          (e) =>
-                                                            String(e.id) !==
-                                                            String(
-                                                              libraryExercise.id,
-                                                            ),
+                                                          .filter(Boolean)
+                                                      : String(v || "")
+                                                          .split(",")
+                                                          .map((s: string) =>
+                                                            s.trim(),
+                                                          )
+                                                          .filter(Boolean);
+                                                  const origCat = norm(
+                                                    libraryExercise.category,
+                                                  );
+                                                  const origMv = norm(
+                                                    libraryExercise.movementType,
+                                                  );
+                                                  const origTt = norm(
+                                                    libraryExercise.trackingType,
+                                                  ).join();
+                                                  const heur = exerciseLibrary
+                                                    .filter((ex) => {
+                                                      if (
+                                                        String(ex.id) ===
+                                                        String(
+                                                          libraryExercise.id,
                                                         )
-                                                        .filter(
-                                                          (e) =>
-                                                            !altSearch ||
-                                                            e.name
-                                                              .toLowerCase()
-                                                              .includes(
-                                                                altSearch.toLowerCase(),
-                                                              ),
+                                                      )
+                                                        return false;
+                                                      if (
+                                                        isFoundations &&
+                                                        !beginnerSafe(ex)
+                                                      )
+                                                        return false;
+                                                      if (
+                                                        origCat.length &&
+                                                        !norm(ex.category).some(
+                                                          (c: string) =>
+                                                            origCat.includes(c),
                                                         )
-                                                        .slice(0, 40)
-                                                        .map((e) => (
+                                                      )
+                                                        return false;
+                                                      return true;
+                                                    })
+                                                    .map((ex) => {
+                                                      let s = 0;
+                                                      if (
+                                                        (ex.muscle || "") ===
+                                                        (libraryExercise.muscle ||
+                                                          "")
+                                                      )
+                                                        s += 3;
+                                                      if (
+                                                        norm(
+                                                          ex.movementType,
+                                                        ).some((m: string) =>
+                                                          origMv.includes(m),
+                                                        )
+                                                      )
+                                                        s += 3;
+                                                      if (
+                                                        norm(
+                                                          ex.trackingType,
+                                                        ).join() === origTt
+                                                      )
+                                                        s += 2;
+                                                      if (
+                                                        (ex.difficulty ||
+                                                          "") ===
+                                                        (libraryExercise.difficulty ||
+                                                          "")
+                                                      )
+                                                        s += 1;
+                                                      if (
+                                                        (ex.equipment || "") ===
+                                                        (libraryExercise.equipment ||
+                                                          "")
+                                                      )
+                                                        s += 1;
+                                                      return { ex, s };
+                                                    })
+                                                    .filter((x) => x.s > 0)
+                                                    .sort((a, b) => b.s - a.s)
+                                                    .slice(0, 8)
+                                                    .map((x) => ({
+                                                      ex: x.ex,
+                                                      label: "Similar",
+                                                    }));
+                                                  suggestions = heur;
+                                                }
+                                                return (
+                                                  <>
+                                                    <div className="mt-4 space-y-2">
+                                                      {suggestions.length ===
+                                                        0 && (
+                                                        <p className="text-sm text-muted-foreground text-center py-4">
+                                                          No close alternatives
+                                                          found.
+                                                        </p>
+                                                      )}
+                                                      {suggestions.map(
+                                                        ({
+                                                          ex: alt,
+                                                          label,
+                                                        }) => (
                                                           <div
-                                                            key={e.id}
-                                                            className="flex items-center justify-between p-2 border border-border rounded-lg hover:bg-muted/50"
+                                                            key={alt.id}
+                                                            className="flex items-center justify-between p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors"
                                                           >
-                                                            <div className="flex flex-col">
-                                                              <span className="font-bold text-sm">
-                                                                {e.name}
-                                                              </span>
+                                                            <div className="flex flex-col gap-1">
+                                                              <div className="flex items-center gap-2">
+                                                                <span className="font-bold text-sm">
+                                                                  {alt.name}
+                                                                </span>
+                                                                <span className="bg-primary/15 text-primary px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                                                                  {label}
+                                                                </span>
+                                                              </div>
                                                               <span className="text-xs text-muted-foreground">
-                                                                {e.equipment ||
+                                                                {alt.equipment ||
                                                                   "Any equipment"}
-                                                                {e.difficulty
-                                                                  ? ` · ${e.difficulty}`
+                                                                {alt.difficulty
+                                                                  ? ` · ${alt.difficulty}`
                                                                   : ""}
                                                               </span>
                                                             </div>
@@ -3235,7 +2941,7 @@ const Workouts = () => {
                                                                 updateExercise(
                                                                   exercise.id,
                                                                   "name",
-                                                                  e.id,
+                                                                  alt.id,
                                                                 );
                                                                 document.dispatchEvent(
                                                                   new KeyboardEvent(
@@ -3250,27 +2956,107 @@ const Workouts = () => {
                                                               Select
                                                             </Button>
                                                           </div>
-                                                        ))}
+                                                        ),
+                                                      )}
                                                     </div>
-                                                  </div>
-                                                </>
-                                              );
-                                            })()}
-                                          </DialogContent>
-                                        </Dialog>
-                                      )}
-                                      {libraryExercise &&
-                                        (() => {
-                                          const TRACKING_TYPES = [
-                                            "Weight & Reps",
-                                            "Reps Only",
-                                            "Time Only",
-                                            "Distance & Time",
-                                            "Weight & Distance",
-                                            "Calories",
-                                          ];
-                                          const SHORT: Record<string, string> =
-                                            {
+                                                    <div className="pt-4 mt-2 border-t border-border">
+                                                      <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                                                        Or search all exercises
+                                                      </p>
+                                                      <div className="relative">
+                                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                        <Input
+                                                          value={altSearch}
+                                                          onChange={(e) =>
+                                                            setAltSearch(
+                                                              e.target.value,
+                                                            )
+                                                          }
+                                                          placeholder="Search exercises…"
+                                                          className="pl-9"
+                                                        />
+                                                      </div>
+                                                      <div className="mt-2 max-h-[40vh] overflow-y-auto space-y-1">
+                                                        {exerciseLibrary
+                                                          .filter(
+                                                            (e) =>
+                                                              String(e.id) !==
+                                                              String(
+                                                                libraryExercise.id,
+                                                              ),
+                                                          )
+                                                          .filter(
+                                                            (e) =>
+                                                              !altSearch ||
+                                                              e.name
+                                                                .toLowerCase()
+                                                                .includes(
+                                                                  altSearch.toLowerCase(),
+                                                                ),
+                                                          )
+                                                          .slice(0, 40)
+                                                          .map((e) => (
+                                                            <div
+                                                              key={e.id}
+                                                              className="flex items-center justify-between p-2 border border-border rounded-lg hover:bg-muted/50"
+                                                            >
+                                                              <div className="flex flex-col">
+                                                                <span className="font-bold text-sm">
+                                                                  {e.name}
+                                                                </span>
+                                                                <span className="text-xs text-muted-foreground">
+                                                                  {e.equipment ||
+                                                                    "Any equipment"}
+                                                                  {e.difficulty
+                                                                    ? ` · ${e.difficulty}`
+                                                                    : ""}
+                                                                </span>
+                                                              </div>
+                                                              <Button
+                                                                size="sm"
+                                                                variant="secondary"
+                                                                onClick={() => {
+                                                                  updateExercise(
+                                                                    exercise.id,
+                                                                    "name",
+                                                                    e.id,
+                                                                  );
+                                                                  document.dispatchEvent(
+                                                                    new KeyboardEvent(
+                                                                      "keydown",
+                                                                      {
+                                                                        key: "Escape",
+                                                                      },
+                                                                    ),
+                                                                  );
+                                                                }}
+                                                              >
+                                                                Select
+                                                              </Button>
+                                                            </div>
+                                                          ))}
+                                                      </div>
+                                                    </div>
+                                                  </>
+                                                );
+                                              })()}
+                                            </DialogContent>
+                                          </Dialog>
+                                        )}
+                                        {libraryExercise &&
+                                          (() => {
+                                            const TRACKING_TYPES = [
+                                              "Weight & Reps",
+                                              "Reps Only",
+                                              "Time Only",
+                                              "Distance & Time",
+                                              "Weight & Distance",
+                                              "Calories",
+                                            ];
+                                            const SHORT: Record<
+                                              string,
+                                              string
+                                            > = {
                                               "Weight & Reps": "W×R",
                                               "Reps Only": "Reps",
                                               "Time Only": "Time",
@@ -3278,250 +3064,254 @@ const Workouts = () => {
                                               "Weight & Distance": "W×D",
                                               Calories: "Cals",
                                             };
-                                          const currentTracking = trackingOf(
-                                            exercise,
-                                            exerciseLibrary,
-                                          ).join(", ");
-                                          return (
-                                            <DropdownMenu>
-                                              <DropdownMenuTrigger asChild>
-                                                <button className="inline-flex items-center gap-1 h-8 px-2.5 rounded-full border border-border text-xs font-bold shrink-0">
-                                                  <SlidersHorizontal className="h-3.5 w-3.5" />{" "}
-                                                  {SHORT[currentTracking] ??
-                                                    currentTracking}
-                                                </button>
-                                              </DropdownMenuTrigger>
-                                              <DropdownMenuContent align="start">
-                                                {TRACKING_TYPES.map((tt) => (
+                                            const currentTracking = trackingOf(
+                                              exercise,
+                                              exerciseLibrary,
+                                            ).join(", ");
+                                            return (
+                                              <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                  <button className="inline-flex items-center gap-1 h-8 px-2.5 rounded-full border border-border text-xs font-bold shrink-0">
+                                                    <SlidersHorizontal className="h-3.5 w-3.5" />{" "}
+                                                    {SHORT[currentTracking] ??
+                                                      currentTracking}
+                                                  </button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="start">
+                                                  {TRACKING_TYPES.map((tt) => (
+                                                    <DropdownMenuItem
+                                                      key={tt}
+                                                      onClick={() =>
+                                                        updateExercise(
+                                                          exercise.id,
+                                                          "trackingType",
+                                                          [tt],
+                                                        )
+                                                      }
+                                                    >
+                                                      {tt}
+                                                      {currentTracking ===
+                                                        tt && (
+                                                        <Check className="h-3 w-3 ml-auto" />
+                                                      )}
+                                                    </DropdownMenuItem>
+                                                  ))}
                                                   <DropdownMenuItem
-                                                    key={tt}
                                                     onClick={() =>
                                                       updateExercise(
                                                         exercise.id,
                                                         "trackingType",
-                                                        [tt],
+                                                        undefined,
                                                       )
                                                     }
                                                   >
-                                                    {tt}
-                                                    {currentTracking === tt && (
-                                                      <Check className="h-3 w-3 ml-auto" />
-                                                    )}
+                                                    Reset to default
                                                   </DropdownMenuItem>
-                                                ))}
-                                                <DropdownMenuItem
-                                                  onClick={() =>
-                                                    updateExercise(
-                                                      exercise.id,
-                                                      "trackingType",
-                                                      undefined,
-                                                    )
-                                                  }
-                                                >
-                                                  Reset to default
-                                                </DropdownMenuItem>
-                                              </DropdownMenuContent>
-                                            </DropdownMenu>
-                                          );
-                                        })()}
-                                      {exercise.name && (
-                                        <button
-                                          className="inline-flex items-center gap-1 h-8 px-2.5 rounded-full border border-border text-xs font-bold shrink-0"
-                                          onClick={() =>
-                                            setPastLiftsModal({
-                                              name: exercise.name,
-                                            })
-                                          }
-                                        >
-                                          <History className="h-3.5 w-3.5" />{" "}
-                                          Past Lifts
-                                        </button>
+                                                </DropdownMenuContent>
+                                              </DropdownMenu>
+                                            );
+                                          })()}
+                                        {exercise.name && (
+                                          <button
+                                            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-full border border-border text-xs font-bold shrink-0"
+                                            onClick={() =>
+                                              setPastLiftsModal({
+                                                name: exercise.name,
+                                              })
+                                            }
+                                          >
+                                            <History className="h-3.5 w-3.5" />{" "}
+                                            Past Lifts
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      {exercise.coachingNotes && (
+                                        <div className="text-sm text-muted-foreground italic border-l-2 border-primary/50 pl-2 py-0.5">
+                                          {exercise.coachingNotes}
+                                        </div>
                                       )}
                                     </div>
 
-                                    {exercise.coachingNotes && (
-                                      <div className="text-sm text-muted-foreground italic border-l-2 border-primary/50 pl-2 py-0.5">
-                                        {exercise.coachingNotes}
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  <div className="w-full">
-                                    <div
-                                      className="grid items-center gap-y-2 gap-x-1"
-                                      style={{
-                                        gridTemplateColumns: `24px repeat(${cols.length}, minmax(0,1fr)) 32px`,
-                                      }}
-                                    >
-                                      <div className="text-center font-bold text-[10px] text-muted-foreground uppercase tracking-wider">
-                                        Set
-                                      </div>
-                                      {cols.map((c: any, i: number) => (
-                                        <div
-                                          key={i}
-                                          className="text-center font-bold text-[10px] text-muted-foreground uppercase tracking-wider"
-                                        >
-                                          {c.label}
+                                    <div className="w-full">
+                                      <div
+                                        className="grid items-center gap-y-2 gap-x-1"
+                                        style={{
+                                          gridTemplateColumns: `24px repeat(${cols.length}, minmax(0,1fr)) 32px`,
+                                        }}
+                                      >
+                                        <div className="text-center font-bold text-[10px] text-muted-foreground uppercase tracking-wider">
+                                          Set
                                         </div>
-                                      ))}
-                                      <div className="flex justify-center">
-                                        <Check className="h-3 w-3 text-muted-foreground" />
-                                      </div>
+                                        {cols.map((c: any, i: number) => (
+                                          <div
+                                            key={i}
+                                            className="text-center font-bold text-[10px] text-muted-foreground uppercase tracking-wider"
+                                          >
+                                            {c.label}
+                                          </div>
+                                        ))}
+                                        <div className="flex justify-center">
+                                          <Check className="h-3 w-3 text-muted-foreground" />
+                                        </div>
 
-                                      {exercise.setsData?.map(
-                                        (set: any, setIndex: number) => (
-                                          <React.Fragment key={set.id}>
-                                            <span className="text-center font-bold text-sm text-muted-foreground">
-                                              {setIndex + 1}
-                                            </span>
-                                            {cols.map((c: any, i: number) => (
-                                              <div
-                                                key={i}
-                                                className="flex justify-center w-full"
-                                              >
-                                                {c.isTime ? (
-                                                  <TimeStepper
-                                                    mins={set.timeMins}
-                                                    secs={set.timeSecs}
-                                                    onChangeMins={(
-                                                      v: number,
-                                                    ) => {
-                                                      const newSets = [
-                                                        ...exercise.setsData,
-                                                      ];
-                                                      newSets[setIndex] = {
-                                                        ...set,
-                                                        timeMins: v,
-                                                      };
-                                                      updateExercise(
-                                                        exercise.id,
-                                                        "setsData",
-                                                        newSets,
-                                                      );
-                                                    }}
-                                                    onChangeSecs={(
-                                                      v: number,
-                                                    ) => {
-                                                      const newSets = [
-                                                        ...exercise.setsData,
-                                                      ];
-                                                      newSets[setIndex] = {
-                                                        ...set,
-                                                        timeSecs: v,
-                                                      };
-                                                      updateExercise(
-                                                        exercise.id,
-                                                        "setsData",
-                                                        newSets,
-                                                      );
-                                                    }}
-                                                    completed={set.completed}
-                                                  />
-                                                ) : (
-                                                  <Stepper
-                                                    value={set[c.field]}
-                                                    step={c.step}
-                                                    isDecimal={c.decimal}
-                                                    onChange={(v: number) => {
-                                                      const newSets = [
-                                                        ...exercise.setsData,
-                                                      ];
-                                                      newSets[setIndex] = {
-                                                        ...set,
-                                                        [c.field]: v,
-                                                      };
-                                                      updateExercise(
-                                                        exercise.id,
-                                                        "setsData",
-                                                        newSets,
-                                                      );
-                                                    }}
-                                                    completed={set.completed}
-                                                  />
-                                                )}
-                                              </div>
-                                            ))}
-                                            <button
-                                              onClick={() => {
-                                                const newSets = [
-                                                  ...exercise.setsData,
-                                                ];
-                                                const isCompleting =
-                                                  !set.completed;
-                                                newSets[setIndex] = {
-                                                  ...set,
-                                                  completed: isCompleting,
-                                                };
-                                                updateExercise(
-                                                  exercise.id,
-                                                  "setsData",
-                                                  newSets,
-                                                );
-                                                if (isCompleting) {
-                                                  if (navigator.vibrate)
-                                                    navigator.vibrate(10);
-                                                  // No rest between superset movements — only after the last exercise in the group
-                                                  if (!exercise.linkedToNext) {
-                                                    const restTime =
-                                                      exercise.rest || 0;
-                                                    if (restTime > 0) {
-                                                      startTimer(restTime);
+                                        {exercise.setsData?.map(
+                                          (set: any, setIndex: number) => (
+                                            <React.Fragment key={set.id}>
+                                              <span className="text-center font-bold text-sm text-muted-foreground">
+                                                {setIndex + 1}
+                                              </span>
+                                              {cols.map((c: any, i: number) => (
+                                                <div
+                                                  key={i}
+                                                  className="flex justify-center w-full"
+                                                >
+                                                  {c.isTime ? (
+                                                    <TimeStepper
+                                                      mins={set.timeMins}
+                                                      secs={set.timeSecs}
+                                                      onChangeMins={(
+                                                        v: number,
+                                                      ) => {
+                                                        const newSets = [
+                                                          ...exercise.setsData,
+                                                        ];
+                                                        newSets[setIndex] = {
+                                                          ...set,
+                                                          timeMins: v,
+                                                        };
+                                                        updateExercise(
+                                                          exercise.id,
+                                                          "setsData",
+                                                          newSets,
+                                                        );
+                                                      }}
+                                                      onChangeSecs={(
+                                                        v: number,
+                                                      ) => {
+                                                        const newSets = [
+                                                          ...exercise.setsData,
+                                                        ];
+                                                        newSets[setIndex] = {
+                                                          ...set,
+                                                          timeSecs: v,
+                                                        };
+                                                        updateExercise(
+                                                          exercise.id,
+                                                          "setsData",
+                                                          newSets,
+                                                        );
+                                                      }}
+                                                      completed={set.completed}
+                                                    />
+                                                  ) : (
+                                                    <Stepper
+                                                      value={set[c.field]}
+                                                      step={c.step}
+                                                      isDecimal={c.decimal}
+                                                      onChange={(v: number) => {
+                                                        const newSets = [
+                                                          ...exercise.setsData,
+                                                        ];
+                                                        newSets[setIndex] = {
+                                                          ...set,
+                                                          [c.field]: v,
+                                                        };
+                                                        updateExercise(
+                                                          exercise.id,
+                                                          "setsData",
+                                                          newSets,
+                                                        );
+                                                      }}
+                                                      completed={set.completed}
+                                                    />
+                                                  )}
+                                                </div>
+                                              ))}
+                                              <button
+                                                onClick={() => {
+                                                  const newSets = [
+                                                    ...exercise.setsData,
+                                                  ];
+                                                  const isCompleting =
+                                                    !set.completed;
+                                                  newSets[setIndex] = {
+                                                    ...set,
+                                                    completed: isCompleting,
+                                                  };
+                                                  updateExercise(
+                                                    exercise.id,
+                                                    "setsData",
+                                                    newSets,
+                                                  );
+                                                  if (isCompleting) {
+                                                    if (navigator.vibrate)
+                                                      navigator.vibrate(10);
+                                                    // No rest between superset movements — only after the last exercise in the group
+                                                    if (
+                                                      !exercise.linkedToNext
+                                                    ) {
+                                                      const restTime =
+                                                        exercise.rest || 0;
+                                                      if (restTime > 0) {
+                                                        startTimer(restTime);
+                                                      }
                                                     }
                                                   }
-                                                }
-                                              }}
-                                              className={`justify-self-center relative h-8 w-8 rounded-full flex items-center justify-center transition-all after:absolute after:-inset-2 after:content-[''] ${set.completed ? "bg-primary text-primary-foreground" : "border-2 border-muted-foreground/30 text-transparent hover:border-primary/50"}`}
-                                            >
-                                              <Check className="h-4 w-4" />
-                                            </button>
-                                          </React.Fragment>
-                                        ),
-                                      )}
-                                    </div>
+                                                }}
+                                                className={`justify-self-center relative h-8 w-8 rounded-full flex items-center justify-center transition-all after:absolute after:-inset-2 after:content-[''] ${set.completed ? "bg-primary text-primary-foreground" : "border-2 border-muted-foreground/30 text-transparent hover:border-primary/50"}`}
+                                              >
+                                                <Check className="h-4 w-4" />
+                                              </button>
+                                            </React.Fragment>
+                                          ),
+                                        )}
+                                      </div>
 
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="w-full mt-4 text-primary font-bold tracking-wide bg-primary/5 hover:bg-primary/10"
-                                      onClick={() => {
-                                        const lastSet =
-                                          exercise.setsData?.[
-                                            exercise.setsData.length - 1
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="w-full mt-4 text-primary font-bold tracking-wide bg-primary/5 hover:bg-primary/10"
+                                        onClick={() => {
+                                          const lastSet =
+                                            exercise.setsData?.[
+                                              exercise.setsData.length - 1
+                                            ];
+                                          const newSets = [
+                                            ...(exercise.setsData || []),
+                                            {
+                                              id: Date.now().toString(),
+                                              reps: lastSet ? lastSet.reps : 10,
+                                              weight: lastSet
+                                                ? lastSet.weight
+                                                : 0,
+                                              distance: lastSet
+                                                ? lastSet.distance
+                                                : 0,
+                                              timeMins: lastSet
+                                                ? lastSet.timeMins
+                                                : 0,
+                                              timeSecs: lastSet
+                                                ? lastSet.timeSecs
+                                                : 0,
+                                              completed: false,
+                                            },
                                           ];
-                                        const newSets = [
-                                          ...(exercise.setsData || []),
-                                          {
-                                            id: Date.now().toString(),
-                                            reps: lastSet ? lastSet.reps : 10,
-                                            weight: lastSet
-                                              ? lastSet.weight
-                                              : 0,
-                                            distance: lastSet
-                                              ? lastSet.distance
-                                              : 0,
-                                            timeMins: lastSet
-                                              ? lastSet.timeMins
-                                              : 0,
-                                            timeSecs: lastSet
-                                              ? lastSet.timeSecs
-                                              : 0,
-                                            completed: false,
-                                          },
-                                        ];
-                                        updateExercise(
-                                          exercise.id,
-                                          "setsData",
-                                          newSets,
-                                        );
-                                      }}
-                                    >
-                                      <Plus className="h-4 w-4 mr-1" /> Add Set
-                                    </Button>
+                                          updateExercise(
+                                            exercise.id,
+                                            "setsData",
+                                            newSets,
+                                          );
+                                        }}
+                                      >
+                                        <Plus className="h-4 w-4 mr-1" /> Add
+                                        Set
+                                      </Button>
+                                    </div>
                                   </div>
-                                </div>
-                              );
-                            },
-                          )}
+                                );
+                              },
+                            )}
                         </div>
 
                         <div className="flex flex-col gap-3 pt-6 mt-4 border-t border-border">
@@ -3529,11 +3319,15 @@ const Workouts = () => {
                           {currentBlockIndex < blocks.length - 1 ? (
                             <Button
                               className="w-full gap-2 text-primary-foreground font-bold tracking-wide h-16 text-xl shadow-lg"
-                              onClick={() =>
-                                setCurrentBlockIndex((prev) =>
-                                  Math.min(blocks.length - 1, prev + 1),
-                                )
-                              }
+                              onClick={() => {
+                                const nxt = nextVisibleBlock(
+                                  blocks,
+                                  pickOneChoices,
+                                  currentBlockIndex,
+                                );
+                                if (nxt != null) setCurrentBlockIndex(nxt);
+                                else setCurrentBlockIndex(blocks.length - 1);
+                              }}
                             >
                               Next <ArrowRight className="h-5 w-5" />
                             </Button>
@@ -3553,16 +3347,25 @@ const Workouts = () => {
                               variant="outline"
                               className="flex-1 font-medium tracking-wider h-12"
                               disabled={currentBlockIndex === 0}
-                              onClick={() =>
-                                setCurrentBlockIndex((prev) =>
-                                  Math.max(0, prev - 1),
-                                )
-                              }
+                              onClick={() => {
+                                const prv = prevVisibleBlock(
+                                  blocks,
+                                  pickOneChoices,
+                                  currentBlockIndex,
+                                );
+                                if (prv != null) setCurrentBlockIndex(prv);
+                                else setCurrentBlockIndex(0);
+                              }}
                             >
                               <ArrowLeftIcon className="h-4 w-4" /> Previous
                             </Button>
                             <span className="text-xs text-muted-foreground px-1">
-                              {currentBlockIndex + 1} / {blocks.length}
+                              {visibleBlockPosition(
+                                blocks,
+                                pickOneChoices,
+                                currentBlockIndex,
+                              )}{" "}
+                              / {visibleBlockCount(blocks, pickOneChoices)}
                             </span>
                             <button
                               onClick={() => setShowEndConfirm(true)}
@@ -3634,8 +3437,10 @@ const Workouts = () => {
               End workout?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              You've logged {currentBlockIndex + 1} of {blocks.length}{" "}
-              exercises. Finishing now will save your progress.
+              You've logged{" "}
+              {visibleBlockPosition(blocks, pickOneChoices, currentBlockIndex)}{" "}
+              of {visibleBlockCount(blocks, pickOneChoices)} exercises.
+              Finishing now will save your progress.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row gap-3">

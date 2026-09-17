@@ -32,6 +32,8 @@ export interface ProgressSummary {
   // training volume + sessions
   totalVolumeKg: number;
   loggedSessions: number;
+  // ad-lib cardio activities (swim/cycle/walk/run/sport) logged outside a programme
+  activitiesCount: number;
   // strength
   prs: { exercise: string; start: number; now: number; gain: number }[];
   // body
@@ -232,18 +234,24 @@ export const getProgressSummary = async (opts: {
   // ── Training volume + sessions (workout_history, keyed by user_id) ────────
   let totalVolumeKg = 0;
   let loggedSessions = 0;
-  let workoutRows: { date?: string; volume?: number }[] = [];
+  let activitiesCount = 0;
+  let workoutRows: { date?: string; volume?: number; type?: string }[] = [];
   try {
     const { data: history } = await supabase
       .from("workout_history")
-      .select("date,volume")
+      .select("date,volume,type")
       .eq("user_id", userId);
     workoutRows = history || [];
     for (const h of workoutRows) {
       const d = (h.date || "").slice(0, 10);
       if (!inWindow(d)) continue;
-      loggedSessions++;
-      totalVolumeKg += Number(h.volume || 0);
+      const isActivity = String(h.type || "").toLowerCase() === "activity";
+      if (isActivity) {
+        activitiesCount++;
+      } else {
+        loggedSessions++;
+        totalVolumeKg += Number(h.volume || 0);
+      }
     }
   } catch {
     // ignore
@@ -564,6 +572,7 @@ export const getProgressSummary = async (opts: {
     classesCount,
     totalVolumeKg: Math.round(totalVolumeKg),
     loggedSessions,
+    activitiesCount,
     prs: topPrs,
     weightStart,
     weightNow,

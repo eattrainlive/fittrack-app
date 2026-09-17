@@ -14,6 +14,7 @@ export const mapProgramExercise = (e: any, trackingOverride?: any) => ({
   sectionType: e.sectionType || "Normal",
   timeCapMins: e.timeCapMins ?? null,
   targetNote: e.targetNote ?? null,
+  pickOne: e.pickOne ?? false,
   description: e.description,
   blockType: e.blockType || "Strength",
   name: e.name,
