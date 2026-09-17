@@ -122,6 +122,7 @@ import {
   propagateSessionAcrossRounds,
   otherRoundWeeks,
 } from "@/lib/groupPtRounds";
+import { linkRoundField, linkRoundFields } from "@/lib/programRoundLink";
 
 // Real cardio machines, by day (varied). Ordered; Day N uses index (N-1) % length.
 const CARDIO_MACHINES = [
@@ -1271,26 +1272,25 @@ const Admin = () => {
         String(e.id) === String(id) ? { ...e, [field]: val } : e,
       ),
     };
-    // Group PT round-linking: ripple identity changes (name/trackingType/eachSide/blockType)
-    // to sibling round-weeks, preserving each round's own sets/reps/rest/weight.
-    if (
-      linkRounds &&
-      newProgType === "GroupPT" &&
-      exIndex !== -1 &&
-      ["name", "trackingType", "eachSide", "blockType"].includes(field)
-    ) {
-      const final = propagateAcrossRounds(
+    // Group PT round-linking: ripple identity + section-flag changes to sibling
+    // round-weeks (including pickOne on a finisher section), preserving loading.
+    {
+      const r = linkRoundField(
         updatedWorkouts,
-        Number(session.week),
-        Number(session.day),
+        session,
         exIndex,
-        { [field]: val },
+        field,
+        val,
+        newProgType === "GroupPT",
+        linkRounds,
       );
-      setProgWorkouts(final);
-      const sibs = otherRoundWeeks(Number(session.week));
-      if (sibs.length) toast.success("Updated across weeks " + sibs.join(", "));
-    } else {
-      setProgWorkouts(updatedWorkouts);
+      if (r.propagated) {
+        setProgWorkouts(r.workouts);
+        if (r.siblings.length)
+          toast.success("Updated across weeks " + r.siblings.join(", "));
+      } else {
+        setProgWorkouts(updatedWorkouts);
+      }
     }
   };
 
@@ -1310,30 +1310,24 @@ const Admin = () => {
         String(e.id) === String(id) ? { ...e, ...patch } : e,
       ),
     };
-    // Group PT round-linking: ripple identity fields across sibling round-weeks.
-    if (
-      linkRounds &&
-      newProgType === "GroupPT" &&
-      exIndex !== -1 &&
-      Object.keys(patch).some((k) =>
-        ["name", "trackingType", "eachSide", "blockType"].includes(k),
-      )
-    ) {
-      const identity: Record<string, any> = {};
-      for (const k of ["name", "trackingType", "eachSide", "blockType"])
-        if (k in patch) identity[k] = patch[k];
-      const final = propagateAcrossRounds(
+    // Group PT round-linking: ripple identity + section-flag changes across
+    // sibling round-weeks (including pickOne on a finisher section).
+    {
+      const r = linkRoundFields(
         updatedWorkouts,
-        Number(session.week),
-        Number(session.day),
+        session,
         exIndex,
-        identity,
+        patch,
+        newProgType === "GroupPT",
+        linkRounds,
       );
-      setProgWorkouts(final);
-      const sibs = otherRoundWeeks(Number(session.week));
-      if (sibs.length) toast.success("Updated across weeks " + sibs.join(", "));
-    } else {
-      setProgWorkouts(updatedWorkouts);
+      if (r.propagated) {
+        setProgWorkouts(r.workouts);
+        if (r.siblings.length)
+          toast.success("Updated across weeks " + r.siblings.join(", "));
+      } else {
+        setProgWorkouts(updatedWorkouts);
+      }
     }
   };
 

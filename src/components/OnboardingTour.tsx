@@ -1,12 +1,25 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { TOUR_STEPS, markTourDone, type TourStep } from "@/lib/onboardingTour";
+import {
+  getTourSteps,
+  markTourDone,
+  type TourStep,
+} from "@/lib/onboardingTour";
+import {
+  isStandalone,
+  isInAppBrowser,
+  detectPlatform,
+  getInstallHelpSettings,
+  vimeoEmbedUrl,
+} from "@/lib/installHelp";
 import { Button } from "@/components/ui/button";
+import { Smartphone, Play, X } from "lucide-react";
 
 /**
- * A lightweight, dependency-free 3-step coach-mark tour.
+ * A lightweight, dependency-free coach-mark tour.
  * Highlights elements with `data-tour="..."` attributes, dims the rest,
  * and persists completion server-side so it only shows once.
+ * Includes an "Add to home screen" step when the app isn't installed.
  */
 export function OnboardingTour({
   active,
@@ -19,16 +32,20 @@ export function OnboardingTour({
   const [stepIndex, setStepIndex] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [ready, setReady] = useState(false);
+  const [showInstallVideo, setShowInstallVideo] = useState(false);
+  const [installVideoUrl, setInstallVideoUrl] = useState<string | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const platformRef = useRef(detectPlatform());
 
-  const step: TourStep | undefined = TOUR_STEPS[stepIndex];
+  const steps = getTourSteps();
+  const step: TourStep | undefined = steps[stepIndex];
+  const isInstallStep = step?.target === "install";
 
   const highlight = useCallback(
     async (s: TourStep) => {
-      // Navigate first if needed, then wait for the target to render.
       if (s.navigateTo) {
         navigate(s.navigateTo);
       }
-      // Poll for the target element (it may need a render cycle).
       let el: HTMLElement | null = null;
       for (let i = 0; i < 20; i++) {
         el = document.querySelector<HTMLElement>(`[data-tour="${s.target}"]`);
@@ -36,7 +53,6 @@ export function OnboardingTour({
         await new Promise((r) => setTimeout(r, 80));
       }
       if (!el) {
-        // Target not found — skip this step gracefully.
         next();
         return;
       }
@@ -48,16 +64,35 @@ export function OnboardingTour({
     [navigate],
   );
 
+  // Load install help settings + capture beforeinstallprompt
+  useEffect(() => {
+    getInstallHelpSettings().then((s) => {
+      const url =
+        platformRef.current === "ios" ? s.iosVideoUrl : s.androidVideoUrl;
+      setInstallVideoUrl(url || null);
+    });
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, [active]);
+
   useEffect(() => {
     if (!active || !step) return;
     setReady(false);
     setRect(null);
-    highlight(step);
-  }, [active, stepIndex, step, highlight]);
+    if (isInstallStep) {
+      // Install step doesn't need a target highlight — just show the card.
+      setReady(true);
+    } else {
+      highlight(step);
+    }
+  }, [active, stepIndex, step, highlight, isInstallStep]);
 
-  // Recompute rect on resize/scroll so the highlight tracks.
   useEffect(() => {
-    if (!active || !ready) return;
+    if (!active || !ready || isInstallStep) return;
     const recompute = () => {
       const el = document.querySelector<HTMLElement>(
         `[data-tour="${step?.target}"]`,
@@ -70,7 +105,7 @@ export function OnboardingTour({
       window.removeEventListener("resize", recompute);
       window.removeEventListener("scroll", recompute, true);
     };
-  }, [active, ready, step]);
+  }, [active, ready, step, isInstallStep]);
 
   const finish = useCallback(async () => {
     await markTourDone();
@@ -78,12 +113,12 @@ export function OnboardingTour({
   }, [onComplete]);
 
   const next = useCallback(() => {
-    if (stepIndex >= TOUR_STEPS.length - 1) {
+    if (stepIndex >= steps.length - 1) {
       finish();
     } else {
       setStepIndex((i) => i + 1);
     }
-  }, [stepIndex, finish]);
+  }, [stepIndex, finish, steps.length]);
 
   const skip = useCallback(() => {
     finish();
@@ -92,14 +127,140 @@ export function OnboardingTour({
   if (!active || !step || !ready) return null;
 
   const pad = 8;
-  const isLast = stepIndex === TOUR_STEPS.length - 1;
+  const isLast = stepIndex === steps.length - 1;
+  const embedUrl = installVideoUrl ? vimeoEmbedUrl(installVideoUrl) : null;
 
-  // Tooltip placement: prefer below the target, flip above if near bottom.
+  const handleInstall = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      try {
+        await deferredPrompt.userChoice;
+      } catch {}
+      setDeferredPrompt(null);
+    } else if (embedUrl) {
+      setShowInstallVideo(true);
+    }
+  };
+
+  // Install step: centered card (no target highlight)
+  if (isInstallStep) {
+    const inApp = isInAppBrowser();
+    return (
+      <>
+        <div className="fixed inset-0 z-[100] bg-black/60" onClick={skip} />
+        <div className="fixed z-[101] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[88vw] max-w-sm bg-card border border-border rounded-xl shadow-xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Smartphone className="h-5 w-5 text-primary" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                {stepIndex + 1} of {steps.length}
+              </span>
+            </div>
+            <button
+              onClick={skip}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <h3 className="font-heading text-lg uppercase tracking-wide leading-tight">
+            Add to home screen
+          </h3>
+          <p className="text-sm text-muted-foreground leading-snug">
+            Add FitTrack to your home screen so you stay logged in — no more
+            repeated sign-ins.
+            {inApp && (
+              <span className="block mt-1 text-amber-600 dark:text-amber-400">
+                You're in an in-app browser — open this in Safari or Chrome to
+                install.
+              </span>
+            )}
+          </p>
+          <div className="flex gap-2">
+            {deferredPrompt ? (
+              <Button
+                size="sm"
+                className="gap-2 flex-1"
+                onClick={handleInstall}
+              >
+                <Smartphone className="h-4 w-4" /> Install app
+              </Button>
+            ) : embedUrl ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2 flex-1"
+                onClick={() => setShowInstallVideo(true)}
+              >
+                <Play className="h-4 w-4" /> Watch how
+              </Button>
+            ) : (
+              <p className="text-xs text-muted-foreground flex-1 leading-snug">
+                {platformRef.current === "ios"
+                  ? "In Safari, tap the Share button, then 'Add to Home Screen'."
+                  : "In your browser menu, tap 'Add to Home screen' or 'Install app'."}
+              </p>
+            )}
+          </div>
+          {/* progress dots */}
+          <div className="flex items-center justify-between pt-1">
+            <div className="flex gap-1.5">
+              {steps.map((_, i) => (
+                <span
+                  key={i}
+                  className={`h-1.5 rounded-full transition-all ${
+                    i === stepIndex
+                      ? "w-5 bg-primary"
+                      : i < stepIndex
+                        ? "w-1.5 bg-primary/50"
+                        : "w-1.5 bg-muted"
+                  }`}
+                />
+              ))}
+            </div>
+            <Button size="sm" onClick={next} className="gap-1">
+              {isLast ? "Done" : "Next"}
+            </Button>
+          </div>
+        </div>
+        {showInstallVideo && embedUrl && (
+          <div
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 p-4"
+            onClick={() => setShowInstallVideo(false)}
+          >
+            <div
+              className="w-full max-w-lg space-y-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowInstallVideo(false)}
+                  className="text-white/70 hover:text-white"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="relative aspect-video rounded-lg overflow-hidden bg-black">
+                <iframe
+                  src={embedUrl}
+                  className="absolute inset-0 h-full w-full"
+                  allow="autoplay; fullscreen; picture-in-picture"
+                  allowFullScreen
+                  title="How to add FitTrack to your home screen"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // Regular step: highlight target
   const tooltipBelow = rect && rect.bottom + 180 < window.innerHeight;
 
   return (
     <div className="fixed inset-0 z-[100]">
-      {/* Dim overlay with a cutout for the target */}
       <div
         className="absolute inset-0 bg-black/60"
         style={{
@@ -116,7 +277,6 @@ export function OnboardingTour({
             : undefined,
         }}
       />
-      {/* Highlight ring */}
       {rect && (
         <div
           className="absolute rounded-lg ring-2 ring-primary pointer-events-none transition-all duration-200"
@@ -128,19 +288,17 @@ export function OnboardingTour({
           }}
         />
       )}
-      {/* Tooltip card */}
       <div
         className="absolute left-1/2 -translate-x-1/2 w-[88vw] max-w-sm bg-card border border-border rounded-xl shadow-xl p-4 space-y-3"
         style={{
           top: tooltipBelow
-            ? rect.bottom + pad + 12
-            : Math.max(12 + safeTop(), rect.top - 160),
-          bottom: !tooltipBelow ? undefined : undefined,
+            ? rect!.bottom + pad + 12
+            : Math.max(12, rect!.top - 160),
         }}
       >
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
-            {stepIndex + 1} of {TOUR_STEPS.length}
+            {stepIndex + 1} of {steps.length}
           </span>
           <button
             onClick={skip}
@@ -156,9 +314,8 @@ export function OnboardingTour({
           {step.body}
         </p>
         <div className="flex items-center justify-between pt-1">
-          {/* progress dots */}
           <div className="flex gap-1.5">
-            {TOUR_STEPS.map((_, i) => (
+            {steps.map((_, i) => (
               <span
                 key={i}
                 className={`h-1.5 rounded-full transition-all ${
@@ -178,15 +335,4 @@ export function OnboardingTour({
       </div>
     </div>
   );
-}
-
-function safeTop(): number {
-  try {
-    const v = getComputedStyle(document.documentElement)
-      .getPropertyValue("--safe-top")
-      .trim();
-    return v ? parseInt(v, 10) || 0 : 0;
-  } catch {
-    return 0;
-  }
 }

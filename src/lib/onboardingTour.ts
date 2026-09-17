@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { isStandalone } from "./installHelp";
 
 const LOCAL_KEY = "fittrack_onboarding_tour_done";
 
@@ -9,7 +10,7 @@ export type TourStep = {
   navigateTo?: string; // route to push before highlighting
 };
 
-export const TOUR_STEPS: TourStep[] = [
+const BASE_STEPS: TourStep[] = [
   {
     target: "log-workout",
     title: "Log a workout",
@@ -28,6 +29,18 @@ export const TOUR_STEPS: TourStep[] = [
     navigateTo: "/nutrition",
   },
 ];
+
+const INSTALL_STEP: TourStep = {
+  target: "install",
+  title: "Add to home screen",
+  body: "Add FitTrack to your home screen so you stay logged in — no more repeated sign-ins.",
+};
+
+/** Dynamic steps — includes the install step only when the app isn't installed. */
+export const getTourSteps = (): TourStep[] => {
+  if (isStandalone()) return BASE_STEPS;
+  return [...BASE_STEPS, INSTALL_STEP];
+};
 
 /** Read the server flag (source of truth), with a localStorage mirror. */
 export const isTourDone = async (): Promise<boolean> => {

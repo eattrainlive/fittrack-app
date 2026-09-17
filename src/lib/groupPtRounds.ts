@@ -69,6 +69,49 @@ export const propagateAcrossRounds = (
 };
 
 /**
+ * Propagate a section-level flag (e.g. `pickOne`) across the sibling
+ * round-weeks of a Group PT block. Matches the same session by week-base +
+ * day, and the same section by its index within the session's `exercises`
+ * array (the rounds are structural copies, so the section index aligns).
+ * Only the flag value changes — each round's own exercises/loading are
+ * preserved.
+ *
+ * @param workouts     the full workouts array (cloned, not mutated)
+ * @param changedWeek  the week of the session whose section flag changed
+ * @param changedDay   the day of that session
+ * @param sectionIndex the index of the section header within the session's exercises array
+ * @param flag         the field name to set (e.g. "pickOne")
+ * @param value        the value to set on the matching section in each sibling
+ * @returns a new workouts array with siblings updated
+ */
+export const propagateSectionFlagAcrossRounds = (
+  workouts: any[],
+  changedWeek: number,
+  changedDay: number,
+  sectionIndex: number,
+  flag: string,
+  value: any,
+): any[] => {
+  const siblings = otherRoundWeeks(changedWeek);
+  if (!siblings.length) return workouts;
+  return workouts.map((w: any) => {
+    if (
+      !siblings.includes(Number(w.week)) ||
+      Number(w.day) !== Number(changedDay)
+    )
+      return w;
+    const exs = Array.isArray(w.exercises) ? [...w.exercises] : [];
+    if (exs[sectionIndex] && exs[sectionIndex].isSection) {
+      exs[sectionIndex] = {
+        ...exs[sectionIndex],
+        [flag]: value,
+      };
+    }
+    return { ...w, exercises: exs };
+  });
+};
+
+/**
  * Propagate a whole-session set of exercise changes (e.g. after Shuffle All or
  * regenerate) across sibling round-weeks. Copies identity fields for every
  * non-section exercise at each index, preserving each round's loading.

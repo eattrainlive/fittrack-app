@@ -23,6 +23,7 @@ import {
   saveEducationVideos,
 } from "@/lib/store";
 import { getEmbedUrl } from "@/lib/utils";
+import { EducationInstallBanner } from "@/components/EducationInstallBanner";
 
 const Education = () => {
   const [folders, setFolders] = useState<any[]>([]);
@@ -105,6 +106,7 @@ const Education = () => {
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6 max-w-6xl mx-auto">
+      <EducationInstallBanner />
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-4xl font-heading tracking-wider">Education Hub</h2>
         {isStaff && (
