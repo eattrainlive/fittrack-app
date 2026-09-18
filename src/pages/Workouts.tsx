@@ -127,6 +127,7 @@ import {
   visibleBlockPosition,
 } from "@/lib/pickOneBlocks";
 import { useViewModeGuard } from "@/lib/workoutRestore";
+import { normaliseReps } from "@/lib/repsNormalise";
 
 const Workouts = () => {
   const navigate = useNavigate();
@@ -235,6 +236,7 @@ const Workouts = () => {
     week?: number;
     day?: number;
     stream?: string;
+    title?: string;
   }>({});
   const [conditioningResults, setConditioningResults] = useState<
     Record<string, any>
@@ -389,7 +391,7 @@ const Workouts = () => {
   };
 
   const bucketOf = (p: any) =>
-    p.type === "GroupPT" ? "Group PT" : p.stream || "Foundations";
+    p.type === "GroupPT" ? "Group PT" : p.stream || p.name || "Workout";
 
   useEffect(() => {
     const loadLibrary = async () => {
@@ -747,34 +749,39 @@ const Workouts = () => {
       session.exercises.map((ex: any, idx: number) => ({
         id: Date.now() + idx,
         ...ex,
+        eachSide: normaliseReps(ex).eachSide || ex.eachSide,
         setsData:
           ex.setsData ||
-          Array.from({ length: ex.sets || 3 }).map((_, i) => ({
-            id: Date.now().toString() + i,
-            reps: ex.reps !== undefined ? ex.reps : 10,
-            weight: ex.weight || 0,
-            distance: ex.distance || 0,
-            timeMins: ex.timeMins || 0,
-            timeSecs: ex.timeSecs || 0,
-            calories:
-              ex.calories ||
-              (ex.reps && (ex.trackingType ?? []).includes?.("Calories")
-                ? ex.reps
-                : 0),
-            completed: false,
-          })),
+          (() => {
+            const n = normaliseReps(ex);
+            return Array.from({ length: ex.sets || 3 }).map((_, i) => ({
+              id: Date.now().toString() + i,
+              reps: n.reps,
+              weight: ex.weight || 0,
+              distance: ex.distance || 0,
+              timeMins: ex.timeMins || 0,
+              timeSecs: ex.timeSecs || 0,
+              calories:
+                ex.calories ||
+                (ex.reps && (ex.trackingType ?? []).includes?.("Calories")
+                  ? n.reps
+                  : 0),
+              completed: false,
+            }));
+          })(),
       })),
     );
     setCurrentBlockIndex(0);
     setLastSeenSectionId(null);
     setShowSectionSlide(false);
+    const resolvedStream =
+      template.stream || (template.type === "GroupPT" ? "Group PT" : "Workout");
     setActiveWorkoutMeta({
       programId: template.id,
       week: session.week,
       day: session.day,
-      stream:
-        template.stream ||
-        (template.type === "GroupPT" ? "GroupPT" : "Stronger"),
+      stream: resolvedStream,
+      title: sessionTitle(template, session),
     });
     setStartTime(Date.now());
     toast.success(`Started program: ${template.name}`);
@@ -790,22 +797,26 @@ const Workouts = () => {
         template.exercises.map((ex: any, idx: number) => ({
           id: Date.now() + idx,
           ...ex,
+          eachSide: normaliseReps(ex).eachSide || ex.eachSide,
           setsData:
             ex.setsData ||
-            Array.from({ length: ex.sets || 3 }).map((_, i) => ({
-              id: Date.now().toString() + i,
-              reps: ex.reps !== undefined ? ex.reps : 10,
-              weight: ex.weight || 0,
-              distance: ex.distance || 0,
-              timeMins: ex.timeMins || 0,
-              timeSecs: ex.timeSecs || 0,
-              calories:
-                ex.calories ||
-                (ex.reps && (ex.trackingType ?? []).includes?.("Calories")
-                  ? ex.reps
-                  : 0),
-              completed: false,
-            })),
+            (() => {
+              const n = normaliseReps(ex);
+              return Array.from({ length: ex.sets || 3 }).map((_, i) => ({
+                id: Date.now().toString() + i,
+                reps: n.reps,
+                weight: ex.weight || 0,
+                distance: ex.distance || 0,
+                timeMins: ex.timeMins || 0,
+                timeSecs: ex.timeSecs || 0,
+                calories:
+                  ex.calories ||
+                  (ex.reps && (ex.trackingType ?? []).includes?.("Calories")
+                    ? n.reps
+                    : 0),
+                completed: false,
+              }));
+            })(),
         })),
       );
       setCurrentBlockIndex(0);
@@ -826,28 +837,41 @@ const Workouts = () => {
         const currentWorkout =
           activeProgram.workouts[activeProgram.currentIndex];
         if (currentWorkout && currentWorkout.exercises) {
-          setWorkoutName(sessionTitle(activeProgram, currentWorkout));
+          const resolvedTitle = sessionTitle(activeProgram, currentWorkout);
+          if (!activeWorkoutMeta?.title) setWorkoutName(resolvedTitle);
+          setActiveWorkoutMeta((m) => ({
+            ...m,
+            title: m?.title || resolvedTitle,
+            stream:
+              m?.stream ||
+              activeProgram.stream ||
+              (activeProgram.type === "GroupPT" ? "Group PT" : "Workout"),
+          }));
           setExercises(
             currentWorkout.exercises.map((ex: any, idx: number) => ({
               id: Date.now() + idx,
               blockType: ex.blockType || "Strength",
               ...ex,
+              eachSide: normaliseReps(ex).eachSide || ex.eachSide,
               setsData:
                 ex.setsData ||
-                Array.from({ length: ex.sets || 3 }).map((_, i) => ({
-                  id: Date.now().toString() + i,
-                  reps: ex.reps !== undefined ? ex.reps : 10,
-                  weight: ex.weight || 0,
-                  distance: ex.distance || 0,
-                  timeMins: ex.timeMins || 0,
-                  timeSecs: ex.timeSecs || 0,
-                  calories:
-                    ex.calories ||
-                    (ex.reps && (ex.trackingType ?? []).includes?.("Calories")
-                      ? ex.reps
-                      : 0),
-                  completed: false,
-                })),
+                (() => {
+                  const n = normaliseReps(ex);
+                  return Array.from({ length: ex.sets || 3 }).map((_, i) => ({
+                    id: Date.now().toString() + i,
+                    reps: n.reps,
+                    weight: ex.weight || 0,
+                    distance: ex.distance || 0,
+                    timeMins: ex.timeMins || 0,
+                    timeSecs: ex.timeSecs || 0,
+                    calories:
+                      ex.calories ||
+                      (ex.reps && (ex.trackingType ?? []).includes?.("Calories")
+                        ? n.reps
+                        : 0),
+                    completed: false,
+                  }));
+                })(),
             })),
           );
           setCurrentBlockIndex(0);
@@ -924,7 +948,7 @@ const Workouts = () => {
 
     const { success, error } = await saveWorkoutToHistory({
       id: sessionWorkoutId,
-      name: workoutName,
+      name: activeWorkoutMeta?.title || workoutName,
       exercises: exercisesWithResults,
       volume: totalVolume,
       duration: duration,
@@ -1740,29 +1764,15 @@ const Workouts = () => {
                         : 0);
                     const reps = firstSet.reps || ex.reps || 0;
                     let details = [];
-                    if (
-                      trackingArray.includes("Weight & Distance") &&
-                      (firstSet.weight || ex.weight || 0) > 0
-                    )
+                    // Trust entered values over trackingType.
+                    if ((firstSet.weight || ex.weight || 0) > 0)
                       details.push(`${firstSet.weight || ex.weight}kg`);
-                    if (trackingArray.includes("Weight & Distance") && dist)
-                      details.push(`${dist}m`);
-                    if (trackingArray.includes("Distance & Time") && dist)
-                      details.push(`${dist}m`);
-                    if (
-                      (trackingArray.includes("Time Only") ||
-                        trackingArray.includes("Distance & Time")) &&
-                      (mins || secs)
-                    )
+                    if (dist) details.push(`${dist}m`);
+                    if (mins || secs)
                       details.push(
                         `${mins ? mins + "m " : ""}${secs ? secs + "s" : ""}`.trim(),
                       );
-                    if (trackingArray.includes("Calories") && cals)
-                      details.push(`${cals} cals`);
-                    if (trackingArray.includes("Weight & Reps") && reps)
-                      details.push(`${reps} reps`);
-                    if (trackingArray.includes("Reps Only") && reps)
-                      details.push(`${reps} reps`);
+                    if (cals) details.push(`${cals} cals`);
                     if (details.length === 0 && reps)
                       details.push(`${reps} reps`);
                     const detailStr = details.join(", ");
@@ -1906,31 +1916,18 @@ const Workouts = () => {
                           const reps = ex.reps || 0;
 
                           let metrics = [];
-                          if (
-                            trackingArray.includes("Weight & Distance") &&
-                            (ex.weight || 0) > 0
-                          )
+                          // Trust entered values over trackingType so a stray
+                          // type never hides a real prescription.
+                          if ((ex.weight || 0) > 0)
                             metrics.push(`${ex.weight}kg`);
-                          if (
-                            trackingArray.includes("Weight & Distance") &&
-                            dist
-                          )
-                            metrics.push(`${dist}m`);
-                          if (trackingArray.includes("Distance & Time") && dist)
-                            metrics.push(`${dist}m`);
-                          if (
-                            (trackingArray.includes("Time Only") ||
-                              trackingArray.includes("Distance & Time")) &&
-                            (mins || secs)
-                          )
+                          if (dist) metrics.push(`${dist}m`);
+                          if (mins || secs)
                             metrics.push(
                               `${mins ? mins + "m " : ""}${secs ? secs + "s" : ""}`.trim(),
                             );
-                          if (trackingArray.includes("Calories") && cals)
-                            metrics.push(`${cals} cals`);
-                          if (trackingArray.includes("Weight & Reps") && reps)
-                            metrics.push(`${reps} reps`);
-                          if (trackingArray.includes("Reps Only") && reps)
+                          if (cals) metrics.push(`${cals} cals`);
+                          // Only show reps if there's no time/dist/cals and reps is real.
+                          if (!metrics.length && reps)
                             metrics.push(`${reps} reps`);
 
                           let detailText = "";
@@ -1939,8 +1936,6 @@ const Workouts = () => {
                               ex.sets && ex.sets > 1
                                 ? `${ex.sets} × ${metrics.join(", ")}`
                                 : metrics.join(", ");
-                          } else if (reps) {
-                            detailText = `${ex.sets || 1} × ${reps}`;
                           } else {
                             detailText = `${ex.sets || 1} sets`;
                           }
@@ -2262,35 +2257,15 @@ const Workouts = () => {
                             const reps = firstSet.reps || ex.reps || 0;
 
                             let details = [];
-                            if (
-                              trackingArray.includes("Weight & Distance") &&
-                              (firstSet.weight || ex.weight || 0) > 0
-                            )
+                            // Trust entered values over trackingType.
+                            if ((firstSet.weight || ex.weight || 0) > 0)
                               details.push(`${firstSet.weight || ex.weight}kg`);
-                            if (
-                              trackingArray.includes("Weight & Distance") &&
-                              dist
-                            )
-                              details.push(`${dist}m`);
-                            if (
-                              trackingArray.includes("Distance & Time") &&
-                              dist
-                            )
-                              details.push(`${dist}m`);
-                            if (
-                              (trackingArray.includes("Time Only") ||
-                                trackingArray.includes("Distance & Time")) &&
-                              (mins || secs)
-                            )
+                            if (dist) details.push(`${dist}m`);
+                            if (mins || secs)
                               details.push(
                                 `${mins ? mins + "m " : ""}${secs ? secs + "s" : ""}`.trim(),
                               );
-                            if (trackingArray.includes("Calories") && cals)
-                              details.push(`${cals} cals`);
-                            if (trackingArray.includes("Weight & Reps") && reps)
-                              details.push(`${reps} reps`);
-                            if (trackingArray.includes("Reps Only") && reps)
-                              details.push(`${reps} reps`);
+                            if (cals) details.push(`${cals} cals`);
                             if (details.length === 0 && reps)
                               details.push(`${reps} reps`);
                             const detailStr = details.join(", ");

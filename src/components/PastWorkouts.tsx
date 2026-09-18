@@ -158,7 +158,7 @@ export function PastWorkouts() {
                   ) : null}
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {w.name || w.program || "Workout"}
+                      {w.name || w.stream || w.program || "Workout"}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {w.date ? fmtDate(w.date) : "—"}
@@ -186,7 +186,7 @@ export function PastWorkouts() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {draft?.name || draft?.program || "Workout"}
+              {draft?.name || draft?.stream || draft?.program || "Workout"}
             </DialogTitle>
             <DialogDescription>
               {draft && fmtDate(draft.date)} — edit set values, then save

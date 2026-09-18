@@ -7,8 +7,11 @@
  *
  * `trackingOverride` lets callers pass a resolved tracking type (e.g. from
  * `resolveTrackingType`); when omitted the exercise's own `trackingType` is
- * used.
+ * used. In both cases, `syncTrackingWithValues` is applied so the stored type
+ * matches the prescription values (a 30s hold → "Time Only", not "1×10").
  */
+import { syncTrackingWithValues } from "@/lib/tracking";
+
 export const mapProgramExercise = (e: any, trackingOverride?: any) => ({
   isSection: e.isSection,
   sectionType: e.sectionType || "Normal",
@@ -29,5 +32,8 @@ export const mapProgramExercise = (e: any, trackingOverride?: any) => ({
   eachSide: e.eachSide,
   staffNotes: e.staffNotes,
   coachingNotes: e.coachingNotes,
-  trackingType: trackingOverride ?? e.trackingType,
+  trackingType: syncTrackingWithValues({
+    ...e,
+    trackingType: trackingOverride ?? e.trackingType,
+  }),
 });

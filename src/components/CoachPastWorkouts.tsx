@@ -164,7 +164,7 @@ export function CoachPastWorkouts({
                 className="flex-1 flex items-center justify-between text-left px-2 py-1.5"
               >
                 <span className="truncate text-xs">
-                  {w.name || w.program || "Workout"}
+                  {w.name || w.stream || w.program || "Workout"}
                 </span>
                 <span className="text-muted-foreground shrink-0 ml-2 text-xs">
                   {w.date ? fmtDate(w.date) : "—"}
@@ -192,7 +192,7 @@ export function CoachPastWorkouts({
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {draft?.name || draft?.program || "Workout"}
+              {draft?.name || draft?.stream || draft?.program || "Workout"}
             </DialogTitle>
             <DialogDescription>
               {draft && fmtDate(draft.date)} — edit set values, then save

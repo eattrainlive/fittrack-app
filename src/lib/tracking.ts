@@ -55,6 +55,44 @@ export const resolveTrackingType = (
 };
 
 /**
+ * Sync a programme exercise's trackingType with the prescription values it
+ * actually carries, so a 30s hold is stored as "Time Only" (not Weight & Reps)
+ * even if the coach didn't toggle the type. This is the root-cause fix for
+ * time-based exercises showing as "1×10" — the stored trackingType must match
+ * the fields used.
+ *
+ * Rules (value-driven, additive only where ambiguous):
+ *  - time (mins/secs) + distance → "Distance & Time"
+ *  - time only → "Time Only"
+ *  - distance only → keep existing if it already covers distance, else "Distance & Time"
+ *  - calories → "Calories"
+ *  - weight + reps → "Weight & Reps"
+ *  - reps only → "Reps Only"
+ * If the exercise already has an explicit trackingType that matches the values,
+ * it's left untouched.
+ */
+export const syncTrackingWithValues = (ex: any): string[] => {
+  const hasTime =
+    (Number(ex?.timeMins) || 0) > 0 || (Number(ex?.timeSecs) || 0) > 0;
+  const hasDist = (Number(ex?.distance) || 0) > 0;
+  const hasCals = (Number(ex?.calories) || 0) > 0;
+  const hasWeight = (Number(ex?.weight) || 0) > 0;
+  const hasReps = (Number(ex?.reps) || 0) > 0;
+
+  // Value-driven inference.
+  if (hasTime && hasDist) return ["Distance & Time"];
+  if (hasTime) return ["Time Only"];
+  if (hasCals) return ["Calories"];
+  if (hasDist) return ["Distance & Time"];
+  if (hasWeight && hasReps) return ["Weight & Reps"];
+  if (hasReps) return ["Reps Only"];
+
+  // No prescription values — keep whatever trackingType is already set.
+  const own = normaliseTracking(ex?.trackingType);
+  return own.length ? own : [...DEFAULT_TRACKING];
+};
+
+/**
  * Runtime tracking resolver for the logging screen (`trackingOf`).
  * Identical logic to `resolveTrackingType` — kept as a thin wrapper so the
  * logging screen doesn't need to know the resolution internals.
