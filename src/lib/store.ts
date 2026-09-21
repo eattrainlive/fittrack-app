@@ -700,28 +700,11 @@ export const saveExercises = async (
     if (user) {
       if (exercises.length > 0) {
         // Whitelist fields to the columns that actually exist on the `exercises` table.
-        const safeExercises = exercises.map((e) => {
-          const cleaned: any = {
-            id: e.id,
-            name: e.name,
-            user_id: user.id,
-            muscle: e.muscle ?? null,
-            equipment: e.equipment ?? null,
-            difficulty: e.difficulty ?? null,
-            videoUrl: e.videoUrl ?? null,
-          };
-          // category and movementType/trackingType are stored as comma-joined strings
-          cleaned.category = Array.isArray(e.category)
-            ? e.category.join(", ")
-            : (e.category ?? null);
-          cleaned.movementType = Array.isArray(e.movementType)
-            ? e.movementType.join(", ")
-            : (e.movementType ?? null);
-          cleaned.trackingType = Array.isArray(e.trackingType)
-            ? e.trackingType.join(", ")
-            : (e.trackingType ?? "Weight & Reps");
-          return cleaned;
-        });
+        const { buildSafeExerciseRow } =
+          await import("@/lib/exercisePersistence");
+        const safeExercises = exercises.map((e) =>
+          buildSafeExerciseRow(e, user.id),
+        );
         const { error } = await supabase
           .from("exercises")
           .upsert(safeExercises);

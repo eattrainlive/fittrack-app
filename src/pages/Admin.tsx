@@ -108,9 +108,13 @@ import JSZip from "jszip";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
 import { Navigate, useNavigate } from "react-router-dom";
-import { QrCode } from "lucide-react";
+import { QrCode, ArrowRightLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { MembersGrid } from "@/components/MembersGrid";
+import { SmartSwapButton } from "@/components/SmartSwapButton";
+import { VarietyBadge } from "@/components/VarietyBadge";
+import { ExerciseTagsEditor } from "@/components/ExerciseTagsEditor";
+import { guessTagsFromName } from "@/lib/exerciseTags";
 import SyncErrorsPanel from "@/components/SyncErrorsPanel";
 import { AccountabilitySettings } from "@/components/AccountabilitySettings";
 import { TrialHubSettings } from "@/components/TrialHubSettings";
@@ -123,144 +127,31 @@ import {
   otherRoundWeeks,
 } from "@/lib/groupPtRounds";
 import { linkRoundField, linkRoundFields } from "@/lib/programRoundLink";
-
-// Real cardio machines, by day (varied). Ordered; Day N uses index (N-1) % length.
-const CARDIO_MACHINES = [
-  { name: "Bike Erg", id: "bike-erg" },
-  { name: "Ski Erg", id: "ski-erg" },
-  { name: "Rower", id: "rower" },
-  { name: "Air Bike", id: "air-bike" },
-  { name: "Treadmill Run", id: "treadmill-run" },
-];
-// A genuine cardio machine = the WHOLE name is a machine (so "Burpee Over Rower" is NOT one).
-const MACHINE_RE =
-  /^(bike[- ]?erg|ski[- ]?erg|rower|air[- ]?bike|assault bike|echo bike|treadmill(?: run)?|curved treadmill|stairmaster)$/i;
-const WARMUP_MOBILITY_COUNT = 3;
-
-function fixWarmup(exercises: any[], dayIndex: number, exerciseLibrary: any[]) {
-  const i = exercises.findIndex(
-    (e: any) => e.isSection && /warm ?up/i.test(e.name || ""),
-  );
-  if (i === -1) return exercises;
-
-  // Find the end of the warm-up section (next section header)
-  let end = exercises.findIndex((e: any, k: number) => k > i && e.isSection);
-  if (end === -1) end = exercises.length;
-
-  let items = exercises.slice(i + 1, end);
-
-  const toArr = (v: any) =>
-    Array.isArray(v)
-      ? v
-      : v
-        ? String(v)
-            .split(/[;,]/)
-            .map((s: string) => s.trim())
-            .filter(Boolean)
-        : [];
-
-  const libByName = (ex: any) =>
-    exerciseLibrary.find((le: any) => String(le.id) === String(ex?.name));
-  const isCardioMachine = (ex: any) => {
-    if (!ex || !ex.name || ex.isSection) return false;
-    const libEx = libByName(ex);
-    return !!libEx && MACHINE_RE.test(String(libEx.name).trim());
-  };
-
-  const isMobilityDrill = (ex: any) => {
-    if (!ex || !ex.name || ex.isSection) return false;
-    const libEx = libByName(ex);
-    if (!libEx) return false;
-    const mv = toArr(libEx.movementType).map((s: string) => s.toLowerCase());
-    const cat = toArr(libEx.category).map((s: string) => s.toLowerCase());
-    return (
-      mv.some((t: string) =>
-        [
-          "warm up",
-          "fire up",
-          "mobility",
-          "activation",
-          "soft tissue",
-          "potentiation",
-          "soft-tissue",
-        ].some((k) => t.includes(k)),
-      ) ||
-      cat.some((t: string) =>
-        [
-          "warm up",
-          "mobility",
-          "soft tissue",
-          "soft-tissue",
-          "activation",
-        ].some((k) => t.includes(k)),
-      )
-    );
-  };
-
-  // (a) Strip anything that isn't a cardio machine or a mobility drill
-  items = items.filter((e: any) => isCardioMachine(e) || isMobilityDrill(e));
-
-  // (b) Ensure exactly ONE cardio machine from the palette, varied by day
-  const machines = items.filter(isCardioMachine);
-  const mobility = items.filter((e: any) => !isCardioMachine(e));
-
-  // pick the day's machine, resolving to a real library exercise; fall back to ANY real machine
-  const pref =
-    CARDIO_MACHINES[
-      ((dayIndex % CARDIO_MACHINES.length) + CARDIO_MACHINES.length) %
-        CARDIO_MACHINES.length
-    ];
-  let machineEx =
-    exerciseLibrary.find((le: any) => String(le.id) === pref.id) ||
-    exerciseLibrary.find(
-      (le: any) => String(le.name).toLowerCase() === pref.name.toLowerCase(),
-    ) ||
-    exerciseLibrary.find((le: any) => MACHINE_RE.test(String(le.name).trim())); // any genuine machine
-
-  let machineItem: any = null;
-  if (machineEx) {
-    machineItem = {
-      id: Date.now() + Math.random(),
-      name: machineEx.id,
-      timeMins: 3,
-      timeSecs: 0,
-      sets: 1,
-      staffNotes: "3 min easy — build gently",
-      trackingType: ["Time Only"],
-      isSection: false,
-    };
-  }
-
-  // (c) Trim mobility to exactly 3
-  const trimmedMobility = mobility.slice(0, WARMUP_MOBILITY_COUNT);
-
-  // Rebuild: 1 machine + up to 3 mobility drills
-  const rebuilt = machineItem
-    ? [machineItem, ...trimmedMobility]
-    : trimmedMobility;
-  exercises.splice(i + 1, end - (i + 1), ...rebuilt);
-  return exercises;
-}
-
-// Within each Warm Up / Fire Up section, chain the exercises into a single superset.
-function applyWarmupFireupSupersets(exercises: any[]) {
-  if (!Array.isArray(exercises)) return exercises;
-  let inGroup = false;
-  for (let i = 0; i < exercises.length; i++) {
-    const e = exercises[i];
-    if (e.isSection) {
-      const nm = String(e.name || e.sectionType || "").toLowerCase();
-      inGroup = nm.includes("warm up") || nm.includes("fire up"); // matches "Warm Up/Mobility" and "Fire Up"
-      continue;
-    }
-    if (inGroup) {
-      const next = exercises[i + 1];
-      // link to next only within the same section
-      e.linkedToNext = !!(next && !next.isSection);
-    }
-  }
-  return exercises;
-}
+import {
+  CARDIO_MACHINES,
+  MACHINE_RE,
+  WARMUP_MOBILITY_COUNT,
+  fixWarmup,
+  applyWarmupFireupSupersets,
+} from "@/lib/warmupHelpers";
+import { exportExercisesData, exportProgramsData } from "@/lib/exerciseExport";
+import {
+  useByName,
+  useExById,
+  useSortedExercises,
+  rulesBasedPool,
+  sectionRole,
+  enclosingSectionName,
+  fitsSection,
+  mt,
+  isStrengthMove,
+  norm,
+} from "@/lib/exercisePool";
+import { handleGenerateEngineWorkout as handleGenerateEngineWorkoutGen } from "@/lib/engineWorkoutGen";
+import { TvDisplayTab } from "@/components/TvDisplayTab";
+import { SettingsTab } from "@/components/SettingsTab";
+import { AiCoachTab } from "@/components/AiCoachTab";
+import { useApplyDraft } from "@/lib/useApplyDraft";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -274,6 +165,8 @@ const Admin = () => {
   const [programs, setPrograms] = useState<any[]>([]);
   const [wows, setWows] = useState<any[]>([]);
   const [enrichment, setEnrichment] = useState<Record<string, any>>({});
+  const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
+  const editingProgramIdRef = useRef<string | null>(null);
 
   // WOW State
   const [wowName, setWowName] = useState("");
@@ -295,6 +188,7 @@ const Admin = () => {
   const [newExTracking, setNewExTracking] = useState<string[]>([
     "Weight & Reps",
   ]);
+  const [newExTags, setNewExTags] = useState<any>({});
 
   const MOVEMENT_TYPES = [
     "Warm Up",
@@ -492,43 +386,7 @@ const Admin = () => {
   };
 
   // TV Display State
-  const [displayPresets, setDisplayPresets] = useState<any[]>(() => {
-    const saved = localStorage.getItem("fittrack_display_presets");
-    return saved
-      ? JSON.parse(saved)
-      : [
-          {
-            id: "default",
-            name: "Default Preset",
-            layout: {
-              orientation: "landscape",
-              showRest: true,
-              showHeaders: true,
-              showDuration: true,
-              showWeek: true,
-              showNumbers: true,
-            },
-            colors: {
-              background: "#000000",
-              blockBackground: "#1a1a1a",
-              opacity: 100,
-            },
-            typography: { fontSize: "medium" },
-            media: { url: "", type: "image" },
-          },
-        ];
-  });
-  const [selectedPresetId, setSelectedPresetId] = useState("default");
-  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
-  const [selectedDisplayProgramId, setSelectedDisplayProgramId] =
-    useState<string>("");
-  const [selectedDisplayWorkoutId, setSelectedDisplayWorkoutId] =
-    useState<string>("");
-
-  const savePresets = (presets: any[]) => {
-    setDisplayPresets(presets);
-    localStorage.setItem("fittrack_display_presets", JSON.stringify(presets));
-  };
+  // TV Display state + presets now live in <TvDisplayTab />.
 
   const staffSecret =
     import.meta.env.VITE_STAFF_SECRET ||
@@ -593,7 +451,23 @@ const Admin = () => {
       getHabits().then(setNutritionHabits);
     }
   }, []);
-
+  const applyDraft = useApplyDraft({
+    editingProgramIdRef,
+    setEditingProgramId,
+    setNewProgName,
+    setNewProgDesc,
+    setNewProgStream,
+    setNewProgStartDate,
+    setNewProgCover,
+    setNewProgType,
+    setNewProgWeeks,
+    setNewProgDays,
+    setProgWorkouts,
+    setProgWeekNotes,
+    setSelectedWorkoutIndex,
+    setProgViewMode,
+    setActiveTab,
+  });
   useEffect(() => {
     const handleSync = async () => {
       setExercises(await getExercises());
@@ -941,6 +815,13 @@ const Admin = () => {
       videoUrl: newExVid,
       movementType: newExMovement,
       trackingType: newExTracking,
+      movement_pattern: newExTags.movement_pattern ?? null,
+      movement_family: newExTags.movement_family ?? null,
+      role: newExTags.role ?? null,
+      unilateral: newExTags.unilateral ?? null,
+      is_compound: newExTags.is_compound ?? null,
+      primary_muscles: newExTags.primary_muscles ?? null,
+      contraindications: newExTags.contraindications ?? null,
     };
     const updated = [...exercises, newEx];
     setExercises(updated);
@@ -952,6 +833,7 @@ const Admin = () => {
     setNewExMuscle("");
     setNewExVid("");
     setNewExTracking(["Weight & Reps"]);
+    setNewExTags({});
   };
 
   const handleDeleteExercise = (id: string) => {
@@ -1067,93 +949,8 @@ const Admin = () => {
     setTrackF("All");
   };
 
-  const handleExportData = () => {
-    try {
-      if (exercises.length === 0) {
-        toast.error("No exercises to export.");
-        return;
-      }
-
-      const headers = [
-        "ID",
-        "Name",
-        "Categories",
-        "Muscle",
-        "Equipment",
-        "Difficulty",
-        "Movement Types",
-        "Video URL",
-        "Tracking Style",
-      ];
-      const csvRows = [headers.join(",")];
-
-      exercises.forEach((ex) => {
-        const row = [
-          `"${ex.id || ""}"`,
-          `"${ex.name || ""}"`,
-          `"${Array.isArray(ex.category) ? ex.category.join("; ") : ex.category || ""}"`,
-          `"${ex.muscle || ""}"`,
-          `"${ex.equipment || ""}"`,
-          `"${ex.difficulty || ""}"`,
-          `"${Array.isArray(ex.movementType) ? ex.movementType.join("; ") : ex.movementType || ""}"`,
-          `"${ex.videoUrl || ""}"`,
-          `"${Array.isArray(ex.trackingType) ? ex.trackingType.join("; ") : ex.trackingType || "Weight & Reps"}"`,
-        ];
-        csvRows.push(row.join(","));
-      });
-
-      const csvString = csvRows.join("\n");
-
-      navigator.clipboard.writeText(csvString).catch(() => {});
-
-      const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "fittrack_exercises_backup.csv";
-      a.target = "_blank";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      toast.success(
-        "Exercises backed up! (Also copied to clipboard just in case)",
-      );
-    } catch (error) {
-      toast.error("Failed to export backup.");
-    }
-  };
-
-  const handleExportProgramsData = () => {
-    try {
-      if (programs.length === 0) {
-        toast.error("No programs to export.");
-        return;
-      }
-
-      const jsonString = JSON.stringify(programs, null, 2);
-
-      navigator.clipboard.writeText(jsonString).catch(() => {});
-
-      const blob = new Blob([jsonString], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "fittrack_programs_backup.json";
-      a.target = "_blank";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      toast.success(
-        "Programs backed up! (Also copied to clipboard just in case)",
-      );
-    } catch (error) {
-      toast.error("Failed to export programs backup.");
-    }
-  };
+  const handleExportData = () => exportExercisesData(exercises);
+  const handleExportProgramsData = () => exportProgramsData(programs);
 
   const handleGenerateWorkoutSlots = () => {
     if (newProgType === "session_folder") {
@@ -1468,171 +1265,12 @@ const Admin = () => {
   };
 
   // ── Rules-based shuffle pool (enrichment alternates first, then tightened fallback) ──
-  const norm = (s: string) =>
-    String(s || "")
-      .toLowerCase()
-      .trim();
-  const mt = (e: any) =>
-    Array.isArray(e?.movementType)
-      ? e.movementType
-      : String(e?.movementType || "")
-          .split(/[;,]/)
-          .map((s: string) => s.trim())
-          .filter(Boolean);
-  const byName = useMemo(() => {
-    const m: Record<string, any> = {};
-    exercises.forEach((e) => {
-      m[norm(e.name)] = e;
-    });
-    return m;
-  }, [exercises]);
-  // O(1) exercise lookup by id — replaces repeated .find() calls in render loops
-  const exById = useMemo(() => {
-    const m: Record<string, any> = {};
-    exercises.forEach((e) => {
-      m[String(e.id)] = e;
-    });
-    return m;
-  }, [exercises]);
-  // Pre-sorted exercise list for the picker dropdowns (avoids re-sorting on every render)
-  const sortedExercises = useMemo(
-    () => [...exercises].sort((a, b) => a.name.localeCompare(b.name)),
-    [exercises],
-  );
-  const STRENGTH_TAGS = [
-    "Push",
-    "Horizontal Push",
-    "Vertical Push",
-    "Pull",
-    "Horizontal Pull",
-    "Vertical Pull",
-    "Knee",
-    "Hip",
-    "Core",
-    "Carries",
-    "Accessory",
-  ];
-  const isStrengthMove = (e: any) =>
-    mt(e).some((t: string) => STRENGTH_TAGS.includes(t));
-
-  // ── Section-aware shuffle (keep swaps within the role of their block) ──────
-  function enclosingSectionName(items: any[], i: number): string {
-    for (let k = i; k >= 0; k--) {
-      if (items[k]?.isSection) return String(items[k].name || "");
-    }
-    return "";
-  }
-  function sectionRole(name: string): string {
-    const n = norm(name);
-    if (/warm ?up|mobility|prep/.test(n)) return "warmup";
-    if (/fire ?up|activation|prime/.test(n)) return "activation";
-    if (/\blift\b|strength|main lift|primary/.test(n)) return "lift";
-    if (/burn/.test(n)) return "burn";
-    if (/finisher|core|cardio|conditioning|engine|metcon|burnout/.test(n))
-      return "finisher";
-    return "any";
-  }
-  const BW_BAND = /bodyweight|band/i;
-  const ALLOWED_BW_PULL = /pull ?up|chin ?up|ring row|inverted row/i;
-  const isLoaded = (e: any) => {
-    const eq = String(e?.equipment || "");
-    return BW_BAND.test(eq)
-      ? ALLOWED_BW_PULL.test(String(e?.name || ""))
-      : true;
-  };
-  const hasTag = (e: any, re: RegExp) => mt(e).some((t: string) => re.test(t));
-  const catOf = (e: any) => String(e?.categories || e?.category || "");
-  function fitsSection(e: any, role: string): boolean {
-    switch (role) {
-      case "warmup":
-        return hasTag(e, /warm ?up/i) || /mobility/i.test(catOf(e));
-      case "activation":
-        return (
-          hasTag(e, /fire ?up|activation/i) || /activation/i.test(catOf(e))
-        );
-      case "lift":
-        return isStrengthMove(e) && isLoaded(e) && !hasTag(e, /accessory/i);
-      case "burn":
-        return isStrengthMove(e) && isLoaded(e);
-      case "finisher":
-        return (
-          hasTag(e, /accessory|core|conditioning|carries/i) ||
-          /cardio|conditioning/i.test(catOf(e))
-        );
-      default:
-        return true;
-    }
-  }
-
-  function rulesBasedPool(libEx: any): any[] {
-    const libTags = mt(libEx);
-    const origIsStrength = isStrengthMove(libEx);
-
-    // Strength pattern FAMILIES — shuffle across the entire family, ANY angle.
-    // Put this FIRST so the same-angle enrichment alternates don't pre-empt it
-    // (a chest press can now shuffle to an overhead press, a row to a pull-up, etc.).
-    const FAMILY: Record<string, string[]> = {
-      push: ["Push", "Horizontal Push", "Vertical Push"],
-      pull: ["Pull", "Horizontal Pull", "Vertical Pull"],
-      knee: ["Knee"],
-      hip: ["Hip"],
-    };
-    const famKey = Object.keys(FAMILY).find((f) =>
-      FAMILY[f].some((t) => libTags.includes(t)),
-    );
-    if (famKey) {
-      const famSet = FAMILY[famKey];
-      const inFamily = exercises.filter(
-        (e) =>
-          e.id !== libEx.id &&
-          mt(e).some((t: string) => famSet.includes(t)) &&
-          isStrengthMove(e) === origIsStrength,
-      );
-      if (inFamily.length) return inFamily;
-    }
-
-    // Non-family patterns (accessory / core / carries / warm-up): coach-picked enrichment alternates first.
-    const row = enrichment[String(libEx.id)];
-    if (row) {
-      const cols = [
-        "alt_same_pattern",
-        "alt_equipment",
-        "alt_progress",
-        "alt_regress",
-        "alt_joint_friendly",
-        "alt_home",
-      ];
-      const seen = new Set<string>([String(libEx.id)]);
-      const alts: any[] = [];
-      for (const c of cols) {
-        String(row[c] || "")
-          .split(/[,/]| or /i)
-          .map(norm)
-          .filter(Boolean)
-          .forEach((tok) => {
-            const ex = byName[tok];
-            if (ex && !seen.has(String(ex.id))) {
-              seen.add(String(ex.id));
-              alts.push(ex);
-            }
-          });
-      }
-      if (alts.length) return alts;
-    }
-
-    // Final fallback: same specific tag.
-    const specific = libTags[0];
-    if (specific) {
-      const samePattern = exercises.filter(
-        (e) =>
-          e.id !== libEx.id &&
-          mt(e).includes(specific) &&
-          isStrengthMove(e) === origIsStrength,
-      );
-      if (samePattern.length) return samePattern;
-    }
-    return [];
-  }
+  // Exercise-pool + shuffle helpers live in @/lib/exercisePool (extracted).
+  const byName = useByName(exercises);
+  const exById = useExById(exercises);
+  const sortedExercises = useSortedExercises(exercises);
+  const rulesBasedPoolLocal = (libEx: any) =>
+    rulesBasedPool(libEx, exercises, enrichment);
 
   const handleShuffleExercise = (exerciseId: number | string) => {
     const workoutItems = progWorkouts[selectedWorkoutIndex].exercises;
@@ -1646,7 +1284,9 @@ const Admin = () => {
     if (!libEx) return;
 
     const role = sectionRole(enclosingSectionName(workoutItems, itemIdx));
-    let pool = rulesBasedPool(libEx).filter((e: any) => fitsSection(e, role));
+    let pool = rulesBasedPool(libEx, exercises, enrichment).filter((e: any) =>
+      fitsSection(e, role),
+    );
     if (!pool.length) {
       const specific =
         mt(libEx).find((t: string) => /Horizontal|Vertical/.test(t)) ||
@@ -1769,7 +1409,9 @@ const Admin = () => {
       if (!libEx) return;
 
       const role = sectionRole(enclosingSectionName(workoutItems, idx));
-      let pool = rulesBasedPool(libEx).filter((e: any) => fitsSection(e, role));
+      let pool = rulesBasedPool(libEx, exercises, enrichment).filter((e: any) =>
+        fitsSection(e, role),
+      );
       if (!pool.length) {
         const specific =
           mt(libEx).find((t: string) => /Horizontal|Vertical/.test(t)) ||
@@ -1819,114 +1461,15 @@ const Admin = () => {
     }
   };
 
-  const handleGenerateEngineWorkout = async (sectionId: number) => {
-    if (!anthropicKey) {
-      toast.error(
-        "Please add your Anthropic API Key in the Settings tab first.",
-      );
-      return;
-    }
-
-    const updatedWorkouts = [...progWorkouts];
-    const currentWorkout = updatedWorkouts[selectedWorkoutIndex];
-    const sectionIndex = currentWorkout.exercises.findIndex(
-      (e: any) => e.id === sectionId,
-    );
-
-    if (sectionIndex === -1) return;
-
-    setIsGeneratingAI(true);
-    const toastId = toast.loading(
-      "AI is analyzing your library and building a 40-min engine workout...",
-    );
-
-    try {
-      const exList = exercises
-        .map(
-          (ex) =>
-            `- ${ex.name} (ID: ${ex.id}, Category: ${Array.isArray(ex.category) ? ex.category.join(",") : ex.category}, Movement: ${Array.isArray(ex.movementType) ? ex.movementType.join(",") : ex.movementType})`,
-        )
-        .join("\n");
-
-      const prompt = `You are an expert fitness coach. Create a 40-minute scalable engine (cardio/conditioning) workout using ONLY the following available exercises:
-
-${exList}
-
-The workout must be a 40-minute EMOM (Every Minute on the Minute) or AMRAP style, utilizing 4 to 6 different exercises.
-
-Return ONLY a valid JSON array of exercise objects to be inserted into the workout. Each object must follow this exact structure:
-[
-  {
-    "blockType": "Cardio",
-    "name": "exercise_id_from_list",
-    "sets": 10,
-    "reps": 15,
-    "weight": 0,
-    "distance": 0,
-    "timeMins": 1,
-    "timeSecs": 0,
-    "rest": 0,
-    "linkedToNext": false,
-    "eachSide": false,
-    "staffNotes": "Brief coaching note"
-  }
-]
-Do not include any markdown formatting, backticks, or other text outside the JSON array.`;
-
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": anthropicKey,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-        body: JSON.stringify({
-          model: "claude-3-haiku-20240307",
-          max_tokens: 1500,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error?.message || "Failed to generate workout");
-      }
-
-      const data = await response.json();
-      let text = data.content[0].text.trim();
-
-      if (text.startsWith("```json")) text = text.replace(/```json\n?/, "");
-      if (text.startsWith("```")) text = text.replace(/```\n?/, "");
-      if (text.endsWith("```")) text = text.replace(/```$/, "");
-
-      const newExercises = JSON.parse(text).map((ex: any, i: number) => ({
-        ...ex,
-        id: Date.now() + i + Math.random(),
-      }));
-
-      currentWorkout.exercises[sectionIndex].name = "AI Engine: 40 Min EMOM";
-      currentWorkout.exercises[sectionIndex].sectionType = "EMOM";
-      currentWorkout.exercises[sectionIndex].description =
-        "AI Generated 40-Min Engine Block";
-
-      currentWorkout.exercises.splice(sectionIndex + 1, 0, ...newExercises);
-
-      setProgWorkouts(updatedWorkouts);
-      toast.success("40-Min Engine Workout generated successfully!", {
-        id: toastId,
-      });
-    } catch (error: any) {
-      console.error(error);
-      toast.error("AI Generation failed: " + error.message, { id: toastId });
-    } finally {
-      setIsGeneratingAI(false);
-    }
-  };
-
-  const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
-  // Synchronous mirror so tight generation loops reuse ONE programme id.
-  const editingProgramIdRef = useRef<string | null>(null);
+  const handleGenerateEngineWorkout = (sectionId: number) =>
+    handleGenerateEngineWorkoutGen(sectionId, {
+      anthropicKey,
+      exercises,
+      progWorkouts,
+      selectedWorkoutIndex,
+      setIsGeneratingAI,
+      setProgWorkouts,
+    });
 
   const handleAddProgram = () => {
     if (!newProgName) {
@@ -2715,7 +2258,7 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="nutrition">Nutrition</TabsTrigger>
           <TabsTrigger value="accountability">Accountability</TabsTrigger>
-
+          <TabsTrigger value="ai-coach">AI Coach</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -2734,7 +2277,11 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                   <Label>Name</Label>
                   <Input
                     value={newExName}
-                    onChange={(e) => setNewExName(e.target.value)}
+                    onChange={(e) => {
+                      setNewExName(e.target.value);
+                      const g = guessTagsFromName(e.target.value);
+                      setNewExTags((prev: any) => ({ ...g, ...prev }));
+                    }}
                     placeholder="e.g. Incline Press"
                   />
                 </div>
@@ -2866,6 +2413,17 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                     value={newExVid}
                     onChange={(e) => setNewExVid(e.target.value)}
                     placeholder="e.g. https://player.vimeo.com/video/147173661"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <ExerciseTagsEditor
+                    value={newExTags}
+                    onChange={(patch) =>
+                      setNewExTags((prev: any) => ({ ...prev, ...patch }))
+                    }
+                    existingFamilies={exercises
+                      .map((e: any) => e.movement_family)
+                      .filter(Boolean)}
                   />
                 </div>
               </div>
@@ -3370,6 +2928,15 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                       }
                     />
                   </div>
+                  <ExerciseTagsEditor
+                    value={editingExercise}
+                    onChange={(patch) =>
+                      setEditingExercise({ ...editingExercise, ...patch })
+                    }
+                    existingFamilies={exercises
+                      .map((e: any) => e.movement_family)
+                      .filter(Boolean)}
+                  />
                 </div>
               )}
               <DialogFooter>
@@ -4041,6 +3608,12 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                 <h3 className="font-heading tracking-wider text-xl">
                                   {weekLabel(selectedWeek)} Settings
                                 </h3>
+                                <VarietyBadge
+                                  weekWorkouts={progWorkouts.filter(
+                                    (w: any) => Number(w.week) === selectedWeek,
+                                  )}
+                                  allExercises={exercises}
+                                />
                                 <div className="flex gap-2">
                                   {selectedWeek > 1 && (
                                     <Button
@@ -4882,6 +4455,63 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
                                                         ></path>
                                                       </svg>
                                                     </Button>
+                                                    <SmartSwapButton
+                                                      exerciseId={String(
+                                                        pe.name,
+                                                      )}
+                                                      exerciseName={
+                                                        exById[String(pe.name)]
+                                                          ?.name || pe.name
+                                                      }
+                                                      allExercises={exercises}
+                                                      weekWorkouts={
+                                                        progWorkouts
+                                                      }
+                                                      sessionIndex={
+                                                        selectedWorkoutIndex
+                                                      }
+                                                      onSwap={(
+                                                        newId,
+                                                        newName,
+                                                      ) => {
+                                                        updateProgExerciseFields(
+                                                          pe.id,
+                                                          {
+                                                            name: newId,
+                                                            trackingType:
+                                                              defaultTrackingFor(
+                                                                exById[newId],
+                                                              ),
+                                                            trackingMode:
+                                                              undefined,
+                                                          },
+                                                        );
+                                                        toast.success(
+                                                          `Swapped for ${newName}`,
+                                                        );
+                                                        if (
+                                                          linkRounds &&
+                                                          newProgType ===
+                                                            "GroupPT"
+                                                        ) {
+                                                          const session =
+                                                            progWorkouts[
+                                                              selectedWorkoutIndex
+                                                            ];
+                                                          const sibs =
+                                                            otherRoundWeeks(
+                                                              Number(
+                                                                session.week,
+                                                              ),
+                                                            );
+                                                          if (sibs.length)
+                                                            toast.success(
+                                                              "Updated across weeks " +
+                                                                sibs.join(", "),
+                                                            );
+                                                        }
+                                                      }}
+                                                    />
                                                   </div>
                                                 </div>
 
@@ -6425,7 +6055,13 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         <TabsContent value="accountability" className="space-y-6 mt-6">
           <AccountabilityCoachPanel />
         </TabsContent>
-
+        <TabsContent value="ai-coach" className="space-y-6 mt-6">
+          <AiCoachTab
+            exercises={exercises}
+            members={members}
+            onApplyDraft={applyDraft}
+          />
+        </TabsContent>
         <TabsContent value="notifications" className="space-y-6 mt-6">
           <Card className="bg-card border-border">
             <CardHeader>
@@ -6732,346 +6368,9 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
           </Card>
         </TabsContent>
 
-        <TabsContent value="display" className="space-y-6 mt-6">
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle>TV Display Settings</CardTitle>
-              <CardDescription>
-                Manage presets and launch the TV display for your programs.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <h3 className="text-lg font-bold">Launch Display</h3>
-                  <div className="space-y-2">
-                    <Label>Select Program</Label>
-                    <Select
-                      value={selectedDisplayProgramId}
-                      onValueChange={(v) => {
-                        setSelectedDisplayProgramId(v);
-                        setSelectedDisplayWorkoutId("");
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a program" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {programs.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {selectedDisplayProgramId && (
-                    <div className="space-y-2">
-                      <Label>Select Session</Label>
-                      <Select
-                        value={selectedDisplayWorkoutId}
-                        onValueChange={setSelectedDisplayWorkoutId}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a session" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {programs
-                            .find((p) => p.id === selectedDisplayProgramId)
-                            ?.workouts?.map((w: any, idx: number) => (
-                              <SelectItem key={idx} value={idx.toString()}>
-                                {w.name}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    <Label>Select Preset</Label>
-                    <Select
-                      value={selectedPresetId}
-                      onValueChange={setSelectedPresetId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a preset" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {displayPresets.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button
-                    className="w-full gap-2"
-                    disabled={
-                      !selectedDisplayProgramId || !selectedDisplayWorkoutId
-                    }
-                    onClick={() =>
-                      window.open(
-                        `/tv/${selectedDisplayProgramId}/${selectedDisplayWorkoutId}?preset=${selectedPresetId}`,
-                        "_blank",
-                      )
-                    }
-                  >
-                    <PlayCircle className="h-4 w-4" /> Launch TV Display
-                  </Button>
-                </div>
+        <TvDisplayTab programs={programs} />
 
-                <div className="space-y-4 border-l border-border pl-6">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-bold">Manage Presets</h3>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const newId = "preset_" + Date.now();
-                        savePresets([
-                          ...displayPresets,
-                          {
-                            ...displayPresets[0],
-                            id: newId,
-                            name: "New Preset",
-                          },
-                        ]);
-                        setEditingPresetId(newId);
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-2" /> New Preset
-                    </Button>
-                  </div>
-
-                  <div className="space-y-2">
-                    {displayPresets.map((preset) => (
-                      <div
-                        key={preset.id}
-                        className="flex items-center justify-between p-3 border border-border rounded-md bg-muted/30"
-                      >
-                        <span>{preset.name}</span>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setEditingPresetId(preset.id)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          {preset.id !== "default" && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-destructive"
-                              onClick={() => {
-                                savePresets(
-                                  displayPresets.filter(
-                                    (p) => p.id !== preset.id,
-                                  ),
-                                );
-                                if (selectedPresetId === preset.id)
-                                  setSelectedPresetId("default");
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="settings" className="space-y-6 mt-6">
-          <SyncErrorsPanel />
-          <AccountabilitySettings />
-          <CoachWhatsAppSettings />
-          <TrialHubSettings />
-          <TrialWeekContentEditor />
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle>AI Settings</CardTitle>
-              <CardDescription>
-                Configure your AI brain (Claude) for automatic workout
-                generation.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Anthropic API Key</Label>
-                <Input
-                  type="password"
-                  value={anthropicKey}
-                  onChange={(e) => {
-                    setAnthropicKey(e.target.value);
-                    saveAnthropicKey(e.target.value);
-                  }}
-                  placeholder="sk-ant-api03-..."
-                />
-                <p className="text-xs text-muted-foreground pt-1">
-                  Your API key is stored securely on your device and synced to
-                  your profile. It is used directly from your browser to call
-                  Claude.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <Dialog
-          open={!!editingPresetId}
-          onOpenChange={(open) => !open && setEditingPresetId(null)}
-        >
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Edit Display Preset</DialogTitle>
-            </DialogHeader>
-            {editingPresetId &&
-              (() => {
-                const preset = displayPresets.find(
-                  (p) => p.id === editingPresetId,
-                );
-                if (!preset) return null;
-
-                const updatePreset = (
-                  field: string,
-                  subfield: string | null,
-                  value: any,
-                ) => {
-                  const updated = displayPresets.map((p) => {
-                    if (p.id === editingPresetId) {
-                      if (subfield) {
-                        return {
-                          ...p,
-                          [field]: { ...p[field], [subfield]: value },
-                        };
-                      }
-                      return { ...p, [field]: value };
-                    }
-                    return p;
-                  });
-                  savePresets(updated);
-                };
-
-                return (
-                  <div className="space-y-6 py-4">
-                    <div className="space-y-2">
-                      <Label>Preset Name</Label>
-                      <Input
-                        value={preset.name}
-                        onChange={(e) =>
-                          updatePreset("name", null, e.target.value)
-                        }
-                      />
-                    </div>
-
-                    <div className="space-y-4">
-                      <h4 className="font-bold border-b pb-2">Layout</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Orientation</Label>
-                          <Select
-                            value={preset.layout.orientation}
-                            onValueChange={(v) =>
-                              updatePreset("layout", "orientation", v)
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="landscape">
-                                Landscape
-                              </SelectItem>
-                              <SelectItem value="portrait">Portrait</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="flex items-center space-x-2 pt-8">
-                          <Checkbox
-                            id="showRest"
-                            checked={preset.layout.showRest}
-                            onCheckedChange={(c) =>
-                              updatePreset("layout", "showRest", !!c)
-                            }
-                          />
-                          <label htmlFor="showRest" className="text-sm">
-                            Show Rest Times
-                          </label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="showHeaders"
-                            checked={preset.layout.showHeaders}
-                            onCheckedChange={(c) =>
-                              updatePreset("layout", "showHeaders", !!c)
-                            }
-                          />
-                          <label htmlFor="showHeaders" className="text-sm">
-                            Show Column Headers
-                          </label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="showDuration"
-                            checked={preset.layout.showDuration}
-                            onCheckedChange={(c) =>
-                              updatePreset("layout", "showDuration", !!c)
-                            }
-                          />
-                          <label htmlFor="showDuration" className="text-sm">
-                            Show Duration
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <h4 className="font-bold border-b pb-2">Colors</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Background Color</Label>
-                          <Input
-                            type="color"
-                            value={preset.colors.background}
-                            onChange={(e) =>
-                              updatePreset(
-                                "colors",
-                                "background",
-                                e.target.value,
-                              )
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Block Color</Label>
-                          <Input
-                            type="color"
-                            value={preset.colors.blockBackground}
-                            onChange={(e) =>
-                              updatePreset(
-                                "colors",
-                                "blockBackground",
-                                e.target.value,
-                              )
-                            }
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-            <DialogFooter>
-              <Button onClick={() => setEditingPresetId(null)}>Done</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <SettingsTab />
       </Tabs>
     </div>
   );
