@@ -38,7 +38,7 @@ export const sendCoachMessage = async (params: {
   stream: string;
   draft?: ProgrammeDraft;
   memberId?: string;
-}): Promise<{ chatId: string; message: string; draft?: ProgrammeDraft }> => {
+}): Promise<{ chatId: string; assistant: string; draft?: ProgrammeDraft }> => {
   const { data, error } = await supabase.functions.invoke("coach-agent", {
     body: {
       staffSecret: STAFF_SECRET,
@@ -52,7 +52,7 @@ export const sendCoachMessage = async (params: {
   if (error) throw error;
   return {
     chatId: data.chatId,
-    message: data.message,
+    assistant: data.assistant ?? data.message ?? "",
     draft: data.draft,
   };
 };

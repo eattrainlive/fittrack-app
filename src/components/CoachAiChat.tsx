@@ -122,9 +122,10 @@ export const CoachAiChat = ({
         draft,
         memberId: memberId || undefined,
       });
+      const replyText = res.assistant || "";
       const assistantMsg: ChatMessage = {
         role: "assistant",
-        content: res.message,
+        content: replyText,
         draft: res.draft,
       };
       setMessages([...nextMessages, assistantMsg]);
@@ -233,9 +234,13 @@ export const CoachAiChat = ({
                       : "bg-card border border-border"
                   }`}
                 >
-                  <p className="whitespace-pre-wrap leading-relaxed">
-                    {msg.content}
-                  </p>
+                  {msg.role === "assistant" ? (
+                    <MarkdownText text={msg.content} />
+                  ) : (
+                    <p className="whitespace-pre-wrap leading-relaxed">
+                      {msg.content}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
@@ -387,5 +392,86 @@ const DraftPreview = ({ draft }: { draft: ProgrammeDraft }) => {
         </div>
       ))}
     </div>
+  );
+};
+
+/**
+ * Minimal markdown renderer for assistant replies (headings, bold, italics,
+ * bullet/numbered lists, paragraphs). Avoids pulling in a markdown dependency.
+ * Escapes HTML first, then applies inline + block transforms.
+ */
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+const renderInline = (s: string): string =>
+  s
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<em>$1</em>")
+    .replace(/`(.+?)`/g, "<code>$1</code>");
+
+const MarkdownText = ({ text }: { text: string }) => {
+  const lines = (text || "").split("\n");
+  const blocks: string[] = [];
+  let list: { ordered: boolean; items: string[] } | null = null;
+
+  const flush = () => {
+    if (list) {
+      const tag = list.ordered ? "ol" : "ul";
+      blocks.push(
+        `<${tag} class="ml-4 my-1 space-y-0.5">${list.items
+          .map((it) => `<li>${renderInline(it)}</li>`)
+          .join("")}</${tag}>`,
+      );
+      list = null;
+    }
+  };
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (!line.trim()) {
+      flush();
+      continue;
+    }
+    const h = line.match(/^(#{1,4})\s+(.*)$/);
+    if (h) {
+      flush();
+      const lvl = h[1].length;
+      const cls =
+        lvl <= 1
+          ? "font-heading font-bold text-base mt-2 mb-1"
+          : lvl === 2
+            ? "font-semibold text-sm mt-2 mb-1"
+            : "font-medium text-sm mt-1";
+      blocks.push(`<p class="${cls}">${renderInline(h[2])}</p>`);
+      continue;
+    }
+    const ol = line.match(/^\s*\d+\.\s+(.*)$/);
+    if (ol) {
+      if (!list || list.ordered) {
+        flush();
+        list = { ordered: true, items: [] };
+      }
+      list.items.push(ol[1]);
+      continue;
+    }
+    const ul = line.match(/^\s*[-*+]\s+(.*)$/);
+    if (ul) {
+      if (!list || !list.ordered) {
+        flush();
+        list = { ordered: false, items: [] };
+      }
+      list.items.push(ul[1]);
+      continue;
+    }
+    flush();
+    blocks.push(`<p class="leading-relaxed my-0.5">${renderInline(line)}</p>`);
+  }
+  flush();
+
+  return (
+    <div
+      className="text-sm [&_ol]:list-decimal [&_ul]:list-disc"
+      dangerouslySetInnerHTML={{ __html: blocks.join("") }}
+    />
   );
 };
