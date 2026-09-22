@@ -633,18 +633,39 @@ export default function CheckInKiosk() {
         )}
       </div>
 
-      {/* Bottom: manual button + recent check-ins */}
+      {/* Bottom: manual button + get-app QR + recent check-ins */}
       <div className="w-full max-w-md space-y-4 pb-4">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setMode("manual");
-          }}
-          className="w-full bg-card border border-border rounded-xl py-4 font-bold text-foreground flex items-center justify-center gap-2 active:scale-[0.99] transition"
-        >
-          <Search className="h-5 w-5" />
-          Check in manually
-        </button>
+        <div className="flex items-stretch gap-3">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setMode("manual");
+            }}
+            className="flex-1 bg-card border border-border rounded-xl py-4 font-bold text-foreground flex items-center justify-center gap-2 active:scale-[0.99] transition"
+          >
+            <Search className="h-5 w-5" />
+            Check in manually
+          </button>
+
+          {/* Get-the-app QR — lets a visitor scan to install the PWA */}
+          <div className="bg-card border border-border rounded-xl p-3 flex items-center gap-3 shrink-0">
+            <QRCodeSVG
+              value={window.location.origin}
+              size={56}
+              bgColor="transparent"
+              fgColor="hsl(var(--foreground))"
+              level="M"
+            />
+            <div className="pr-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-primary leading-tight">
+                Get the app
+              </p>
+              <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                Scan to install
+              </p>
+            </div>
+          </div>
+        </div>
 
         {recent.length > 0 && <RecentCheckIns recent={recent} />}
       </div>
