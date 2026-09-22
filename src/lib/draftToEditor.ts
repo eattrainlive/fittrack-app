@@ -2,32 +2,35 @@
  * Maps a structured ProgrammeDraft (from the coach-agent "structure" action)
  * into the progWorkouts shape used by the manual programme editor in Admin.tsx.
  *
- * The structured draft shape is:
+ * The structured draft shape (from the "structure" action) is:
  *   { name, stream, weeks: [{ week, days: [{ day, minDays, theme,
- *      sections: [{ name, exercises: [{ name, exercise_id, sets, reps, notes }] }] }] }] }
+ *      rows: [{ isSection, name, label, blockType, sets, reps, rest,
+ *               eachSide, coachingNotes, sectionType }] }] }] }
  *
- * Exercises resolve to the library by exercise_id first, then by name.
- * Anything that doesn't match is flagged for the coach. Each day's minDays
- * is carried onto the app's dayCounts field so the member-facing days-per-week
- * chooser filters agent-built programmes correctly.
+ * CRITICAL: each exercise row's `name` field already holds the LIBRARY
+ * EXERCISE ID (not the display text). The editor renders exercises by
+ * `exercises.find(e => e.id === row.name)`. We pass each row through
+ * UNCHANGED — we do NOT overwrite `name` with the label, or the dropdown
+ * shows "Select Exercise…" (empty). The `label` is only for display in
+ * the preview / for unmatched rows.
+ *
+ * Each day's minDays is carried onto the app's dayCounts field so the
+ * member-facing days-per-week chooser filters agent-built programmes.
  */
-import { mapProgramExercise } from "./programExerciseMapper";
 export type { ProgrammeDraft } from "./coachAgent";
 
-export interface DraftExercise {
-  id?: string;
-  exercise_id?: string;
+export interface DraftRow {
+  isSection?: boolean;
   name?: string;
+  label?: string;
+  blockType?: string;
+  sectionType?: string;
   sets?: number;
   reps?: string;
+  rest?: number;
+  eachSide?: boolean;
+  coachingNotes?: string;
   notes?: string;
-  isSection?: boolean;
-  sectionType?: string;
-}
-
-export interface DraftSection {
-  name?: string;
-  exercises?: DraftExercise[];
 }
 
 export interface DraftDay {
@@ -35,10 +38,8 @@ export interface DraftDay {
   name?: string;
   minDays?: number;
   theme?: string;
-  /** Nested sections (structured draft from "structure" action). */
-  sections?: DraftSection[];
-  /** Flat exercises (older draft shape — fallback). */
-  exercises?: DraftExercise[];
+  /** Structured rows (from "structure" action) — pass through unchanged. */
+  rows?: DraftRow[];
   /** Explicit per-session day filter (overrides minDays if present). */
   dayCounts?: number[];
 }
@@ -69,30 +70,9 @@ const dayCountsFromMinDays = (minDays: number | undefined): number[] => {
   return arr.length ? arr : [1, 2, 3, 4, 5];
 };
 
-/** Flatten a day's sections into the editor's exercises array, inserting
- *  section-header rows so the editor preserves the section structure. */
-const flattenDay = (day: DraftDay): DraftExercise[] => {
-  if (day.sections && day.sections.length) {
-    const out: DraftExercise[] = [];
-    for (const sec of day.sections) {
-      out.push({
-        isSection: true,
-        name: sec.name || "Section",
-        sectionType: "Normal",
-      });
-      for (const ex of sec.exercises || []) {
-        out.push({ ...ex, isSection: false });
-      }
-    }
-    return out;
-  }
-  // Fallback: flat exercises array (older draft shape)
-  return day.exercises || [];
-};
-
 export const draftToEditorWorkouts = (
   draft: { weeks?: DraftWeek[] },
-  library: any[],
+  _library?: any[],
 ): DraftToEditorResult => {
   const weeks = draft.weeks || [];
   const workouts: any[] = [];
@@ -103,51 +83,28 @@ export const draftToEditorWorkouts = (
     const weekNum = week.week || wi + 1;
     (week.days || []).forEach((day, di) => {
       dayCounter += 1;
-      const rawExercises = flattenDay(day);
-      const mappedExercises = rawExercises.map((ex: any, eIdx: number) => {
-        // Section header rows pass straight through (no library match needed).
-        if (ex.isSection) {
-          return {
-            id: Date.now() + eIdx + Math.random(),
-            isSection: true,
-            name: ex.name || "Section",
-            sectionType: ex.sectionType || "Normal",
-            description: "",
-            blockType: "Strength",
-            trackingType: "Weight & Reps",
-            sets: 0,
-            reps: "",
-            notes: "",
-          };
-        }
+      const rows = day.rows || [];
 
-        // Resolve by exercise_id first, then by name.
-        const libMatch =
-          (ex.exercise_id &&
-            library.find((e) => String(e.id) === String(ex.exercise_id))) ||
-          (ex.id && library.find((e) => String(e.id) === String(ex.id))) ||
-          library.find((e) => e.name === ex.name);
-
-        if (!libMatch) unmatchedCount += 1;
-
-        const base: any = libMatch
-          ? mapProgramExercise(libMatch, libMatch.trackingType)
-          : {
-              name: ex.name || "Unknown exercise",
-              trackingType: "Weight & Reps",
-              sets: 3,
-              reps: "10",
-            };
+      // Pass each row through UNCHANGED — name already holds the library id.
+      // Give every row a unique numeric id (the editor keys on this for updates).
+      const exercises = rows.map((r: DraftRow, eIdx: number) => {
+        // Count unmatched: exercise row (not section) with no library id in name.
+        if (!r.isSection && !r.name) unmatchedCount += 1;
 
         return {
           id: Date.now() + eIdx + Math.random(),
-          ...base,
-          name: ex.name || base.name,
-          sets: ex.sets != null ? Number(ex.sets) : (base.sets ?? 3),
-          reps: ex.reps ?? base.reps ?? "10",
-          notes: ex.notes || "",
-          isSection: false,
-          sectionType: "Normal",
+          isSection: r.isSection ?? false,
+          name: r.name ?? "", // library id (or "" if unmatched)
+          label: r.label,
+          sectionType: r.sectionType || "Normal",
+          blockType: r.blockType || "Strength",
+          trackingType: "Weight & Reps",
+          sets: r.sets ?? (r.isSection ? 0 : 3),
+          reps: r.reps ?? "",
+          rest: r.rest,
+          eachSide: r.eachSide ?? false,
+          notes: r.coachingNotes || r.notes || "",
+          description: "",
         };
       });
 
@@ -156,7 +113,7 @@ export const draftToEditorWorkouts = (
         name: day.day || day.name || `Day ${di + 1}`,
         week: weekNum,
         day: di + 1,
-        exercises: mappedExercises,
+        exercises,
         minDays: day.minDays ?? undefined,
         dayCounts: day.dayCounts ?? dayCountsFromMinDays(day.minDays),
       });

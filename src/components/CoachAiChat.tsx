@@ -406,7 +406,7 @@ export const CoachAiChat = ({
   );
 };
 
-/** Read-only programme draft renderer — weeks → days → sections → exercises. */
+/** Read-only programme draft renderer — weeks → days → rows. */
 const DraftPreview = ({ draft }: { draft: ProgrammeDraft }) => {
   const weeks = draft.weeks || [];
   if (weeks.length === 0) {
@@ -430,37 +430,24 @@ const DraftPreview = ({ draft }: { draft: ProgrammeDraft }) => {
                   {day.day || day.name || `Day ${di + 1}`}
                   {day.minDays ? ` · min ${day.minDays}d` : ""}
                 </p>
-                <div className="ml-2 space-y-1">
-                  {(day.sections || []).map((sec: any, si: number) => (
-                    <div key={si}>
-                      <span className="font-medium">▸ {sec.name}</span>
-                      <div className="ml-2 space-y-0.5">
-                        {(sec.exercises || []).map((ex: any, ei: number) => (
-                          <div key={ei} className="text-muted-foreground">
-                            {ex.name}
-                            {ex.sets || ex.reps
-                              ? ` — ${ex.sets || 0}×${ex.reps || ""}`
-                              : ""}
-                          </div>
-                        ))}
+                <div className="ml-2 space-y-0.5">
+                  {(day.rows || []).map((r: any, ri: number) =>
+                    r.isSection ? (
+                      <div key={ri} className="font-medium">
+                        ▸ {r.name}
                       </div>
-                    </div>
-                  ))}
-                  {/* Fallback: flat exercises */}
-                  {(day.exercises || []).map((ex: any, ei: number) => (
-                    <div key={ei} className="text-muted-foreground">
-                      {ex.isSection ? (
-                        <span className="font-medium">▸ {ex.name}</span>
-                      ) : (
-                        <span>
-                          {ex.name}
-                          {ex.sets || ex.reps
-                            ? ` — ${ex.sets || 0}×${ex.reps || ""}`
-                            : ""}
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                    ) : (
+                      <div key={ri} className="text-muted-foreground">
+                        {r.label || r.name || "—"}
+                        {!r.name && r.label
+                          ? " (unmatched — pick in editor)"
+                          : ""}
+                        {r.sets || r.reps
+                          ? ` — ${r.sets || 0}×${r.reps || ""}`
+                          : ""}
+                      </div>
+                    ),
+                  )}
                 </div>
               </div>
             ))}
