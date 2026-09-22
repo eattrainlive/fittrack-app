@@ -29,6 +29,7 @@ export interface DraftRow {
   reps?: string;
   rest?: number;
   eachSide?: boolean;
+  linkedToNext?: boolean;
   coachingNotes?: string;
   notes?: string;
 }
@@ -103,6 +104,7 @@ export const draftToEditorWorkouts = (
           reps: r.reps ?? "",
           rest: r.rest,
           eachSide: r.eachSide ?? false,
+          linkedToNext: r.linkedToNext ?? false,
           notes: r.coachingNotes || r.notes || "",
           description: "",
         };

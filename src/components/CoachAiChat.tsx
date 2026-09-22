@@ -474,6 +474,7 @@ const DraftPreview = ({ draft }: { draft: ProgrammeDraft }) => {
                       </div>
                     ) : (
                       <div key={ri} className="text-muted-foreground">
+                        {r.linkedToNext ? "🔗 " : ""}
                         {r.label || r.name || "—"}
                         {!r.name && r.label
                           ? " (unmatched — pick in editor)"
