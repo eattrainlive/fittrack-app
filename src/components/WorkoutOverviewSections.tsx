@@ -1,17 +1,30 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dumbbell } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dumbbell, ChevronDown, Play, EyeOff, Eye, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 /**
  * Renders the section/exercise overview cards for the workout browse/preview
- * view. Extracted from Workouts.tsx to keep that file manageable.
+ * view. Each section header is tappable to expand a full breakdown, carries a
+ * "Start here" button (jump into the live logger at that block), and a "Skip"
+ * toggle (pre-skip a section before starting).
  */
 export function WorkoutOverviewSections({
   exercises,
   exerciseLibrary,
+  onStartHere,
+  onToggleSkip,
+  skippedSectionIds,
 }: {
   exercises: any[];
   exerciseLibrary: any[];
+  onStartHere?: (sectionIndex: number) => void;
+  onToggleSkip?: (sectionId: string | number) => void;
+  skippedSectionIds?: Set<string | number>;
 }) {
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
   const sections: any[] = [];
   let currentSection: any = null;
   let currentGroup: any[] = [];
@@ -31,106 +44,207 @@ export function WorkoutOverviewSections({
     sections.push({ section: currentSection, exercises: currentGroup });
   }
 
+  const toggleExpand = (idx: number) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
   return (
     <div className="space-y-4 mt-6">
-      {sections.map((sec, idx) => (
-        <Card key={idx} className="bg-card border-border overflow-hidden">
-          <CardContent className="p-0">
-            <div className="bg-muted/50 p-3 border-b border-border flex justify-between items-center">
-              <span className="font-bold text-sm tracking-wider uppercase">
-                {sec.section ? sec.section.name : `Block ${idx + 1}`}
-              </span>
-              <span className="text-xs text-muted-foreground font-medium">
-                {sec.exercises.length} exercises
-              </span>
-            </div>
-            <div className="p-3 space-y-3">
-              {sec.exercises.map((ex: any, exIdx: number) => {
-                const libEx = exerciseLibrary.find(
-                  (e) => String(e.id) === String(ex.name),
-                );
+      {sections.map((sec, idx) => {
+        const sectionId = sec.section?.id;
+        const isSkipped =
+          sectionId != null && skippedSectionIds?.has(sectionId);
+        const isExpanded = expanded.has(idx);
+        const sectionType = sec.section?.sectionType || "Normal";
+        const isConditioning = [
+          "AMRAP",
+          "EMOM",
+          "For Time",
+          "Circuit",
+        ].includes(sectionType);
 
-                const setsCount = ex.setsData?.length || ex.sets || 3;
-                const firstSet = ex.setsData?.[0] || ex || {};
-
-                const rawTrack =
-                  ex.trackingType ?? libEx?.trackingType ?? "Weight & Reps";
-                const trackingArray = (
-                  Array.isArray(rawTrack)
-                    ? rawTrack
-                    : String(rawTrack).split(/[;,]/)
-                )
-                  .map((s) => s.trim())
-                  .filter(Boolean);
-
-                const dist = firstSet.distance || ex.distance || 0;
-                const mins = firstSet.timeMins || ex.timeMins || 0;
-                const secs = firstSet.timeSecs || ex.timeSecs || 0;
-                const cals =
-                  firstSet.calories ||
-                  ex.calories ||
-                  (trackingArray.includes("Calories")
-                    ? firstSet.reps || ex.reps || 0
-                    : 0);
-                const reps = firstSet.reps || ex.reps || 0;
-
-                let details: string[] = [];
-                if (
-                  trackingArray.includes("Weight & Distance") &&
-                  (firstSet.weight || ex.weight || 0) > 0
-                )
-                  details.push(`${firstSet.weight || ex.weight}kg`);
-                if (trackingArray.includes("Weight & Distance") && dist)
-                  details.push(`${dist}m`);
-                if (trackingArray.includes("Distance & Time") && dist)
-                  details.push(`${dist}m`);
-                if (
-                  (trackingArray.includes("Time Only") ||
-                    trackingArray.includes("Distance & Time")) &&
-                  (mins || secs)
-                )
-                  details.push(
-                    `${mins ? mins + "m " : ""}${secs ? secs + "s" : ""}`.trim(),
-                  );
-                if (trackingArray.includes("Calories") && cals)
-                  details.push(`${cals} cals`);
-                if (trackingArray.includes("Weight & Reps") && reps)
-                  details.push(`${reps} reps`);
-                if (trackingArray.includes("Reps Only") && reps)
-                  details.push(`${reps} reps`);
-                if (details.length === 0 && reps) details.push(`${reps} reps`);
-                const detailStr = details.join(", ");
-
-                return (
-                  <div
-                    key={exIdx}
-                    className="flex justify-between items-center"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 bg-muted rounded-md flex items-center justify-center shrink-0">
-                        <Dumbbell className="h-5 w-5 text-muted-foreground/50" />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="font-bold text-sm leading-tight">
-                          {libEx ? libEx.name : ex.name || "Unknown"}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {setsCount} sets {detailStr ? `× ${detailStr}` : ""}
-                        </span>
-                      </div>
-                    </div>
-                    {ex.linkedToNext && (
-                      <span className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary px-2 py-0.5 rounded-sm">
-                        Superset
+        return (
+          <Card
+            key={idx}
+            className={cn(
+              "bg-card border-border overflow-hidden transition-opacity",
+              isSkipped && "opacity-50",
+            )}
+          >
+            <CardContent className="p-0">
+              {/* Tappable header */}
+              <button
+                onClick={() => toggleExpand(idx)}
+                className="w-full bg-muted/50 p-3 border-b border-border flex justify-between items-center text-left active:scale-[0.99] transition"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 text-muted-foreground shrink-0 transition-transform",
+                      isExpanded && "rotate-180",
+                    )}
+                  />
+                  <div className="min-w-0">
+                    <span className="font-bold text-sm tracking-wider uppercase block truncate">
+                      {sec.section ? sec.section.name : `Block ${idx + 1}`}
+                    </span>
+                    {isConditioning && sec.section?.description && (
+                      <span className="text-[11px] text-primary font-medium flex items-center gap-1 mt-0.5">
+                        <Clock className="h-3 w-3" />
+                        {sec.section.description}
                       </span>
                     )}
                   </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {isSkipped && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                      Skipped
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground font-medium">
+                    {sec.exercises.length} exercises
+                  </span>
+                </div>
+              </button>
+
+              {/* Expanded breakdown */}
+              {isExpanded && (
+                <div className="p-3 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                  {/* Section aim / description */}
+                  {sec.section?.description && !isConditioning && (
+                    <p className="text-sm text-muted-foreground italic leading-relaxed bg-muted/30 rounded-lg p-2.5">
+                      {sec.section.description}
+                    </p>
+                  )}
+                  {isConditioning && (
+                    <p className="text-sm text-muted-foreground italic leading-relaxed bg-muted/30 rounded-lg p-2.5">
+                      {sectionType} block
+                      {sec.section.description
+                        ? ` · ${sec.section.description}`
+                        : ""}
+                    </p>
+                  )}
+
+                  {/* Exercise list */}
+                  {sec.exercises.map((ex: any, exIdx: number) => {
+                    const libEx = exerciseLibrary.find(
+                      (e) => String(e.id) === String(ex.name),
+                    );
+
+                    const setsCount = ex.setsData?.length || ex.sets || 3;
+                    const firstSet = ex.setsData?.[0] || ex || {};
+
+                    const rawTrack =
+                      ex.trackingType ?? libEx?.trackingType ?? "Weight & Reps";
+                    const trackingArray = (
+                      Array.isArray(rawTrack)
+                        ? rawTrack
+                        : String(rawTrack).split(/[;,]/)
+                    )
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+
+                    const dist = firstSet.distance || ex.distance || 0;
+                    const mins = firstSet.timeMins || ex.timeMins || 0;
+                    const secs = firstSet.timeSecs || ex.timeSecs || 0;
+                    const cals =
+                      firstSet.calories ||
+                      ex.calories ||
+                      (trackingArray.includes("Calories")
+                        ? firstSet.reps || ex.reps || 0
+                        : 0);
+                    const reps = firstSet.reps || ex.reps || 0;
+                    const weight = firstSet.weight || ex.weight || 0;
+                    const rest = ex.rest || 0;
+
+                    let details: string[] = [];
+                    if (weight > 0) details.push(`${weight}kg`);
+                    if (dist) details.push(`${dist}m`);
+                    if (mins || secs)
+                      details.push(
+                        `${mins ? mins + "m " : ""}${secs ? secs + "s" : ""}`.trim(),
+                      );
+                    if (cals) details.push(`${cals} cals`);
+                    if (reps) details.push(`${reps} reps`);
+                    const detailStr = details.join(", ");
+
+                    return (
+                      <div
+                        key={exIdx}
+                        className="flex justify-between items-start gap-2"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="h-10 w-10 bg-muted rounded-md flex items-center justify-center shrink-0">
+                            <Dumbbell className="h-5 w-5 text-muted-foreground/50" />
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-bold text-sm leading-tight">
+                              {libEx ? libEx.name : ex.name || "Unknown"}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {setsCount} sets
+                              {detailStr ? ` × ${detailStr}` : ""}
+                              {rest ? ` · ${rest}s rest` : ""}
+                              {ex.eachSide ? " · each side" : ""}
+                            </span>
+                            {ex.coachingNotes && (
+                              <span className="text-xs text-primary/80 mt-0.5 leading-snug">
+                                {ex.coachingNotes}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {ex.linkedToNext && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary px-2 py-0.5 rounded-sm shrink-0">
+                            Superset
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                    {onStartHere && (
+                      <Button
+                        size="sm"
+                        className="gap-1.5 font-bold"
+                        onClick={() => onStartHere(idx)}
+                      >
+                        <Play className="h-3.5 w-3.5 fill-current" /> Start here
+                      </Button>
+                    )}
+                    {onToggleSkip && sectionId != null && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 font-medium ml-auto"
+                        onClick={() => onToggleSkip(sectionId)}
+                      >
+                        {isSkipped ? (
+                          <>
+                            <Eye className="h-3.5 w-3.5" /> Un-skip
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="h-3.5 w-3.5" /> Skip
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

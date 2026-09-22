@@ -127,7 +127,18 @@ import {
   visibleBlockPosition,
 } from "@/lib/pickOneBlocks";
 import { useViewModeGuard } from "@/lib/workoutRestore";
-import { normaliseReps } from "@/lib/repsNormalise";
+import { normaliseReps, buildDefaultSetsData } from "@/lib/repsNormalise";
+import {
+  buildSavedExercises,
+  computeTotalVolume,
+  computeEarnedReward,
+} from "@/lib/workoutSaveHelpers";
+import { SessionOverviewView } from "@/components/SessionOverviewView";
+import {
+  WorkoutNavFooter,
+  getNextVisible,
+  getPrevVisible,
+} from "@/components/WorkoutNavFooter";
 
 const Workouts = () => {
   const navigate = useNavigate();
@@ -245,6 +256,10 @@ const Workouts = () => {
   const [pickOneChoices, setPickOneChoices] = useState<
     Record<string, number | null>
   >({});
+  // Sections the member chose to skip (by section-header exercise id).
+  const [skippedSectionIds, setSkippedSectionIds] = useState<
+    Set<string | number>
+  >(new Set());
   const isActiveWorkout = useMemo(() => {
     if (activeProgram) return true;
     if (workoutName.trim() !== "") return true;
@@ -750,25 +765,7 @@ const Workouts = () => {
         id: Date.now() + idx,
         ...ex,
         eachSide: normaliseReps(ex).eachSide || ex.eachSide,
-        setsData:
-          ex.setsData ||
-          (() => {
-            const n = normaliseReps(ex);
-            return Array.from({ length: ex.sets || 3 }).map((_, i) => ({
-              id: Date.now().toString() + i,
-              reps: n.reps,
-              weight: ex.weight || 0,
-              distance: ex.distance || 0,
-              timeMins: ex.timeMins || 0,
-              timeSecs: ex.timeSecs || 0,
-              calories:
-                ex.calories ||
-                (ex.reps && (ex.trackingType ?? []).includes?.("Calories")
-                  ? n.reps
-                  : 0),
-              completed: false,
-            }));
-          })(),
+        setsData: ex.setsData || buildDefaultSetsData(ex),
       })),
     );
     setCurrentBlockIndex(0);
@@ -798,25 +795,7 @@ const Workouts = () => {
           id: Date.now() + idx,
           ...ex,
           eachSide: normaliseReps(ex).eachSide || ex.eachSide,
-          setsData:
-            ex.setsData ||
-            (() => {
-              const n = normaliseReps(ex);
-              return Array.from({ length: ex.sets || 3 }).map((_, i) => ({
-                id: Date.now().toString() + i,
-                reps: n.reps,
-                weight: ex.weight || 0,
-                distance: ex.distance || 0,
-                timeMins: ex.timeMins || 0,
-                timeSecs: ex.timeSecs || 0,
-                calories:
-                  ex.calories ||
-                  (ex.reps && (ex.trackingType ?? []).includes?.("Calories")
-                    ? n.reps
-                    : 0),
-                completed: false,
-              }));
-            })(),
+          setsData: ex.setsData || buildDefaultSetsData(ex),
         })),
       );
       setCurrentBlockIndex(0);
@@ -853,25 +832,7 @@ const Workouts = () => {
               blockType: ex.blockType || "Strength",
               ...ex,
               eachSide: normaliseReps(ex).eachSide || ex.eachSide,
-              setsData:
-                ex.setsData ||
-                (() => {
-                  const n = normaliseReps(ex);
-                  return Array.from({ length: ex.sets || 3 }).map((_, i) => ({
-                    id: Date.now().toString() + i,
-                    reps: n.reps,
-                    weight: ex.weight || 0,
-                    distance: ex.distance || 0,
-                    timeMins: ex.timeMins || 0,
-                    timeSecs: ex.timeSecs || 0,
-                    calories:
-                      ex.calories ||
-                      (ex.reps && (ex.trackingType ?? []).includes?.("Calories")
-                        ? n.reps
-                        : 0),
-                    completed: false,
-                  }));
-                })(),
+              setsData: ex.setsData || buildDefaultSetsData(ex),
             })),
           );
           setCurrentBlockIndex(0);
@@ -891,57 +852,22 @@ const Workouts = () => {
 
     setIsSaving(true);
 
-    // Calculate total duration (difference between start time and now)
-    // Only save/log the chosen option of any pickOne section.
-    const savedExercises = exercisesForSave(exercises, pickOneChoices);
+    // Only save/log the chosen option of any pickOne section, and drop
+    // explicitly-skipped sections. Conditioning results are attached.
+    const exercisesWithResults = buildSavedExercises(
+      exercises,
+      pickOneChoices,
+      skippedSectionIds,
+      conditioningResults,
+    );
+    const savedExercises = exercisesWithResults;
     let duration = 45;
     if (startTime) {
       duration = Math.max(1, Math.round((Date.now() - startTime) / 60000));
     }
 
-    const totalVolume = savedExercises.reduce((acc, ex) => {
-      if (ex.isSection || !ex.setsData) return acc;
-      const completedSets = ex.setsData.filter((s: any) => s.completed);
-      const setsToCount =
-        completedSets.length > 0 ? completedSets : ex.setsData;
-      return (
-        acc +
-        setsToCount.reduce(
-          (setAcc: number, set: any) =>
-            setAcc +
-            (set.reps || 0) * (ex.eachSide ? 2 : 1) * (set.weight || 0),
-          0,
-        )
-      );
-    }, 0);
-
-    const possibleRewards = REWARD_ITEMS.filter(
-      (item) => totalVolume >= item.weight,
-    );
-    let earnedReward = null;
-
-    if (possibleRewards.length > 0) {
-      const randomItem =
-        possibleRewards[Math.floor(Math.random() * possibleRewards.length)];
-      const count = Math.floor(totalVolume / randomItem.weight);
-      earnedReward = {
-        name: randomItem.name,
-        emoji: randomItem.emoji,
-        count: count,
-        displayName:
-          count === 1
-            ? randomItem.name
-            : randomItem.plural || randomItem.name + "s",
-      };
-    }
-
-    // Attach conditioning scores to their section objects before saving.
-    const exercisesWithResults = savedExercises.map((ex: any) => {
-      if (!ex.isSection) return ex;
-      const sectionId = ex.id;
-      const result = sectionId ? conditioningResults[sectionId] : undefined;
-      return result ? { ...ex, result } : ex;
-    });
+    const totalVolume = computeTotalVolume(savedExercises);
+    const earnedReward = computeEarnedReward(totalVolume);
 
     // Generate an ID before saving so we can dedupe
     const sessionWorkoutId = Date.now().toString();
@@ -2132,52 +2058,44 @@ const Workouts = () => {
       )}
 
       {viewMode === "session-overview" && quickOverviewWorkout && (
-        <div className="w-full space-y-6 p-4 md:p-8 pt-6 pb-24">
-          <div className="flex flex-col gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setViewMode("detail")}
-              className="w-fit -ml-4 text-muted-foreground"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" /> Back
-            </Button>
-            <div className="flex flex-col gap-1">
-              <span className="text-primary font-bold text-xs tracking-wider uppercase">
-                {quickOverviewWorkout.template.stream || "Workout"}
-              </span>
-              <h2 className="text-4xl font-heading tracking-wider uppercase text-foreground leading-none">
-                {quickOverviewWorkout.workout.name}
-              </h2>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium mt-1">
-                <span>~60 min</span>
-                <span>·</span>
-                <span>
-                  {quickOverviewWorkout.workout.exercises?.length || 0}{" "}
-                  exercises
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <Button
-            className="w-full font-bold tracking-wide h-14 text-lg rounded-xl shadow-lg bg-primary text-primary-foreground"
-            onClick={() => {
+        <SessionOverviewView
+          quickOverviewWorkout={quickOverviewWorkout}
+          exerciseLibrary={exerciseLibrary}
+          skippedSectionIds={skippedSectionIds}
+          onStartWorkout={() =>
+            startTargetSession(
+              quickOverviewWorkout.template,
+              quickOverviewWorkout.workout,
+              quickOverviewWorkout.index,
+            )
+          }
+          onStartHere={(sectionIndex) => {
+            // Start the session (if not started) then jump to the chosen block.
+            if (!isActiveWorkout) {
               startTargetSession(
                 quickOverviewWorkout.template,
                 quickOverviewWorkout.workout,
                 quickOverviewWorkout.index,
               );
-            }}
-          >
-            <Play className="h-5 w-5 mr-2 fill-current" /> Start Workout
-          </Button>
-
-          <WorkoutOverviewSections
-            exercises={quickOverviewWorkout.workout.exercises}
-            exerciseLibrary={exerciseLibrary}
-          />
-        </div>
+            }
+            // Map the overview section index to a block index.
+            const target = Math.max(0, sectionIndex);
+            setCurrentBlockIndex(
+              Math.min(target, Math.max(0, blocks.length - 1)),
+            );
+            setShowSectionSlide(true);
+            setViewMode("active");
+          }}
+          onToggleSkip={(sectionId) => {
+            setSkippedSectionIds((prev) => {
+              const next = new Set(prev);
+              if (next.has(sectionId)) next.delete(sectionId);
+              else next.add(sectionId);
+              return next;
+            });
+          }}
+          onBack={() => setViewMode("detail")}
+        />
       )}
 
       {viewMode === "active" && (
@@ -3289,67 +3207,60 @@ const Workouts = () => {
                             )}
                         </div>
 
-                        <div className="flex flex-col gap-3 pt-6 mt-4 border-t border-border">
-                          {/* Primary navigation: Next is the prominent CTA */}
-                          {currentBlockIndex < blocks.length - 1 ? (
-                            <Button
-                              className="w-full gap-2 text-primary-foreground font-bold tracking-wide h-16 text-xl shadow-lg"
-                              onClick={() => {
-                                const nxt = nextVisibleBlock(
-                                  blocks,
-                                  pickOneChoices,
-                                  currentBlockIndex,
-                                );
-                                if (nxt != null) setCurrentBlockIndex(nxt);
-                                else setCurrentBlockIndex(blocks.length - 1);
-                              }}
-                            >
-                              Next <ArrowRight className="h-5 w-5" />
-                            </Button>
-                          ) : (
-                            <Button
-                              onClick={handleSaveWorkout}
-                              disabled={isSaving}
-                              className="w-full gap-2 text-primary-foreground font-bold tracking-wide h-16 text-xl shadow-lg"
-                            >
-                              <Check className="h-5 w-5" />{" "}
-                              {isSaving ? "Saving..." : "Finish Workout"}
-                            </Button>
-                          )}
-                          {/* Secondary navigation: Previous + subtle End */}
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              className="flex-1 font-medium tracking-wider h-12"
-                              disabled={currentBlockIndex === 0}
-                              onClick={() => {
-                                const prv = prevVisibleBlock(
-                                  blocks,
-                                  pickOneChoices,
-                                  currentBlockIndex,
-                                );
-                                if (prv != null) setCurrentBlockIndex(prv);
-                                else setCurrentBlockIndex(0);
-                              }}
-                            >
-                              <ArrowLeftIcon className="h-4 w-4" /> Previous
-                            </Button>
-                            <span className="text-xs text-muted-foreground px-1">
-                              {visibleBlockPosition(
-                                blocks,
-                                pickOneChoices,
-                                currentBlockIndex,
-                              )}{" "}
-                              / {visibleBlockCount(blocks, pickOneChoices)}
-                            </span>
-                            <button
-                              onClick={() => setShowEndConfirm(true)}
-                              className="text-sm text-muted-foreground hover:text-destructive font-medium px-3 py-2 transition-colors"
-                            >
-                              End workout
-                            </button>
-                          </div>
-                        </div>
+                        <WorkoutNavFooter
+                          blocks={blocks}
+                          pickOneChoices={pickOneChoices}
+                          skippedSectionIds={skippedSectionIds}
+                          currentBlockIndex={currentBlockIndex}
+                          isSaving={isSaving}
+                          onNext={() => {
+                            const nxt = getNextVisible(
+                              blocks,
+                              pickOneChoices,
+                              skippedSectionIds,
+                              currentBlockIndex,
+                            );
+                            if (nxt != null) setCurrentBlockIndex(nxt);
+                            else setCurrentBlockIndex(blocks.length - 1);
+                          }}
+                          onFinish={handleSaveWorkout}
+                          onPrev={() => {
+                            const prv = getPrevVisible(
+                              blocks,
+                              pickOneChoices,
+                              skippedSectionIds,
+                              currentBlockIndex,
+                            );
+                            if (prv != null) setCurrentBlockIndex(prv);
+                            else setCurrentBlockIndex(0);
+                          }}
+                          onSkip={() => {
+                            // Mark the current section as skipped, then advance.
+                            const cur = blocks[currentBlockIndex];
+                            const sid = cur?.section?.id;
+                            if (sid != null) {
+                              setSkippedSectionIds((prev) => {
+                                const next = new Set(prev);
+                                next.add(sid);
+                                return next;
+                              });
+                            }
+                            const nxt = getNextVisible(
+                              blocks,
+                              pickOneChoices,
+                              skippedSectionIds,
+                              currentBlockIndex,
+                            );
+                            if (nxt != null) {
+                              setCurrentBlockIndex(nxt);
+                              setShowSectionSlide(true);
+                            } else {
+                              // Skipping the last visible block → finish.
+                              handleSaveWorkout();
+                            }
+                          }}
+                          onEnd={() => setShowEndConfirm(true)}
+                        />
                       </div>
                     );
                   })()}
