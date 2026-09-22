@@ -1,10 +1,11 @@
 /**
  * AI Coach tab wrapper — encapsulates the CoachAiChat component plus the
- * "Open in editor" handoff that maps a draft into the programme editor state.
+ * "Open in editor" handoff that maps a structured draft into the programme
+ * editor state.
  *
- * Extracted so Admin.tsx doesn't grow. The parent passes the exercise library,
- * the members list, and a callback that receives the mapped workouts + meta
- * (it sets the editor state and switches to the Programs tab).
+ * The structured draft (from the coach-agent "structure" action) is passed
+ * to draftToEditorWorkouts, which maps it into the editor's progWorkouts
+ * shape (resolving exercises by exercise_id, carrying minDays → dayCounts).
  */
 import { CoachAiChat } from "@/components/CoachAiChat";
 import { draftToEditorWorkouts } from "@/lib/draftToEditor";

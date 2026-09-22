@@ -1,12 +1,15 @@
 /**
  * Coach AI Chat — conversational programme builder.
  * Staff-only. Talks to the `coach-agent` edge function, shows a chat thread
- * + a read-only draft preview with "Open in editor" / "Keep refining".
+ * + a "Open in editor" action that structures the draft on demand.
+ *
+ * The AI's chat replies are readable markdown (rendered in the bubble).
+ * The structured programme is produced on demand by "Open in editor"
+ * (action:"structure"), not on every turn — draft may be null during chat.
  */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
@@ -16,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import {
   Loader2,
   Send,
@@ -32,14 +34,15 @@ import {
   loadRecentChats,
   loadChat,
   deleteChat,
+  structureDraft,
   type ChatMessage,
   type ProgrammeDraft,
   type CoachChat,
 } from "@/lib/coachAgent";
 
 interface CoachAiChatProps {
-  /** Called when the coach clicks "Open in editor" — hands the draft to the
-   *  manual programme editor. */
+  /** Called when the coach clicks "Open in editor" — hands the structured
+   *  draft to the manual programme editor. */
   onOpenInEditor: (draft: ProgrammeDraft, stream: string) => void;
   /** Members list for the member picker (optional). */
   members?: any[];
@@ -59,6 +62,7 @@ export const CoachAiChat = ({
   const [memberId, setMemberId] = useState<string>("");
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [structuring, setStructuring] = useState(false);
   const [loadingChats, setLoadingChats] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -126,10 +130,8 @@ export const CoachAiChat = ({
       const assistantMsg: ChatMessage = {
         role: "assistant",
         content: replyText,
-        draft: res.draft,
       };
       setMessages([...nextMessages, assistantMsg]);
-      if (res.draft) setDraft(res.draft);
       if (!currentChatId && res.chatId) {
         setCurrentChatId(res.chatId);
       }
@@ -139,6 +141,30 @@ export const CoachAiChat = ({
       setMessages(messages);
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleOpenInEditor = async () => {
+    if (!currentChatId) {
+      toast.error("Start a conversation first");
+      return;
+    }
+    setStructuring(true);
+    try {
+      const structured = await structureDraft(
+        currentChatId,
+        memberId || undefined,
+      );
+      if (!structured) {
+        toast.error("Couldn't structure the programme — try refining first");
+        return;
+      }
+      setDraft(structured);
+      onOpenInEditor(structured, stream);
+    } catch (e: any) {
+      toast.error("Structuring failed: " + (e?.message || "unknown error"));
+    } finally {
+      setStructuring(false);
     }
   };
 
@@ -220,6 +246,12 @@ export const CoachAiChat = ({
                   e.g. "Build a 4-week Stronger programme, 3 days/week,
                   lower-body focus"
                 </p>
+                <p className="text-xs mt-3 text-muted-foreground/70 flex items-center justify-center gap-1">
+                  <Sparkles className="h-3 w-3" />
+                  Remembers your last 3 programmes for this
+                  {memberId ? " member" : " stream"} — it progresses from them
+                  automatically.
+                </p>
               </div>
             )}
             {messages.map((msg, i) => (
@@ -283,7 +315,6 @@ export const CoachAiChat = ({
           <Card className="bg-card border-border">
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base">Draft preview</CardTitle>
-              <Badge variant="secondary">{stream}</Badge>
             </CardHeader>
             <CardContent className="space-y-3">
               <DraftPreview draft={draft} />
@@ -291,14 +322,44 @@ export const CoachAiChat = ({
                 <Button
                   size="sm"
                   className="gap-2 flex-1"
-                  onClick={() => onOpenInEditor(draft, stream)}
+                  onClick={handleOpenInEditor}
+                  disabled={structuring || !currentChatId}
                 >
-                  <ExternalLink className="h-4 w-4" /> Open in editor
+                  {structuring ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ExternalLink className="h-4 w-4" />
+                  )}
+                  Open in editor
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Keep refining by sending another message.
+                Keep refining by sending another message, then open in editor to
+                structure it.
               </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {!draft && currentChatId && (
+          <Card className="bg-card border-border">
+            <CardContent className="py-4 space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Happy with the programme? Structure it and open in the editor.
+              </p>
+              <Button
+                size="sm"
+                className="gap-2 w-full"
+                onClick={handleOpenInEditor}
+                disabled={structuring}
+              >
+                {structuring ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="h-4 w-4" />
+                )}
+                Open in editor
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -351,7 +412,7 @@ const DraftPreview = ({ draft }: { draft: ProgrammeDraft }) => {
   if (weeks.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        No structured draft yet — ask the AI to build one.
+        No structured draft yet — click "Open in editor" to structure it.
       </p>
     );
   }
@@ -360,31 +421,46 @@ const DraftPreview = ({ draft }: { draft: ProgrammeDraft }) => {
       {weeks.map((week: any, wi: number) => (
         <div key={wi} className="rounded-lg border border-border p-3">
           <p className="font-semibold text-sm mb-2">
-            {week.label || `Week ${wi + 1}`}
+            {week.label || `Week ${week.week || wi + 1}`}
           </p>
           <div className="space-y-2">
             {(week.days || []).map((day: any, di: number) => (
               <div key={di} className="text-xs">
                 <p className="font-medium text-muted-foreground">
-                  {day.name || `Day ${di + 1}`}
+                  {day.day || day.name || `Day ${di + 1}`}
+                  {day.minDays ? ` · min ${day.minDays}d` : ""}
                 </p>
                 <div className="ml-2 space-y-1">
-                  {(day.exercises || day.sections || []).map(
-                    (ex: any, ei: number) => (
-                      <div key={ei} className="text-muted-foreground">
-                        {ex.isSection ? (
-                          <span className="font-medium">▸ {ex.name}</span>
-                        ) : (
-                          <span>
+                  {(day.sections || []).map((sec: any, si: number) => (
+                    <div key={si}>
+                      <span className="font-medium">▸ {sec.name}</span>
+                      <div className="ml-2 space-y-0.5">
+                        {(sec.exercises || []).map((ex: any, ei: number) => (
+                          <div key={ei} className="text-muted-foreground">
                             {ex.name}
                             {ex.sets || ex.reps
                               ? ` — ${ex.sets || 0}×${ex.reps || ""}`
                               : ""}
-                          </span>
-                        )}
+                          </div>
+                        ))}
                       </div>
-                    ),
-                  )}
+                    </div>
+                  ))}
+                  {/* Fallback: flat exercises */}
+                  {(day.exercises || []).map((ex: any, ei: number) => (
+                    <div key={ei} className="text-muted-foreground">
+                      {ex.isSection ? (
+                        <span className="font-medium">▸ {ex.name}</span>
+                      ) : (
+                        <span>
+                          {ex.name}
+                          {ex.sets || ex.reps
+                            ? ` — ${ex.sets || 0}×${ex.reps || ""}`
+                            : ""}
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
