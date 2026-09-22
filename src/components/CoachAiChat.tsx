@@ -471,6 +471,10 @@ const DraftPreview = ({ draft }: { draft: ProgrammeDraft }) => {
                     r.isSection ? (
                       <div key={ri} className="font-medium">
                         ▸ {r.name}
+                        {r.sectionType && r.sectionType !== "Normal"
+                          ? ` · ${r.sectionType}`
+                          : ""}
+                        {r.description ? ` (${r.description})` : ""}
                       </div>
                     ) : (
                       <div key={ri} className="text-muted-foreground">

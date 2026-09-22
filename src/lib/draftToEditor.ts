@@ -32,6 +32,7 @@ export interface DraftRow {
   linkedToNext?: boolean;
   coachingNotes?: string;
   notes?: string;
+  description?: string;
 }
 
 export interface DraftDay {
@@ -98,6 +99,7 @@ export const draftToEditorWorkouts = (
           name: r.name ?? "", // library id (or "" if unmatched)
           label: r.label,
           sectionType: r.sectionType || "Normal",
+          description: r.description ?? "", // AMRAP/EMOM/Circuit duration etc.
           blockType: r.blockType || "Strength",
           trackingType: "Weight & Reps",
           sets: r.sets ?? (r.isSection ? 0 : 3),
@@ -106,7 +108,6 @@ export const draftToEditorWorkouts = (
           eachSide: r.eachSide ?? false,
           linkedToNext: r.linkedToNext ?? false,
           notes: r.coachingNotes || r.notes || "",
-          description: "",
         };
       });
 
