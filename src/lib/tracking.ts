@@ -14,6 +14,14 @@
 
 export const DEFAULT_TRACKING = ["Weight & Reps"];
 
+/** The four real tracking types the app's logging columns understand. */
+export const VALID_TRACKING = [
+  "Weight & Reps",
+  "Time Only",
+  "Distance & Time",
+  "Calories",
+];
+
 /**
  * Normalise a tracking value (array or comma/semicolon-joined string) into
  * a clean array of trimmed labels.
@@ -32,14 +40,19 @@ export const normaliseTracking = (v: any): string[] => {
 /**
  * Resolve the tracking type for a programme exercise, looking up the library
  * by id OR name. Returns a clean array; never empty (defaults to Weight & Reps).
+ *
+ * The exercise's own `trackingType` is only honoured if it names at least one
+ * REAL tracking type — legacy programmes carry junk values like ["Reps Only"]
+ * (not one of the four valid types) that would otherwise override the correct
+ * library entry and hide the weight field for loaded moves.
  */
 export const resolveTrackingType = (
   ex: any,
   exerciseLibrary: any[],
 ): string[] => {
-  // 1. Explicit per-exercise override (coach-set)
+  // 1. Explicit per-exercise override — only if it contains a valid type.
   const own = normaliseTracking(ex?.trackingType);
-  if (own.length) return own;
+  if (own.some((x) => VALID_TRACKING.includes(x))) return own;
 
   // 2. Library lookup by id (programme `name` = library `id`) or by name
   const libEx = exerciseLibrary.find(

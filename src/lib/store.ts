@@ -1,6 +1,7 @@
 import * as pdfjsLib from "pdfjs-dist";
 import { supabase } from "./supabase";
 import { logError } from "./errorLog";
+import { cleanExercises } from "./exerciseSync";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -1536,7 +1537,10 @@ export const syncFromSupabase = async () => {
 
     // Guard: only overwrite local if store is NOT dirty (no pending unconfirmed writes)
     if (ex.data && ex.data.length > 0 && !isDirty("exercises")) {
-      localStorage.setItem("fittrack_exercises", JSON.stringify(ex.data));
+      localStorage.setItem(
+        "fittrack_exercises",
+        JSON.stringify(cleanExercises(ex.data)),
+      );
     } else if (isDirty("exercises")) {
       // Only staff should re-push the shared exercise library.
       const isStaff = localStorage.getItem("fittrack_is_staff") === "true";
@@ -1547,7 +1551,10 @@ export const syncFromSupabase = async () => {
         clearDirty("exercises");
         dequeue("exercises");
         if (ex.data && ex.data.length > 0) {
-          localStorage.setItem("fittrack_exercises", JSON.stringify(ex.data));
+          localStorage.setItem(
+            "fittrack_exercises",
+            JSON.stringify(cleanExercises(ex.data)),
+          );
         }
       }
     }

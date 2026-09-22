@@ -33,6 +33,8 @@ export interface DraftRow {
   coachingNotes?: string;
   notes?: string;
   description?: string;
+  timeCapMins?: number;
+  targetNote?: string;
 }
 
 export interface DraftDay {
@@ -93,13 +95,30 @@ export const draftToEditorWorkouts = (
         // Count unmatched: exercise row (not section) with no library id in name.
         if (!r.isSection && !r.name) unmatchedCount += 1;
 
+        // For AMRAP/EMOM/For Time sections, the coach-agent puts the duration
+        // in `description` (e.g. "10 Minutes"). The member app's timer reads
+        // `timeCapMins` for the actual countdown, so parse the numeric minutes
+        // out of the description and set timeCapMins too — keeping description
+        // for the display text.
+        let timeCapMins: number | undefined;
+        const secType = r.sectionType || "Normal";
+        if (
+          r.isSection &&
+          (secType === "AMRAP" || secType === "EMOM" || secType === "For Time")
+        ) {
+          const m = String(r.description || "").match(/(\d+)\s*min/i);
+          if (m) timeCapMins = parseInt(m[1], 10);
+        }
+
         return {
           id: Date.now() + eIdx + Math.random(),
           isSection: r.isSection ?? false,
           name: r.name ?? "", // library id (or "" if unmatched)
           label: r.label,
-          sectionType: r.sectionType || "Normal",
+          sectionType: secType,
           description: r.description ?? "", // AMRAP/EMOM/Circuit duration etc.
+          timeCapMins, // parsed minutes so the member timer has a cap
+          targetNote: r.targetNote ?? undefined,
           blockType: r.blockType || "Strength",
           trackingType: "Weight & Reps",
           sets: r.sets ?? (r.isSection ? 0 : 3),
