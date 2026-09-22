@@ -48,7 +48,7 @@ interface CoachAiChatProps {
   members?: any[];
 }
 
-const STREAMS = ["Stronger", "Fusion", "GroupPT", "Foundations"];
+const STREAMS = ["Stronger", "Fusion", "Performance", "GroupPT", "Foundations"];
 
 export const CoachAiChat = ({
   onOpenInEditor,
