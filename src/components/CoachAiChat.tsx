@@ -64,6 +64,7 @@ export const CoachAiChat = ({
   const [sending, setSending] = useState(false);
   const [structuring, setStructuring] = useState(false);
   const [loadingChats, setLoadingChats] = useState(false);
+  const [repeatTo, setRepeatTo] = useState<number>(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const refreshChats = useCallback(async () => {
@@ -154,6 +155,7 @@ export const CoachAiChat = ({
       const structured = await structureDraft(
         currentChatId,
         memberId || undefined,
+        repeatTo || undefined,
       );
       if (!structured) {
         toast.error("Couldn't structure the programme — try refining first");
@@ -318,7 +320,23 @@ export const CoachAiChat = ({
             </CardHeader>
             <CardContent className="space-y-3">
               <DraftPreview draft={draft} />
-              <div className="flex gap-2 pt-2">
+              <div className="flex flex-wrap gap-2 items-end pt-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Repeat block to</Label>
+                  <Select
+                    value={String(repeatTo)}
+                    onValueChange={(v) => setRepeatTo(Number(v))}
+                  >
+                    <SelectTrigger className="w-[130px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Off</SelectItem>
+                      <SelectItem value="8">8 weeks</SelectItem>
+                      <SelectItem value="12">12 weeks</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Button
                   size="sm"
                   className="gap-2 flex-1"
@@ -347,19 +365,37 @@ export const CoachAiChat = ({
               <p className="text-sm text-muted-foreground">
                 Happy with the programme? Structure it and open in the editor.
               </p>
-              <Button
-                size="sm"
-                className="gap-2 w-full"
-                onClick={handleOpenInEditor}
-                disabled={structuring}
-              >
-                {structuring ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ExternalLink className="h-4 w-4" />
-                )}
-                Open in editor
-              </Button>
+              <div className="flex flex-wrap gap-2 items-end">
+                <div className="space-y-1">
+                  <Label className="text-xs">Repeat block to</Label>
+                  <Select
+                    value={String(repeatTo)}
+                    onValueChange={(v) => setRepeatTo(Number(v))}
+                  >
+                    <SelectTrigger className="w-[130px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Off</SelectItem>
+                      <SelectItem value="8">8 weeks</SelectItem>
+                      <SelectItem value="12">12 weeks</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  size="sm"
+                  className="gap-2 flex-1"
+                  onClick={handleOpenInEditor}
+                  disabled={structuring}
+                >
+                  {structuring ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ExternalLink className="h-4 w-4" />
+                  )}
+                  Open in editor
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}

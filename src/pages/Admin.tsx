@@ -76,6 +76,12 @@ import {
   deleteProgramRow,
 } from "@/lib/store";
 import { dateAllSessions, dateWeekSessions } from "@/lib/programDates";
+import {
+  addWeek as addProgWeek,
+  addDay as addProgDay,
+  repeatBlockTo as repeatProgBlock,
+  daysForType as daysForProgType,
+} from "@/lib/programEditorActions";
 import { resolveTrackingType } from "@/lib/tracking";
 import { mapProgramExercise } from "@/lib/programExerciseMapper";
 import { Badge } from "@/components/ui/badge";
@@ -1262,6 +1268,55 @@ const Admin = () => {
 
     setProgWorkouts(updatedWorkouts);
     toast.success(`Copied Week ${selectedWeek} to Week ${targetWeek}!`);
+  };
+  const handleAddWeek = () => {
+    const days = daysForProgType(newProgType, newProgStream, newProgDays);
+    const r = addProgWeek(
+      progWorkouts,
+      days,
+      progWeekNotes,
+      newProgType === "GroupPT" ? 12 : newProgWeeks,
+    );
+    setProgWorkouts(r.workouts);
+    setNewProgWeeks(r.newWeekCount);
+    setSelectedWeek(r.newWeek);
+    setSelectedDay(1);
+    const idx = r.workouts.findIndex(
+      (w: any) => Number(w.week) === r.newWeek && Number(w.day) === 1,
+    );
+    if (idx >= 0) setSelectedWorkoutIndex(idx);
+    toast.success(`Added ${weekLabel(r.newWeek)}`);
+  };
+  const handleAddDay = () => {
+    const r = addProgDay(progWorkouts, newProgDays);
+    if (r.newDay === newProgDays) return;
+    setProgWorkouts(r.workouts);
+    setNewProgDays(r.newDay);
+    setSelectedDay(r.newDay);
+    const idx = r.workouts.findIndex(
+      (w: any) => Number(w.week) === selectedWeek && Number(w.day) === r.newDay,
+    );
+    if (idx >= 0) setSelectedWorkoutIndex(idx);
+    toast.success(`Added Day ${r.newDay}`);
+  };
+  const [repeatTarget, setRepeatTarget] = useState(12);
+  const handleRepeatBlock = () => {
+    const days = daysForProgType(newProgType, newProgStream, newProgDays);
+    const r = repeatProgBlock(
+      progWorkouts,
+      repeatTarget,
+      days,
+      progWeekNotes,
+      newProgType === "GroupPT" ? 12 : newProgWeeks,
+    );
+    if (r.toast && !r.blockLen) {
+      toast.error(r.toast);
+      return;
+    }
+    if (!r.toast) return;
+    setProgWorkouts(r.workouts);
+    setNewProgWeeks(r.newWeekCount);
+    toast.success(r.toast);
   };
 
   // ── Rules-based shuffle pool (enrichment alternates first, then tightened fallback) ──
@@ -3539,8 +3594,16 @@ const Admin = () => {
                                   {weekLabel(i + 1)}
                                 </Button>
                               ))}
+                              <Button
+                                variant="outline"
+                                onClick={handleAddWeek}
+                                className="whitespace-nowrap gap-2"
+                              >
+                                <Plus className="h-4 w-4" /> Add Week
+                              </Button>
                             </div>
                             <div className="flex gap-2 overflow-x-auto pb-2">
+                              {" "}
                               {Array.from({
                                 length:
                                   newProgType === "program"
@@ -3569,7 +3632,14 @@ const Admin = () => {
                                 >
                                   Day {i + 1}
                                 </Button>
-                              ))}
+                              ))}{" "}
+                              <Button
+                                variant="secondary"
+                                onClick={handleAddDay}
+                                className="whitespace-nowrap gap-2"
+                              >
+                                <Plus className="h-4 w-4" /> Add Day
+                              </Button>
                             </div>
                           </div>
                         ) : (
@@ -3652,7 +3722,33 @@ const Admin = () => {
                                           ),
                                       )}
                                     </SelectContent>
-                                  </Select>
+                                  </Select>{" "}
+                                  <Select
+                                    value={String(repeatTarget)}
+                                    onValueChange={(v) =>
+                                      setRepeatTarget(Number(v))
+                                    }
+                                  >
+                                    <SelectTrigger className="w-[140px] h-9">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="8">
+                                        Repeat to 8 wks
+                                      </SelectItem>
+                                      <SelectItem value="12">
+                                        Repeat to 12 wks
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>{" "}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleRepeatBlock}
+                                    className="gap-2"
+                                  >
+                                    <Copy className="h-4 w-4" /> Repeat
+                                  </Button>
                                 </div>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

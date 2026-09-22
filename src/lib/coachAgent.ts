@@ -110,12 +110,20 @@ export const deleteChat = async (chatId: string): Promise<void> => {
  * conversation, resolving exercises to library ids server-side.
  * Passing memberId records the committed programme against that member so
  * future chats can progress from it (cross-chat memory).
+ * Passing repeatTo (e.g. 8 or 12) repeats the built block to that many weeks
+ * (exact copy, wrapping) — handy for Group PT's 12-week structure.
  */
 export const structureDraft = async (
   chatId: string,
   memberId?: string,
+  repeatTo?: number,
 ): Promise<ProgrammeDraft | null> => {
-  const data = await invoke({ action: "structure", chatId, memberId });
+  const data = await invoke({
+    action: "structure",
+    chatId,
+    memberId,
+    repeatTo,
+  });
   if (!data || data.error) return null;
   return data.draft;
 };
