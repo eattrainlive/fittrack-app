@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dumbbell, ChevronDown, Play, EyeOff, Eye, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resolveTrackingType } from "@/lib/tracking";
 
 /**
  * Renders the section/exercise overview cards for the workout browse/preview
@@ -140,38 +141,42 @@ export function WorkoutOverviewSections({
                     const setsCount = ex.setsData?.length || ex.sets || 3;
                     const firstSet = ex.setsData?.[0] || ex || {};
 
-                    const rawTrack =
-                      ex.trackingType ?? libEx?.trackingType ?? "Weight & Reps";
-                    const trackingArray = (
-                      Array.isArray(rawTrack)
-                        ? rawTrack
-                        : String(rawTrack).split(/[;,]/)
-                    )
-                      .map((s) => s.trim())
-                      .filter(Boolean);
+                    // Tracking-aware metric line — reuse the same resolution
+                    // the logging screen uses so cardio/time never shows "reps".
+                    const trackingArray = resolveTrackingType(
+                      ex,
+                      exerciseLibrary,
+                    );
+                    const isWR = trackingArray.includes("Weight & Reps");
+                    const isTO = trackingArray.includes("Time Only");
+                    const isDT = trackingArray.includes("Distance & Time");
+                    const isCal = trackingArray.includes("Calories");
 
                     const dist = firstSet.distance || ex.distance || 0;
                     const mins = firstSet.timeMins || ex.timeMins || 0;
                     const secs = firstSet.timeSecs || ex.timeSecs || 0;
-                    const cals =
-                      firstSet.calories ||
-                      ex.calories ||
-                      (trackingArray.includes("Calories")
-                        ? firstSet.reps || ex.reps || 0
-                        : 0);
+                    const cals = firstSet.calories || ex.calories || 0;
                     const reps = firstSet.reps || ex.reps || 0;
                     const weight = firstSet.weight || ex.weight || 0;
                     const rest = ex.rest || 0;
 
                     let details: string[] = [];
-                    if (weight > 0) details.push(`${weight}kg`);
-                    if (dist) details.push(`${dist}m`);
-                    if (mins || secs)
+                    if (isWR) {
+                      if (weight > 0) details.push(`${weight}kg`);
+                      if (reps) details.push(`${reps} reps`);
+                    }
+                    if (isDT) {
+                      if (dist) details.push(`${dist}m`);
+                      if (mins || secs)
+                        details.push(
+                          `${mins ? mins + "m " : ""}${secs ? secs + "s" : ""}`.trim(),
+                        );
+                    }
+                    if (isTO && (mins || secs))
                       details.push(
                         `${mins ? mins + "m " : ""}${secs ? secs + "s" : ""}`.trim(),
                       );
-                    if (cals) details.push(`${cals} cals`);
-                    if (reps) details.push(`${reps} reps`);
+                    if (isCal && cals) details.push(`${cals} cals`);
                     const detailStr = details.join(", ");
 
                     return (

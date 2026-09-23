@@ -174,3 +174,57 @@ export const sessionTitle = (program: any, workout: any) => {
 
 export const getCoverImage = (prog: any, cat?: string) =>
   getProgramCoverImage(prog, cat);
+
+/**
+ * Computes the live-logger block index for a given overview section index.
+ *
+ * The overview groups exercises by section header (one card per section), while
+ * the live logger groups them into "blocks" where each block is a run of
+ * non-section exercises broken by `linkedToNext` (a superset = one block). This
+ * maps a section card index to the first live-logger block that belongs to that
+ * section, so "Start here" can jump to the correct block even before the
+ * `blocks` useMemo has recomputed (e.g. right after loading the session).
+ *
+ * Mirrors the grouping logic in Workouts.tsx's `blocks` memo and
+ * WorkoutOverviewSections' `sections` array.
+ */
+export const sectionIndexToBlockIndex = (
+  exercises: any[],
+  sectionIndex: number,
+): number => {
+  const sectionStarts: number[] = [];
+  let currentSection: any = null;
+  let currentGroup: any[] = [];
+  let blockIdx = 0;
+
+  exercises.forEach((ex, index) => {
+    if (ex.isSection) {
+      // Flush any pending group from the previous section.
+      if (currentGroup.length > 0) {
+        blockIdx += 1;
+        currentGroup = [];
+      }
+      currentSection = ex;
+      // Record the block index this section starts at (only the first time we
+      // see it — a section with no exercises yet still maps to the next block).
+      if (
+        sectionStarts.length === 0 ||
+        sectionStarts[sectionStarts.length - 1] !== blockIdx
+      ) {
+        sectionStarts.push(blockIdx);
+      } else {
+        sectionStarts.push(blockIdx);
+      }
+    } else {
+      currentGroup.push(ex);
+      if (!ex.linkedToNext) {
+        blockIdx += 1;
+        currentGroup = [];
+      }
+    }
+  });
+
+  if (sectionIndex < 0) return 0;
+  if (sectionIndex >= sectionStarts.length) return Math.max(0, blockIdx - 1);
+  return sectionStarts[sectionIndex];
+};

@@ -113,6 +113,7 @@ import {
   weekLabel,
   sessionTitle,
   getCoverImage,
+  sectionIndexToBlockIndex,
 } from "@/lib/workoutHelpers";
 import { trackingOf } from "@/lib/tracking";
 import { WorkoutOverviewSections } from "@/components/WorkoutOverviewSections";
@@ -2070,19 +2071,25 @@ const Workouts = () => {
             )
           }
           onStartHere={(sectionIndex) => {
-            // Start the session (if not started) then jump to the chosen block.
-            if (!isActiveWorkout) {
-              startTargetSession(
-                quickOverviewWorkout.template,
-                quickOverviewWorkout.workout,
-                quickOverviewWorkout.index,
-              );
-            }
-            // Map the overview section index to a block index.
-            const target = Math.max(0, sectionIndex);
-            setCurrentBlockIndex(
-              Math.min(target, Math.max(0, blocks.length - 1)),
+            // Always load the session into state first (exactly like "Start
+            // Workout"), so the live logger has real exercises — otherwise it
+            // opens an empty "Block 1 of 1 / Select Exercise". Then jump to the
+            // chosen block. We compute the block index directly from the raw
+            // session exercises (sectionIndexToBlockIndex) rather than the
+            // `blocks` useMemo, which is still stale (empty) right after
+            // setExercises, so it would clamp to 0.
+            const sessionExercises =
+              quickOverviewWorkout.workout.exercises || [];
+            const target = sectionIndexToBlockIndex(
+              sessionExercises,
+              sectionIndex,
             );
+            startTargetSession(
+              quickOverviewWorkout.template,
+              quickOverviewWorkout.workout,
+              quickOverviewWorkout.index,
+            );
+            setCurrentBlockIndex(target);
             setShowSectionSlide(true);
             setViewMode("active");
           }}
