@@ -30,6 +30,7 @@ export interface DraftRow {
   rest?: number;
   eachSide?: boolean;
   linkedToNext?: boolean;
+  trackingType?: string[];
   coachingNotes?: string;
   notes?: string;
   description?: string;
@@ -120,7 +121,13 @@ export const draftToEditorWorkouts = (
           timeCapMins, // parsed minutes so the member timer has a cap
           targetNote: r.targetNote ?? undefined,
           blockType: r.blockType || "Strength",
-          trackingType: "Weight & Reps",
+          // Carry the AI's per-exercise trackingType (e.g. ["Time Only"] for a
+          // timed hold, ["Calories"] for a max-cals piece). Fall back to
+          // "Weight & Reps" only if the row didn't specify one.
+          trackingType:
+            r.trackingType && r.trackingType.length
+              ? r.trackingType
+              : ["Weight & Reps"],
           sets: r.sets ?? (r.isSection ? 0 : 3),
           reps: r.reps ?? "",
           rest: r.rest,

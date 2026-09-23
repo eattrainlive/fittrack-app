@@ -5,7 +5,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { trackingOf } from "@/lib/tracking";
+import { trackingOf, VALID_TRACKING } from "@/lib/tracking";
 
 const SHORT: Record<string, string> = {
   "Weight & Reps": "W×R",
@@ -17,17 +17,18 @@ const SHORT: Record<string, string> = {
 };
 
 /**
- * The per-exercise Reps/Time (W×R) toggle in the live logger.
+ * The per-exercise tracking toggle in the live logger.
  *
- * Uses `trackingOf()` (library-first) for BOTH the label and the dropdown
- * options, so it stays consistent with `columnsFor` — which also uses
- * `trackingOf`. A cardio machine whose library says "Time Only" shows "Time"
- * here AND time fields in the logger, never "W×R".
+ * Tracking is a PER-EXERCISE-IN-A-PROGRAMME choice (stored on the row's
+ * `trackingType`). `trackingOf()` resolves the row's current value (row →
+ * library → block default). This toggle lets the coach/member pick any of the
+ * valid tracking types and writes it onto the row via `onUpdate("trackingType",
+ * [type])`, so it persists with the workout/programme.
  *
- * The dropdown only offers the tracking types the exercise actually supports
- * (the resolved library array), so a Rower offers Time/Dist/Cals — never
- * Weight & Reps. Only multi-type exercises (e.g. "Weight & Reps, Time Only")
- * show a Reps/Time toggle.
+ * The dropdown offers ALL valid types (so a Bike Erg can be switched Time →
+ * Cals → Reps etc.), with the current selection checked. A "Reset to default"
+ * option clears the row's override so it falls back to the library/block
+ * default.
  */
 export function TrackingTypeToggle({
   exercise,
@@ -38,12 +39,15 @@ export function TrackingTypeToggle({
   exerciseLibrary: any[];
   onUpdate: (field: string, value: any) => void;
 }) {
-  // Resolve via trackingOf (library-first) — same source columnsFor uses.
+  // Resolve the current tracking (row → library → block default).
   const tracking = trackingOf(exercise, exerciseLibrary);
   const currentTracking = tracking[0] ?? "";
 
-  // Only offer the types this exercise actually supports (the resolved array).
-  const availableTypes = tracking.filter(Boolean);
+  // The row has an explicit override only if it carries a valid trackingType.
+  const ownOverride =
+    exercise?.trackingType &&
+    Array.isArray(exercise.trackingType) &&
+    exercise.trackingType.some((t: string) => VALID_TRACKING.includes(t));
 
   return (
     <DropdownMenu>
@@ -54,7 +58,7 @@ export function TrackingTypeToggle({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {availableTypes.map((tt: string) => (
+        {VALID_TRACKING.map((tt: string) => (
           <DropdownMenuItem
             key={tt}
             onClick={() => onUpdate("trackingType", [tt])}
@@ -63,7 +67,7 @@ export function TrackingTypeToggle({
             {currentTracking === tt && <Check className="h-3 w-3 ml-auto" />}
           </DropdownMenuItem>
         ))}
-        {availableTypes.length > 1 && (
+        {ownOverride && (
           <DropdownMenuItem onClick={() => onUpdate("trackingType", undefined)}>
             Reset to default
           </DropdownMenuItem>

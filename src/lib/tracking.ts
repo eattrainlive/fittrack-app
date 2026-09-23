@@ -1,24 +1,26 @@
 /**
  * Tracking-type resolution for programme exercises.
  *
- * The root cause of per-member divergence: when a programme exercise has no
- * `trackingType` stored (null/blank), the logging screen falls back to each
- * member's OWN exercise-library lookup. Members have stale/partial libraries
- * (or an exercise tagged "Reps Only"), so identical programmes render different
- * logging columns per member.
+ * Tracking is a PER-EXERCISE-IN-A-PROGRAMME choice (stored on the row's
+ * `trackingType`), not a rigid library property. The AI writes a
+ * `trackingType` onto each row based on what it prescribed (time / reps /
+ * distance / calories); the coach can toggle it; the library value is only a
+ * fallback default.
  *
- * Fix: bake an explicit `trackingType` onto every programme exercise at save
- * time (resolved from the coach's library — the single source of truth), and
- * harden the runtime fallback to match by name too, defaulting to "Weight & Reps".
+ * `resolveTrackingType` precedence: ROW → library → block-type default.
+ * Junk legacy values (not in VALID_TRACKING) are ignored.
  */
 
 export const DEFAULT_TRACKING = ["Weight & Reps"];
 
-/** The four real tracking types the app's logging columns understand. */
+/** The real tracking types the app's logging columns understand.
+ *  "Reps Only" is valid — it shows a REPS column with no weight. */
 export const VALID_TRACKING = [
   "Weight & Reps",
+  "Reps Only",
   "Time Only",
   "Distance & Time",
+  "Weight & Distance",
   "Calories",
 ];
 
@@ -53,24 +55,29 @@ const defaultByBlock = (ex: any): string[] => {
  * Resolve the tracking type for a programme exercise. Returns a clean array;
  * never empty.
  *
- * Precedence is LIBRARY-FIRST:
- *  1. The library entry (matched by id or name) wins for a matched exercise.
- *     Programme rows carry a stale `trackingType` baked in at save time (e.g. a
- *     loaded move with ["Reps Only"], or a cardio machine with
- *     ["Weight & Reps"]) — that baked value is stale baggage, not a deliberate
- *     override, so the library (the single source of truth) takes priority.
- *  2. If there's no library match, fall back to the exercise's own trackingType
- *     — but only if it contains at least one REAL tracking type.
+ * Precedence is ROW-FIRST (per-exercise-in-a-programme wins):
+ *  1. The exercise ROW's own `trackingType` — the AI/coach choice for this
+ *     programme. This is what the AI writes based on what it prescribed
+ *     (time / reps / distance / calories), and what the coach can toggle.
+ *     Only used if it contains at least one REAL tracking type (junk legacy
+ *     values like "Reps Only " / "Weight & Repsxyz" are ignored).
+ *  2. If the row has no valid value, fall back to the LIBRARY entry's
+ *     `trackingType` (matched by id or name) — a sensible default.
  *  3. Otherwise default by the exercise's blockType (cardio → time, not reps).
  *
- * Note: the coach's deliberate Reps/Time choice is stored as `trackingMode`,
- * not `trackingType`, so this precedence never overrides an intentional toggle.
+ * Note: the coach's deliberate Reps/Time choice is stored as `trackingType`
+ * on the row (not a transient `trackingMode`), so it persists with the
+ * programme/workout.
  */
 export const resolveTrackingType = (
   ex: any,
   exerciseLibrary: any[],
 ): string[] => {
-  // 1. LIBRARY wins for a matched exercise.
+  // 1. ROW wins if it carries a real tracking type.
+  const own = normaliseTracking(ex?.trackingType);
+  if (own.some((x) => VALID_TRACKING.includes(x))) return own;
+
+  // 2. No valid row value → library default.
   const libEx = exerciseLibrary.find(
     (le) =>
       String(le.id) === String(ex?.name) ||
@@ -78,10 +85,6 @@ export const resolveTrackingType = (
   );
   const libTrack = normaliseTracking(libEx?.trackingType);
   if (libTrack.some((x) => VALID_TRACKING.includes(x))) return libTrack;
-
-  // 2. No library match → use the exercise's own value if it's valid.
-  const own = normaliseTracking(ex?.trackingType);
-  if (own.some((x) => VALID_TRACKING.includes(x))) return own;
 
   // 3. Nothing valid → default by block type (cardio → time, not reps).
   return defaultByBlock(ex);
