@@ -1,11 +1,15 @@
 /**
- * Coach AI Chat — conversational programme builder.
- * Staff-only. Talks to the `coach-agent` edge function, shows a chat thread
- * + a "Open in editor" action that structures the draft on demand.
+ * Coach AI Chat — conversational programme builder (living-draft / grid flow).
+ * Staff-only. Talks to the `coach-agent` edge function.
  *
- * The AI's chat replies are readable markdown (rendered in the bubble).
- * The structured programme is produced on demand by "Open in editor"
- * (action:"structure"), not on every turn — draft may be null during chat.
+ * Flow:
+ *  - Coach sets Stream + Weeks total (+ optional Member) up front.
+ *  - Week tabs (Week 1 … N); the "current week" is what each message targets.
+ *  - On send: chat turn (returns readable markdown reply) → then sync_week
+ *    (structures that week into the living draft, replacing its slot).
+ *  - The draft table (right side / below on mobile) is the source of truth —
+ *    it always reflects the current draft, updated each turn.
+ *  - "Open in editor" hands the stored draft to the manual programme editor.
  */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
@@ -27,10 +31,12 @@ import {
   Trash2,
   Sparkles,
   ExternalLink,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   sendCoachMessage,
+  syncWeek,
   loadRecentChats,
   loadChat,
   deleteChat,
@@ -49,6 +55,7 @@ interface CoachAiChatProps {
 }
 
 const STREAMS = ["Stronger", "Fusion", "Performance", "GroupPT", "Foundations"];
+const WEEK_OPTIONS = [2, 3, 4, 6, 8, 12];
 
 export const CoachAiChat = ({
   onOpenInEditor,
@@ -60,12 +67,16 @@ export const CoachAiChat = ({
   const [draft, setDraft] = useState<ProgrammeDraft | undefined>(undefined);
   const [stream, setStream] = useState("Stronger");
   const [memberId, setMemberId] = useState<string>("");
+  const [weeksTotal, setWeeksTotal] = useState(4);
+  const [currentWeek, setCurrentWeek] = useState(1);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [structuring, setStructuring] = useState(false);
   const [loadingChats, setLoadingChats] = useState(false);
   const [repeatTo, setRepeatTo] = useState<number>(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
 
   const refreshChats = useCallback(async () => {
     setLoadingChats(true);
@@ -84,11 +95,24 @@ export const CoachAiChat = ({
     }
   }, [messages, sending]);
 
+  // Scroll the draft table to the current week when it changes.
+  useEffect(() => {
+    if (tableRef.current) {
+      const el = tableRef.current.querySelector(
+        `[data-week-row="${currentWeek}"]`,
+      );
+      el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [currentWeek, draft]);
+
   const handleNewChat = () => {
     setCurrentChatId(null);
     setMessages([]);
     setDraft(undefined);
     setInput("");
+    setWeeksTotal(4);
+    setCurrentWeek(1);
+    setRepeatTo(0);
   };
 
   const handleOpenChat = async (chatId: string) => {
@@ -102,6 +126,8 @@ export const CoachAiChat = ({
     setDraft(chat.draft);
     if (chat.stream) setStream(chat.stream);
     if (chat.member_id) setMemberId(chat.member_id);
+    if (chat.weeksTotal) setWeeksTotal(chat.weeksTotal);
+    setCurrentWeek(1);
   };
 
   const handleDeleteChat = async (chatId: string) => {
@@ -120,23 +146,44 @@ export const CoachAiChat = ({
     setMessages(nextMessages);
     setSending(true);
     try {
+      // 1) Chat turn — readable markdown reply for the current week.
       const res = await sendCoachMessage({
         chatId: currentChatId || undefined,
         message: text,
         stream,
-        draft,
         memberId: memberId || undefined,
+        weekNumber: currentWeek,
+        weeksTotal,
       });
       const replyText = res.assistant || "";
       const assistantMsg: ChatMessage = {
         role: "assistant",
         content: replyText,
       };
-      setMessages([...nextMessages, assistantMsg]);
-      if (!currentChatId && res.chatId) {
-        setCurrentChatId(res.chatId);
-      }
+      const withReply = [...nextMessages, assistantMsg];
+      setMessages(withReply);
+      const chatId = res.chatId || currentChatId || "";
+      if (!currentChatId && chatId) setCurrentChatId(chatId);
       refreshChats();
+
+      // 2) sync_week — fold the AI's latest week into the living draft.
+      if (chatId) {
+        setSyncing(true);
+        try {
+          const updated = await syncWeek({
+            chatId,
+            weekNumber: currentWeek,
+            weeksTotal,
+            stream,
+          });
+          if (updated) setDraft(updated);
+        } catch {
+          // non-fatal — the reply is still shown; coach can retry.
+          toast.error("Couldn't update the draft table — try sending again.");
+        } finally {
+          setSyncing(false);
+        }
+      }
     } catch (e: any) {
       toast.error("AI request failed: " + (e?.message || "unknown error"));
       setMessages(messages);
@@ -177,8 +224,15 @@ export const CoachAiChat = ({
     }
   };
 
+  const draftWeeks: any[] = draft?.weeks || [];
+  // Ensure the table shows weeksTotal slots even if draft is sparse.
+  const tableWeeks = Array.from({ length: weeksTotal }, (_, i) => {
+    const w = draftWeeks.find((dw) => dw.week === i + 1);
+    return w || { week: i + 1, days: [], label: `Week ${i + 1}` };
+  });
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6">
       {/* Chat column */}
       <Card
         className="bg-card border-border flex flex-col"
@@ -198,7 +252,7 @@ export const CoachAiChat = ({
           </Button>
         </CardHeader>
         <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
-          {/* Controls */}
+          {/* Up-front setup: Stream + Weeks + Member */}
           <div className="flex flex-wrap gap-3 items-end">
             <div className="space-y-1">
               <Label className="text-xs">Stream</Label>
@@ -214,6 +268,28 @@ export const CoachAiChat = ({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Weeks</Label>
+              <div className="flex gap-1 h-9 items-center">
+                {WEEK_OPTIONS.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    onClick={() => {
+                      setWeeksTotal(w);
+                      if (currentWeek > w) setCurrentWeek(w);
+                    }}
+                    className={`h-9 min-w-[2.25rem] px-2 rounded-md text-sm font-medium border transition-colors ${
+                      weeksTotal === w
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-card text-foreground border-border hover:bg-muted/50"
+                    }`}
+                  >
+                    {w}
+                  </button>
+                ))}
+              </div>
             </div>
             {members.length > 0 && (
               <div className="space-y-1">
@@ -235,6 +311,31 @@ export const CoachAiChat = ({
             )}
           </div>
 
+          {/* Week tabs */}
+          <div className="flex gap-1 flex-wrap">
+            {Array.from({ length: weeksTotal }, (_, i) => i + 1).map((w) => {
+              const built = draftWeeks.find((dw) => dw.week === w)?.days
+                ?.length;
+              return (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setCurrentWeek(w)}
+                  className={`px-3 h-8 rounded-md text-xs font-medium border transition-colors flex items-center gap-1.5 ${
+                    currentWeek === w
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-card text-foreground border-border hover:bg-muted/50"
+                  }`}
+                >
+                  Wk {w}
+                  {built ? (
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Messages */}
           <div
             ref={scrollRef}
@@ -245,8 +346,12 @@ export const CoachAiChat = ({
                 <Sparkles className="h-8 w-8 mx-auto mb-3 opacity-50" />
                 <p className="font-medium">Start a conversation</p>
                 <p className="text-sm mt-1">
-                  e.g. "Build a 4-week Stronger programme, 3 days/week,
-                  lower-body focus"
+                  You're building <strong>Week {currentWeek}</strong> of a{" "}
+                  {weeksTotal}-week {stream} programme.
+                </p>
+                <p className="text-xs mt-2 text-muted-foreground/70">
+                  e.g. "Build the lower-body strength day — squat focus, 4
+                  working sets."
                 </p>
                 <p className="text-xs mt-3 text-muted-foreground/70 flex items-center justify-center gap-1">
                   <Sparkles className="h-3 w-3" />
@@ -288,6 +393,16 @@ export const CoachAiChat = ({
                 </div>
               </div>
             )}
+            {syncing && (
+              <div className="flex justify-start">
+                <div className="bg-muted/40 rounded-2xl px-4 py-2 flex items-center gap-2">
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" />
+                  <span className="text-xs text-muted-foreground">
+                    Updating draft table…
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Input */}
@@ -296,7 +411,7 @@ export const CoachAiChat = ({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Describe the programme you want…"
+              placeholder={`Describe Week ${currentWeek}…`}
               className="resize-none min-h-[44px] max-h-32"
               rows={1}
             />
@@ -311,94 +426,105 @@ export const CoachAiChat = ({
         </CardContent>
       </Card>
 
-      {/* Sidebar: draft preview + recent chats */}
+      {/* Sidebar: draft table + recent chats */}
       <div className="space-y-4">
-        {draft && (
-          <Card className="bg-card border-border">
-            <CardHeader className="flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-base">Draft preview</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <DraftPreview draft={draft} />
-              <div className="flex flex-wrap gap-2 items-end pt-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">Repeat block to</Label>
-                  <Select
-                    value={String(repeatTo)}
-                    onValueChange={(v) => setRepeatTo(Number(v))}
+        {/* Draft table — the source of truth */}
+        <Card className="bg-card border-border">
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" /> Draft programme
+            </CardTitle>
+            {syncing && (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+            )}
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div
+              ref={tableRef}
+              className="max-h-[460px] overflow-y-auto space-y-3"
+            >
+              {tableWeeks.map((week: any) => {
+                const days = week.days || [];
+                const isBuilt = days.length > 0;
+                const isCurrent = week.week === currentWeek;
+                return (
+                  <div
+                    key={week.week}
+                    data-week-row={week.week}
+                    className={`rounded-lg border p-3 ${
+                      isCurrent
+                        ? "border-primary/60 ring-1 ring-primary/20"
+                        : "border-border"
+                    } ${!isBuilt ? "opacity-60" : ""}`}
                   >
-                    <SelectTrigger className="w-[130px] h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Off</SelectItem>
-                      <SelectItem value="8">8 weeks</SelectItem>
-                      <SelectItem value="12">12 weeks</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  size="sm"
-                  className="gap-2 flex-1"
-                  onClick={handleOpenInEditor}
-                  disabled={structuring || !currentChatId}
-                >
-                  {structuring ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ExternalLink className="h-4 w-4" />
-                  )}
-                  Open in editor
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Keep refining by sending another message, then open in editor to
-                structure it.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentWeek(week.week)}
+                      className="flex items-center justify-between w-full mb-2"
+                    >
+                      <span className="font-semibold text-sm">
+                        {week.label || `Week ${week.week}`}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {isBuilt
+                          ? `${days.length} session${days.length !== 1 ? "s" : ""}`
+                          : "Not built yet"}
+                      </span>
+                    </button>
+                    {isBuilt ? (
+                      <div className="space-y-2">
+                        {days.map((day: any, di: number) => (
+                          <DraftDayBlock key={di} day={day} />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">
+                        Send a message to build this week.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-        {!draft && currentChatId && (
-          <Card className="bg-card border-border">
-            <CardContent className="py-4 space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Happy with the programme? Structure it and open in the editor.
-              </p>
-              <div className="flex flex-wrap gap-2 items-end">
-                <div className="space-y-1">
-                  <Label className="text-xs">Repeat block to</Label>
-                  <Select
-                    value={String(repeatTo)}
-                    onValueChange={(v) => setRepeatTo(Number(v))}
-                  >
-                    <SelectTrigger className="w-[130px] h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Off</SelectItem>
-                      <SelectItem value="8">8 weeks</SelectItem>
-                      <SelectItem value="12">12 weeks</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  size="sm"
-                  className="gap-2 flex-1"
-                  onClick={handleOpenInEditor}
-                  disabled={structuring}
+            {/* Open in editor */}
+            <div className="flex flex-wrap gap-2 items-end pt-2 border-t border-border">
+              <div className="space-y-1">
+                <Label className="text-xs">Repeat block to</Label>
+                <Select
+                  value={String(repeatTo)}
+                  onValueChange={(v) => setRepeatTo(Number(v))}
                 >
-                  {structuring ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ExternalLink className="h-4 w-4" />
-                  )}
-                  Open in editor
-                </Button>
+                  <SelectTrigger className="w-[130px] h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Off</SelectItem>
+                    <SelectItem value="8">8 weeks</SelectItem>
+                    <SelectItem value="12">12 weeks</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </CardContent>
-          </Card>
-        )}
+              <Button
+                size="sm"
+                className="gap-2 flex-1"
+                onClick={handleOpenInEditor}
+                disabled={structuring || !currentChatId}
+              >
+                {structuring ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="h-4 w-4" />
+                )}
+                Open in editor
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Keep refining by sending another message, then open in editor to
+              save as a programme.
+            </p>
+          </CardContent>
+        </Card>
 
         <Card className="bg-card border-border">
           <CardHeader>
@@ -442,59 +568,52 @@ export const CoachAiChat = ({
   );
 };
 
-/** Read-only programme draft renderer — weeks → days → rows. */
-const DraftPreview = ({ draft }: { draft: ProgrammeDraft }) => {
-  const weeks = draft.weeks || [];
-  if (weeks.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No structured draft yet — click "Open in editor" to structure it.
-      </p>
-    );
-  }
+/** A single day/session in the draft table. */
+const DraftDayBlock = ({ day }: { day: any }) => {
+  const rows = day.rows || [];
   return (
-    <div className="space-y-3 max-h-[400px] overflow-y-auto">
-      {weeks.map((week: any, wi: number) => (
-        <div key={wi} className="rounded-lg border border-border p-3">
-          <p className="font-semibold text-sm mb-2">
-            {week.label || `Week ${week.week || wi + 1}`}
-          </p>
-          <div className="space-y-2">
-            {(week.days || []).map((day: any, di: number) => (
-              <div key={di} className="text-xs">
-                <p className="font-medium text-muted-foreground">
-                  {day.day || day.name || `Day ${di + 1}`}
-                  {day.minDays ? ` · min ${day.minDays}d` : ""}
-                </p>
-                <div className="ml-2 space-y-0.5">
-                  {(day.rows || []).map((r: any, ri: number) =>
-                    r.isSection ? (
-                      <div key={ri} className="font-medium">
-                        ▸ {r.name}
-                        {r.sectionType && r.sectionType !== "Normal"
-                          ? ` · ${r.sectionType}`
-                          : ""}
-                        {r.description ? ` (${r.description})` : ""}
-                      </div>
-                    ) : (
-                      <div key={ri} className="text-muted-foreground">
-                        {r.linkedToNext ? "🔗 " : ""}
-                        {r.label || r.name || "—"}
-                        {!r.name && r.label
-                          ? " (unmatched — pick in editor)"
-                          : ""}
-                        {r.sets || r.reps
-                          ? ` — ${r.sets || 0}×${r.reps || ""}`
-                          : ""}
-                      </div>
-                    ),
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
+    <div className="rounded-md bg-muted/20 p-2">
+      <p className="font-medium text-xs text-foreground">
+        {day.day || day.name || "Session"}
+        {day.minDays ? (
+          <span className="ml-1 text-muted-foreground">
+            · min {day.minDays}d
+          </span>
+        ) : null}
+        {day.theme ? (
+          <span className="ml-1 text-muted-foreground">· {day.theme}</span>
+        ) : null}
+      </p>
+      <div className="ml-1 mt-1 space-y-0.5">
+        {rows.map((r: any, ri: number) =>
+          r.isSection ? (
+            <div key={ri} className="font-medium text-xs text-foreground">
+              ▸ {r.name}
+              {r.sectionType && r.sectionType !== "Normal"
+                ? ` · ${r.sectionType}`
+                : ""}
+              {r.description ? ` (${r.description})` : ""}
+            </div>
+          ) : (
+            <div key={ri} className="text-xs text-muted-foreground">
+              {r.linkedToNext ? "🔗 " : ""}
+              {r.label || r.name || "—"}
+              {!r.name && r.label ? " (unmatched)" : ""}
+              {r.sets || r.reps ? ` — ${r.sets || 0}×${r.reps || ""}` : ""}
+              {r.timeMins || r.timeSecs
+                ? ` — ${r.timeMins || 0}m ${r.timeSecs || 0}s`
+                : ""}
+              {r.distance ? ` · ${r.distance}m` : ""}
+              {r.calories ? ` · ${r.calories}cal` : ""}
+              {r.coachingNotes ? (
+                <span className="block text-muted-foreground/70 italic">
+                  {r.coachingNotes}
+                </span>
+              ) : null}
+            </div>
+          ),
+        )}
+      </div>
     </div>
   );
 };
@@ -531,7 +650,8 @@ const MarkdownText = ({ text }: { text: string }) => {
   };
 
   for (const raw of lines) {
-    const line = raw.trimEnd();
+    // Escape the raw line FIRST, then apply markdown transforms.
+    const line = escapeHtml(raw.trimEnd());
     if (!line.trim()) {
       flush();
       continue;
