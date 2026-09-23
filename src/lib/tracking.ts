@@ -119,6 +119,8 @@ export const syncTrackingWithValues = (ex: any): string[] => {
   if (hasTime && hasDist) return ["Distance & Time"];
   if (hasTime) return ["Time Only"];
   if (hasCals) return ["Calories"];
+  // Loaded carry: weight + distance (Farmers Walk, Sled Push) — keep BOTH.
+  if (hasWeight && hasDist) return ["Weight & Distance"];
   if (hasDist) return ["Distance & Time"];
   if (hasWeight && hasReps) return ["Weight & Reps"];
   if (hasReps) return ["Reps Only"];

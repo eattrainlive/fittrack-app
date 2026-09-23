@@ -79,9 +79,6 @@ export const TimeStepper = ({
 
 export const columnsFor = (ex: any, exerciseLibrary: any[]) => {
   const t = trackingOf(ex, exerciseLibrary);
-  const libEx = exerciseLibrary.find(
-    (le: any) => String(le.id) === String(ex.name),
-  );
   const sets = Array.isArray(ex.setsData) ? ex.setsData : [];
   const usedReps = sets.some((s: any) => (+s.reps || 0) > 0);
   const usedTime = sets.some(
@@ -94,9 +91,19 @@ export const columnsFor = (ex: any, exerciseLibrary: any[]) => {
   const canWD = t.includes("Weight & Distance");
   const canRepsOnly = t.includes("Reps Only");
   const canTime = t.includes("Time Only") || t.includes("Distance & Time");
-  const canDist = t.includes("Distance & Time") || canWD;
+  const canDist = t.includes("Distance & Time");
   const canCals = t.includes("Calories");
-  const canWeight = canWR || canWD;
+
+  // "Weight & Distance" (loaded carries): KG + DIST show TOGETHER — they are
+  // NOT mutually exclusive. Handle as its own case before the mutual-exclusion
+  // logic (which is for multi-mode toggle exercises where only one metric is
+  // active at a time).
+  if (canWD && !canWR) {
+    return [
+      { field: "weight", label: "KG", step: 2.5, decimal: true },
+      { field: "distance", label: "DIST", step: 0.1, decimal: true },
+    ];
+  }
 
   // Trust entered values over trackingType: if the member/coach has time,
   // distance or calorie data, show those columns even if trackingType is
@@ -105,7 +112,7 @@ export const columnsFor = (ex: any, exerciseLibrary: any[]) => {
   const showTime = canTime || usedTime;
   const showDist = canDist || usedDist;
   const showCals = canCals || usedCals;
-  const showWeight = canWeight && !showTime && !showDist && !showCals;
+  const showWeight = canWR && !showTime && !showDist && !showCals;
   const showReps =
     (canWR || canRepsOnly) && !showTime && !showDist && !showCals;
 
@@ -129,6 +136,9 @@ export const fmtLastTime = (s: any, tracking: string[]) => {
       : "";
   // Trust entered values over trackingType.
   if ((s.calories || 0) > 0) return `${s.calories} cals`;
+  // Loaded carry: weight + distance together (e.g. "40kg × 20m").
+  if ((s.weight || 0) > 0 && (s.distance || 0) > 0)
+    return `${s.weight}kg × ${s.distance}m`;
   if ((s.distance || 0) > 0)
     return time ? `${s.distance}m in ${time}` : `${s.distance}m`;
   if (time) return time;
@@ -145,6 +155,9 @@ export const fmtSet = (s: any, tracking: string[]) => {
       : "";
   // Trust entered values over trackingType.
   if ((s.calories || 0) > 0) return `${s.calories} cals`;
+  // Loaded carry: weight + distance together (e.g. "40kg × 20m").
+  if ((s.weight || 0) > 0 && (s.distance || 0) > 0)
+    return `${s.weight}kg × ${s.distance}m`;
   if ((s.distance || 0) > 0) {
     const parts = [`${s.distance}m`, time].filter(Boolean);
     return parts.join(" in ");
