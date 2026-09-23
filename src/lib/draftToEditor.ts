@@ -148,9 +148,9 @@ export const draftToEditorWorkouts = (
     weekCount: Math.max(1, weeks.length),
     daysInFirstWeek: Math.max(
       1,
-      weeks[0]?.days?.length ||
-        workouts.filter((w) => w.week === 1).length ||
-        1,
+      ...weeks.map((w) => w.days?.length ?? 0),
+      workouts.filter((w) => w.week === 1).length,
+      1,
     ),
   };
 };

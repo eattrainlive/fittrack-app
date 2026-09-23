@@ -1567,12 +1567,7 @@ const Admin = () => {
         coverImage: newProgCover,
         type: newProgType,
         weeks: newProgType === "GroupPT" ? 12 : newProgWeeks,
-        daysPerWeek:
-          newProgType === "program"
-            ? newProgStream === "Stronger"
-              ? 7
-              : 5
-            : newProgDays,
+        daysPerWeek: newProgDays,
         weekNotes: progWeekNotes,
         workouts: progWorkouts.map((w) => {
           const exercises = w.exercises.map((e: any) =>
@@ -1830,12 +1825,7 @@ const Admin = () => {
       coverImage: newProgCover,
       type: newProgType,
       weeks: newProgType === "GroupPT" ? 12 : newProgWeeks,
-      daysPerWeek:
-        newProgType === "program"
-          ? newProgStream === "Stronger"
-            ? 7
-            : 5
-          : newProgDays,
+      daysPerWeek: newProgDays,
       weekNotes: progWeekNotes,
       workouts: workoutsToSave.map((w) => {
         const exercises = w.exercises.map((e: any) =>

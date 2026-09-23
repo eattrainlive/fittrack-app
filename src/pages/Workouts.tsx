@@ -115,7 +115,7 @@ import {
   getCoverImage,
   sectionIndexToBlockIndex,
 } from "@/lib/workoutHelpers";
-import { trackingOf } from "@/lib/tracking";
+import { TrackingTypeToggle } from "@/components/TrackingTypeToggle";
 import { WorkoutOverviewSections } from "@/components/WorkoutOverviewSections";
 import { PickOneSelector } from "@/components/PickOneSelector";
 import { exercisesForSave } from "@/lib/pickOneFilter";
@@ -2943,74 +2943,19 @@ const Workouts = () => {
                                             </DialogContent>
                                           </Dialog>
                                         )}
-                                        {libraryExercise &&
-                                          (() => {
-                                            const TRACKING_TYPES = [
-                                              "Weight & Reps",
-                                              "Reps Only",
-                                              "Time Only",
-                                              "Distance & Time",
-                                              "Weight & Distance",
-                                              "Calories",
-                                            ];
-                                            const SHORT: Record<
-                                              string,
-                                              string
-                                            > = {
-                                              "Weight & Reps": "W×R",
-                                              "Reps Only": "Reps",
-                                              "Time Only": "Time",
-                                              "Distance & Time": "Dist",
-                                              "Weight & Distance": "W×D",
-                                              Calories: "Cals",
-                                            };
-                                            const currentTracking = trackingOf(
-                                              exercise,
-                                              exerciseLibrary,
-                                            ).join(", ");
-                                            return (
-                                              <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                  <button className="inline-flex items-center gap-1 h-8 px-2.5 rounded-full border border-border text-xs font-bold shrink-0">
-                                                    <SlidersHorizontal className="h-3.5 w-3.5" />{" "}
-                                                    {SHORT[currentTracking] ??
-                                                      currentTracking}
-                                                  </button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="start">
-                                                  {TRACKING_TYPES.map((tt) => (
-                                                    <DropdownMenuItem
-                                                      key={tt}
-                                                      onClick={() =>
-                                                        updateExercise(
-                                                          exercise.id,
-                                                          "trackingType",
-                                                          [tt],
-                                                        )
-                                                      }
-                                                    >
-                                                      {tt}
-                                                      {currentTracking ===
-                                                        tt && (
-                                                        <Check className="h-3 w-3 ml-auto" />
-                                                      )}
-                                                    </DropdownMenuItem>
-                                                  ))}
-                                                  <DropdownMenuItem
-                                                    onClick={() =>
-                                                      updateExercise(
-                                                        exercise.id,
-                                                        "trackingType",
-                                                        undefined,
-                                                      )
-                                                    }
-                                                  >
-                                                    Reset to default
-                                                  </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                              </DropdownMenu>
-                                            );
-                                          })()}
+                                        {libraryExercise && (
+                                          <TrackingTypeToggle
+                                            exercise={exercise}
+                                            exerciseLibrary={exerciseLibrary}
+                                            onUpdate={(field, value) =>
+                                              updateExercise(
+                                                exercise.id,
+                                                field,
+                                                value,
+                                              )
+                                            }
+                                          />
+                                        )}
                                         {exercise.name && (
                                           <button
                                             className="inline-flex items-center gap-1 h-8 px-2.5 rounded-full border border-border text-xs font-bold shrink-0"
