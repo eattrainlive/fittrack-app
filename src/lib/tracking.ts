@@ -38,53 +38,33 @@ export const normaliseTracking = (v: any): string[] => {
 };
 
 /**
- * Sensible default when nothing valid resolves, based on the block the
- * exercise sits in. Cardio machines not in the library should default to
- * time/distance/calories — never reps.
- */
-const defaultByBlock = (ex: any): string[] => {
-  const bt = String(ex?.blockType ?? "").toLowerCase();
-  if (bt === "cardio") return ["Distance & Time", "Time Only", "Calories"];
-  if (bt === "mobility") return ["Time Only"];
-  return [...DEFAULT_TRACKING]; // Strength / Activation / unknown
-};
-
-/**
- * Resolve the tracking type for a programme exercise. Returns a clean array;
- * never empty.
+ * Resolve the tracking type for a programme exercise, looking up the library
+ * by id OR name. Returns a clean array; never empty (defaults to Weight & Reps).
  *
- * Precedence is LIBRARY-FIRST:
- *  1. The library entry (matched by id or name) wins for a matched exercise.
- *     Programme rows carry a stale `trackingType` baked in at save time (e.g. a
- *     loaded move with ["Reps Only"], or a cardio machine with
- *     ["Weight & Reps"]) — that baked value is stale baggage, not a deliberate
- *     override, so the library (the single source of truth) takes priority.
- *  2. If there's no library match, fall back to the exercise's own trackingType
- *     — but only if it contains at least one REAL tracking type.
- *  3. Otherwise default by the exercise's blockType (cardio → time, not reps).
- *
- * Note: the coach's deliberate Reps/Time choice is stored as `trackingMode`,
- * not `trackingType`, so this precedence never overrides an intentional toggle.
+ * The exercise's own `trackingType` is only honoured if it names at least one
+ * REAL tracking type — legacy programmes carry junk values like ["Reps Only"]
+ * (not one of the four valid types) that would otherwise override the correct
+ * library entry and hide the weight field for loaded moves.
  */
 export const resolveTrackingType = (
   ex: any,
   exerciseLibrary: any[],
 ): string[] => {
-  // 1. LIBRARY wins for a matched exercise.
+  // 1. Explicit per-exercise override — only if it contains a valid type.
+  const own = normaliseTracking(ex?.trackingType);
+  if (own.some((x) => VALID_TRACKING.includes(x))) return own;
+
+  // 2. Library lookup by id (programme `name` = library `id`) or by name
   const libEx = exerciseLibrary.find(
     (le) =>
       String(le.id) === String(ex?.name) ||
       String(le.name) === String(ex?.name),
   );
   const libTrack = normaliseTracking(libEx?.trackingType);
-  if (libTrack.some((x) => VALID_TRACKING.includes(x))) return libTrack;
+  if (libTrack.length) return libTrack;
 
-  // 2. No library match → use the exercise's own value if it's valid.
-  const own = normaliseTracking(ex?.trackingType);
-  if (own.some((x) => VALID_TRACKING.includes(x))) return own;
-
-  // 3. Nothing valid → default by block type (cardio → time, not reps).
-  return defaultByBlock(ex);
+  // 3. Safe default — never silently reps-only
+  return [...DEFAULT_TRACKING];
 };
 
 /**
