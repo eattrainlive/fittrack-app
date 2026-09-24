@@ -78,7 +78,7 @@ export const importMemberships = async (
   const { data: existingMembers } = await supabase
     .from("gym_members")
     .select("*");
-  const existingByEmail = new Map(
+  const existingByEmail = new Map<string, any>(
     (existingMembers || []).map((m: any) => [normEmail(m.email), m]),
   );
 

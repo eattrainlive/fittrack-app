@@ -22,6 +22,7 @@ export const VALID_TRACKING = [
   "Distance & Time",
   "Weight & Distance",
   "Calories",
+  "Calories & Time",
 ];
 
 /**
@@ -46,7 +47,8 @@ export const normaliseTracking = (v: any): string[] => {
  */
 const defaultByBlock = (ex: any): string[] => {
   const bt = String(ex?.blockType ?? "").toLowerCase();
-  if (bt === "cardio") return ["Distance & Time", "Time Only", "Calories"];
+  if (bt === "cardio")
+    return ["Distance & Time", "Time Only", "Calories", "Calories & Time"];
   if (bt === "mobility") return ["Time Only"];
   return [...DEFAULT_TRACKING]; // Strength / Activation / unknown
 };
@@ -116,6 +118,7 @@ export const syncTrackingWithValues = (ex: any): string[] => {
   const hasReps = (Number(ex?.reps) || 0) > 0;
 
   // Value-driven inference.
+  if (hasCals && hasTime) return ["Calories & Time"];
   if (hasTime && hasDist) return ["Distance & Time"];
   if (hasTime) return ["Time Only"];
   if (hasCals) return ["Calories"];

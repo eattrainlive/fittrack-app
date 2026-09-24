@@ -343,7 +343,9 @@ export function AccountabilityCoachPanel() {
           .from("members")
           .select("id, email, full_name")
           .in("id", ids);
-        const byId = new Map((memberRows ?? []).map((m: any) => [m.id, m]));
+        const byId = new Map<string, any>(
+          (memberRows ?? []).map((m: any) => [m.id, m]),
+        );
         setStaff(
           staffWithEmails.map((s) => ({
             ...s,

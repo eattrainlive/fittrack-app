@@ -14,6 +14,7 @@ const SHORT: Record<string, string> = {
   "Distance & Time": "Dist",
   "Weight & Distance": "W×D",
   Calories: "Cals",
+  "Calories & Time": "C+T",
 };
 
 /**

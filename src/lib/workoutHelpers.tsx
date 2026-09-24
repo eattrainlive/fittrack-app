@@ -92,6 +92,7 @@ export const columnsFor = (ex: any, exerciseLibrary: any[]) => {
   const canRepsOnly = t.includes("Reps Only");
   const canTime = t.includes("Time Only") || t.includes("Distance & Time");
   const canDist = t.includes("Distance & Time");
+  const canCalsTime = t.includes("Calories & Time");
   const canCals = t.includes("Calories");
 
   // "Weight & Distance" (loaded carries): KG + DIST show TOGETHER — they are
@@ -102,6 +103,16 @@ export const columnsFor = (ex: any, exerciseLibrary: any[]) => {
     return [
       { field: "weight", label: "KG", step: 2.5, decimal: true },
       { field: "distance", label: "DIST", step: 0.1, decimal: true },
+    ];
+  }
+
+  // "Calories & Time" (fixed-interval calorie pieces, e.g. "max cals in 30s"):
+  // show TIME (the fixed interval) + CALS (logged each set). Own case — both
+  // fields show together.
+  if (canCalsTime) {
+    return [
+      { field: "time", label: "TIME", isTime: true },
+      { field: "calories", label: "CALS", step: 1 },
     ];
   }
 
@@ -135,6 +146,8 @@ export const fmtLastTime = (s: any, tracking: string[]) => {
       ? `${s.timeMins ? s.timeMins + "m " : ""}${s.timeSecs ? s.timeSecs + "s" : ""}`.trim()
       : "";
   // Trust entered values over trackingType.
+  // Calories & Time together (e.g. "15 cals in 30s").
+  if ((s.calories || 0) > 0 && time) return `${s.calories} cals in ${time}`;
   if ((s.calories || 0) > 0) return `${s.calories} cals`;
   // Loaded carry: weight + distance together (e.g. "40kg × 20m").
   if ((s.weight || 0) > 0 && (s.distance || 0) > 0)
@@ -154,6 +167,8 @@ export const fmtSet = (s: any, tracking: string[]) => {
       ? `${s.timeMins ? s.timeMins + "m " : ""}${s.timeSecs ? s.timeSecs + "s" : ""}`.trim()
       : "";
   // Trust entered values over trackingType.
+  // Calories & Time together (e.g. "15 cals in 30s").
+  if ((s.calories || 0) > 0 && time) return `${s.calories} cals in ${time}`;
   if ((s.calories || 0) > 0) return `${s.calories} cals`;
   // Loaded carry: weight + distance together (e.g. "40kg × 20m").
   if ((s.weight || 0) > 0 && (s.distance || 0) > 0)
