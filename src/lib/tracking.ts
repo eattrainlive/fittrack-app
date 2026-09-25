@@ -114,23 +114,32 @@ export const syncTrackingWithValues = (ex: any): string[] => {
     (Number(ex?.timeMins) || 0) > 0 || (Number(ex?.timeSecs) || 0) > 0;
   const hasDist = (Number(ex?.distance) || 0) > 0;
   const hasCals = (Number(ex?.calories) || 0) > 0;
-  const hasWeight = (Number(ex?.weight) || 0) > 0;
-  const hasReps = (Number(ex?.reps) || 0) > 0;
 
-  // Value-driven inference.
+  const own = normaliseTracking(ex?.trackingType).filter((x) =>
+    VALID_TRACKING.includes(x),
+  );
+
+  // Positive time/distance/calorie VALUES are strong signals — infer those.
   if (hasCals && hasTime) return ["Calories & Time"];
   if (hasTime && hasDist) return ["Distance & Time"];
   if (hasTime) return ["Time Only"];
   if (hasCals) return ["Calories"];
-  // Loaded carry: weight + distance (Farmers Walk, Sled Push) — keep BOTH.
-  if (hasWeight && hasDist) return ["Weight & Distance"];
-  if (hasDist) return ["Distance & Time"];
-  if (hasWeight && hasReps) return ["Weight & Reps"];
-  if (hasReps) return ["Reps Only"];
+  if (hasDist)
+    return own.includes("Weight & Distance")
+      ? ["Weight & Distance"]
+      : ["Distance & Time"];
 
-  // No prescription values — keep whatever trackingType is already set.
-  const own = normaliseTracking(ex?.trackingType);
-  return own.length ? own : [...DEFAULT_TRACKING];
+  // No time/dist/cal values → this is a reps/weight exercise.
+  // RESPECT the explicit trackingType — do NOT downgrade "Weight & Reps" to
+  // "Reps Only" just because no weight VALUE is prescribed (weight is entered
+  // by the member at logging time). A coach who deliberately wants Reps Only
+  // still gets it, because that's stored on the row's `trackingType`.
+  if (own.length) return own;
+
+  // No explicit type at all → default to Weight & Reps when reps are present
+  // (strength bias), so loaded moves keep their KG column.
+  const hasReps = (Number(ex?.reps) || 0) > 0;
+  return hasReps ? ["Weight & Reps"] : [...DEFAULT_TRACKING];
 };
 
 /**
