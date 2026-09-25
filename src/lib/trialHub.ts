@@ -319,7 +319,7 @@ export const getTrialMomentum = async (): Promise<TrialMomentumData | null> => {
     (b: any) => b.status !== "cancelled",
   );
   const sessionsAttended = attended.length;
-  const attendedDays = attended.map((b: any) => {
+  const attendedDays: number[] = attended.map((b: any) => {
     const d = new Date(b.session_at);
     return Math.floor((d.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   });

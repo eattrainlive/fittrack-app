@@ -68,6 +68,7 @@ export function WorkoutOverviewSections({
           "For Time",
           "Circuit",
         ].includes(sectionType);
+        const isFreestyle = sectionType === "Freestyle";
 
         return (
           <Card
@@ -100,6 +101,12 @@ export function WorkoutOverviewSections({
                         {sec.section.description}
                       </span>
                     )}
+                    {isFreestyle && (
+                      <span className="text-[11px] text-primary font-medium flex items-center gap-1 mt-0.5">
+                        <Clock className="h-3 w-3" />
+                        Freestyle · score after
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -119,7 +126,7 @@ export function WorkoutOverviewSections({
                 <div className="p-3 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
                   {/* Section aim / description */}
                   {sec.section?.description && !isConditioning && (
-                    <p className="text-sm text-muted-foreground italic leading-relaxed bg-muted/30 rounded-lg p-2.5">
+                    <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-2.5 font-medium">
                       {sec.section.description}
                     </p>
                   )}
@@ -133,86 +140,113 @@ export function WorkoutOverviewSections({
                   )}
 
                   {/* Exercise list */}
-                  {sec.exercises.map((ex: any, exIdx: number) => {
-                    const libEx = exerciseLibrary.find(
-                      (e) => String(e.id) === String(ex.name),
-                    );
-
-                    const setsCount = ex.setsData?.length || ex.sets || 3;
-                    const firstSet = ex.setsData?.[0] || ex || {};
-
-                    // Tracking-aware metric line — reuse the same resolution
-                    // the logging screen uses so cardio/time never shows "reps".
-                    const trackingArray = resolveTrackingType(
-                      ex,
-                      exerciseLibrary,
-                    );
-                    const isWR = trackingArray.includes("Weight & Reps");
-                    const isTO = trackingArray.includes("Time Only");
-                    const isDT = trackingArray.includes("Distance & Time");
-                    const isCal = trackingArray.includes("Calories");
-
-                    const dist = firstSet.distance || ex.distance || 0;
-                    const mins = firstSet.timeMins || ex.timeMins || 0;
-                    const secs = firstSet.timeSecs || ex.timeSecs || 0;
-                    const cals = firstSet.calories || ex.calories || 0;
-                    const reps = firstSet.reps || ex.reps || 0;
-                    const weight = firstSet.weight || ex.weight || 0;
-                    const rest = ex.rest || 0;
-
-                    let details: string[] = [];
-                    if (isWR) {
-                      if (weight > 0) details.push(`${weight}kg`);
-                      if (reps) details.push(`${reps} reps`);
-                    }
-                    if (isDT) {
-                      if (dist) details.push(`${dist}m`);
-                      if (mins || secs)
-                        details.push(
-                          `${mins ? mins + "m " : ""}${secs ? secs + "s" : ""}`.trim(),
+                  {isFreestyle ? (
+                    // Freestyle: movements are video references only — show
+                    // names, no set counts or metric lines.
+                    <div className="space-y-1.5">
+                      {sec.exercises.map((ex: any, exIdx: number) => {
+                        const libEx = exerciseLibrary.find(
+                          (e) => String(e.id) === String(ex.name),
                         );
-                    }
-                    if (isTO && (mins || secs))
-                      details.push(
-                        `${mins ? mins + "m " : ""}${secs ? secs + "s" : ""}`.trim(),
-                      );
-                    if (isCal && cals) details.push(`${cals} cals`);
-                    const detailStr = details.join(", ");
-
-                    return (
-                      <div
-                        key={exIdx}
-                        className="flex justify-between items-start gap-2"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="h-10 w-10 bg-muted rounded-md flex items-center justify-center shrink-0">
-                            <Dumbbell className="h-5 w-5 text-muted-foreground/50" />
-                          </div>
-                          <div className="flex flex-col min-w-0">
+                        const name =
+                          libEx?.name || ex.label || ex.name || "Exercise";
+                        return (
+                          <div
+                            key={exIdx}
+                            className="flex items-center gap-3 rounded-md bg-muted/20 px-2.5 py-2"
+                          >
+                            <Play className="h-3.5 w-3.5 text-primary shrink-0" />
                             <span className="font-bold text-sm leading-tight">
-                              {libEx ? libEx.name : ex.name || "Unknown"}
+                              {name}
                             </span>
-                            <span className="text-xs text-muted-foreground">
-                              {setsCount} sets
-                              {detailStr ? ` × ${detailStr}` : ""}
-                              {rest ? ` · ${rest}s rest` : ""}
-                              {ex.eachSide ? " · each side" : ""}
-                            </span>
-                            {ex.coachingNotes && (
-                              <span className="text-xs text-primary/80 mt-0.5 leading-snug">
-                                {ex.coachingNotes}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <>
+                      {sec.exercises.map((ex: any, exIdx: number) => {
+                        const libEx = exerciseLibrary.find(
+                          (e) => String(e.id) === String(ex.name),
+                        );
+
+                        const setsCount = ex.setsData?.length || ex.sets || 3;
+                        const firstSet = ex.setsData?.[0] || ex || {};
+
+                        // Tracking-aware metric line — reuse the same resolution
+                        // the logging screen uses so cardio/time never shows "reps".
+                        const trackingArray = resolveTrackingType(
+                          ex,
+                          exerciseLibrary,
+                        );
+                        const isWR = trackingArray.includes("Weight & Reps");
+                        const isTO = trackingArray.includes("Time Only");
+                        const isDT = trackingArray.includes("Distance & Time");
+                        const isCal = trackingArray.includes("Calories");
+
+                        const dist = firstSet.distance || ex.distance || 0;
+                        const mins = firstSet.timeMins || ex.timeMins || 0;
+                        const secs = firstSet.timeSecs || ex.timeSecs || 0;
+                        const cals = firstSet.calories || ex.calories || 0;
+                        const reps = firstSet.reps || ex.reps || 0;
+                        const weight = firstSet.weight || ex.weight || 0;
+                        const rest = ex.rest || 0;
+
+                        let details: string[] = [];
+                        if (isWR) {
+                          if (weight > 0) details.push(`${weight}kg`);
+                          if (reps) details.push(`${reps} reps`);
+                        }
+                        if (isDT) {
+                          if (dist) details.push(`${dist}m`);
+                          if (mins || secs)
+                            details.push(
+                              `${mins ? mins + "m " : ""}${secs ? secs + "s" : ""}`.trim(),
+                            );
+                        }
+                        if (isTO && (mins || secs))
+                          details.push(
+                            `${mins ? mins + "m " : ""}${secs ? secs + "s" : ""}`.trim(),
+                          );
+                        if (isCal && cals) details.push(`${cals} cals`);
+                        const detailStr = details.join(", ");
+
+                        return (
+                          <div
+                            key={exIdx}
+                            className="flex justify-between items-start gap-2"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="h-10 w-10 bg-muted rounded-md flex items-center justify-center shrink-0">
+                                <Dumbbell className="h-5 w-5 text-muted-foreground/50" />
+                              </div>
+                              <div className="flex flex-col min-w-0">
+                                <span className="font-bold text-sm leading-tight">
+                                  {libEx ? libEx.name : ex.name || "Unknown"}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {setsCount} sets
+                                  {detailStr ? ` × ${detailStr}` : ""}
+                                  {rest ? ` · ${rest}s rest` : ""}
+                                  {ex.eachSide ? " · each side" : ""}
+                                </span>
+                                {ex.coachingNotes && (
+                                  <span className="text-xs text-primary/80 mt-0.5 leading-snug">
+                                    {ex.coachingNotes}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {ex.linkedToNext && (
+                              <span className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary px-2 py-0.5 rounded-sm shrink-0">
+                                Superset
                               </span>
                             )}
                           </div>
-                        </div>
-                        {ex.linkedToNext && (
-                          <span className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary px-2 py-0.5 rounded-sm shrink-0">
-                            Superset
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
+                        );
+                      })}
+                    </>
+                  )}
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 pt-2 border-t border-border/50">

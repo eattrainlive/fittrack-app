@@ -1,6 +1,9 @@
 import { Minus, Plus } from "lucide-react";
 import { trackingOf } from "@/lib/tracking";
 import { getProgramCoverImage } from "@/lib/programCovers";
+// Re-export so the large Workouts.tsx (already importing this module) gets it
+// without a separate import line.
+export { buildWorkoutBlocks } from "@/lib/workoutBlocks";
 
 export const Stepper = ({
   value,

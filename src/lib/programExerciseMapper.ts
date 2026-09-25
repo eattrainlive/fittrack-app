@@ -27,9 +27,11 @@ export const mapProgramExercise = (e: any, trackingOverride?: any) => ({
   distance: e.distance,
   timeMins: e.timeMins,
   timeSecs: e.timeSecs,
+  calories: e.calories,
   rest: e.rest ?? 0,
   linkedToNext: e.linkedToNext,
   eachSide: e.eachSide,
+  reference: e.reference ?? false,
   staffNotes: e.staffNotes,
   coachingNotes: e.coachingNotes,
   trackingType: syncTrackingWithValues({

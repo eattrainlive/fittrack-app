@@ -1,4 +1,4 @@
-import React from "react";
+import { Component, type ReactNode, type ErrorInfo } from "react";
 
 interface State {
   error: Error | null;
@@ -14,8 +14,8 @@ interface State {
  * Instead, show a friendly "Something went wrong" screen with a reload button
  * and log the error to the console (optionally to Supabase for staff visibility).
  */
-export class AppErrorBoundary extends React.Component<
-  { children: React.ReactNode },
+export class AppErrorBoundary extends Component<
+  { children: ReactNode },
   State
 > {
   state: State = { error: null };
@@ -24,7 +24,7 @@ export class AppErrorBoundary extends React.Component<
     return { error };
   }
 
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
+  componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("App crashed:", error, info);
   }
 

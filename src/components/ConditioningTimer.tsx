@@ -327,7 +327,163 @@ export function formatConditioningResult(result: any): string | null {
     }
     case "EMOM":
       return `EMOM${result.mins ? ` ${result.mins}` : ""}: ${result.completed ? "complete" : "incomplete"}`;
+    case "Freestyle": {
+      if (result.scoreType === "time") {
+        const t = result.timeSecs ?? 0;
+        const m = Math.floor(t / 60);
+        const s = t % 60;
+        return `Score: ${m}:${String(s).padStart(2, "0")}`;
+      }
+      const unit = result.scoreType === "reps" ? "reps" : "rounds";
+      return `Score: ${result.value ?? 0} ${unit}`;
+    }
     default:
       return null;
   }
+}
+
+/**
+ * Freestyle score capture — the member picks the score type (Reps / Rounds / Time)
+ * and enters one value. No coach setup needed; always available on Freestyle blocks.
+ */
+export function FreestyleScore({
+  initialResult,
+  onSaveResult,
+}: {
+  initialResult?: any;
+  onSaveResult: (result: any) => void;
+}) {
+  const [scoreType, setScoreType] = useState<"reps" | "rounds" | "time">(
+    initialResult?.scoreType || "rounds",
+  );
+  const [value, setValue] = useState<string>(
+    initialResult?.value != null ? String(initialResult.value) : "",
+  );
+  const [mins, setMins] = useState<string>(
+    initialResult?.timeSecs != null
+      ? String(Math.floor(initialResult.timeSecs / 60))
+      : "",
+  );
+  const [secs, setSecs] = useState<string>(
+    initialResult?.timeSecs != null ? String(initialResult.timeSecs % 60) : "",
+  );
+  const [saved, setSaved] = useState(!!initialResult);
+
+  const handleSave = () => {
+    let result: any;
+    if (scoreType === "time") {
+      const totalSecs = (parseInt(mins) || 0) * 60 + (parseInt(secs) || 0);
+      result = { type: "Freestyle", scoreType: "time", timeSecs: totalSecs };
+    } else {
+      result = {
+        type: "Freestyle",
+        scoreType,
+        value: parseFloat(value) || 0,
+      };
+    }
+    onSaveResult(result);
+    setSaved(true);
+  };
+
+  return (
+    <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <span className="font-bold text-sm uppercase tracking-wider text-primary">
+          Log your score
+        </span>
+        {saved && (
+          <span className="text-[10px] font-bold uppercase tracking-wider bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+            Score saved
+          </span>
+        )}
+      </div>
+
+      {/* Type toggle */}
+      <div className="flex gap-1 bg-muted rounded-lg p-1">
+        {(["rounds", "reps", "time"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => {
+              setScoreType(t);
+              setSaved(false);
+            }}
+            className={`flex-1 py-1.5 rounded-md text-xs font-bold uppercase tracking-wide capitalize transition-colors ${
+              scoreType === t
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* Value input */}
+      {scoreType === "time" ? (
+        <div className="flex items-end gap-2 justify-center">
+          <label className="flex flex-col gap-1 items-center">
+            <span className="text-xs font-bold text-muted-foreground uppercase">
+              Mins
+            </span>
+            <Input
+              type="number"
+              inputMode="numeric"
+              value={mins}
+              onChange={(e) => {
+                setMins(e.target.value);
+                setSaved(false);
+              }}
+              className="w-20 text-center text-lg font-bold"
+              placeholder="0"
+            />
+          </label>
+          <span className="text-xl font-bold text-muted-foreground pb-2">
+            :
+          </span>
+          <label className="flex flex-col gap-1 items-center">
+            <span className="text-xs font-bold text-muted-foreground uppercase">
+              Secs
+            </span>
+            <Input
+              type="number"
+              inputMode="numeric"
+              value={secs}
+              onChange={(e) => {
+                setSecs(e.target.value);
+                setSaved(false);
+              }}
+              className="w-20 text-center text-lg font-bold"
+              placeholder="0"
+            />
+          </label>
+        </div>
+      ) : (
+        <label className="flex flex-col gap-1 items-center">
+          <span className="text-xs font-bold text-muted-foreground uppercase">
+            {scoreType === "reps" ? "Reps" : "Rounds"}
+          </span>
+          <Input
+            type="number"
+            inputMode="decimal"
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setSaved(false);
+            }}
+            className="w-28 text-center text-lg font-bold"
+            placeholder="0"
+          />
+        </label>
+      )}
+
+      <Button
+        size="sm"
+        variant="default"
+        onClick={handleSave}
+        className="w-full mt-1 gap-1 font-bold"
+      >
+        <Check className="h-4 w-4" /> Save Score
+      </Button>
+    </div>
+  );
 }

@@ -3,11 +3,11 @@
  * editor state. Kept in its own module so Admin.tsx stays lean — the hook
  * receives the setters and returns a single callback.
  */
-import { useCallback } from "react";
+import { useCallback, type MutableRefObject } from "react";
 import { toast } from "sonner";
 
 interface ApplyDraftSetters {
-  editingProgramIdRef: React.MutableRefObject<string | null>;
+  editingProgramIdRef: MutableRefObject<string | null>;
   setEditingProgramId: (v: string | null) => void;
   setNewProgName: (v: string) => void;
   setNewProgDesc: (v: string) => void;

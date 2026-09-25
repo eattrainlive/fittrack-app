@@ -114,7 +114,7 @@ import JSZip from "jszip";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
 import { Navigate, useNavigate } from "react-router-dom";
-import { QrCode, ArrowRightLeft } from "lucide-react";
+import { QrCode, ArrowRightLeft, Eye } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { MembersGrid } from "@/components/MembersGrid";
 import { SmartSwapButton } from "@/components/SmartSwapButton";
@@ -157,6 +157,8 @@ import { handleGenerateEngineWorkout as handleGenerateEngineWorkoutGen } from "@
 import { TvDisplayTab } from "@/components/TvDisplayTab";
 import { SettingsTab } from "@/components/SettingsTab";
 import { AiCoachTab } from "@/components/AiCoachTab";
+import { ExerciseCardPreview } from "@/components/ExerciseCardPreview";
+import { TrackingTypeSelector } from "@/components/TrackingTypeSelector";
 import { useApplyDraft } from "@/lib/useApplyDraft";
 
 const Admin = () => {
@@ -219,6 +221,7 @@ const Admin = () => {
     "Distance & Time",
     "Weight & Distance",
     "Calories",
+    "Calories & Time",
   ];
 
   // Search State for Program Builder
@@ -249,6 +252,7 @@ const Admin = () => {
   };
   // Date helpers (ordinal, addDaysISO, sessionDateName, dateSession) live in @/lib/programDates.
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [selectedDay, setSelectedDay] = useState(1);
   const [progViewMode, setProgViewMode] = useState<"day" | "full">("day");
@@ -4036,6 +4040,14 @@ const Admin = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
+                                className="gap-2"
+                                onClick={() => setPreviewOpen(true)}
+                              >
+                                <Eye className="h-4 w-4" /> Preview client view
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={handleShuffleAll}
                               >
                                 Shuffle All
@@ -4228,6 +4240,9 @@ const Admin = () => {
                                                       <SelectItem value="For Time">
                                                         For Time Block
                                                       </SelectItem>
+                                                      <SelectItem value="Freestyle">
+                                                        Freestyle Block
+                                                      </SelectItem>
                                                       <SelectItem value="AI Engine">
                                                         AI Engine Builder
                                                       </SelectItem>
@@ -4303,11 +4318,15 @@ const Admin = () => {
                                                       )
                                                     }
                                                     placeholder={
-                                                      pe.sectionType === "AMRAP"
-                                                        ? "e.g. 15 Minutes"
-                                                        : "e.g. Complete 3 rounds..."
+                                                      pe.sectionType ===
+                                                      "Freestyle"
+                                                        ? "Write the full workout here — e.g. 40 Min AMRAP\n500m Row\n200m Run\n500m Ski"
+                                                        : pe.sectionType ===
+                                                            "AMRAP"
+                                                          ? "e.g. 15 Minutes"
+                                                          : "e.g. Complete 3 rounds..."
                                                     }
-                                                    className="min-h-[80px]"
+                                                    className={`min-h-[80px] ${pe.sectionType === "Freestyle" ? "min-h-[160px]" : ""}`}
                                                   />
                                                 </div>
                                                 <div className="flex items-center justify-between gap-3 md:col-span-2 rounded-lg border border-border bg-muted/30 p-3">
@@ -4598,423 +4617,476 @@ const Admin = () => {
                                                         }
                                                       }}
                                                     />
-                                                  </div>
-                                                </div>
-
-                                                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 bg-muted/20 p-3 rounded-md border border-border/50">
-                                                  <div className="flex flex-wrap items-center gap-4">
-                                                    {(() => {
-                                                      const libEx =
-                                                        exById[String(pe.name)];
-                                                      const rawTrack =
-                                                        pe.trackingType ??
-                                                        libEx?.trackingType ??
-                                                        "Weight & Reps";
-                                                      const trackingArray = (
-                                                        Array.isArray(rawTrack)
-                                                          ? rawTrack
-                                                          : String(
-                                                              rawTrack,
-                                                            ).split(/[;,]/)
-                                                      )
-                                                        .map((s) => s.trim())
-                                                        .filter(Boolean);
-
-                                                      const canWR =
-                                                        trackingArray.includes(
-                                                          "Weight & Reps",
+                                                    <TrackingTypeSelector
+                                                      value={pe.trackingType}
+                                                      onChange={(types) => {
+                                                        updateProgExerciseFields(
+                                                          pe.id,
+                                                          {
+                                                            trackingType: types,
+                                                            trackingMode:
+                                                              undefined,
+                                                          },
                                                         );
-                                                      const canWD =
-                                                        trackingArray.includes(
-                                                          "Weight & Distance",
-                                                        );
-                                                      const canRepsOnly =
-                                                        trackingArray.includes(
-                                                          "Reps Only",
-                                                        );
-                                                      const canTime =
-                                                        trackingArray.includes(
-                                                          "Time Only",
-                                                        ) ||
-                                                        trackingArray.includes(
-                                                          "Distance & Time",
-                                                        );
-                                                      const canDist =
-                                                        trackingArray.includes(
-                                                          "Distance & Time",
-                                                        ) || canWD;
-                                                      const canCals =
-                                                        trackingArray.includes(
-                                                          "Calories",
-                                                        );
-
-                                                      const hasBoth =
-                                                        canWR && canTime;
-                                                      const activeMode =
-                                                        pe.trackingMode ||
-                                                        (canWR
-                                                          ? "reps"
-                                                          : canTime
-                                                            ? "time"
-                                                            : "reps");
-
-                                                      const showWR =
-                                                        canWR &&
-                                                        (!hasBoth ||
-                                                          activeMode ===
-                                                            "reps");
-                                                      const showWD = canWD;
-                                                      const showRepsOnly =
-                                                        canRepsOnly;
-                                                      const showTime =
-                                                        canTime &&
-                                                        (!hasBoth ||
-                                                          activeMode ===
-                                                            "time");
-
-                                                      return (
-                                                        <>
-                                                          <div className="flex flex-col gap-1.5 w-16">
-                                                            <Label className="text-[10px] uppercase text-muted-foreground font-bold">
-                                                              Sets
-                                                            </Label>
-                                                            <Input
-                                                              type="number"
-                                                              className="h-8 text-center"
-                                                              value={pe.sets}
-                                                              onChange={(e) =>
-                                                                updateProgExercise(
-                                                                  pe.id,
-                                                                  "sets",
-                                                                  parseInt(
-                                                                    e.target
-                                                                      .value,
-                                                                  ) || 0,
-                                                                )
-                                                              }
-                                                            />
-                                                          </div>
-                                                          {hasBoth && (
-                                                            <div className="flex flex-col gap-1.5 w-32 mr-2">
-                                                              <Label className="text-[10px] uppercase text-muted-foreground font-bold">
-                                                                Mode
-                                                              </Label>
-                                                              <div className="flex bg-muted/50 rounded-md p-0.5 border border-border">
-                                                                <button
-                                                                  className={`flex-1 text-[10px] uppercase font-bold py-1 rounded-sm ${activeMode === "reps" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                                                                  onClick={() => {
-                                                                    updateProgExercise(
-                                                                      pe.id,
-                                                                      "trackingMode",
-                                                                      "reps",
-                                                                    );
-                                                                    updateProgExercise(
-                                                                      pe.id,
-                                                                      "timeMins",
-                                                                      0,
-                                                                    );
-                                                                    updateProgExercise(
-                                                                      pe.id,
-                                                                      "timeSecs",
-                                                                      0,
-                                                                    );
-                                                                  }}
-                                                                >
-                                                                  Reps
-                                                                </button>
-                                                                <button
-                                                                  className={`flex-1 text-[10px] uppercase font-bold py-1 rounded-sm ${activeMode === "time" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                                                                  onClick={() => {
-                                                                    updateProgExercise(
-                                                                      pe.id,
-                                                                      "trackingMode",
-                                                                      "time",
-                                                                    );
-                                                                    updateProgExercise(
-                                                                      pe.id,
-                                                                      "reps",
-                                                                      0,
-                                                                    );
-                                                                  }}
-                                                                >
-                                                                  Time
-                                                                </button>
-                                                              </div>
-                                                            </div>
-                                                          )}
-                                                          {showWR && (
-                                                            <div className="flex flex-col gap-1.5 w-16">
-                                                              <Label className="text-[10px] uppercase text-muted-foreground font-bold">
-                                                                Reps
-                                                              </Label>
-                                                              <Input
-                                                                type="number"
-                                                                className="h-8 text-center"
-                                                                value={pe.reps}
-                                                                onChange={(e) =>
-                                                                  updateProgExercise(
-                                                                    pe.id,
-                                                                    "reps",
-                                                                    parseInt(
-                                                                      e.target
-                                                                        .value,
-                                                                    ) || 0,
-                                                                  )
-                                                                }
-                                                              />
-                                                            </div>
-                                                          )}
-                                                          {showWD && (
-                                                            <div className="flex flex-col gap-1.5 w-16">
-                                                              <Label className="text-[10px] uppercase text-muted-foreground font-bold">
-                                                                KG
-                                                              </Label>
-                                                              <Input
-                                                                type="number"
-                                                                className="h-8 text-center"
-                                                                value={
-                                                                  pe.weight || 0
-                                                                }
-                                                                onChange={(e) =>
-                                                                  updateProgExercise(
-                                                                    pe.id,
-                                                                    "weight",
-                                                                    parseFloat(
-                                                                      e.target
-                                                                        .value,
-                                                                    ) || 0,
-                                                                  )
-                                                                }
-                                                              />
-                                                            </div>
-                                                          )}
-                                                          {showRepsOnly && (
-                                                            <div className="flex flex-col gap-1.5 w-16">
-                                                              <Label className="text-[10px] uppercase text-muted-foreground font-bold">
-                                                                Reps
-                                                              </Label>
-                                                              <Input
-                                                                type="number"
-                                                                className="h-8 text-center"
-                                                                value={pe.reps}
-                                                                onChange={(e) =>
-                                                                  updateProgExercise(
-                                                                    pe.id,
-                                                                    "reps",
-                                                                    parseInt(
-                                                                      e.target
-                                                                        .value,
-                                                                    ) || 0,
-                                                                  )
-                                                                }
-                                                              />
-                                                            </div>
-                                                          )}
-                                                          {canDist && (
-                                                            <div className="flex flex-col gap-1.5 w-20">
-                                                              <Label className="text-[10px] uppercase text-muted-foreground font-bold">
-                                                                Metre
-                                                              </Label>
-                                                              <Input
-                                                                type="number"
-                                                                className="h-8 text-center"
-                                                                value={
-                                                                  pe.distance ||
-                                                                  0
-                                                                }
-                                                                onChange={(e) =>
-                                                                  updateProgExercise(
-                                                                    pe.id,
-                                                                    "distance",
-                                                                    parseInt(
-                                                                      e.target
-                                                                        .value,
-                                                                    ) || 0,
-                                                                  )
-                                                                }
-                                                              />
-                                                            </div>
-                                                          )}
-                                                          {showTime && (
-                                                            <>
-                                                              <div className="flex flex-col gap-1.5 w-16">
-                                                                <Label className="text-[10px] uppercase text-muted-foreground font-bold">
-                                                                  Mins
-                                                                </Label>
-                                                                <Input
-                                                                  type="number"
-                                                                  className="h-8 text-center"
-                                                                  value={
-                                                                    pe.timeMins ||
-                                                                    0
-                                                                  }
-                                                                  onChange={(
-                                                                    e,
-                                                                  ) =>
-                                                                    updateProgExercise(
-                                                                      pe.id,
-                                                                      "timeMins",
-                                                                      parseInt(
-                                                                        e.target
-                                                                          .value,
-                                                                      ) || 0,
-                                                                    )
-                                                                  }
-                                                                />
-                                                              </div>
-                                                              <div className="flex flex-col gap-1.5 w-16">
-                                                                <Label className="text-[10px] uppercase text-muted-foreground font-bold">
-                                                                  Secs
-                                                                </Label>
-                                                                <Input
-                                                                  type="number"
-                                                                  className="h-8 text-center"
-                                                                  value={
-                                                                    pe.timeSecs ||
-                                                                    0
-                                                                  }
-                                                                  onChange={(
-                                                                    e,
-                                                                  ) =>
-                                                                    updateProgExercise(
-                                                                      pe.id,
-                                                                      "timeSecs",
-                                                                      parseInt(
-                                                                        e.target
-                                                                          .value,
-                                                                      ) || 0,
-                                                                    )
-                                                                  }
-                                                                />
-                                                              </div>
-                                                            </>
-                                                          )}
-                                                          {canCals && (
-                                                            <div className="flex flex-col gap-1.5 w-16">
-                                                              <Label className="text-[10px] uppercase text-muted-foreground font-bold">
-                                                                Cals
-                                                              </Label>
-                                                              <Input
-                                                                type="number"
-                                                                className="h-8 text-center"
-                                                                value={
-                                                                  pe.calories ||
-                                                                  (pe.reps > 0
-                                                                    ? pe.reps
-                                                                    : 0)
-                                                                }
-                                                                onChange={(
-                                                                  e,
-                                                                ) => {
-                                                                  const v =
-                                                                    parseInt(
-                                                                      e.target
-                                                                        .value,
-                                                                    ) || 0;
-                                                                  updateProgExerciseFields(
-                                                                    pe.id,
-                                                                    {
-                                                                      calories:
-                                                                        v,
-                                                                      reps: v,
-                                                                    },
-                                                                  );
-                                                                }}
-                                                              />
-                                                            </div>
-                                                          )}
-                                                        </>
-                                                      );
-                                                    })()}
-                                                    <div className="flex flex-col gap-1.5 w-16">
-                                                      <Label className="text-[10px] uppercase text-muted-foreground font-bold">
-                                                        Rest(s)
-                                                      </Label>
-                                                      <Input
-                                                        type="number"
-                                                        className="h-8 text-center"
-                                                        value={pe.rest || 0}
-                                                        onChange={(e) =>
-                                                          updateProgExercise(
-                                                            pe.id,
-                                                            "rest",
-                                                            parseInt(
-                                                              e.target.value,
-                                                            ) || 0,
-                                                          )
-                                                        }
-                                                      />
-                                                    </div>
-                                                  </div>
-
-                                                  <div className="flex items-center gap-4 ml-auto">
-                                                    {(newProgType ===
-                                                      "program" ||
-                                                      newProgType ===
-                                                        "GroupPT") && (
-                                                      <Button
-                                                        variant="secondary"
-                                                        size="sm"
-                                                        className="h-8 text-xs whitespace-nowrap"
-                                                        onClick={() =>
-                                                          handleApplyToWeek(
-                                                            pe.id,
-                                                          )
-                                                        }
-                                                      >
-                                                        Apply to Week
-                                                      </Button>
-                                                    )}
-                                                    <div className="flex items-center gap-2">
-                                                      <Checkbox
-                                                        id={`eside-${pe.id}`}
-                                                        checked={pe.eachSide}
-                                                        onCheckedChange={(c) =>
-                                                          updateProgExercise(
-                                                            pe.id,
-                                                            "eachSide",
-                                                            !!c,
-                                                          )
-                                                        }
-                                                      />
-                                                      <Label
-                                                        htmlFor={`eside-${pe.id}`}
-                                                        className="text-xs font-medium cursor-pointer"
-                                                      >
-                                                        Each Side
-                                                      </Label>
-                                                    </div>
-                                                    <Button
-                                                      variant={
-                                                        pe.linkedToNext
-                                                          ? "default"
-                                                          : "outline"
-                                                      }
-                                                      size="sm"
-                                                      className={`h-8 gap-1.5 ${pe.linkedToNext ? "bg-primary text-primary-foreground" : ""}`}
+                                                      }}
+                                                    />
+                                                    <button
+                                                      className={`h-10 px-2.5 rounded-md border text-[10px] font-bold uppercase whitespace-nowrap shrink-0 ${pe.reference ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}
                                                       onClick={() =>
                                                         updateProgExercise(
                                                           pe.id,
-                                                          "linkedToNext",
-                                                          !pe.linkedToNext,
+                                                          "reference",
+                                                          !pe.reference,
                                                         )
                                                       }
-                                                      title={
-                                                        pe.linkedToNext
-                                                          ? "Unlink from next"
-                                                          : "Link to next as superset"
+                                                      title="Reference only — no set logging"
+                                                    >
+                                                      Ref
+                                                    </button>
+                                                  </div>
+                                                </div>
+
+                                                {pe.reference ? (
+                                                  <div className="flex items-center gap-2 bg-primary/5 p-3 rounded-md border border-primary/20">
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                                                      Reference only
+                                                    </span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                      Video reference — no set
+                                                      logging
+                                                    </span>
+                                                  </div>
+                                                ) : (
+                                                  <div className="flex flex-wrap items-center gap-x-6 gap-y-3 bg-muted/20 p-3 rounded-md border border-border/50">
+                                                    <div className="flex flex-wrap items-center gap-4">
+                                                      {(() => {
+                                                        const libEx =
+                                                          exById[
+                                                            String(pe.name)
+                                                          ];
+                                                        const rawTrack =
+                                                          pe.trackingType ??
+                                                          libEx?.trackingType ??
+                                                          "Weight & Reps";
+                                                        const trackingArray = (
+                                                          Array.isArray(
+                                                            rawTrack,
+                                                          )
+                                                            ? rawTrack
+                                                            : String(
+                                                                rawTrack,
+                                                              ).split(/[;,]/)
+                                                        )
+                                                          .map((s) => s.trim())
+                                                          .filter(Boolean);
+
+                                                        const canWR =
+                                                          trackingArray.includes(
+                                                            "Weight & Reps",
+                                                          );
+                                                        const canWD =
+                                                          trackingArray.includes(
+                                                            "Weight & Distance",
+                                                          );
+                                                        const canRepsOnly =
+                                                          trackingArray.includes(
+                                                            "Reps Only",
+                                                          );
+                                                        const canTime =
+                                                          trackingArray.includes(
+                                                            "Time Only",
+                                                          ) ||
+                                                          trackingArray.includes(
+                                                            "Distance & Time",
+                                                          );
+                                                        const canDist =
+                                                          trackingArray.includes(
+                                                            "Distance & Time",
+                                                          ) || canWD;
+                                                        const canCals =
+                                                          trackingArray.includes(
+                                                            "Calories",
+                                                          );
+
+                                                        const hasBoth =
+                                                          canWR && canTime;
+                                                        const activeMode =
+                                                          pe.trackingMode ||
+                                                          (canWR
+                                                            ? "reps"
+                                                            : canTime
+                                                              ? "time"
+                                                              : "reps");
+
+                                                        const showWR =
+                                                          canWR &&
+                                                          (!hasBoth ||
+                                                            activeMode ===
+                                                              "reps");
+                                                        const showWD = canWD;
+                                                        const showRepsOnly =
+                                                          canRepsOnly;
+                                                        const showTime =
+                                                          canTime &&
+                                                          (!hasBoth ||
+                                                            activeMode ===
+                                                              "time");
+
+                                                        return (
+                                                          <>
+                                                            <div className="flex flex-col gap-1.5 w-16">
+                                                              <Label className="text-[10px] uppercase text-muted-foreground font-bold">
+                                                                Sets
+                                                              </Label>
+                                                              <Input
+                                                                type="number"
+                                                                className="h-8 text-center"
+                                                                value={pe.sets}
+                                                                onChange={(e) =>
+                                                                  updateProgExercise(
+                                                                    pe.id,
+                                                                    "sets",
+                                                                    parseInt(
+                                                                      e.target
+                                                                        .value,
+                                                                    ) || 0,
+                                                                  )
+                                                                }
+                                                              />
+                                                            </div>
+                                                            {hasBoth && (
+                                                              <div className="flex flex-col gap-1.5 w-32 mr-2">
+                                                                <Label className="text-[10px] uppercase text-muted-foreground font-bold">
+                                                                  Mode
+                                                                </Label>
+                                                                <div className="flex bg-muted/50 rounded-md p-0.5 border border-border">
+                                                                  <button
+                                                                    className={`flex-1 text-[10px] uppercase font-bold py-1 rounded-sm ${activeMode === "reps" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                                                                    onClick={() => {
+                                                                      updateProgExercise(
+                                                                        pe.id,
+                                                                        "trackingMode",
+                                                                        "reps",
+                                                                      );
+                                                                      updateProgExercise(
+                                                                        pe.id,
+                                                                        "timeMins",
+                                                                        0,
+                                                                      );
+                                                                      updateProgExercise(
+                                                                        pe.id,
+                                                                        "timeSecs",
+                                                                        0,
+                                                                      );
+                                                                    }}
+                                                                  >
+                                                                    Reps
+                                                                  </button>
+                                                                  <button
+                                                                    className={`flex-1 text-[10px] uppercase font-bold py-1 rounded-sm ${activeMode === "time" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                                                                    onClick={() => {
+                                                                      updateProgExercise(
+                                                                        pe.id,
+                                                                        "trackingMode",
+                                                                        "time",
+                                                                      );
+                                                                      updateProgExercise(
+                                                                        pe.id,
+                                                                        "reps",
+                                                                        0,
+                                                                      );
+                                                                    }}
+                                                                  >
+                                                                    Time
+                                                                  </button>
+                                                                </div>
+                                                              </div>
+                                                            )}
+                                                            {showWR && (
+                                                              <div className="flex flex-col gap-1.5 w-16">
+                                                                <Label className="text-[10px] uppercase text-muted-foreground font-bold">
+                                                                  Reps
+                                                                </Label>
+                                                                <Input
+                                                                  type="number"
+                                                                  className="h-8 text-center"
+                                                                  value={
+                                                                    pe.reps
+                                                                  }
+                                                                  onChange={(
+                                                                    e,
+                                                                  ) =>
+                                                                    updateProgExercise(
+                                                                      pe.id,
+                                                                      "reps",
+                                                                      parseInt(
+                                                                        e.target
+                                                                          .value,
+                                                                      ) || 0,
+                                                                    )
+                                                                  }
+                                                                />
+                                                              </div>
+                                                            )}
+                                                            {showWD && (
+                                                              <div className="flex flex-col gap-1.5 w-16">
+                                                                <Label className="text-[10px] uppercase text-muted-foreground font-bold">
+                                                                  KG
+                                                                </Label>
+                                                                <Input
+                                                                  type="number"
+                                                                  className="h-8 text-center"
+                                                                  value={
+                                                                    pe.weight ||
+                                                                    0
+                                                                  }
+                                                                  onChange={(
+                                                                    e,
+                                                                  ) =>
+                                                                    updateProgExercise(
+                                                                      pe.id,
+                                                                      "weight",
+                                                                      parseFloat(
+                                                                        e.target
+                                                                          .value,
+                                                                      ) || 0,
+                                                                    )
+                                                                  }
+                                                                />
+                                                              </div>
+                                                            )}
+                                                            {showRepsOnly && (
+                                                              <div className="flex flex-col gap-1.5 w-16">
+                                                                <Label className="text-[10px] uppercase text-muted-foreground font-bold">
+                                                                  Reps
+                                                                </Label>
+                                                                <Input
+                                                                  type="number"
+                                                                  className="h-8 text-center"
+                                                                  value={
+                                                                    pe.reps
+                                                                  }
+                                                                  onChange={(
+                                                                    e,
+                                                                  ) =>
+                                                                    updateProgExercise(
+                                                                      pe.id,
+                                                                      "reps",
+                                                                      parseInt(
+                                                                        e.target
+                                                                          .value,
+                                                                      ) || 0,
+                                                                    )
+                                                                  }
+                                                                />
+                                                              </div>
+                                                            )}
+                                                            {canDist && (
+                                                              <div className="flex flex-col gap-1.5 w-20">
+                                                                <Label className="text-[10px] uppercase text-muted-foreground font-bold">
+                                                                  Metre
+                                                                </Label>
+                                                                <Input
+                                                                  type="number"
+                                                                  className="h-8 text-center"
+                                                                  value={
+                                                                    pe.distance ||
+                                                                    0
+                                                                  }
+                                                                  onChange={(
+                                                                    e,
+                                                                  ) =>
+                                                                    updateProgExercise(
+                                                                      pe.id,
+                                                                      "distance",
+                                                                      parseInt(
+                                                                        e.target
+                                                                          .value,
+                                                                      ) || 0,
+                                                                    )
+                                                                  }
+                                                                />
+                                                              </div>
+                                                            )}
+                                                            {showTime && (
+                                                              <>
+                                                                <div className="flex flex-col gap-1.5 w-16">
+                                                                  <Label className="text-[10px] uppercase text-muted-foreground font-bold">
+                                                                    Mins
+                                                                  </Label>
+                                                                  <Input
+                                                                    type="number"
+                                                                    className="h-8 text-center"
+                                                                    value={
+                                                                      pe.timeMins ||
+                                                                      0
+                                                                    }
+                                                                    onChange={(
+                                                                      e,
+                                                                    ) =>
+                                                                      updateProgExercise(
+                                                                        pe.id,
+                                                                        "timeMins",
+                                                                        parseInt(
+                                                                          e
+                                                                            .target
+                                                                            .value,
+                                                                        ) || 0,
+                                                                      )
+                                                                    }
+                                                                  />
+                                                                </div>
+                                                                <div className="flex flex-col gap-1.5 w-16">
+                                                                  <Label className="text-[10px] uppercase text-muted-foreground font-bold">
+                                                                    Secs
+                                                                  </Label>
+                                                                  <Input
+                                                                    type="number"
+                                                                    className="h-8 text-center"
+                                                                    value={
+                                                                      pe.timeSecs ||
+                                                                      0
+                                                                    }
+                                                                    onChange={(
+                                                                      e,
+                                                                    ) =>
+                                                                      updateProgExercise(
+                                                                        pe.id,
+                                                                        "timeSecs",
+                                                                        parseInt(
+                                                                          e
+                                                                            .target
+                                                                            .value,
+                                                                        ) || 0,
+                                                                      )
+                                                                    }
+                                                                  />
+                                                                </div>
+                                                              </>
+                                                            )}
+                                                            {canCals && (
+                                                              <div className="flex flex-col gap-1.5 w-16">
+                                                                <Label className="text-[10px] uppercase text-muted-foreground font-bold">
+                                                                  Cals
+                                                                </Label>
+                                                                <Input
+                                                                  type="number"
+                                                                  className="h-8 text-center"
+                                                                  value={
+                                                                    pe.calories ||
+                                                                    (pe.reps > 0
+                                                                      ? pe.reps
+                                                                      : 0)
+                                                                  }
+                                                                  onChange={(
+                                                                    e,
+                                                                  ) => {
+                                                                    const v =
+                                                                      parseInt(
+                                                                        e.target
+                                                                          .value,
+                                                                      ) || 0;
+                                                                    updateProgExerciseFields(
+                                                                      pe.id,
+                                                                      {
+                                                                        calories:
+                                                                          v,
+                                                                        reps: v,
+                                                                      },
+                                                                    );
+                                                                  }}
+                                                                />
+                                                              </div>
+                                                            )}
+                                                          </>
+                                                        );
+                                                      })()}
+                                                      <div className="flex flex-col gap-1.5 w-16">
+                                                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">
+                                                          Rest(s)
+                                                        </Label>
+                                                        <Input
+                                                          type="number"
+                                                          className="h-8 text-center"
+                                                          value={pe.rest || 0}
+                                                          onChange={(e) =>
+                                                            updateProgExercise(
+                                                              pe.id,
+                                                              "rest",
+                                                              parseInt(
+                                                                e.target.value,
+                                                              ) || 0,
+                                                            )
+                                                          }
+                                                        />
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                )}
+                                                <div className="flex items-center gap-4 ml-auto">
+                                                  {(newProgType === "program" ||
+                                                    newProgType ===
+                                                      "GroupPT") && (
+                                                    <Button
+                                                      variant="secondary"
+                                                      size="sm"
+                                                      className="h-8 text-xs whitespace-nowrap"
+                                                      onClick={() =>
+                                                        handleApplyToWeek(pe.id)
                                                       }
                                                     >
-                                                      {pe.linkedToNext ? (
-                                                        <Link2Off className="h-3.5 w-3.5" />
-                                                      ) : (
-                                                        <Link2 className="h-3.5 w-3.5" />
-                                                      )}
-                                                      <span className="text-xs">
-                                                        Superset
-                                                      </span>
+                                                      Apply to Week
                                                     </Button>
+                                                  )}
+                                                  <div className="flex items-center gap-2">
+                                                    <Checkbox
+                                                      id={`eside-${pe.id}`}
+                                                      checked={pe.eachSide}
+                                                      onCheckedChange={(c) =>
+                                                        updateProgExercise(
+                                                          pe.id,
+                                                          "eachSide",
+                                                          !!c,
+                                                        )
+                                                      }
+                                                    />
+                                                    <Label
+                                                      htmlFor={`eside-${pe.id}`}
+                                                      className="text-xs font-medium cursor-pointer"
+                                                    >
+                                                      Each Side
+                                                    </Label>
                                                   </div>
+                                                  <Button
+                                                    variant={
+                                                      pe.linkedToNext
+                                                        ? "default"
+                                                        : "outline"
+                                                    }
+                                                    size="sm"
+                                                    className={`h-8 gap-1.5 ${pe.linkedToNext ? "bg-primary text-primary-foreground" : ""}`}
+                                                    onClick={() =>
+                                                      updateProgExercise(
+                                                        pe.id,
+                                                        "linkedToNext",
+                                                        !pe.linkedToNext,
+                                                      )
+                                                    }
+                                                    title={
+                                                      pe.linkedToNext
+                                                        ? "Unlink from next"
+                                                        : "Link to next as superset"
+                                                    }
+                                                  >
+                                                    {pe.linkedToNext ? (
+                                                      <Link2Off className="h-3.5 w-3.5" />
+                                                    ) : (
+                                                      <Link2 className="h-3.5 w-3.5" />
+                                                    )}
+                                                    <span className="text-xs">
+                                                      Superset
+                                                    </span>
+                                                  </Button>
                                                 </div>
                                                 <div className="w-full">
                                                   <Input
@@ -6457,6 +6529,16 @@ const Admin = () => {
         <TvDisplayTab programs={programs} />
 
         <SettingsTab />
+        <ExerciseCardPreview
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          sessionName={
+            progWorkouts[selectedWorkoutIndex]?.name ||
+            `Week ${selectedWeek} · Day ${selectedDay}`
+          }
+          exercises={progWorkouts[selectedWorkoutIndex]?.exercises || []}
+          exerciseLibrary={exercises}
+        />
       </Tabs>
     </div>
   );

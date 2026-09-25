@@ -98,6 +98,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { ConditioningTimer } from "@/components/ConditioningTimer";
 import { AdLibLogSheet } from "@/components/AdLibLogSheet";
+import { PreviewExerciseRow } from "@/components/PreviewExerciseRow";
+import { FreestyleBlock } from "@/components/FreestyleBlock";
+import { AmrapLogSet } from "@/components/AmrapLogSet";
 
 import {
   PROGRESSION_OPTIONS,
@@ -113,6 +116,7 @@ import {
   weekLabel,
   sessionTitle,
   getCoverImage,
+  buildWorkoutBlocks,
   sectionIndexToBlockIndex,
 } from "@/lib/workoutHelpers";
 import { TrackingTypeToggle } from "@/components/TrackingTypeToggle";
@@ -253,6 +257,8 @@ const Workouts = () => {
   const [conditioningResults, setConditioningResults] = useState<
     Record<string, any>
   >({});
+  // Freestyle block scores, keyed by section id.
+  const [blockScores, setBlockScores] = useState<Record<string, any>>({});
   // pickOne finisher: sectionId -> chosen option index (within the section's option blocks). null = no choice yet.
   const [pickOneChoices, setPickOneChoices] = useState<
     Record<string, number | null>
@@ -271,39 +277,7 @@ const Workouts = () => {
 
   const [preferredDays, setPreferredDays] = useState(3);
 
-  const blocks = useMemo(() => {
-    const result: any[] = [];
-    let currentSection: any = null;
-    let currentGroup: any[] = [];
-
-    exercises.forEach((ex, index) => {
-      if (ex.isSection) {
-        currentSection = ex;
-      } else {
-        currentGroup.push(ex);
-        if (!ex.linkedToNext) {
-          result.push({
-            id: `block-${index}`,
-            type: currentGroup.length > 1 ? "superset" : "single",
-            exercises: currentGroup,
-            section: currentSection,
-          });
-          currentGroup = [];
-        }
-      }
-    });
-
-    if (currentGroup.length > 0) {
-      result.push({
-        id: `block-end`,
-        type: currentGroup.length > 1 ? "superset" : "single",
-        exercises: currentGroup,
-        section: currentSection,
-      });
-    }
-
-    return result;
-  }, [exercises]);
+  const blocks = useMemo(() => buildWorkoutBlocks(exercises), [exercises]);
 
   const [allowedAccess, setAllowedAccess] = useState<string[] | null>(null);
 
@@ -500,6 +474,8 @@ const Workouts = () => {
         if (parsed.startTime !== undefined) setStartTime(parsed.startTime);
         if (parsed.activeWorkoutMeta !== undefined)
           setActiveWorkoutMeta(parsed.activeWorkoutMeta);
+        if (parsed.blockScores !== undefined)
+          setBlockScores(parsed.blockScores);
       } catch (e) {
         console.error("Failed to parse saved workout", e);
       }
@@ -537,6 +513,7 @@ const Workouts = () => {
             viewMode,
             startTime,
             activeWorkoutMeta,
+            blockScores,
           }),
         );
       } else {
@@ -566,6 +543,7 @@ const Workouts = () => {
     pausedTimeLeft,
     viewMode,
     startTime,
+    blockScores,
   ]);
 
   useEffect(() => {
@@ -860,6 +838,7 @@ const Workouts = () => {
       pickOneChoices,
       skippedSectionIds,
       conditioningResults,
+      blockScores,
     );
     const savedExercises = exercisesWithResults;
     let duration = 45;
@@ -1815,109 +1794,21 @@ const Workouts = () => {
                     </div>
                     {sec.exercises.length > 0 && (
                       <div className="p-3 space-y-3">
-                        {sec.exercises.map((ex: any, exIdx: number) => {
-                          const libEx = exerciseLibrary.find(
-                            (e) => String(e.id) === String(ex.name),
-                          );
-
-                          const rawTrack =
-                            ex.trackingType ??
-                            libEx?.trackingType ??
-                            "Weight & Reps";
-                          const trackingArray = (
-                            Array.isArray(rawTrack)
-                              ? rawTrack
-                              : String(rawTrack).split(/[;,]/)
-                          )
-                            .map((s) => s.trim())
-                            .filter(Boolean);
-
-                          const dist = ex.distance || 0;
-                          const mins = ex.timeMins || 0;
-                          const secs = ex.timeSecs || 0;
-                          const cals =
-                            ex.calories ||
-                            (trackingArray.includes("Calories")
-                              ? ex.reps || 0
-                              : 0);
-                          const reps = ex.reps || 0;
-
-                          let metrics = [];
-                          // Trust entered values over trackingType so a stray
-                          // type never hides a real prescription.
-                          if ((ex.weight || 0) > 0)
-                            metrics.push(`${ex.weight}kg`);
-                          if (dist) metrics.push(`${dist}m`);
-                          if (mins || secs)
-                            metrics.push(
-                              `${mins ? mins + "m " : ""}${secs ? secs + "s" : ""}`.trim(),
-                            );
-                          if (cals) metrics.push(`${cals} cals`);
-                          // Only show reps if there's no time/dist/cals and reps is real.
-                          if (!metrics.length && reps)
-                            metrics.push(`${reps} reps`);
-
-                          let detailText = "";
-                          if (metrics.length > 0) {
-                            detailText =
-                              ex.sets && ex.sets > 1
-                                ? `${ex.sets} × ${metrics.join(", ")}`
-                                : metrics.join(", ");
-                          } else {
-                            detailText = `${ex.sets || 1} sets`;
-                          }
-
-                          const isSupersetItem =
-                            ex.linkedToNext ||
-                            (exIdx > 0 &&
-                              sec.exercises[exIdx - 1].linkedToNext);
-
-                          return (
-                            <div
-                              key={exIdx}
-                              className="flex gap-3 items-center group cursor-pointer"
-                              onClick={() => {
-                                if (libEx?.videoUrl) {
-                                  setVideoTutorial(libEx.videoUrl);
-                                  setVideoTitle(libEx.name);
-                                }
-                              }}
-                            >
-                              <div className="relative shrink-0">
-                                {isSupersetItem && (
-                                  <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-0.5 h-full bg-primary rounded-full" />
-                                )}
-                                <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden border border-border">
-                                  {libEx?.videoUrl ? (
-                                    <div className="relative w-full h-full flex items-center justify-center group-hover:bg-black/10 transition-colors">
-                                      <PlayCircle className="h-5 w-5 text-primary opacity-80" />
-                                    </div>
-                                  ) : (
-                                    <Dumbbell className="h-5 w-5 text-muted-foreground opacity-50" />
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-sm truncate">
-                                  {libEx?.name || ex.name || "Unknown Exercise"}
-                                </p>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-xs text-muted-foreground font-medium">
-                                    {detailText}
-                                  </span>
-                                  {isSupersetItem && (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-[8px] px-1 py-0 h-4 uppercase bg-primary/10 text-primary border-primary/20"
-                                    >
-                                      Superset
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                        {sec.exercises.map((ex: any, exIdx: number) => (
+                          <PreviewExerciseRow
+                            key={exIdx}
+                            ex={ex}
+                            exIdx={exIdx}
+                            isFreestyle={
+                              sec.section?.sectionType === "Freestyle"
+                            }
+                            exerciseLibrary={exerciseLibrary}
+                            onOpenVideo={(url, title) => {
+                              setVideoTutorial(url);
+                              setVideoTitle(title);
+                            }}
+                          />
+                        ))}
                       </div>
                     )}
                   </CardContent>
@@ -2488,6 +2379,55 @@ const Workouts = () => {
                             }
                             return null;
                           })()}
+                          {currentBlock.section?.sectionType === "Freestyle" ? (
+                            <FreestyleBlock
+                              description={currentBlock.section.description}
+                              exercises={currentBlock.exercises}
+                              exerciseLibrary={exerciseLibrary}
+                              initialScore={
+                                blockScores[currentBlock.section.id]
+                              }
+                              onSaveScore={(score: any) =>
+                                setBlockScores((prev) => ({
+                                  ...prev,
+                                  [currentBlock.section.id]: score,
+                                }))
+                              }
+                            />
+                          ) : null}
+                          {(() => {
+                            const st2 = currentBlock.section?.sectionType;
+                            if (
+                              st2 === "AMRAP" ||
+                              st2 === "For Time" ||
+                              st2 === "EMOM" ||
+                              st2 === "Circuit"
+                            ) {
+                              const sectionId =
+                                currentBlock.section?.id || currentBlock.id;
+                              return (
+                                <AmrapLogSet
+                                  exercises={currentBlock.exercises}
+                                  exerciseLibrary={exerciseLibrary}
+                                  sectionType={st2}
+                                  onUpdateExercise={updateExercise}
+                                  onRoundsChange={(rounds: number) =>
+                                    setConditioningResults((prev) => ({
+                                      ...prev,
+                                      [sectionId]: {
+                                        ...(prev[sectionId] || {}),
+                                        type: st2,
+                                        rounds,
+                                        capMins:
+                                          currentBlock.section?.timeCapMins,
+                                      },
+                                    }))
+                                  }
+                                />
+                              );
+                            }
+                            return null;
+                          })()}
                           {(() => {
                             const options = pickOneOptionsForBlock(
                               blocks,
@@ -2508,6 +2448,10 @@ const Workouts = () => {
                               ? "render"
                               : null;
                           })() === "render" &&
+                            currentBlock.section?.sectionType !== "Freestyle" &&
+                            !["AMRAP", "For Time", "EMOM", "Circuit"].includes(
+                              currentBlock.section?.sectionType,
+                            ) &&
                             currentBlock.exercises.map(
                               (exercise: any, exIdx: number) => {
                                 const libraryExercise = exerciseLibrary.find(

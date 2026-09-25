@@ -15,6 +15,7 @@ export function buildSavedExercises(
   pickOneChoices: Record<string, number | null>,
   skippedSectionIds: Set<string | number>,
   conditioningResults: Record<string, any>,
+  freestyleScores?: Record<string, any>,
 ): any[] {
   const savedExercises = exercisesForSave(exercises, pickOneChoices);
 
@@ -22,12 +23,21 @@ export function buildSavedExercises(
   const skipIds = skippedExerciseIds(exercises, skippedSectionIds);
   const filtered = savedExercises.filter((ex) => !skipIds.has(ex.id));
 
-  // Attach conditioning scores to their section objects before saving.
-  return filtered.map((ex: any) => {
+  // Drop reference-only (Freestyle) exercise rows — they're never logged.
+  const noReference = filtered.filter((ex: any) => !ex.reference);
+
+  // Attach conditioning scores + freestyle block scores to their section
+  // objects before saving.
+  return noReference.map((ex: any) => {
     if (!ex.isSection) return ex;
     const sectionId = ex.id;
     const result = sectionId ? conditioningResults[sectionId] : undefined;
-    return result ? { ...ex, result } : ex;
+    const blockScore =
+      sectionId && freestyleScores ? freestyleScores[sectionId] : undefined;
+    if (result && blockScore) return { ...ex, result, blockScore };
+    if (result) return { ...ex, result };
+    if (blockScore) return { ...ex, blockScore };
+    return ex;
   });
 }
 

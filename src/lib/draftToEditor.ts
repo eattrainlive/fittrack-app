@@ -36,6 +36,11 @@ export interface DraftRow {
   description?: string;
   timeCapMins?: number;
   targetNote?: string;
+  timeMins?: number;
+  timeSecs?: number;
+  distance?: number;
+  calories?: number;
+  reference?: boolean;
 }
 
 export interface DraftDay {
@@ -134,6 +139,11 @@ export const draftToEditorWorkouts = (
           eachSide: r.eachSide ?? false,
           linkedToNext: r.linkedToNext ?? false,
           notes: r.coachingNotes || r.notes || "",
+          timeMins: r.timeMins ?? 0,
+          timeSecs: r.timeSecs ?? 0,
+          distance: r.distance ?? 0,
+          calories: r.calories ?? 0,
+          reference: r.reference ?? false,
         };
       });
 
