@@ -89,8 +89,8 @@ import {
   getWorkoutsOfWeek,
   getWowResults,
   saveWowResult,
-  getExerciseHistory,
 } from "@/lib/store";
+import { getExerciseHistory } from "@/lib/exerciseHistory";
 import { getEmbedUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";

@@ -149,3 +149,67 @@ export const syncTrackingWithValues = (ex: any): string[] => {
  */
 export const trackingOf = (ex: any, exerciseLibrary: any[]): string[] =>
   resolveTrackingType(ex, exerciseLibrary);
+
+/**
+ * Derive which value columns to SHOW in the Past Workouts / Past Lifts editor,
+ * trusting ENTERED set values over the (possibly stale) trackingType — the
+ * same principle `columnsFor` uses on the live logger.
+ *
+ * A strength exercise whose trackingType was wrongly downgraded to "Reps Only"
+ * (the old syncTrackingWithValues bug) would otherwise hide the KG column even
+ * though its setsData carries weight: 140. This keeps the weight field visible
+ * so the member/coach can see and edit the logged weight.
+ */
+export const pastLiftFlags = (ex: any, exerciseLibrary: any[]) => {
+  const t = trackingOf(ex, exerciseLibrary);
+  const sets = Array.isArray(ex?.setsData) ? ex.setsData : [];
+  const usedWeight = sets.some((s: any) => (+s.weight || 0) > 0);
+  const usedReps = sets.some((s: any) => (+s.reps || 0) > 0);
+  const usedTime = sets.some(
+    (s: any) => (+s.timeMins || 0) > 0 || (+s.timeSecs || 0) > 0,
+  );
+  const usedDist = sets.some((s: any) => (+s.distance || 0) > 0);
+  const usedCals = sets.some((s: any) => (+s.calories || 0) > 0);
+
+  const canWR = t.includes("Weight & Reps");
+  const canWD = t.includes("Weight & Distance");
+  const canRepsOnly = t.includes("Reps Only");
+  const canCalsTime = t.includes("Calories & Time");
+  const canTime = t.includes("Time Only") || t.includes("Distance & Time");
+  const canDist = t.includes("Distance & Time");
+  const canCals = t.includes("Calories");
+
+  // "Weight & Distance" (loaded carries): KG + DIST together.
+  if (canWD && !canWR)
+    return {
+      weight: true,
+      reps: false,
+      time: false,
+      distance: true,
+      calories: false,
+    };
+  // "Calories & Time": TIME + CALS together.
+  if (canCalsTime)
+    return {
+      weight: false,
+      reps: false,
+      time: true,
+      distance: false,
+      calories: true,
+    };
+
+  // Trust entered values over trackingType (mirrors columnsFor).
+  const showTime = canTime || usedTime;
+  const showDist = canDist || usedDist;
+  const showCals = canCals || usedCals;
+  const showWeight = canWR || usedWeight;
+  const showReps = canWR || canRepsOnly || usedReps;
+
+  return {
+    weight: showWeight && !showTime && !showDist && !showCals,
+    reps: showReps && !showTime && !showDist && !showCals,
+    time: showTime,
+    distance: showDist,
+    calories: showCals,
+  };
+};

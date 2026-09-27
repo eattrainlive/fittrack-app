@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Trash2, Save, ChevronRight, Loader2, History } from "lucide-react";
 import { toast } from "sonner";
-import { trackingOf } from "@/lib/tracking";
+import { trackingOf, pastLiftFlags } from "@/lib/tracking";
 import { formatConditioningResult } from "@/components/ConditioningTimer";
 import {
   listMemberWorkouts,
@@ -220,12 +220,12 @@ export function CoachPastWorkouts({
                     </div>
                   );
                 }
-                const tracking = trackingOf(ex, exercises);
-                const showWeight = hasField(tracking, "weight");
-                const showReps = hasField(tracking, "reps");
-                const showTime = hasField(tracking, "time");
-                const showDist = hasField(tracking, "distance");
-                const showCals = hasField(tracking, "calorie");
+                const flags = pastLiftFlags(ex, exercises);
+                const showWeight = flags.weight;
+                const showReps = flags.reps;
+                const showTime = flags.time;
+                const showDist = flags.distance;
+                const showCals = flags.calories;
                 const sets = ex.setsData || [];
                 const libEx = exercises.find(
                   (e) =>
