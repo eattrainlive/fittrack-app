@@ -41,6 +41,8 @@ export interface DraftRow {
   distance?: number;
   calories?: number;
   reference?: boolean;
+  leaderboard?: boolean;
+  leaderboardTitle?: string;
 }
 
 export interface DraftDay {
@@ -144,6 +146,8 @@ export const draftToEditorWorkouts = (
           distance: r.distance ?? 0,
           calories: r.calories ?? 0,
           reference: r.reference ?? false,
+          leaderboard: r.leaderboard ?? false,
+          leaderboardTitle: r.leaderboardTitle ?? null,
         };
       });
 

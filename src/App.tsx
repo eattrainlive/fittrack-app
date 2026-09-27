@@ -26,6 +26,7 @@ import CheckInKiosk from "./pages/CheckInKiosk";
 import Accountability from "./pages/Accountability";
 import ResetPassword from "./pages/ResetPassword";
 import Schedule from "./pages/Schedule";
+import Leaderboards from "./pages/Leaderboards";
 
 import { useEffect, useState } from "react";
 import { syncFromSupabase, syncProfile } from "./lib/store";
@@ -117,6 +118,7 @@ const AppRoutes = () => {
                 <Route path="/checkin" element={<CheckInKiosk />} />
                 <Route path="/accountability" element={<Accountability />} />
                 <Route path="/schedule" element={<Schedule />} />
+                <Route path="/leaderboards" element={<Leaderboards />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/admin" element={<Admin />} />
@@ -147,6 +149,7 @@ const AppRoutes = () => {
               <Route path="/checkin" element={<CheckInKiosk />} />
               <Route path="/accountability" element={<Accountability />} />
               <Route path="/schedule" element={<Schedule />} />
+              <Route path="/leaderboards" element={<Leaderboards />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<Admin />} />

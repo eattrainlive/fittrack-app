@@ -91,6 +91,7 @@ import {
   saveWowResult,
 } from "@/lib/store";
 import { getExerciseHistory } from "@/lib/exerciseHistory";
+import { saveBlockScores } from "@/lib/blockScores";
 import { getEmbedUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -100,6 +101,7 @@ import { ConditioningTimer } from "@/components/ConditioningTimer";
 import { AdLibLogSheet } from "@/components/AdLibLogSheet";
 import { PreviewExerciseRow } from "@/components/PreviewExerciseRow";
 import { FreestyleBlock } from "@/components/FreestyleBlock";
+import { BlockLeaderboardDialog } from "@/components/BlockLeaderboardDialog";
 import { AmrapLogSet } from "@/components/AmrapLogSet";
 
 import {
@@ -259,6 +261,10 @@ const Workouts = () => {
   >({});
   // Freestyle block scores, keyed by section id.
   const [blockScores, setBlockScores] = useState<Record<string, any>>({});
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [leaderboardSectionId, setLeaderboardSectionId] = useState<
+    string | null
+  >(null);
   // pickOne finisher: sectionId -> chosen option index (within the section's option blocks). null = no choice yet.
   const [pickOneChoices, setPickOneChoices] = useState<
     Record<string, number | null>
@@ -876,6 +882,14 @@ const Workouts = () => {
       toast.error("Saved on device — will retry syncing");
       console.error("Cloud sync error:", error);
     }
+
+    saveBlockScores(savedExercises, {
+      workoutId: sessionWorkoutId,
+      programId: activeWorkoutMeta?.programId,
+      stream: activeWorkoutMeta?.stream,
+      week: activeWorkoutMeta?.week,
+      day: activeWorkoutMeta?.day,
+    });
 
     const newPBs = await detectAndSavePBs(savedExercises);
     if (newPBs.length > 0) {
@@ -1785,6 +1799,18 @@ const Workouts = () => {
                               : "exercises"}
                           </span>
                         )}
+                        {sec.section?.leaderboard && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLeaderboardSectionId(String(sec.section.id));
+                              setLeaderboardOpen(true);
+                            }}
+                            className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 inline-flex items-center gap-1 shrink-0"
+                          >
+                            <Trophy className="h-3 w-3" /> Leaderboard
+                          </button>
+                        )}
                       </div>
                       {sec.section?.description && (
                         <p className="text-sm text-muted-foreground mt-1.5 whitespace-pre-wrap leading-relaxed">
@@ -2127,6 +2153,20 @@ const Workouts = () => {
                                       : ""}
                                   </span>
                                 )}
+                              {currentBlock.section?.leaderboard && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setLeaderboardSectionId(
+                                      String(currentBlock.section.id),
+                                    );
+                                    setLeaderboardOpen(true);
+                                  }}
+                                  className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 inline-flex items-center gap-1"
+                                >
+                                  <Trophy className="h-3 w-3" /> Leaderboard
+                                </button>
+                              )}
                             </div>
                           </div>
 
@@ -3733,6 +3773,11 @@ const Workouts = () => {
         open={adLibOpen}
         onOpenChange={setAdLibOpen}
         onPBs={(pbs) => setPbModal(pbs)}
+      />
+      <BlockLeaderboardDialog
+        open={leaderboardOpen}
+        onOpenChange={setLeaderboardOpen}
+        sectionId={leaderboardSectionId}
       />
     </div>
   );

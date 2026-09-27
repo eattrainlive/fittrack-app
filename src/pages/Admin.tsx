@@ -160,6 +160,7 @@ import { AiCoachTab } from "@/components/AiCoachTab";
 import { ExerciseCardPreview } from "@/components/ExerciseCardPreview";
 import { TrackingTypeSelector } from "@/components/TrackingTypeSelector";
 import { useApplyDraft } from "@/lib/useApplyDraft";
+import { LeaderboardSectionFields } from "@/components/LeaderboardSectionFields";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -4352,6 +4353,12 @@ const Admin = () => {
                                                     }
                                                   />
                                                 </div>
+                                                <LeaderboardSectionFields
+                                                  pe={pe}
+                                                  updateProgExercise={
+                                                    updateProgExercise
+                                                  }
+                                                />
                                                 {pe.sectionType ===
                                                   "AI Engine" && (
                                                   <div className="md:col-span-2 pt-2">

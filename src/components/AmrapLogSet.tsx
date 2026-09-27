@@ -238,7 +238,7 @@ export function AmrapLogSet({
         size="lg"
       >
         <Plus className="h-5 w-5" />
-        Log Set · Round {roundsLogged + 1}
+        Log Round · {roundsLogged + 1}
       </Button>
 
       {/* Logged rounds list */}

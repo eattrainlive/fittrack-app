@@ -389,7 +389,7 @@ const Index = () => {
               : null;
             return (
               <button
-                onClick={() => navigate("/workouts?wow=true")}
+                onClick={() => navigate("/leaderboards")}
                 className="w-full flex items-center gap-3 bg-[#14170f] border border-[#23291b] rounded-xl p-3 text-left shadow-sm active:scale-[0.99] transition"
               >
                 <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
@@ -397,7 +397,7 @@ const Index = () => {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                    Workout of the Week
+                    Leaderboards
                   </p>
                   <p className="font-heading text-xl tracking-wider uppercase leading-none text-white">
                     {currentWow.name
@@ -408,12 +408,11 @@ const Index = () => {
                     {typeLabel}
                     {myScore
                       ? ` · Rank ${myRank} · ${scoreText}`
-                      : " · Tap to log your score"}
+                      : " · Tap to view leaderboards"}
                   </p>
                 </div>
                 <span className="shrink-0 inline-flex items-center gap-1 border border-primary/50 text-primary font-bold text-xs px-3 py-2 rounded-lg">
-                  {myScore ? "View" : "Log"}{" "}
-                  <ChevronRight className="w-3.5 h-3.5" />
+                  View <ChevronRight className="w-3.5 h-3.5" />
                 </span>
               </button>
             );

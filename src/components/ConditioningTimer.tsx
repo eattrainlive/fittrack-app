@@ -74,6 +74,15 @@ export function ConditioningTimer({
   );
   const [saved, setSaved] = useState(!!initialResult);
 
+  // Sync ROUNDS from the auto-counted logged rounds (AmrapLogSet drives
+  // conditioningResults[sectionId].rounds via onRoundsChange). Keeps the
+  // score field auto-counting while still editable for manual correction.
+  useEffect(() => {
+    if (type === "AMRAP" && initialResult?.rounds != null) {
+      setRounds(String(initialResult.rounds));
+    }
+  }, [type, initialResult?.rounds]);
+
   // EMOM per-minute cue
   const lastMinuteRef = useRef(0);
 
