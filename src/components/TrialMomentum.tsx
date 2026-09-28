@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   Trophy,
-  TrendingUp,
   Calendar,
   Flame,
   ArrowRight,
@@ -10,6 +9,8 @@ import {
   Flag,
   Lock,
   Camera,
+  Dumbbell,
+  DoorOpen,
 } from "lucide-react";
 import { TrialWeekContent } from "@/components/TrialWeekContent";
 import { Card, CardContent } from "@/components/ui/card";
@@ -117,6 +118,9 @@ export const TrialMomentum = () => {
     day,
     daysLeft,
     sessionsAttended,
+    pt,
+    classes,
+    gymVisits,
     totalVolume,
     bestStreak,
     attendedDays,
@@ -384,20 +388,27 @@ export const TrialMomentum = () => {
         </CardContent>
       </Card>
 
-      {/* Scoreboard */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Scoreboard — three-way attendance breakdown */}
+      <div className="grid grid-cols-3 gap-3">
         <Card>
           <CardContent className="p-4 text-center">
-            <Trophy className="w-5 h-5 text-primary mx-auto mb-1" />
-            <p className="text-2xl font-bold">{sessionsAttended}</p>
-            <p className="text-xs text-muted-foreground">Sessions attended</p>
+            <Dumbbell className="w-5 h-5 text-primary mx-auto mb-1" />
+            <p className="text-2xl font-bold">{pt}</p>
+            <p className="text-xs text-muted-foreground">PT</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <TrendingUp className="w-5 h-5 text-primary mx-auto mb-1" />
-            <p className="text-2xl font-bold">{totalVolume.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">kg lifted</p>
+            <Calendar className="w-5 h-5 text-primary mx-auto mb-1" />
+            <p className="text-2xl font-bold">{classes}</p>
+            <p className="text-xs text-muted-foreground">Classes</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <DoorOpen className="w-5 h-5 text-primary mx-auto mb-1" />
+            <p className="text-2xl font-bold">{gymVisits}</p>
+            <p className="text-xs text-muted-foreground">Gym visits</p>
           </CardContent>
         </Card>
       </div>

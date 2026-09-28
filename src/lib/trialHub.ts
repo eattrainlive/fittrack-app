@@ -259,6 +259,10 @@ export interface TrialMomentumData {
   day: number;
   daysLeft: number;
   sessionsAttended: number;
+  // three-way attendance breakdown (PT + classes + gym visits)
+  pt: number;
+  classes: number;
+  gymVisits: number;
   totalVolume: number;
   bestStreak: number;
   attendedDays: number[];
@@ -310,7 +314,7 @@ export const getTrialMomentum = async (): Promise<TrialMomentumData | null> => {
   const end = new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000);
   const { data: bookings } = await supabase
     .from("member_bookings")
-    .select("session_at, status")
+    .select("session_at, session_type, status")
     .ilike("email", (member.email || "").toLowerCase())
     .gte("session_at", start.toISOString())
     .lte("session_at", end.toISOString());
@@ -318,11 +322,58 @@ export const getTrialMomentum = async (): Promise<TrialMomentumData | null> => {
   const attended = (bookings || []).filter(
     (b: any) => b.status !== "cancelled",
   );
-  const sessionsAttended = attended.length;
-  const attendedDays: number[] = attended.map((b: any) => {
-    const d = new Date(b.session_at);
-    return Math.floor((d.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-  });
+  // Split booked sessions: semi-private PT vs classes.
+  const isCoached = (st: any) => /semi\s*private\s*pt/i.test(String(st || ""));
+  const pt = attended.filter((b: any) => isCoached(b.session_type)).length;
+  const classes = attended.filter(
+    (b: any) => !isCoached(b.session_type),
+  ).length;
+
+  // Gym visits (scan_events) — keyed on member_ref (gym_members.id, RLS-allowed)
+  // + ts (fallback created_at). Only "granted" entry scans count; de-dupe by day
+  // against booking days so a booked+scanned day counts once. Soft-fail if
+  // scan_events doesn't exist yet.
+  const bookingDays = new Set(
+    attended.map((b: any) => String(b.session_at).slice(0, 10)),
+  );
+  let gymOnlyDays: string[] = [];
+  if (member?.id) {
+    try {
+      // scan_events.member_ref = the member's gym_members.id — the key the
+      // member self-read RLS policy allows. Guard a null id.
+      const { data: scans } = await supabase
+        .from("scan_events")
+        .select("ts, created_at, result")
+        .eq("member_ref", member.id)
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString());
+      const scanDays = new Set<string>();
+      for (const s of scans || []) {
+        const d = String(s.ts || s.created_at || "").slice(0, 10);
+        if (!d) continue;
+        if (String(s.result || "").toLowerCase() === "granted") scanDays.add(d);
+      }
+      gymOnlyDays = [...scanDays].filter((d) => !bookingDays.has(d));
+    } catch {
+      // scan_events may not exist yet — ignore
+    }
+  }
+
+  const sessionsAttended = attended.length + gymOnlyDays.length;
+  const attendedDays: number[] = [
+    ...attended.map((b: any) => {
+      const d = new Date(b.session_at);
+      return Math.floor(
+        (d.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+      );
+    }),
+    ...gymOnlyDays.map((d) => {
+      const dt = new Date(d + "T00:00:00");
+      return Math.floor(
+        (dt.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+      );
+    }),
+  ];
 
   // Volume + PBs from workout_history
   let totalVolume = 0;
@@ -418,6 +469,9 @@ export const getTrialMomentum = async (): Promise<TrialMomentumData | null> => {
     day,
     daysLeft,
     sessionsAttended,
+    pt,
+    classes,
+    gymVisits: gymOnlyDays.length,
     totalVolume,
     bestStreak,
     attendedDays: sortedDays,

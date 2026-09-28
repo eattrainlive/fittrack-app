@@ -41,6 +41,7 @@ import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { MemberGoalsCard } from "@/components/MemberGoalsCard";
+import MemberProgressCard from "@/components/MemberProgressCard";
 import { CheckInCodeCard } from "@/components/CheckInCodeCard";
 import {
   isTrialProduct,
@@ -275,6 +276,8 @@ const Index = () => {
           <ChevronRight className="w-5 h-5 text-primary shrink-0" />
         </button>
       )}
+
+      {!showTrialProgress && <MemberProgressCard />}
 
       <div className="space-y-3">
         {/* Up Next programme strip (lime) */}

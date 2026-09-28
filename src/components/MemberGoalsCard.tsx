@@ -12,7 +12,6 @@ import {
   TrendingUp,
   Flame,
   Heart,
-  CalendarDays,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,17 +61,36 @@ const FOCUS_AREA_OPTIONS = [
 
 const fmtNum = (n?: number | null) => (n == null ? "" : String(n));
 
+const currentMonthStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+const monthLabel = () =>
+  new Date().toLocaleDateString("en-GB", { month: "long" });
+
 type Habit = { id: number; name: string };
 
 export function MemberGoalsCard({
   onSaved,
+  autoOpen,
+  variant = "full",
+  initialGoals,
 }: {
   onSaved?: (g: MemberGoals | null) => void;
+  autoOpen?: boolean;
+  variant?: "full" | "editButton";
+  initialGoals?: MemberGoals | null;
 }) {
-  const [goals, setGoals] = useState<MemberGoals | null>(null);
+  // Seed from the parent's already-loaded goals so the first render is correct
+  // (no null → fetch flash) when the hub passes them through.
+  const [goals, setGoals] = useState<MemberGoals | null>(initialGoals ?? null);
   const [summary, setSummary] = useState<ProgressSummary | null>(null);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (autoOpen) setOpen(true);
+  }, [autoOpen]);
   const [busy, setBusy] = useState(false);
 
   // form state — picked holds the habit NAME (or custom text), never the id
@@ -92,8 +110,7 @@ export function MemberGoalsCard({
   const [targetWeight, setTargetWeight] = useState("");
   const [targetDate, setTargetDate] = useState("");
   const [focusAreas, setFocusAreas] = useState<string[]>([]);
-
-  const complete = !!goals?.set_at;
+  const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -126,7 +143,9 @@ export function MemberGoalsCard({
           }),
         );
       }
-      onSaved?.(g);
+      // NOTE: do NOT call onSaved here — it triggers the parent's reload loop
+      // (mount → onSaved → load → re-render → remount → …). onSaved fires only
+      // after an actual save (see save()).
       // Load progress summary for the progress-vs-goals panel.
       try {
         const s = await getMemberSummary();
@@ -136,7 +155,7 @@ export function MemberGoalsCard({
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onSaved]);
+  }, []);
 
   useEffect(() => {
     getHabitLibrary().then((h) =>
@@ -217,21 +236,8 @@ export function MemberGoalsCard({
 
   const habitName = (h?: string | null) => (h ? String(h) : "");
 
-  const hasTargets =
-    goals &&
-    (goals.step_target ||
-      goals.sessions_per_week ||
-      goals.calorie_target ||
-      goals.habit_1 ||
-      goals.habit_2 ||
-      goals.habit_3 ||
-      goals.start_weight != null ||
-      goals.focus ||
-      goals.primary_goal ||
-      goals.goal_text ||
-      goals.target_weight != null ||
-      goals.target_date ||
-      (Array.isArray(goals.focus_areas) && goals.focus_areas.length));
+  const monthSet = goals?.goals_month === currentMonthStr();
+  const hasHabits = !!(goals?.habit_1 || goals?.habit_2 || goals?.habit_3);
 
   // Progress vs goals values
   const g = goals;
@@ -249,29 +255,29 @@ export function MemberGoalsCard({
 
   return (
     <>
-      {!complete || !hasTargets ? (
+      {!monthSet || !hasHabits ? (
         <Card className="bg-primary/10 border-primary/40 border-l-4 border-l-primary">
           <CardContent className="p-4 sm:p-5 space-y-3">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
-                <Target className="w-5 h-5 text-primary" />
+                <Heart className="w-5 h-5 text-primary" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                  Your goals
+                  This month
                 </p>
-                <h2 className="font-heading text-lg sm:text-xl tracking-wide uppercase leading-none mt-0.5">
-                  Set your goals 🎯
+                <h2 className="font-heading text-lg sm:text-xl tracking-wide leading-tight mt-0.5">
+                  Your 3 habits for {monthLabel()}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Agree these with your coach — your focus, targets and habits.
-                  We'll track your progress against them over the next 90 days.
+                  Pick the 3 habits you'll focus on this month — they'll show in
+                  your habit tracker.
                 </p>
               </div>
             </div>
             <div className="flex gap-2">
               <Button size="sm" onClick={openDialog} disabled={busy}>
-                {complete ? "Update goals" : "Get started"}
+                {hasHabits ? `Update ${monthLabel()} habits` : "Choose habits"}
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
@@ -287,16 +293,11 @@ export function MemberGoalsCard({
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                    Your goals
+                    This month
                   </p>
-                  <h2 className="font-heading text-lg tracking-wide uppercase leading-none mt-0.5">
-                    Progress vs goals
+                  <h2 className="font-heading text-lg tracking-wide leading-none mt-0.5">
+                    Your 3 habits for {monthLabel()}
                   </h2>
-                  {g!.focus && (
-                    <p className="text-sm text-muted-foreground mt-1 italic">
-                      "{g!.focus}"
-                    </p>
-                  )}
                 </div>
               </div>
               <Button
@@ -309,6 +310,28 @@ export function MemberGoalsCard({
                 <Pencil className="w-3.5 h-3.5" /> Edit
               </Button>
             </div>
+
+            {/* This month's habits (hero) */}
+            {(g!.habit_1 || g!.habit_2 || g!.habit_3) && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <Heart className="w-3 h-3" /> This month's habits
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[g!.habit_1, g!.habit_2, g!.habit_3]
+                    .filter((h) => h != null)
+                    .map((h) => (
+                      <Badge
+                        key={h}
+                        variant="secondary"
+                        className="font-normal"
+                      >
+                        {habitName(h)}
+                      </Badge>
+                    ))}
+                </div>
+              </div>
+            )}
 
             {/* Hero line */}
             {s && (loggedSessions > 0 || totalVolume > 0) && (
@@ -376,28 +399,6 @@ export function MemberGoalsCard({
               )}
             </div>
 
-            {/* Habits */}
-            {(g!.habit_1 || g!.habit_2 || g!.habit_3) && (
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                  <Heart className="w-3 h-3" /> Your habits
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {[g!.habit_1, g!.habit_2, g!.habit_3]
-                    .filter((h) => h != null)
-                    .map((h) => (
-                      <Badge
-                        key={h}
-                        variant="secondary"
-                        className="font-normal"
-                      >
-                        {habitName(h)}
-                      </Badge>
-                    ))}
-                </div>
-              </div>
-            )}
-
             {/* Review due */}
             {g!.review_due && (
               <p className="text-xs text-muted-foreground pt-2 border-t border-border/60">
@@ -416,74 +417,18 @@ export function MemberGoalsCard({
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Target className="w-4 h-4 text-primary" />
-              {complete ? "Update your goals" : "Set your goals"}
+              <Heart className="w-4 h-4 text-primary" />
+              Your 3 habits for {monthLabel()}
             </DialogTitle>
             <DialogDescription>
-              Agree these with your coach. You can edit them any time.
+              Pick the habits you'll build this month — they'll show in your
+              habit tracker. Optional targets below.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
+            {/* ── 3 habits for the month (hero) ── */}
             <div className="space-y-2">
-              <Label htmlFor="focus" className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-primary" /> Main focus / why
-              </Label>
-              <Input
-                id="focus"
-                placeholder="e.g. Get stronger & feel more confident"
-                value={focus}
-                onChange={(e) => setFocus(e.target.value)}
-                autoFocus
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="bw" className="flex items-center gap-2">
-                <Scale className="w-4 h-4 text-primary" /> Start weight (kg)
-              </Label>
-              <Input
-                id="bw"
-                type="number"
-                inputMode="decimal"
-                placeholder="e.g. 78.5"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Field
-                id="step"
-                icon={<Footprints className="w-4 h-4 text-primary" />}
-                label="Steps/day"
-                value={stepTarget}
-                onChange={setStepTarget}
-                placeholder="8000"
-              />
-              <Field
-                id="sess"
-                icon={<Dumbbell className="w-4 h-4 text-primary" />}
-                label="Sessions/wk"
-                value={sessionsPerWeek}
-                onChange={setSessionsPerWeek}
-                placeholder="3"
-              />
-            </div>
-
-            <Field
-              id="kcal"
-              icon={<Salad className="w-4 h-4 text-primary" />}
-              label="Daily calorie target (optional)"
-              value={calorieTarget}
-              onChange={setCalorieTarget}
-              placeholder="2000"
-            />
-
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">
-                Pick up to 3 habits to build (or type your own)
-              </Label>
               {habits.length === 0 && (
                 <p className="text-xs text-muted-foreground">
                   No habit library loaded yet — you can type custom habits
@@ -574,6 +519,81 @@ export function MemberGoalsCard({
                   )}
                 </div>
               ))}
+            </div>
+
+            {/* ── More (optional targets) ── */}
+            <div className="rounded-lg border border-border/60">
+              <button
+                type="button"
+                onClick={() => setShowMore((v) => !v)}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Target className="w-3.5 h-3.5" /> More (optional targets)
+                </span>
+                <ChevronRight
+                  className={`w-4 h-4 transition ${showMore ? "rotate-90" : ""}`}
+                />
+              </button>
+              {showMore && (
+                <div className="space-y-4 px-3 pb-3 pt-1">
+                  <div className="space-y-2">
+                    <Label htmlFor="focus" className="flex items-center gap-2">
+                      <Target className="w-4 h-4 text-primary" /> Main focus /
+                      why
+                    </Label>
+                    <Input
+                      id="focus"
+                      placeholder="e.g. Get stronger & feel more confident"
+                      value={focus}
+                      onChange={(e) => setFocus(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="bw" className="flex items-center gap-2">
+                      <Scale className="w-4 h-4 text-primary" /> Start weight
+                      (kg)
+                    </Label>
+                    <Input
+                      id="bw"
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="e.g. 78.5"
+                      value={weight}
+                      onChange={(e) => setWeight(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field
+                      id="step"
+                      icon={<Footprints className="w-4 h-4 text-primary" />}
+                      label="Steps/day"
+                      value={stepTarget}
+                      onChange={setStepTarget}
+                      placeholder="8000"
+                    />
+                    <Field
+                      id="sess"
+                      icon={<Dumbbell className="w-4 h-4 text-primary" />}
+                      label="Sessions/wk"
+                      value={sessionsPerWeek}
+                      onChange={setSessionsPerWeek}
+                      placeholder="3"
+                    />
+                  </div>
+
+                  <Field
+                    id="kcal"
+                    icon={<Salad className="w-4 h-4 text-primary" />}
+                    label="Daily calorie target (optional)"
+                    value={calorieTarget}
+                    onChange={setCalorieTarget}
+                    placeholder="2000"
+                  />
+                </div>
+              )}
             </div>
           </div>
 

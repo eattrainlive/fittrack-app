@@ -23,6 +23,7 @@ export interface MemberGoals {
   habit_3?: string | null;
   review_due?: string | null;
   set_at?: string | null;
+  goals_month?: string | null;
   // Extended retention fields:
   primary_goal?: string | null;
   goal_text?: string | null;
@@ -47,6 +48,11 @@ const addDaysISO = (iso: string, n: number) => {
   return `${yy}-${mm}-${dd}`;
 };
 
+const currentMonthStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+
 export const getMemberGoals = async (): Promise<MemberGoals | null> => {
   const {
     data: { user },
@@ -55,7 +61,7 @@ export const getMemberGoals = async (): Promise<MemberGoals | null> => {
   const { data } = await supabase
     .from("member_goals")
     .select(
-      "start_weight,focus,step_target,sessions_per_week,calorie_target,habit_1,habit_2,habit_3,review_due,set_at,primary_goal,goal_text,target_weight,target_date,focus_areas",
+      "start_weight,focus,step_target,sessions_per_week,calorie_target,habit_1,habit_2,habit_3,review_due,set_at,goals_month,primary_goal,goal_text,target_weight,target_date,focus_areas",
     )
     .eq("member_id", user.id)
     .maybeSingle();
@@ -102,6 +108,7 @@ export const saveMemberGoals = async (input: {
     habit_3: habitTexts[2] ?? null,
     review_due: reviewDue,
     set_at: now,
+    goals_month: currentMonthStr(),
     primary_goal: input.primaryGoal ?? null,
     goal_text: input.goalText ?? null,
     target_weight: input.targetWeight ?? null,
@@ -114,7 +121,7 @@ export const saveMemberGoals = async (input: {
     .from("member_goals")
     .upsert(row, { onConflict: "member_id" })
     .select(
-      "start_weight,focus,step_target,sessions_per_week,calorie_target,habit_1,habit_2,habit_3,review_due,set_at,primary_goal,goal_text,target_weight,target_date,focus_areas",
+      "start_weight,focus,step_target,sessions_per_week,calorie_target,habit_1,habit_2,habit_3,review_due,set_at,goals_month,primary_goal,goal_text,target_weight,target_date,focus_areas",
     )
     .maybeSingle();
 

@@ -39,6 +39,7 @@ import { Trophy, Plus, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { PastWorkouts } from "@/components/PastWorkouts";
+import { MemberProgressHub } from "@/components/MemberProgressHub";
 
 const Progress = () => {
   const [bodyweightData, setBodyweightData] = useState<any[]>([]);
@@ -190,12 +191,17 @@ const Progress = () => {
         </Select>
       </div>
 
-      <Tabs defaultValue="charts" className="space-y-4">
+      <Tabs defaultValue="hub" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="hub">Progress Hub</TabsTrigger>
           <TabsTrigger value="charts">Charts & Bodyweight</TabsTrigger>
           <TabsTrigger value="prs">Personal Records</TabsTrigger>
           <TabsTrigger value="history">Past Workouts</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="hub" className="space-y-4">
+          <MemberProgressHub />
+        </TabsContent>
 
         <TabsContent value="charts" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">

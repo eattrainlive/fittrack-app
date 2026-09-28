@@ -125,6 +125,7 @@ export const getProgressSummary = async (opts: {
   // row (product/joined_on/full_name/email) so we don't fall back to
   // getMyGymMember(), which would return the *coach's* own record.
   memberRow?: {
+    id?: string | null;
     email?: string | null;
     full_name?: string | null;
     joined_on?: string | null;
@@ -537,24 +538,46 @@ export const getProgressSummary = async (opts: {
     // ignore
   }
 
-  // ── Gym visits (scan_events entry scans, keyed by member_ref = user_id) ────
+  // ── Gym visits (scan_events entry scans, EXCLUDING booking days) ──────────
+  // scan_events.member_ref = the member's gym_members.id — the key the member
+  // self-read RLS policy allows (member_ref IN gym_members by email). Use `ts`
+  // for the scan time (fallback created_at). Guard a null id so it can't match
+  // all. A "gym visit" = a distinct GRANTED scan day with NO PT/class booking
+  // that day (a scan for a booked class/PT is counted as that class/PT, not
+  // also as a gym visit).
   let gymVisits = 0;
   let gymScansTotal = 0;
   let gymVisitDates: string[] = [];
   try {
+    // Booking days = every day with a non-cancelled PT or class booking.
+    const bookingDays = new Set<string>();
+    if (email) {
+      const { data: bk } = await supabase
+        .from("member_bookings")
+        .select("session_at")
+        .ilike("email", email.toLowerCase())
+        .neq("status", "cancelled");
+      for (const b of bk || [])
+        if (b.session_at) bookingDays.add(String(b.session_at).slice(0, 10));
+    }
+    const memberRef = member?.id ?? null;
     const { data: scans } = await supabase
       .from("scan_events")
-      .select("created_at,result")
-      .eq("member_ref", userId);
+      .select("ts,created_at,result")
+      .eq("member_ref", memberRef ?? "__none__");
     const days = new Set<string>();
     for (const sc of scans || []) {
-      const d = (sc.created_at || "").slice(0, 10);
+      const d = (sc.ts || sc.created_at || "").slice(0, 10);
       if (!d || !inWindow(d)) continue;
       gymScansTotal++;
       if (String(sc.result || "").toLowerCase() === "granted") days.add(d);
     }
-    gymVisits = days.size;
-    gymVisitDates = Array.from(days).sort();
+    // Exclude days that already had a booking (no double count).
+    const visitDays = Array.from(days)
+      .filter((d) => !bookingDays.has(d))
+      .sort();
+    gymVisits = visitDays.length;
+    gymVisitDates = visitDays;
   } catch {
     // scan_events may not exist — ignore
   }
