@@ -10,6 +10,7 @@ import {
   fetchBlockLeaderboard,
   formatBlockScore,
 } from "@/lib/blockLeaderboard";
+import { ETL_LOGO_ON_DARK } from "@/lib/brand";
 
 interface Props {
   open: boolean;
@@ -46,12 +47,19 @@ export function BlockLeaderboardDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] flex flex-col">
-        <DialogHeader className="shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <Trophy className="h-5 w-5 text-primary" />
-            {title || "Leaderboard"}
-          </DialogTitle>
+      <DialogContent className="max-h-[85vh] flex flex-col relative">
+        <DialogHeader className="shrink-0 pr-8">
+          <div className="flex items-center justify-between gap-2">
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-primary" />
+              {title || "Leaderboard"}
+            </DialogTitle>
+            <img
+              src={ETL_LOGO_ON_DARK}
+              alt="Eat Train Live"
+              className="h-5 w-auto object-contain opacity-70"
+            />
+          </div>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto min-h-0 pr-1 space-y-2">
           {loading ? (

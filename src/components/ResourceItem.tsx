@@ -63,9 +63,11 @@ export function ResourceItem({
           )}
         </div>
         <div className="min-w-0">
-          <p className="font-bold text-sm truncate">{r.title}</p>
+          <p className="font-bold text-sm leading-snug line-clamp-2 break-words">
+            {r.title}
+          </p>
           {r.description && (
-            <p className="text-xs text-muted-foreground truncate">
+            <p className="text-xs text-muted-foreground line-clamp-2 break-words">
               {r.description}
             </p>
           )}

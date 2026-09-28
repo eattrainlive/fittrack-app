@@ -18,6 +18,8 @@ import {
   type BlockScoreEntry,
 } from "@/lib/blockLeaderboard";
 import { BlockLeaderboardDialog } from "@/components/BlockLeaderboardDialog";
+import { ETLWatermark } from "@/components/ETLWatermark";
+import { ETL_LOGO_ON_DARK } from "@/lib/brand";
 
 const Leaderboards = () => {
   const navigate = useNavigate();
@@ -159,8 +161,13 @@ const Leaderboards = () => {
         <>
           {/* Workout of the Week */}
           {currentWow ? (
-            <Card className="bg-[#14170f] border-[#23291b]">
-              <CardHeader>
+            <Card className="bg-[#14170f] border-[#23291b] relative overflow-hidden">
+              <ETLWatermark
+                position="top-right"
+                size={24}
+                className="top-4 right-4"
+              />
+              <CardHeader className="pr-14">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
@@ -252,8 +259,16 @@ const Leaderboards = () => {
                 {blockBoards.map((b) => {
                   const top = b.entries.slice(0, 5);
                   return (
-                    <Card key={b.sectionId} className="bg-card border-border">
-                      <CardHeader className="pb-2">
+                    <Card
+                      key={b.sectionId}
+                      className="bg-card border-border relative overflow-hidden"
+                    >
+                      <ETLWatermark
+                        position="top-right"
+                        size={20}
+                        className="top-3 right-3"
+                      />
+                      <CardHeader className="pb-2 pr-12">
                         <CardTitle className="text-base font-bold">
                           {b.title}
                         </CardTitle>

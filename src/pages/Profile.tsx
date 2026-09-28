@@ -16,7 +16,6 @@ import {
   LogOut,
   CloudUpload,
   CloudDownload,
-  BookOpen,
   Sparkles,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -40,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { PoweredByETL } from "@/components/PoweredByETL";
 const Profile = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
@@ -203,13 +203,6 @@ const Profile = () => {
           Profile Settings
         </h2>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => navigate("/education")}
-            className="gap-2"
-          >
-            <BookOpen className="h-4 w-4" /> Education
-          </Button>
           <Button
             variant="outline"
             onClick={handleReplayTour}
@@ -479,6 +472,8 @@ const Profile = () => {
           </Card>
         </div>
       </div>
+
+      <PoweredByETL className="pt-6" />
     </div>
   );
 };

@@ -6,6 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { ETLWatermark } from "@/components/ETLWatermark";
 
 interface PB {
   exercise: string;
@@ -28,8 +29,9 @@ export function PbModal({
 }: PbModalProps) {
   return (
     <Dialog open={!!pbModal} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[92vw] max-w-sm text-center bg-card border-border max-h-[85dvh] flex flex-col overflow-hidden">
-        <DialogHeader className="shrink-0">
+      <DialogContent className="relative w-[92vw] max-w-sm text-center bg-card border-border max-h-[85dvh] flex flex-col overflow-hidden">
+        <ETLWatermark position="top-right" size={26} />
+        <DialogHeader className="shrink-0 pt-2">
           <DialogTitle className="text-2xl font-heading tracking-wider text-center">
             🏆 New Personal Record!
           </DialogTitle>

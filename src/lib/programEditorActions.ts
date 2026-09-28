@@ -27,11 +27,37 @@ export const daysForType = (
   type: string,
   stream: string,
   days: number,
-): number => (type === "program" ? (stream === "Stronger" ? 7 : 5) : days);
+): number =>
+  type === "GroupPT"
+    ? 6
+    : type === "program"
+      ? stream === "Stronger"
+        ? 7
+        : 5
+      : days;
 
 /** The highest week number currently present in progWorkouts. */
 export const maxWeekIn = (workouts: ProgWorkout[]): number =>
   workouts.reduce((m, w) => Math.max(m, Number(w.week) || 0), 0);
+
+/**
+ * Derive `weeks` and `daysPerWeek` from a workouts array, counting only
+ * sessions that actually HAVE exercises (empty seeded rows never inflate the
+ * day count). Falls back to 1 when empty so the TV Display card always renders.
+ */
+export const deriveWeekMeta = (workouts: ProgWorkout[], type?: string) => {
+  const ws = Array.isArray(workouts) ? workouts : [];
+  const withContent = ws.filter((w: any) => (w.exercises?.length ?? 0) > 0);
+  const weeks = Math.max(1, ...ws.map((w: any) => Number(w.week) || 1));
+  const byWeek: Record<number, number> = {};
+  for (const w of withContent) {
+    const k = Number(w.week) || 1;
+    byWeek[k] = (byWeek[k] || 0) + 1;
+  }
+  let daysPerWeek = Math.max(1, ...Object.values(byWeek));
+  if (type === "GroupPT") daysPerWeek = 6;
+  return { weeks, daysPerWeek };
+};
 
 /** Build an empty workout row for a week×day slot. */
 const emptyRow = (

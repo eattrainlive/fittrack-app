@@ -48,6 +48,7 @@ import {
   getTrialBaselineCapturedAt,
 } from "@/lib/trialBaseline";
 import { isTrialEligible, isMemberEligible } from "@/lib/trialSummary";
+import { PoweredByETL } from "@/components/PoweredByETL";
 
 const Index = () => {
   const [history, setHistory] = useState<any[]>([]);
@@ -690,6 +691,8 @@ const Index = () => {
           </CardContent>
         </Card>
       </div>
+
+      <PoweredByETL className="pt-4" />
     </div>
   );
 };

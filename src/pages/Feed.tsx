@@ -25,6 +25,7 @@ import {
 } from "@/lib/store";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ETLWatermark } from "@/components/ETLWatermark";
 
 const Feed = () => {
   const [feed, setFeed] = useState<any[]>([]);
@@ -156,9 +157,14 @@ const Feed = () => {
           : feed.map((post) => (
               <Card
                 key={post.id}
-                className={`bg-card border-border ${post.isAnnouncement ? "border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : ""}`}
+                className={`relative bg-card border-border overflow-hidden ${post.isAnnouncement ? "border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : ""}`}
               >
-                <CardHeader className="flex flex-row items-center gap-4 pb-4">
+                <ETLWatermark
+                  position="top-right"
+                  size={20}
+                  className="top-3 right-3"
+                />
+                <CardHeader className="flex flex-row items-center gap-4 pb-4 pr-12">
                   <Avatar>
                     <AvatarFallback
                       className={

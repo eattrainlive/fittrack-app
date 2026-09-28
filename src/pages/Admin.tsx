@@ -81,6 +81,7 @@ import {
   addDay as addProgDay,
   repeatBlockTo as repeatProgBlock,
   daysForType as daysForProgType,
+  deriveWeekMeta,
 } from "@/lib/programEditorActions";
 import { resolveTrackingType } from "@/lib/tracking";
 import { mapProgramExercise } from "@/lib/programExerciseMapper";
@@ -1571,8 +1572,18 @@ const Admin = () => {
         start_date: week1Start,
         coverImage: newProgCover,
         type: newProgType,
-        weeks: newProgType === "GroupPT" ? 12 : newProgWeeks,
-        daysPerWeek: newProgDays,
+        weeks:
+          newProgType === "GroupPT"
+            ? 12
+            : Number(newProgWeeks) > 0
+              ? newProgWeeks
+              : deriveWeekMeta(progWorkouts, newProgType).weeks,
+        daysPerWeek:
+          newProgType === "GroupPT"
+            ? 6
+            : Number(newProgDays) > 0
+              ? newProgDays
+              : deriveWeekMeta(progWorkouts, newProgType).daysPerWeek,
         weekNotes: progWeekNotes,
         workouts: progWorkouts.map((w) => {
           const exercises = w.exercises.map((e: any) =>
@@ -1639,12 +1650,21 @@ const Admin = () => {
     // inference safety net (highest day present) so the editor never hides days.
     const inferredDays =
       Array.isArray(prog.workouts) && prog.workouts.length
-        ? Math.max(...prog.workouts.map((w: any) => Number(w.day) || 1))
+        ? Math.max(
+            0,
+            ...prog.workouts
+              .filter((w: any) => (w.exercises?.length ?? 0) > 0)
+              .map((w: any) => Number(w.day) || 1),
+          )
         : 0;
     const defaultDays =
       prog.type === "GroupPT" ? 6 : prog.stream === "Stronger" ? 7 : 5;
     setNewProgWeeks(prog.type === "GroupPT" ? 12 : prog.weeks || 4);
-    setNewProgDays(prog.daysPerWeek || inferredDays || defaultDays);
+    setNewProgDays(
+      prog.type === "GroupPT"
+        ? 6
+        : prog.daysPerWeek || inferredDays || defaultDays,
+    );
     const loadedNotes = prog.weekNotes || {};
     const normalizedNotes: Record<number, any> = {};
     Object.keys(loadedNotes).forEach((k) => {
@@ -1829,8 +1849,18 @@ const Admin = () => {
       start_date: week1Start,
       coverImage: newProgCover,
       type: newProgType,
-      weeks: newProgType === "GroupPT" ? 12 : newProgWeeks,
-      daysPerWeek: newProgDays,
+      weeks:
+        newProgType === "GroupPT"
+          ? 12
+          : Number(newProgWeeks) > 0
+            ? newProgWeeks
+            : deriveWeekMeta(workoutsToSave, newProgType).weeks,
+      daysPerWeek:
+        newProgType === "GroupPT"
+          ? 6
+          : Number(newProgDays) > 0
+            ? newProgDays
+            : deriveWeekMeta(workoutsToSave, newProgType).daysPerWeek,
       weekNotes: progWeekNotes,
       workouts: workoutsToSave.map((w) => {
         const exercises = w.exercises.map((e: any) =>

@@ -15,6 +15,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { InstallAuthTip } from "@/components/InstallPromptBanner";
+import { ETL_LOGO_ON_LIGHT } from "@/lib/branding";
+import { PoweredByETL } from "@/components/PoweredByETL";
 
 const MIN_PASSWORD = 8;
 
@@ -215,15 +217,24 @@ const Auth = () => {
   }
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background py-8">
       <div className="w-full max-w-md px-6 space-y-6">
-        <div className="flex flex-col items-center space-y-2 text-center pt-8 pb-4">
-          <Dumbbell className="h-12 w-12 text-primary" />
-          <h1 className="text-4xl font-heading tracking-wider uppercase">
-            FitTrack
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Sign in to track your progress and access programs.
+        <div className="flex flex-col items-center space-y-3 text-center pt-4 pb-2">
+          <img
+            src={ETL_LOGO_ON_LIGHT}
+            alt="Eat Train Live"
+            className="w-32 sm:w-36 max-w-[150px] h-auto object-contain"
+          />
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-heading tracking-wider uppercase leading-none">
+              FitTrack
+            </h1>
+            <p className="text-muted-foreground text-xs uppercase tracking-widest mt-1 font-semibold text-primary">
+              Eat Train Live
+            </p>
+          </div>
+          <p className="text-muted-foreground text-sm max-w-xs">
+            Sign in to track your progress, workouts and coaching.
           </p>
         </div>
 
@@ -381,6 +392,8 @@ const Auth = () => {
             )}
           </TabsContent>
         </Tabs>
+
+        <PoweredByETL className="pt-2" theme="light" />
       </div>
     </div>
   );

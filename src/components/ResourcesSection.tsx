@@ -336,8 +336,10 @@ export function ResourcesSection({
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-lg font-heading uppercase">{heading}</h2>
+        <div className="min-w-0">
+          <h2 className="text-base sm:text-lg font-heading tracking-wide sm:uppercase line-clamp-2 break-words">
+            {heading}
+          </h2>
           {blurb && <p className="text-xs text-muted-foreground">{blurb}</p>}
         </div>
         {isStaff && (
@@ -402,14 +404,16 @@ export function ResourcesSection({
                 className="border border-border rounded-lg overflow-hidden data-[state=open]:border-primary/40"
               >
                 <AccordionTrigger className="hover:no-underline px-4 py-3.5 bg-card hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-3 flex-1 text-left">
-                    <PlayCircle className="h-5 w-5 text-primary shrink-0" />
-                    <span className="font-bold text-sm uppercase tracking-wider">
-                      {sec.name}
-                    </span>
-                    <Badge variant="secondary" className="shrink-0 ml-1">
-                      {items.length}
-                    </Badge>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 flex-1 text-left min-w-0">
+                    <div className="flex items-center gap-3 min-w-0 sm:flex-1">
+                      <PlayCircle className="h-5 w-5 text-primary shrink-0" />
+                      <span className="font-bold text-sm tracking-wide line-clamp-2 leading-tight break-words flex-1 min-w-0">
+                        {sec.name}
+                      </span>
+                      <Badge variant="secondary" className="shrink-0">
+                        {items.length}
+                      </Badge>
+                    </div>
                     {isStaff && (
                       <div
                         className="flex items-center gap-0.5 shrink-0 ml-auto pr-2"
@@ -517,7 +521,7 @@ export function ResourcesSection({
               <AccordionTrigger className="hover:no-underline px-4 py-3.5 bg-card hover:bg-muted/50 transition-colors">
                 <div className="flex items-center gap-3 flex-1 text-left">
                   <PlayCircle className="h-5 w-5 text-primary shrink-0" />
-                  <span className="font-bold text-sm uppercase tracking-wider">
+                  <span className="font-bold text-sm tracking-wide line-clamp-2 leading-tight break-words">
                     Other
                   </span>
                   <Badge variant="secondary" className="shrink-0 ml-1">

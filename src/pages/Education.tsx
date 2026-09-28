@@ -153,23 +153,23 @@ const Education = () => {
             return (
               <Card key={folder.id} className="overflow-hidden flex flex-col">
                 <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
                       <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                         <Folder className="h-5 w-5 text-primary" />
                       </div>
-                      <div>
-                        <CardTitle className="font-heading tracking-wide text-lg">
+                      <div className="min-w-0">
+                        <CardTitle className="font-heading tracking-wide text-base sm:text-lg leading-tight line-clamp-2 break-words">
                           {folder.name}
                         </CardTitle>
                         {folder.description && (
-                          <CardDescription className="mt-1">
+                          <CardDescription className="mt-1 line-clamp-2">
                             {folder.description}
                           </CardDescription>
                         )}
                       </div>
                     </div>
-                    <span className="text-xs text-muted-foreground shrink-0">
+                    <span className="text-xs text-muted-foreground shrink-0 mt-1">
                       {folderVids.length} video
                       {folderVids.length !== 1 ? "s" : ""}
                     </span>
@@ -180,11 +180,11 @@ const Education = () => {
                     folderVids.map((video) => (
                       <div
                         key={video.id}
-                        className="flex items-center justify-between gap-2 border border-border rounded-lg p-2"
+                        className="flex items-start justify-between gap-2 border border-border rounded-lg p-2"
                       >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Video className="h-4 w-4 text-primary shrink-0" />
-                          <span className="text-sm truncate">
+                        <div className="flex items-start gap-2 min-w-0 flex-1">
+                          <Video className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                          <span className="text-sm font-medium leading-snug line-clamp-2 break-words">
                             {video.title}
                           </span>
                         </div>
