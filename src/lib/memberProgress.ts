@@ -1,6 +1,111 @@
 import { supabase } from "./supabase";
 import { getMyGymMember } from "./store";
 
+export interface AttendanceDay {
+  date: string; // YYYY-MM-DD
+  gymVisit: boolean;
+  pt: boolean;
+  classBooking: boolean;
+  session: boolean;
+}
+
+/**
+ * Attendance days for the last `weeks` weeks (ending today), for the heat strip.
+ * A day is "active" if it has a granted gym scan (not on a booking day), a PT
+ * booking, a class booking, or a logged workout session. Each day carries the
+ * kind(s) of activity so the strip can colour-code intensity.
+ */
+export const getAttendanceDays = async (
+  weeks = 12,
+): Promise<AttendanceDay[]> => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const member = await getMyGymMember();
+  const gymMemberId = member?.id ?? null;
+
+  const days: Map<string, AttendanceDay> = new Map();
+  const today = new Date();
+  const start = new Date(today.getTime() - (weeks * 7 - 1) * 86400000);
+  const startStr = start.toISOString().slice(0, 10);
+  const endStr = today.toISOString().slice(0, 10);
+
+  // Seed every day in the range so the strip shows gaps too.
+  for (let t = start.getTime(); t <= today.getTime(); t += 86400000) {
+    const d = new Date(t).toISOString().slice(0, 10);
+    days.set(d, {
+      date: d,
+      gymVisit: false,
+      pt: false,
+      classBooking: false,
+      session: false,
+    });
+  }
+
+  const isCoached = (st: string) =>
+    /semi\s*private\s*pt/i.test(String(st || ""));
+
+  // Bookings (PT + classes) by email.
+  try {
+    const email = user.email;
+    if (email) {
+      const { data: bookings } = await supabase
+        .from("member_bookings")
+        .select("session_type,session_at")
+        .ilike("email", email.toLowerCase())
+        .neq("status", "cancelled");
+      const bookingDays = new Set<string>();
+      for (const b of bookings || []) {
+        const d = (b.session_at || "").slice(0, 10);
+        if (!d || d < startStr || d > endStr) continue;
+        bookingDays.add(d);
+        const day = days.get(d);
+        if (!day) continue;
+        if (isCoached(b.session_type)) day.pt = true;
+        else day.classBooking = true;
+      }
+      // Gym scans (granted, not on a booking day).
+      if (gymMemberId) {
+        const { data: scans } = await supabase
+          .from("scan_events")
+          .select("ts,created_at,result")
+          .eq("member_ref", gymMemberId);
+        for (const s of scans || []) {
+          if (String(s.result || "").toLowerCase() !== "granted") continue;
+          const d = (s.ts || s.created_at || "").slice(0, 10);
+          if (!d || d < startStr || d > endStr) continue;
+          if (bookingDays.has(d)) continue;
+          const day = days.get(d);
+          if (day) day.gymVisit = true;
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // Logged workout sessions by user_id.
+  try {
+    const { data: history } = await supabase
+      .from("workout_history")
+      .select("date,type")
+      .eq("user_id", user.id);
+    for (const h of history || []) {
+      const d = (h.date || "").slice(0, 10);
+      if (!d || d < startStr || d > endStr) continue;
+      if (String(h.type || "").toLowerCase() === "activity") continue;
+      const day = days.get(d);
+      if (day) day.session = true;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return Array.from(days.values()).sort((a, b) => (a.date < b.date ? -1 : 1));
+};
+
 /**
  * Month-to-date + rolling-30-day detail figures for the member progress hub.
  * Runs the same queries as getProgressSummary but over two specific windows

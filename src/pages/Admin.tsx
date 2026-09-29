@@ -118,6 +118,11 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { QrCode, ArrowRightLeft, Eye } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { MembersGrid } from "@/components/MembersGrid";
+import {
+  loadRosterMembers,
+  bulkInviteNotOnApp,
+  type AdoptionStats,
+} from "@/lib/rosterMembers";
 import { SmartSwapButton } from "@/components/SmartSwapButton";
 import { VarietyBadge } from "@/components/VarietyBadge";
 import { ExerciseTagsEditor } from "@/components/ExerciseTagsEditor";
@@ -324,6 +329,7 @@ const Admin = () => {
   };
 
   const [members, setMembers] = useState<any[]>([]);
+  const [adoption, setAdoption] = useState<AdoptionStats | null>(null);
   const [selectedMember, setSelectedMember] = useState<any | null>(null);
   const [memberActivity, setMemberActivity] = useState<any[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
@@ -406,10 +412,10 @@ const Admin = () => {
 
   const loadMembers = async () => {
     try {
-      const data = await manageMembers({ action: "list", staffSecret });
-      if (data?.members) {
-        setMembers(data.members);
-      }
+      const { members: roster, adoption } =
+        await loadRosterMembers(staffSecret);
+      setMembers(roster);
+      if (adoption) setAdoption(adoption);
     } catch (e) {
       console.error("Failed to load members", e);
     }
@@ -5587,11 +5593,23 @@ const Admin = () => {
           <MembersGrid
             members={members}
             staffSecret={staffSecret}
+            adoption={adoption}
             onSetAccess={handleSetAccess}
             onViewActivity={handleViewActivity}
             onInviteMember={handleInviteFromBoard}
             onSetStaff={handleSetStaff}
             onSetOnlineClient={handleSetOnlineClient}
+            onBulkInvite={async (list) => {
+              try {
+                const res = await bulkInviteNotOnApp(staffSecret, list);
+                toast.success(
+                  `Invited ${res.invited.length} member${res.invited.length === 1 ? "" : "s"}`,
+                );
+                loadMembers();
+              } catch (e: any) {
+                toast.error(`Bulk invite failed: ${e.message}`);
+              }
+            }}
           />
         </TabsContent>
 

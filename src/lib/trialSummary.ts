@@ -89,6 +89,7 @@ export interface ProgressSummary {
   gymVisits: number;
   gymScansTotal: number;
   gymVisitDates: string[];
+  attendanceDates: string[];
 }
 
 const longestStreak = (dates: string[]): number => {
@@ -548,6 +549,7 @@ export const getProgressSummary = async (opts: {
   let gymVisits = 0;
   let gymScansTotal = 0;
   let gymVisitDates: string[] = [];
+  let attendanceDates: string[] = [];
   try {
     // Booking days = every day with a non-cancelled PT or class booking.
     const bookingDays = new Set<string>();
@@ -578,6 +580,12 @@ export const getProgressSummary = async (opts: {
       .sort();
     gymVisits = visitDays.length;
     gymVisitDates = visitDays;
+    // Attendance = all days the member was at the gym: PT/class bookings +
+    // open-gym visits (scans without a booking that day).
+    const attendanceSet = new Set<string>();
+    for (const d of bookingDays) if (inWindow(d)) attendanceSet.add(d);
+    for (const d of visitDays) attendanceSet.add(d);
+    attendanceDates = Array.from(attendanceSet).sort();
   } catch {
     // scan_events may not exist — ignore
   }
@@ -616,6 +624,7 @@ export const getProgressSummary = async (opts: {
     gymVisits,
     gymScansTotal,
     gymVisitDates,
+    attendanceDates,
   };
 };
 

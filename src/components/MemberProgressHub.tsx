@@ -29,6 +29,7 @@ import {
   type HabitRingData,
 } from "@/components/accDashboard/Habits";
 import { MemberGoalsCard } from "@/components/MemberGoalsCard";
+import { GymVisitHeatStrip } from "@/components/GymVisitHeatStrip";
 import { ETL_LOGO_ON_LIGHT } from "@/lib/branding";
 
 const fmtVol = (kg: number) => `${Math.round(kg).toLocaleString("en-GB")}kg`;
@@ -370,6 +371,9 @@ export function MemberProgressHub() {
               sub={`${detail.gymVisits30} in last 30 days`}
             />
           </div>
+          <GymVisitHeatStrip
+            visitDates={summary.attendanceDates ?? summary.gymVisitDates ?? []}
+          />
         </CardContent>
       </Card>
 

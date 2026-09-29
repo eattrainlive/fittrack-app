@@ -1,26 +1,18 @@
-import { useEffect, useState, useCallback } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Users,
   History,
   Target,
-  Archive,
   CalendarClock,
-  CalendarCheck,
   CalendarX,
-  LayoutGrid,
   KanbanSquare,
   Activity,
+  UserPlus,
+  Smartphone,
+  Mail,
+  MailCheck,
+  Loader2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { isTrialEligible } from "@/lib/trialSummary";
@@ -32,6 +24,18 @@ import { NeedsLinkingCard } from "@/components/NeedsLinkingCard";
 import { MemberActivityModal } from "@/components/MemberActivityModal";
 import { MemberEngagementBoard } from "@/components/MemberEngagementBoard";
 import { CheckInReport } from "@/components/CheckInReport";
+import { MemberCard } from "@/components/MemberCard";
+import {
+  MemberSearchFilter,
+  membershipBucket,
+  BUCKETS,
+} from "@/components/MemberSearchFilter";
+import {
+  APP_STATUS_OPTIONS,
+  computeAdoption,
+  type AppStatusFilter,
+  type AdoptionStats,
+} from "@/lib/rosterMembers";
 
 const TRIAL_LENGTH_DAYS = 30;
 
@@ -52,9 +56,6 @@ const trialWindow = (joinedOn?: string | null) => {
   return { start, end, dayCount };
 };
 
-const fmtDate = (d: Date) =>
-  d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-
 interface GymRosterRow {
   product?: string | null;
   joined_on?: string | null;
@@ -65,27 +66,28 @@ interface GymRosterRow {
 interface MembersGridProps {
   members: any[];
   staffSecret: string;
+  adoption?: AdoptionStats | null;
   onSetAccess: (memberId: string, acc: string, checked: boolean) => void;
   onViewActivity: (member: any) => void;
   onInviteMember?: (member: { name: string; email: string }) => void;
   onSetStaff?: (memberId: string, isStaff: boolean) => Promise<void>;
   onSetOnlineClient?: (memberId: string, value: boolean) => void;
   onMembershipsSynced?: () => void;
+  onBulkInvite?: (members: any[]) => Promise<void>;
 }
 
 export function MembersGrid({
   members,
   staffSecret,
+  adoption,
   onSetAccess,
   onViewActivity,
   onInviteMember,
   onSetStaff,
   onSetOnlineClient,
   onMembershipsSynced,
+  onBulkInvite,
 }: MembersGridProps) {
-  // Trial status lives on the Quoox roster (gym_members, matched by email), NOT
-  // on the members rows. Load it once when the grid mounts and gate the Trial
-  // Review button on the email-matched roster row.
   const [rosterMap, setRosterMap] = useState<Record<string, GymRosterRow>>({});
   const [reviewMap, setReviewMap] = useState<
     Record<string, { status: string; appointment_at?: string | null }>
@@ -97,8 +99,12 @@ export function MembersGrid({
   const [showEngagement, setShowEngagement] = useState(false);
   const [onlyUpcomingReviews, setOnlyUpcomingReviews] = useState(false);
   const [onlyNeedsBooking, setOnlyNeedsBooking] = useState(false);
-  // Pipeline board view ("Current Trialists") vs the normal member grid.
   const [pipelineMode, setPipelineMode] = useState(false);
+  const [query, setQuery] = useState("");
+  const [membershipFilter, setMembershipFilter] = useState("all");
+  const [appStatusFilter, setAppStatusFilter] =
+    useState<AppStatusFilter>("all");
+  const [bulkInviting, setBulkInviting] = useState(false);
 
   const loadRoster = useCallback(async () => {
     try {
@@ -123,7 +129,7 @@ export function MembersGrid({
       }
       setRosterMap(map);
     } catch {
-      // gym_members may not exist / not readable — soft-fail (no trial data)
+      // gym_members may not exist / not readable — soft-fail
     }
   }, []);
 
@@ -137,8 +143,6 @@ export function MembersGrid({
     };
   }, [loadRoster]);
 
-  // Load the review-call booking status map (email -> status/appointment).
-  // Mirrored from the external calendar via the webhook; readable by staff.
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -165,7 +169,7 @@ export function MembersGrid({
         }
         if (mounted) setReviewMap(map);
       } catch {
-        // review_bookings may not exist / not readable — soft-fail
+        // review_bookings may not exist — soft-fail
       }
     })();
     return () => {
@@ -173,48 +177,24 @@ export function MembersGrid({
     };
   }, []);
 
-  const handleViewActivity = (member: any) => {
-    setActivityMember(member);
-    setActivityOpen(true);
-  };
-
-  const openTrialReview = (member: any) => {
-    const gr =
-      rosterMap[
-        String(member.email || "")
-          .toLowerCase()
-          .trim()
-      ];
-    setTrialReviewMember({
-      ...member,
-      product: member.product ?? gr?.product ?? null,
-      joined_on: member.joined_on ?? gr?.joined_on ?? null,
-    });
-    setTrialReviewOpen(true);
-  };
-
-  // Review window = the final stretch of the trial (day 21 onward). This is
-  // when nurture starts pushing the review call, so "Needs booking" only
-  // surfaces here — before day 21 it's too early to chase.
-  const REVIEW_WINDOW_DAY = 21;
-  const inReviewWindow = (joinedOn?: string | null) => {
-    const tw = trialWindow(joinedOn);
-    if (!tw) return false;
-    if (Date.now() >= tw.end.getTime()) return false; // trial already ended
-    return tw.dayCount >= REVIEW_WINDOW_DAY;
-  };
-
   const emailKey = (email?: string | null) =>
     String(email || "")
       .toLowerCase()
       .trim();
 
-  // Review-call booking status mirrored from the calendar webhook (by email).
   const reviewInfoFor = (email?: string | null) => reviewMap[emailKey(email)];
 
   const isReviewBooked = (email?: string | null) => {
     const rb = reviewInfoFor(email);
     return !!rb && (rb.status === "booked" || rb.status === "completed");
+  };
+
+  const REVIEW_WINDOW_DAY = 21;
+  const inReviewWindow = (joinedOn?: string | null) => {
+    const tw = trialWindow(joinedOn);
+    if (!tw) return false;
+    if (Date.now() >= tw.end.getTime()) return false;
+    return tw.dayCount >= REVIEW_WINDOW_DAY;
   };
 
   const isTrialistFor = (member: any) => {
@@ -229,16 +209,80 @@ export function MembersGrid({
     );
   };
 
+  const q = query.trim().toLowerCase();
   const visibleMembers = members.filter((member) => {
-    if (!onlyUpcomingReviews && !onlyNeedsBooking) return true;
-    if (!isTrialistFor(member)) return false;
-    const gr = rosterMap[emailKey(member.email)];
-    // "Upcoming reviews" surfaces trialists in the review window (day ≥ 21).
-    if (!inReviewWindow(gr?.joined_on)) return false;
-    // "Needs booking only" further excludes anyone who's already booked.
-    if (onlyNeedsBooking && isReviewBooked(member.email)) return false;
+    if (onlyUpcomingReviews || onlyNeedsBooking) {
+      if (!isTrialistFor(member)) return false;
+      const gr = rosterMap[emailKey(member.email)];
+      if (!inReviewWindow(gr?.joined_on)) return false;
+      if (onlyNeedsBooking && isReviewBooked(member.email)) return false;
+    }
+    if (q) {
+      const hay =
+        `${member.full_name || ""} ${member.email || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (membershipFilter !== "all") {
+      const mm = membershipBucket(
+        member.membership || member.product || member.membership_type,
+      );
+      if (mm !== membershipFilter) return false;
+    }
+    if (appStatusFilter !== "all") {
+      if (appStatusFilter === "onApp" && !member.onApp) return false;
+      if (appStatusFilter === "invitedPending" && !member.invitedPending)
+        return false;
+      if (appStatusFilter === "notInvited" && !member.notInvited) return false;
+    }
     return true;
   });
+
+  const presentBuckets = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of members)
+      set.add(membershipBucket(m.membership || m.product || m.membership_type));
+    return BUCKETS.filter((b) => set.has(b));
+  }, [members]);
+
+  const hasFilters =
+    q !== "" || membershipFilter !== "all" || appStatusFilter !== "all";
+
+  const stats = adoption ?? computeAdoption(members);
+
+  const notOnAppMembers = useMemo(
+    () => members.filter((m) => !m.onApp && m.email),
+    [members],
+  );
+
+  const handleBulkInvite = async () => {
+    if (!onBulkInvite) return;
+    setBulkInviting(true);
+    try {
+      await onBulkInvite(notOnAppMembers);
+    } finally {
+      setBulkInviting(false);
+    }
+  };
+
+  const openTrialReview = (member: any) => {
+    const gr = rosterMap[emailKey(member.email)];
+    setTrialReviewMember({
+      ...member,
+      product: member.product ?? gr?.product ?? null,
+      joined_on: member.joined_on ?? gr?.joined_on ?? null,
+    });
+    setTrialReviewOpen(true);
+  };
+
+  const handleViewActivity = (member: any) => {
+    const gr = rosterMap[emailKey(member.email)];
+    setActivityMember({
+      ...member,
+      product: member.product ?? gr?.product ?? null,
+      joined_on: member.joined_on ?? gr?.joined_on ?? null,
+    });
+    setActivityOpen(true);
+  };
 
   return (
     <>
@@ -310,6 +354,22 @@ export function MembersGrid({
           </span>
         )}
       </div>
+      {!pipelineMode && !showEngagement && (
+        <MemberSearchFilter
+          query={query}
+          setQuery={setQuery}
+          membershipFilter={membershipFilter}
+          setMembershipFilter={setMembershipFilter}
+          presentBuckets={presentBuckets}
+          visibleCount={visibleMembers.length}
+          totalCount={members.length}
+          appStatusFilter={appStatusFilter}
+          setAppStatusFilter={setAppStatusFilter}
+          adoption={stats}
+          onBulkInvite={onBulkInvite ? handleBulkInvite : undefined}
+          bulkInviting={bulkInviting}
+        />
+      )}
       {showEngagement && (
         <MemberEngagementBoard
           staffSecret={staffSecret}
@@ -349,252 +409,28 @@ export function MembersGrid({
           {visibleMembers.map((member) => {
             const gr = rosterMap[emailKey(member.email)];
             const isTrialist = isTrialistFor(member);
-            const tw = trialWindow(gr?.joined_on);
-            // Active = trialist AND within the 30-day window (or no join date to
-            // tell, so keep the button). Past = trialist whose window has ended.
-            const trialEnded = tw ? Date.now() >= tw.end.getTime() : false;
-            const isActiveTrial = isTrialist && !trialEnded;
-            const isPastTrial = isTrialist && trialEnded;
             const rb = reviewInfoFor(member.email);
             const reviewBooked =
               !!rb && (rb.status === "booked" || rb.status === "completed");
-            // "Needs booking" only surfaces in the review window (day ≥ 21). A
-            // booked review badge shows any time — a booked review is always good.
             const showNeedsBooking =
               !reviewBooked && inReviewWindow(gr?.joined_on);
             return (
-              <Card
+              <MemberCard
                 key={member.id}
-                className="bg-card border-border flex flex-col"
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold">
-                      {member.full_name?.charAt(0).toUpperCase() || "U"}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <CardTitle className="text-lg">
-                        {member.full_name}
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                        {member.email}
-                      </CardDescription>
-                    </div>
-                    {tw && isActiveTrial && (
-                      <Badge
-                        variant="secondary"
-                        className="shrink-0 gap-1 bg-primary/10 text-primary border border-primary/20 text-[11px] font-semibold"
-                        title={`Trial ends ${fmtDate(tw.end)}`}
-                      >
-                        <Target className="h-3 w-3" />
-                        Day {tw.dayCount} of 30
-                      </Badge>
-                    )}
-                    {tw && isPastTrial && (
-                      <Badge
-                        variant="secondary"
-                        className="shrink-0 gap-1 bg-muted text-muted-foreground border border-border text-[11px] font-semibold"
-                        title={`Trial ended ${fmtDate(tw.end)}`}
-                      >
-                        <Archive className="h-3 w-3" />
-                        Past trial
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="pl-[52px] -mt-1 flex flex-wrap gap-1">
-                    {member.online_client && (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full border font-semibold bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30">
-                        Online client
-                      </span>
-                    )}
-                    {member.membership ? (
-                      <span
-                        className={`text-[11px] px-2 py-0.5 rounded-full border font-semibold ${
-                          /trial/i.test(member.membership)
-                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
-                            : /pt/i.test(member.membership)
-                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-                              : "bg-muted text-muted-foreground border-border"
-                        }`}
-                      >
-                        {member.membership}
-                        {member.membership_status &&
-                        member.membership_status !== "active"
-                          ? ` · ${member.membership_status}`
-                          : ""}
-                      </span>
-                    ) : (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted/50 text-muted-foreground border border-border/50">
-                        No membership on file
-                      </span>
-                    )}
-                  </div>
-                  {tw && isActiveTrial && (
-                    <p className="text-[11px] text-muted-foreground pl-[52px] -mt-1">
-                      Trial ends {fmtDate(tw.end)}
-                    </p>
-                  )}
-                  {tw && isPastTrial && (
-                    <p className="text-[11px] text-muted-foreground pl-[52px] -mt-1">
-                      Trial ended {fmtDate(tw.end)}
-                    </p>
-                  )}
-                  {isTrialist && (reviewBooked || showNeedsBooking) && (
-                    <div className="pl-[52px] -mt-1">
-                      {reviewBooked ? (
-                        <Badge
-                          variant="secondary"
-                          className="gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold"
-                          title={
-                            rb?.appointment_at
-                              ? `Review booked · ${new Date(
-                                  rb.appointment_at,
-                                ).toLocaleString("en-GB", {
-                                  day: "numeric",
-                                  month: "short",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}`
-                              : "Review booked"
-                          }
-                        >
-                          <CalendarCheck className="h-3 w-3" />
-                          Review booked
-                          {rb?.appointment_at
-                            ? ` · ${fmtDate(new Date(rb.appointment_at))}`
-                            : ""}
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="secondary"
-                          className="gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[11px] font-semibold"
-                          title="No review call booked yet — in the review window"
-                        >
-                          <CalendarX className="h-3 w-3" />
-                          Needs booking
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-                </CardHeader>
-                <CardContent className="flex-1 flex flex-col gap-4">
-                  <div className="space-y-2 flex-1">
-                    <Label className="text-xs text-muted-foreground">
-                      Access
-                    </Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        "Foundations",
-                        "Stronger",
-                        "Fusion",
-                        "Performance",
-                        "Group PT",
-                      ].map((acc) => {
-                        const hasAccess = (
-                          member.allowed_access || []
-                        ).includes(acc);
-                        return (
-                          <div
-                            key={acc}
-                            className="flex items-center space-x-2"
-                          >
-                            <Checkbox
-                              id={`mem-${member.id}-${acc}`}
-                              checked={hasAccess}
-                              onCheckedChange={(c) =>
-                                onSetAccess(member.id, acc, !!c)
-                              }
-                            />
-                            <Label
-                              htmlFor={`mem-${member.id}-${acc}`}
-                              className="text-xs"
-                            >
-                              {acc}
-                            </Label>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  {onSetStaff && (
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`mem-${member.id}-staff`}
-                        checked={!!member.is_staff}
-                        onCheckedChange={async (c) => {
-                          const checked = !!c;
-                          if (
-                            checked &&
-                            !confirm(
-                              `Give ${member.full_name} staff access to member data?`,
-                            )
-                          )
-                            return;
-                          await onSetStaff(member.id, checked);
-                        }}
-                      />
-                      <Label
-                        htmlFor={`mem-${member.id}-staff`}
-                        className="text-xs font-semibold"
-                      >
-                        Staff
-                      </Label>
-                    </div>
-                  )}
-                  {onSetOnlineClient && (
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`mem-${member.id}-online`}
-                        checked={!!member.online_client}
-                        onCheckedChange={(c) =>
-                          onSetOnlineClient(member.id, !!c)
-                        }
-                      />
-                      <Label
-                        htmlFor={`mem-${member.id}-online`}
-                        className="text-xs font-semibold"
-                      >
-                        Online client
-                      </Label>
-                    </div>
-                  )}
-                  <div className="flex flex-col gap-2 mt-auto">
-                    {isActiveTrial && (
-                      <Button
-                        variant="default"
-                        className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
-                        onClick={() => openTrialReview(member)}
-                      >
-                        <Target className="h-4 w-4" /> Trial Review
-                      </Button>
-                    )}
-                    {isPastTrial && (
-                      <Button
-                        variant="outline"
-                        className="w-full gap-2"
-                        onClick={() => openTrialReview(member)}
-                      >
-                        <Archive className="h-4 w-4" /> View Past Trial
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      className="w-full gap-2"
-                      onClick={() => {
-                        const gr = rosterMap[emailKey(member.email)];
-                        setActivityMember({
-                          ...member,
-                          product: member.product ?? gr?.product ?? null,
-                          joined_on: member.joined_on ?? gr?.joined_on ?? null,
-                        });
-                        setActivityOpen(true);
-                      }}
-                    >
-                      <History className="h-4 w-4" /> View Activity
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                member={member}
+                rosterProduct={gr?.product}
+                rosterJoinedOn={gr?.joined_on}
+                isTrialist={isTrialist}
+                reviewBooked={reviewBooked}
+                showNeedsBooking={showNeedsBooking}
+                reviewAppointmentAt={rb?.appointment_at}
+                onSetAccess={onSetAccess}
+                onSetStaff={onSetStaff}
+                onSetOnlineClient={onSetOnlineClient}
+                onInviteMember={onInviteMember}
+                onOpenTrialReview={openTrialReview}
+                onViewActivity={handleViewActivity}
+              />
             );
           })}
           {visibleMembers.length === 0 && (
@@ -605,7 +441,9 @@ export function MembersGrid({
                   ? "No trialists needing a booking right now — all caught up."
                   : onlyUpcomingReviews
                     ? "No trialists in the review window yet (day 21+ of their trial)."
-                    : "No members found yet. Members will appear here once they log in."}
+                    : hasFilters
+                      ? "No members match your search."
+                      : "No members found yet. Members will appear here once they log in."}
               </p>
             </div>
           )}
