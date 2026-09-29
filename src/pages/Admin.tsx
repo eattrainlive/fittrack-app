@@ -333,18 +333,12 @@ const Admin = () => {
   const [selectedMember, setSelectedMember] = useState<any | null>(null);
   const [memberActivity, setMemberActivity] = useState<any[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
-  // Standard 30-day trial access — pre-ticked when inviting from the Current
-  // Trialists board. Single constant so it's easy to change later.
-  const TRIAL_INVITE_ACCESS = ["Foundations", "Stronger", "Group PT"];
+  // Access is derived from the member's membership on the server at invite
+  // time — the form no longer sends an explicit `allowed` set (which used to
+  // override the membership rule). Coaches can fine-tune streams later from
+  // the member's card, which sets the manual override.
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteAllowed, setInviteAllowed] = useState<string[]>([
-    "Foundations",
-    "Stronger",
-    "Fusion",
-    "Performance",
-    "Group PT",
-  ]);
   const [isInviting, setIsInviting] = useState(false);
   const [isBulkInviting, setIsBulkInviting] = useState(false);
   const inviteCardRef = useRef<HTMLDivElement>(null);
@@ -354,7 +348,6 @@ const Admin = () => {
   const handleInviteFromBoard = (m: { name: string; email: string }) => {
     setInviteName(m.name);
     setInviteEmail(m.email);
-    setInviteAllowed(TRIAL_INVITE_ACCESS);
     setActiveTab("members");
     setTimeout(() => {
       inviteCardRef.current?.scrollIntoView({
@@ -567,10 +560,16 @@ const Admin = () => {
   };
 
   const handleSetStaff = async (memberId: string, isStaff: boolean) => {
-    const member = members.find((m) => m.id === memberId);
+    const member = members.find(
+      (m) => m.id === memberId || m.user_id === memberId,
+    );
     // Optimistic update
     setMembers(
-      members.map((m) => (m.id === memberId ? { ...m, is_staff: isStaff } : m)),
+      members.map((m) =>
+        m.id === memberId || m.user_id === memberId
+          ? { ...m, is_staff: isStaff }
+          : m,
+      ),
     );
     try {
       await manageMembers({
@@ -591,7 +590,9 @@ const Admin = () => {
   const handleSetOnlineClient = async (memberId: string, value: boolean) => {
     setMembers(
       members.map((m: any) =>
-        m.id === memberId ? { ...m, online_client: value } : m,
+        m.id === memberId || m.user_id === memberId
+          ? { ...m, online_client: value }
+          : m,
       ),
     );
     try {
@@ -616,7 +617,9 @@ const Admin = () => {
     acc: string,
     checked: boolean,
   ) => {
-    const member = members.find((m) => m.id === memberId);
+    const member = members.find(
+      (m) => m.id === memberId || m.user_id === memberId,
+    );
     if (!member) return;
 
     const allowed = member.allowed_access || [];
@@ -627,7 +630,9 @@ const Admin = () => {
     // Optimistic update
     setMembers(
       members.map((m) =>
-        m.id === memberId ? { ...m, allowed_access: nextAllowedArray } : m,
+        m.id === memberId || m.user_id === memberId
+          ? { ...m, allowed_access: nextAllowedArray, access_override: true }
+          : m,
       ),
     );
 
@@ -652,11 +657,12 @@ const Admin = () => {
     if (!inviteName || !inviteEmail) return;
     setIsInviting(true);
     try {
+      // No `allowed` field — the server derives the member's streams from
+      // their membership so the invite never overrides the membership rule.
       await manageMembers({
         action: "invite",
         name: inviteName,
         email: inviteEmail,
-        allowed: inviteAllowed,
         staffSecret,
       });
       toast.success("Member invited");
@@ -5526,33 +5532,10 @@ const Admin = () => {
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Allowed Access</Label>
-                  <div className="flex flex-wrap gap-4">
-                    {[
-                      "Foundations",
-                      "Stronger",
-                      "Fusion",
-                      "Performance",
-                      "Group PT",
-                    ].map((acc) => (
-                      <div key={acc} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`inv-${acc}`}
-                          checked={inviteAllowed.includes(acc)}
-                          onCheckedChange={(c) => {
-                            if (c) setInviteAllowed([...inviteAllowed, acc]);
-                            else
-                              setInviteAllowed(
-                                inviteAllowed.filter((a) => a !== acc),
-                              );
-                          }}
-                        />
-                        <Label htmlFor={`inv-${acc}`}>{acc}</Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  Access is set automatically from the member's membership. You
+                  can fine-tune their streams later from their card.
+                </p>
                 <Button
                   onClick={handleInvite}
                   disabled={isInviting || !inviteName || !inviteEmail}

@@ -109,6 +109,7 @@ export function MembersGrid({
   const [membershipFilter, setMembershipFilter] = useState("all");
   const [appStatusFilter, setAppStatusFilter] =
     useState<AppStatusFilter>("all");
+  const [staffOnly, setStaffOnly] = useState(false);
   const [bulkInviting, setBulkInviting] = useState(false);
 
   const loadRoster = useCallback(async () => {
@@ -239,6 +240,7 @@ export function MembersGrid({
         return false;
       if (appStatusFilter === "notInvited" && !member.notInvited) return false;
     }
+    if (staffOnly && !member.is_staff) return false;
     return true;
   });
 
@@ -250,7 +252,10 @@ export function MembersGrid({
   }, [membersState]);
 
   const hasFilters =
-    q !== "" || membershipFilter !== "all" || appStatusFilter !== "all";
+    q !== "" ||
+    membershipFilter !== "all" ||
+    appStatusFilter !== "all" ||
+    staffOnly;
 
   const stats = adoption ?? computeAdoption(membersState);
 
@@ -396,6 +401,8 @@ export function MembersGrid({
           totalCount={membersState.length}
           appStatusFilter={appStatusFilter}
           setAppStatusFilter={setAppStatusFilter}
+          staffOnly={staffOnly}
+          setStaffOnly={setStaffOnly}
           adoption={stats}
           onBulkInvite={onBulkInvite ? handleBulkInvite : undefined}
           bulkInviting={bulkInviting}

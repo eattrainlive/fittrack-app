@@ -32,6 +32,8 @@ interface Props {
   totalCount: number;
   appStatusFilter: AppStatusFilter;
   setAppStatusFilter: (v: AppStatusFilter) => void;
+  staffOnly: boolean;
+  setStaffOnly: (v: boolean) => void;
   adoption?: AdoptionStats | null;
   onBulkInvite?: () => void;
   bulkInviting?: boolean;
@@ -47,12 +49,17 @@ export function MemberSearchFilter({
   totalCount,
   appStatusFilter,
   setAppStatusFilter,
+  staffOnly,
+  setStaffOnly,
   adoption,
   onBulkInvite,
   bulkInviting,
 }: Props) {
   const hasFilters =
-    query !== "" || membershipFilter !== "all" || appStatusFilter !== "all";
+    query !== "" ||
+    membershipFilter !== "all" ||
+    appStatusFilter !== "all" ||
+    staffOnly;
   const notOnAppCount = adoption
     ? (adoption.invited ?? 0) + (adoption.notInvited ?? 0)
     : 0;
@@ -107,6 +114,15 @@ export function MemberSearchFilter({
           <SelectItem value="notInvited">Not on app</SelectItem>
         </SelectContent>
       </Select>
+      <Button
+        type="button"
+        size="sm"
+        variant={staffOnly ? "default" : "outline"}
+        className="gap-1.5"
+        onClick={() => setStaffOnly(!staffOnly)}
+      >
+        Staff only
+      </Button>
       <div className="flex items-center gap-2 ml-auto">
         {adoption && (
           <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
@@ -137,6 +153,7 @@ export function MemberSearchFilter({
               setQuery("");
               setMembershipFilter("all");
               setAppStatusFilter("all");
+              setStaffOnly(false);
             }}
           >
             <X className="h-3.5 w-3.5" /> Clear

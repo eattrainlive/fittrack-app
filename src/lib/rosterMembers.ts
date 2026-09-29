@@ -48,9 +48,10 @@ export const computeAdoption = (members: any[]): AdoptionStats => {
  */
 export const accessForProduct = (product?: string | null): string[] => {
   const s = (product || "").toLowerCase();
-  if (/trial/.test(s)) return ["Foundations", "Stronger", "Group PT"];
+  if (/trial/.test(s))
+    return ["Foundations", "Stronger", "Fusion", "Performance"];
   if (/\bpt\b|pt-|semi[\s-]?private/.test(s)) {
-    return ["Stronger", "Performance", "Group PT"];
+    return ["Foundations", "Stronger", "Fusion", "Performance", "Group PT"];
   }
   if (/team\s*training|classes?/.test(s)) {
     return ["Group PT", "Stronger"];

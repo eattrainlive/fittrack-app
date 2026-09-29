@@ -103,11 +103,18 @@ export function MemberCard({
     }
   };
 
+  // The app-account id (members.id) used by setAccess / clearAccessOverride /
+  // setStaff / setOnlineClient — NOT the gym_members roster id. Null when the
+  // member hasn't signed up yet, so controls are disabled for them.
+  const accountId =
+    member.user_id ?? (!member.gym_member_id ? member.id : null);
+  const canManage = !!accountId;
+
   const handleRevert = async () => {
-    if (!onClearAccessOverride) return;
+    if (!onClearAccessOverride || !canManage) return;
     setReverting(true);
     try {
-      await onClearAccessOverride(member.id);
+      await onClearAccessOverride(accountId);
     } finally {
       setReverting(false);
     }
@@ -293,11 +300,14 @@ export function MemberCard({
                   <Checkbox
                     id={`mem-${member.id}-${acc}`}
                     checked={hasAccess}
-                    onCheckedChange={(c) => onSetAccess(member.id, acc, !!c)}
+                    disabled={!canManage}
+                    onCheckedChange={(c) =>
+                      canManage && onSetAccess(accountId, acc, !!c)
+                    }
                   />
                   <Label
                     htmlFor={`mem-${member.id}-${acc}`}
-                    className="text-xs"
+                    className={`text-xs ${!canManage ? "opacity-50" : ""}`}
                   >
                     {acc}
                   </Label>
@@ -305,6 +315,11 @@ export function MemberCard({
               );
             })}
           </div>
+          {!canManage && (
+            <p className="text-[11px] text-muted-foreground">
+              Invite this member to manage their app access.
+            </p>
+          )}
           {accessOverride && onClearAccessOverride && (
             <Button
               variant="outline"
@@ -322,7 +337,7 @@ export function MemberCard({
             </Button>
           )}
         </div>
-        {onSetStaff && (
+        {onSetStaff && canManage && (
           <div className="flex items-center space-x-2">
             <Checkbox
               id={`mem-${member.id}-staff`}
@@ -336,7 +351,7 @@ export function MemberCard({
                   )
                 )
                   return;
-                await onSetStaff(member.id, checked);
+                await onSetStaff(accountId, checked);
               }}
             />
             <Label
@@ -347,12 +362,12 @@ export function MemberCard({
             </Label>
           </div>
         )}
-        {onSetOnlineClient && (
+        {onSetOnlineClient && canManage && (
           <div className="flex items-center space-x-2">
             <Checkbox
               id={`mem-${member.id}-online`}
               checked={!!member.online_client}
-              onCheckedChange={(c) => onSetOnlineClient(member.id, !!c)}
+              onCheckedChange={(c) => onSetOnlineClient(accountId, !!c)}
             />
             <Label
               htmlFor={`mem-${member.id}-online`}
