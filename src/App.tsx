@@ -32,6 +32,7 @@ import { useEffect, useState } from "react";
 import { syncFromSupabase, syncProfile } from "./lib/store";
 import { supabase } from "./lib/supabase";
 import { onUserSignIn, onUserSignOut } from "./lib/userCache";
+import { markOnboarded } from "./lib/onboarding";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocation, useNavigationType } from "react-router-dom";
 
@@ -182,6 +183,11 @@ const AppContent = () => {
         onUserSignIn(session.user.id);
         syncFromSupabase();
         syncProfile();
+
+        // Self-heal: on any successful sign-in, if the member's onboarded_at
+        // is still null, stamp it now. This backfills people who set up before
+        // the onboarded_at tracking shipped.
+        markOnboarded();
       } else if (event === "SIGNED_OUT") {
         onUserSignOut();
         localStorage.removeItem("fittrack_current_uid");

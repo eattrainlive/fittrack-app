@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { InstallAuthTip } from "@/components/InstallPromptBanner";
 import { ETL_LOGO_ON_LIGHT } from "@/lib/branding";
 import { PoweredByETL } from "@/components/PoweredByETL";
+import { markOnboarded } from "@/lib/onboarding";
 
 const MIN_PASSWORD = 8;
 
@@ -57,6 +58,9 @@ const Auth = () => {
         variant: "destructive",
       });
     } else {
+      // Self-heal: a successful password sign-in means the member has truly
+      // completed setup — stamp onboarded_at so the Staff Hub shows "On app".
+      markOnboarded();
       toast({ title: "Success", description: "Logged in successfully!" });
       navigate(searchParams.get("redirect") || "/");
     }
@@ -95,7 +99,9 @@ const Auth = () => {
     }
 
     if (data.session) {
-      // Email confirmation is off → account is live and signed in. Go straight in.
+      // Email confirmation is off → account is live and signed in (password
+      // was set on signup). Stamp onboarded_at so they count as "On app".
+      markOnboarded();
       toast({
         title: "You're all set!",
         description: `Welcome, ${name || "let's train"} 💪`,

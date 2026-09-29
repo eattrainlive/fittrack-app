@@ -6,6 +6,7 @@ import { Loader2, Lock, ChevronLeft, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import { markOnboarded } from "@/lib/onboarding";
 
 const MIN_PASSWORD = 8;
 
@@ -49,6 +50,9 @@ const ResetPassword = () => {
         title: "Password updated",
         description: "You can now log in with your new password.",
       });
+      // Setting the password completes setup — stamp onboarded_at before
+      // signing out the recovery session so the member counts as "On app".
+      markOnboarded();
       // Sign out the recovery session so they log in fresh.
       await supabase.auth.signOut();
       navigate("/auth");
