@@ -620,52 +620,38 @@ export default function CheckInKiosk() {
             )}
           </div>
         ) : (
-          <div className="w-64 h-64 border-4 border-dashed border-primary/30 rounded-3xl flex items-center justify-center">
-            <QRCodeSVG
-              value="ready"
-              size={120}
-              bgColor="transparent"
-              fgColor="hsl(var(--muted-foreground))"
-              level="L"
-              className="opacity-30"
-            />
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-72 h-72 rounded-3xl border-4 border-primary/30 bg-card flex items-center justify-center p-5">
+              <QRCodeSVG
+                value={window.location.origin}
+                size={220}
+                bgColor="transparent"
+                fgColor="hsl(var(--foreground))"
+                level="M"
+              />
+            </div>
+            <p className="font-heading text-lg uppercase tracking-wider text-foreground">
+              New here?
+            </p>
+            <p className="text-sm text-muted-foreground -mt-2">
+              Scan to get the app
+            </p>
           </div>
         )}
       </div>
 
-      {/* Bottom: manual button + get-app QR + recent check-ins */}
+      {/* Bottom: manual button + recent check-ins */}
       <div className="w-full max-w-md space-y-4 pb-4">
-        <div className="flex items-stretch gap-3">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setMode("manual");
-            }}
-            className="flex-1 bg-card border border-border rounded-xl py-4 font-bold text-foreground flex items-center justify-center gap-2 active:scale-[0.99] transition"
-          >
-            <Search className="h-5 w-5" />
-            Check in manually
-          </button>
-
-          {/* Get-the-app QR — lets a visitor scan to install the PWA */}
-          <div className="bg-card border border-border rounded-xl p-3 flex items-center gap-3 shrink-0">
-            <QRCodeSVG
-              value={window.location.origin}
-              size={56}
-              bgColor="transparent"
-              fgColor="hsl(var(--foreground))"
-              level="M"
-            />
-            <div className="pr-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-primary leading-tight">
-                Get the app
-              </p>
-              <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
-                Scan to install
-              </p>
-            </div>
-          </div>
-        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setMode("manual");
+          }}
+          className="w-full bg-card border border-border rounded-xl py-4 font-bold text-foreground flex items-center justify-center gap-2 active:scale-[0.99] transition"
+        >
+          <Search className="h-5 w-5" />
+          Check in manually
+        </button>
 
         {recent.length > 0 && <RecentCheckIns recent={recent} />}
       </div>

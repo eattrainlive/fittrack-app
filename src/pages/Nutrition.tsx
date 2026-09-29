@@ -23,6 +23,7 @@ import {
   RefreshCw,
   AlertTriangle,
   Play,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,6 +68,8 @@ import {
 } from "@/components/ui/dialog";
 import { getEmbedUrl } from "@/lib/utils";
 import { ResourcesSection } from "@/components/ResourcesSection";
+import { StaffGuides } from "@/components/StaffGuides";
+import { StaffGuidesTile } from "@/components/StaffGuidesTile";
 import { AccountabilityCard } from "@/components/AccountabilityCard";
 import { CoachWhatsAppButton } from "@/components/CoachWhatsAppButton";
 import { ScheduleCard } from "@/components/ScheduleCard";
@@ -896,6 +899,9 @@ export default function Nutrition() {
             );
           })}
         </div>
+        {localStorage.getItem("fittrack_is_staff") === "true" && (
+          <StaffGuidesTile onOpen={() => setNutSection("staff_guides")} />
+        )}
         <input
           type="file"
           ref={photoInputRef}
@@ -992,13 +998,15 @@ export default function Nutrition() {
           blurb="Recipe books and ideas from your coach."
         />
       ) : nutSection === "meal_plans" ? (
-        <MealPlansPage />
+        <ComingSoon title="Meal Plans" />
       ) : nutSection === "education" ? (
         <ResourcesSection
           page="nutrition_education"
           heading="Education"
           blurb="Nutrition videos and guides."
         />
+      ) : nutSection === "staff_guides" ? (
+        <StaffGuides />
       ) : (
         <ComingSoon title={currentTile?.name || "Section"} />
       )}
@@ -2352,48 +2360,6 @@ function SeasonReviewFlow({
 }
 
 // ── Meal Plans (Ready-Made + Build Your Own) ────────────────────────────────
-
-function MealPlansPage() {
-  const [tab, setTab] = useState<"plans" | "build">("plans");
-  const [target, setTarget] = useState<number | null>(null);
-
-  useEffect(() => {
-    const m = getMemberMacros();
-    setTarget(m?.calorie_target ?? null);
-  }, []);
-
-  return (
-    <div className="space-y-6">
-      <div className="flex bg-muted rounded-lg p-1">
-        <button
-          onClick={() => setTab("plans")}
-          className={`flex-1 text-sm font-bold py-2 rounded-md transition-all ${tab === "plans" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
-        >
-          Ready-Made Plans
-        </button>
-        <button
-          onClick={() => setTab("build")}
-          className={`flex-1 text-sm font-bold py-2 rounded-md transition-all flex items-center justify-center gap-2 ${tab === "build" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
-        >
-          Build Your Own
-          <span className="text-[10px] font-bold uppercase tracking-wide bg-primary text-primary-foreground rounded-full px-2 py-0.5">
-            Soon
-          </span>
-        </button>
-      </div>
-
-      {tab === "plans" ? (
-        <ResourcesSection
-          page="meal_plans"
-          heading="Ready-Made Plans"
-          blurb="Full plans you can follow as-is."
-        />
-      ) : (
-        <ComingSoon title="Build Your Own — Coming Soon" />
-      )}
-    </div>
-  );
-}
 
 function DialogTrigger({
   label,
