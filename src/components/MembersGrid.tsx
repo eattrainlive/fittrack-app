@@ -36,6 +36,7 @@ import {
   type AppStatusFilter,
   type AdoptionStats,
 } from "@/lib/rosterMembers";
+import { clearMemberAccessOverride } from "@/lib/memberAccessActions";
 
 const TRIAL_LENGTH_DAYS = 30;
 
@@ -74,6 +75,7 @@ interface MembersGridProps {
   onSetOnlineClient?: (memberId: string, value: boolean) => void;
   onMembershipsSynced?: () => void;
   onBulkInvite?: (members: any[]) => Promise<void>;
+  onClearAccessOverride?: (memberId: string) => Promise<void>;
 }
 
 export function MembersGrid({
@@ -87,7 +89,10 @@ export function MembersGrid({
   onSetOnlineClient,
   onMembershipsSynced,
   onBulkInvite,
+  onClearAccessOverride,
 }: MembersGridProps) {
+  const [membersState, setMembersState] = useState<any[]>(members);
+  useEffect(() => setMembersState(members), [members]);
   const [rosterMap, setRosterMap] = useState<Record<string, GymRosterRow>>({});
   const [reviewMap, setReviewMap] = useState<
     Record<string, { status: string; appointment_at?: string | null }>
@@ -210,7 +215,7 @@ export function MembersGrid({
   };
 
   const q = query.trim().toLowerCase();
-  const visibleMembers = members.filter((member) => {
+  const visibleMembers = membersState.filter((member) => {
     if (onlyUpcomingReviews || onlyNeedsBooking) {
       if (!isTrialistFor(member)) return false;
       const gr = rosterMap[emailKey(member.email)];
@@ -239,19 +244,19 @@ export function MembersGrid({
 
   const presentBuckets = useMemo(() => {
     const set = new Set<string>();
-    for (const m of members)
+    for (const m of membersState)
       set.add(membershipBucket(m.membership || m.product || m.membership_type));
     return BUCKETS.filter((b) => set.has(b));
-  }, [members]);
+  }, [membersState]);
 
   const hasFilters =
     q !== "" || membershipFilter !== "all" || appStatusFilter !== "all";
 
-  const stats = adoption ?? computeAdoption(members);
+  const stats = adoption ?? computeAdoption(membersState);
 
   const notOnAppMembers = useMemo(
-    () => members.filter((m) => !m.onApp && m.email),
-    [members],
+    () => membersState.filter((m) => !m.onApp && m.email),
+    [membersState],
   );
 
   const handleBulkInvite = async () => {
@@ -261,6 +266,32 @@ export function MembersGrid({
       await onBulkInvite(notOnAppMembers);
     } finally {
       setBulkInviting(false);
+    }
+  };
+
+  const handleClearOverride = async (memberId: string) => {
+    if (
+      !confirm(
+        "Reset this member's access to match their membership? Any manual changes will be replaced.",
+      )
+    )
+      return;
+    try {
+      const res = await clearMemberAccessOverride(staffSecret, memberId);
+      const granted = res?.allowed_access ?? null;
+      setMembersState((prev) =>
+        prev.map((m) =>
+          m.id === memberId
+            ? {
+                ...m,
+                access_override: false,
+                ...(granted ? { allowed_access: granted } : {}),
+              }
+            : m,
+        ),
+      );
+    } catch {
+      // soft-fail; parent reload can recover
     }
   };
 
@@ -362,7 +393,7 @@ export function MembersGrid({
           setMembershipFilter={setMembershipFilter}
           presentBuckets={presentBuckets}
           visibleCount={visibleMembers.length}
-          totalCount={members.length}
+          totalCount={membersState.length}
           appStatusFilter={appStatusFilter}
           setAppStatusFilter={setAppStatusFilter}
           adoption={stats}
@@ -430,6 +461,7 @@ export function MembersGrid({
                 onInviteMember={onInviteMember}
                 onOpenTrialReview={openTrialReview}
                 onViewActivity={handleViewActivity}
+                onClearAccessOverride={handleClearOverride}
               />
             );
           })}

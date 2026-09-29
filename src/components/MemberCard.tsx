@@ -20,6 +20,7 @@ import {
   Smartphone,
   Mail,
   Loader2,
+  RotateCcw,
 } from "lucide-react";
 
 const TRIAL_LENGTH_DAYS = 30;
@@ -58,6 +59,7 @@ interface MemberCardProps {
   onInviteMember?: (member: { name: string; email: string }) => void;
   onOpenTrialReview: (member: any) => void;
   onViewActivity: (member: any) => void;
+  onClearAccessOverride?: (memberId: string) => void;
 }
 
 export function MemberCard({
@@ -74,8 +76,10 @@ export function MemberCard({
   onInviteMember,
   onOpenTrialReview,
   onViewActivity,
+  onClearAccessOverride,
 }: MemberCardProps) {
   const [inviting, setInviting] = useState(false);
+  const [reverting, setReverting] = useState(false);
 
   const tw = trialWindow(rosterJoinedOn ?? member.joined_on);
   const trialEnded = tw ? Date.now() >= tw.end.getTime() : false;
@@ -98,6 +102,18 @@ export function MemberCard({
       setInviting(false);
     }
   };
+
+  const handleRevert = async () => {
+    if (!onClearAccessOverride) return;
+    setReverting(true);
+    try {
+      await onClearAccessOverride(member.id);
+    } finally {
+      setReverting(false);
+    }
+  };
+
+  const accessOverride = !!member.access_override;
 
   return (
     <Card className="bg-card border-border flex flex-col">
@@ -154,21 +170,46 @@ export function MemberCard({
               Online client
             </span>
           )}
-          {member.membership ? (
-            <span
-              className={`text-[11px] px-2 py-0.5 rounded-full border font-semibold ${
-                /trial/i.test(member.membership)
-                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
-                  : /pt/i.test(member.membership)
+          {member.membership || member.product ? (
+            <>
+              <span
+                className={`text-[11px] px-2 py-0.5 rounded-full border font-semibold ${
+                  /trial/i.test(member.membership || member.product || "")
+                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                    : /\bpt\b|semi[\s-]?private/i.test(
+                          member.membership || member.product || "",
+                        )
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                      : "bg-muted text-muted-foreground border-border"
+                }`}
+              >
+                {member.membership || member.product}
+              </span>
+              {(() => {
+                const ms = String(
+                  member.membership_status || member.status || "",
+                )
+                  .toLowerCase()
+                  .trim();
+                // Only render a status pill for the membership lifecycle
+                // (active/paused/cancelled) — not the app-status string.
+                if (!ms || !["active", "paused", "cancelled"].includes(ms))
+                  return null;
+                const cls =
+                  ms === "active"
                     ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-                    : "bg-muted text-muted-foreground border-border"
-              }`}
-            >
-              {member.membership}
-              {member.membership_status && member.membership_status !== "active"
-                ? ` · ${member.membership_status}`
-                : ""}
-            </span>
+                    : ms === "paused"
+                      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                      : "bg-muted text-muted-foreground border-border";
+                return (
+                  <span
+                    className={`text-[11px] px-2 py-0.5 rounded-full border font-semibold capitalize ${cls}`}
+                  >
+                    {ms}
+                  </span>
+                );
+              })()}
+            </>
           ) : (
             <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted/50 text-muted-foreground border border-border/50">
               No membership on file
@@ -226,7 +267,18 @@ export function MemberCard({
       </CardHeader>
       <CardContent className="flex-1 flex flex-col gap-4">
         <div className="space-y-2 flex-1">
-          <Label className="text-xs text-muted-foreground">Access</Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-muted-foreground">Access</Label>
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold ${
+                accessOverride
+                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                  : "bg-muted text-muted-foreground border-border"
+              }`}
+            >
+              {accessOverride ? "Manual override" : "Following membership"}
+            </span>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             {[
               "Foundations",
@@ -253,6 +305,22 @@ export function MemberCard({
               );
             })}
           </div>
+          {accessOverride && onClearAccessOverride && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-1.5 text-xs"
+              disabled={reverting}
+              onClick={handleRevert}
+            >
+              {reverting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3.5 w-3.5" />
+              )}
+              Revert to membership
+            </Button>
+          )}
         </div>
         {onSetStaff && (
           <div className="flex items-center space-x-2">

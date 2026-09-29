@@ -167,6 +167,7 @@ import { ExerciseCardPreview } from "@/components/ExerciseCardPreview";
 import { TrackingTypeSelector } from "@/components/TrackingTypeSelector";
 import { useApplyDraft } from "@/lib/useApplyDraft";
 import { LeaderboardSectionFields } from "@/components/LeaderboardSectionFields";
+import { StaffGuides } from "@/components/StaffGuides";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -2348,6 +2349,7 @@ const Admin = () => {
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="guides">Guides</TabsTrigger>
         </TabsList>
         <TabsContent value="exercises" className="space-y-6 mt-6">
           <Card className="bg-card border-border">
@@ -6594,6 +6596,9 @@ const Admin = () => {
           exercises={progWorkouts[selectedWorkoutIndex]?.exercises || []}
           exerciseLibrary={exercises}
         />
+        <TabsContent value="guides" className="space-y-6 mt-6">
+          <StaffGuides />
+        </TabsContent>
       </Tabs>
     </div>
   );
