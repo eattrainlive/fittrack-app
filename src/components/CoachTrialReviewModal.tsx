@@ -15,6 +15,7 @@ import {
   CalendarX,
 } from "lucide-react";
 import { ActivityWinsGrid } from "@/components/ActivityWinsGrid";
+import { CoachChosenHabits } from "@/components/CoachChosenHabits";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/components/ui/sonner";
 import { supabase } from "@/lib/supabase";
 import { REVIEW_BOOKING_URL, type ProgressSummary } from "@/lib/trialSummary";
+import type { ChosenHabit } from "@/lib/chosenHabits";
 
 const PRIMARY_GOAL_LABELS: Record<string, string> = {
   fat_loss: "Fat Loss 🔥",
@@ -43,6 +45,7 @@ interface MemberProps {
   product?: string;
   joined_on?: string;
   created_at?: string;
+  onApp?: boolean;
 }
 
 interface CoachTrialReviewModalProps {
@@ -61,16 +64,28 @@ export function CoachTrialReviewModal({
   const [summary, setSummary] = useState<ProgressSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [zoomPhoto, setZoomPhoto] = useState<string | null>(null);
+  const [chosenHabits, setChosenHabits] = useState<ChosenHabit[]>([]);
+  const [habitsLoading, setHabitsLoading] = useState(false);
+  // Authoritative "on app" from the server (resolves the real auth account by
+  // email). Falls back to the roster prop's onApp flag.
+  const [serverOnApp, setServerOnApp] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!open || !member) {
       setSummary(null);
+      setChosenHabits([]);
       return;
     }
 
     let isMounted = true;
     (async () => {
       setLoading(true);
+      // Chosen habits are resolved server-side by progress-summary (which now
+      // resolves the member's app-account id from email). The old client-side
+      // fetch was keyed on member.id, which can be a gym_members roster id for
+      // unlinked members — so it always missed. Use the server data instead.
+      setChosenHabits([]);
+      setHabitsLoading(true);
       try {
         const joinDate = member.joined_on || member.created_at;
         const joined = joinDate ? new Date(joinDate) : new Date();
@@ -113,13 +128,23 @@ export function CoachTrialReviewModal({
         }
         if (isMounted) {
           setSummary(data as ProgressSummary);
+          // Authoritative "on app" from the server: resolves the real auth
+          // account by email. False = no app account at all → show "Not on app
+          // yet" instead of misleading zeros for habits/lifted/streak/goals.
+          setServerOnApp((data as any)?.onApp ?? false);
+          // Chosen habits are resolved server-side (keyed on the member's real
+          // app-account id, not the roster id). Use them when present.
+          setChosenHabits((data as any)?.chosenHabits || []);
         }
       } catch (e: any) {
         toast.error(
           "Failed to load trial summary: " + (e?.message || "Unknown error"),
         );
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+          setHabitsLoading(false);
+        }
       }
     })();
 
@@ -468,6 +493,17 @@ export function CoachTrialReviewModal({
                 </CardContent>
               </Card>
             )}
+
+            {/* Habits — the member's chosen habits + recent check-in rate.
+                Habits are resolved server-side (progress-summary resolves the
+                member's real app-account id by email, then queries member_habits
+                by that id). Shows "Not on app yet" when the server confirms no app
+                account, instead of misleading zeros. */}
+            <CoachChosenHabits
+              habits={chosenHabits}
+              loading={habitsLoading}
+              onApp={serverOnApp ?? member.onApp ?? false}
+            />
 
             {/* Auto Talking Points */}
             {talkingPoints.length > 0 && (

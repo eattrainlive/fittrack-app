@@ -12,7 +12,6 @@ import {
   Users,
   Scale,
   Play,
-  Trophy,
   Dumbbell,
   ChevronRight,
   Sparkles,
@@ -50,13 +49,12 @@ import {
 } from "@/lib/trialBaseline";
 import { isTrialEligible, isMemberEligible } from "@/lib/trialSummary";
 import { PoweredByETL } from "@/components/PoweredByETL";
+import CommunityBanner from "@/components/CommunityBanner";
 
 const Index = () => {
   const [history, setHistory] = useState<any[]>([]);
   const [bodyweight, setBodyweight] = useState<any[]>([]);
   const [activeProgram, setActiveProgram] = useState<any>(null);
-  const [currentWow, setCurrentWow] = useState<any>(null);
-  const [wowResults, setWowResults] = useState<any[]>([]);
   const [allowedAccess, setAllowedAccess] = useState<string[] | null>(null);
   const [userName, setUserName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -69,18 +67,6 @@ const Index = () => {
     setHistory(await getWorkoutHistory());
     setBodyweight(await getBodyweightHistory());
     setActiveProgram(await getActiveProgram());
-
-    const wows = await import("@/lib/store").then((m) => m.getWorkoutsOfWeek());
-    const todayStr = new Date().toISOString().split("T")[0];
-    let wow = wows.find((w: any) => w.week_start <= todayStr);
-    if (!wow && wows.length > 0) wow = wows[wows.length - 1];
-    setCurrentWow(wow);
-    if (wow) {
-      const results = await import("@/lib/store").then((m) =>
-        m.getWowResults(wow.id),
-      );
-      setWowResults(results);
-    }
 
     const {
       data: { user },
@@ -361,66 +347,7 @@ const Index = () => {
           </button>
         )}
 
-        {/* Workout of the Week strip (gold) */}
-        {currentWow &&
-          (() => {
-            const myScore = wowResults.find(
-              (r) =>
-                r.member_id === localStorage.getItem("fittrack_current_uid"),
-            );
-            const sorted = [...wowResults].sort((a, b) =>
-              currentWow.score_type === "time"
-                ? a.score - b.score
-                : b.score - a.score,
-            );
-            const myRank =
-              sorted.findIndex(
-                (r) =>
-                  r.member_id === localStorage.getItem("fittrack_current_uid"),
-              ) + 1;
-            const typeLabel =
-              currentWow.score_type === "time"
-                ? "For Time"
-                : currentWow.score_type === "reps"
-                  ? "Total Reps"
-                  : currentWow.score_type === "distance"
-                    ? "For Distance"
-                    : "For Calories";
-            const scoreText = myScore
-              ? currentWow.score_type === "time"
-                ? `${Math.floor((myScore.score || 0) / 60)}:${((myScore.score || 0) % 60).toString().padStart(2, "0")}`
-                : `${myScore.score}`
-              : null;
-            return (
-              <button
-                onClick={() => navigate("/leaderboards")}
-                className="w-full flex items-center gap-3 bg-[#14170f] border border-[#23291b] rounded-xl p-3 text-left shadow-sm active:scale-[0.99] transition"
-              >
-                <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
-                  <Trophy className="w-5 h-5 text-primary" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                    Leaderboards
-                  </p>
-                  <p className="font-heading text-xl tracking-wider uppercase leading-none text-white">
-                    {currentWow.name
-                      .replace(/^workout of the week\s*/i, "")
-                      .trim() || currentWow.name}
-                  </p>
-                  <p className="text-xs text-neutral-400 truncate">
-                    {typeLabel}
-                    {myScore
-                      ? ` · Rank ${myRank} · ${scoreText}`
-                      : " · Tap to view leaderboards"}
-                  </p>
-                </div>
-                <span className="shrink-0 inline-flex items-center gap-1 border border-primary/50 text-primary font-bold text-xs px-3 py-2 rounded-lg">
-                  View <ChevronRight className="w-3.5 h-3.5" />
-                </span>
-              </button>
-            );
-          })()}
+        <CommunityBanner />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">

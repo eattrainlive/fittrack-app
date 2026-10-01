@@ -19,6 +19,7 @@ export type MemberType = "trial" | "openGym" | "coached" | "default";
 export interface ProgressSummary {
   firstName: string;
   memberType: MemberType;
+  onApp?: boolean;
   start: string;
   end: string;
   dayCount: number;
@@ -64,6 +65,15 @@ export interface ProgressSummary {
   habitsBuilt: number;
   totalCheckins: number;
   daysLogged: number;
+  // member's chosen habits (member_habits) for the coach review card
+  chosenHabits?: {
+    id?: string;
+    name: string;
+    position?: number | null;
+    status?: string;
+    checkins7d: number;
+    totalCheckins: number;
+  }[];
   // trial/member goals (from trial_goals / member_goals) — present when captured
   goals?: {
     startWeight?: number | null;
@@ -391,6 +401,12 @@ export const getProgressSummary = async (opts: {
   let bestStreak = 0;
   let habitsBuilt = 0;
   let totalCheckins = 0;
+  let allCheckins: {
+    date: string;
+    habit_id: string | null;
+    member_habit_id: string | null;
+  }[] = [];
+  let chosenHabits: ProgressSummary["chosenHabits"] = [];
   try {
     const { data: checkins } = await supabase
       .from("habit_checkins")

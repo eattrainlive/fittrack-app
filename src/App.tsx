@@ -27,6 +27,9 @@ import Accountability from "./pages/Accountability";
 import ResetPassword from "./pages/ResetPassword";
 import Schedule from "./pages/Schedule";
 import Leaderboards from "./pages/Leaderboards";
+import Community from "./pages/Community";
+import CommunityWall from "./pages/CommunityWall";
+import Feed from "./pages/Feed";
 
 import { useEffect, useState } from "react";
 import { syncFromSupabase, syncProfile } from "./lib/store";
@@ -103,7 +106,9 @@ const AppRoutes = () => {
               <Routes location={location}>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
-                <Route path="/feed" element={<Navigate to="/" replace />} />
+                <Route path="/feed" element={<Feed />} />
+                <Route path="/community" element={<Community />} />
+                <Route path="/community/wall" element={<CommunityWall />} />
                 <Route path="/workouts" element={<Workouts />} />
                 <Route path="/exercises" element={<Exercises />} />
                 <Route path="/progress" element={<Progress />} />
@@ -134,7 +139,9 @@ const AppRoutes = () => {
             <Routes location={location}>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
-              <Route path="/feed" element={<Navigate to="/" replace />} />
+              <Route path="/feed" element={<Feed />} />
+              <Route path="/community" element={<Community />} />
+              <Route path="/community/wall" element={<CommunityWall />} />
               <Route path="/workouts" element={<Workouts />} />
               <Route path="/exercises" element={<Exercises />} />
               <Route path="/progress" element={<Progress />} />

@@ -15,8 +15,10 @@ import {
   Send,
   Megaphone,
   Trophy,
+  ChevronLeft,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   getCommunityFeed,
   getExercises,
@@ -28,6 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ETLWatermark } from "@/components/ETLWatermark";
 
 const Feed = () => {
+  const navigate = useNavigate();
   const [feed, setFeed] = useState<any[]>([]);
   const [exercises, setExercises] = useState<any[]>([]);
   const [activeCommentPost, setActiveCommentPost] = useState<string | null>(
@@ -103,7 +106,15 @@ const Feed = () => {
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between space-y-2">
+      <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate("/community")}
+          className="shrink-0"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </Button>
         <h2 className="text-4xl font-heading tracking-wider">Community Feed</h2>
       </div>
 

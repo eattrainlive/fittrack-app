@@ -192,7 +192,7 @@ const Progress = () => {
       </div>
 
       <Tabs defaultValue="hub" className="space-y-4">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="hub">Progress Hub</TabsTrigger>
           <TabsTrigger value="charts">Charts & Bodyweight</TabsTrigger>
           <TabsTrigger value="prs">Personal Records</TabsTrigger>
