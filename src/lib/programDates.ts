@@ -1,6 +1,11 @@
 // Date helpers for programme session naming.
 // Each session is named from ITS OWN week's start date plus its day offset
 // (Day N = start_date + (N - 1) days), so Week 2 Day 3 uses Week 2's start, not Week 1's.
+//
+// Renaming a session to "Day + Date" (e.g. "Monday 6 Oct") only happens for PT
+// programmes. For all other categories (Foundations, Stronger, Fusion,
+// Performance, Group PT, Other) the AI-generated session name is kept and the
+// date is only stored alongside it (so it can be shown as secondary info).
 
 export const ordinal = (n: number): string => {
   const s = ["th", "st", "nd", "rd"];
@@ -34,9 +39,14 @@ export const sessionDateName = (
 // Compute a session's name + scheduled_date from its own week start date + day offset.
 // weekNotes defaults to {} — pass the current progWeekNotes from the caller (or an
 // explicitly-updated copy when re-dating a single week after a start-date change).
+//
+// `category` controls whether the session NAME is overwritten with the day+date.
+// Only PT programmes rename sessions to "Monday 6 Oct"; every other category keeps
+// the existing name (e.g. "Lower A (Squat)") and only stores the date.
 export const dateSession = (
   w: any,
   weekNotes: Record<number, any> = {},
+  category?: string,
 ): any => {
   const wk = Number(w.week);
   const day = Number(w.day) || 1;
@@ -48,9 +58,11 @@ export const dateSession = (
   if (!start) return w;
   const offset = day - 1; // Day 3 => +2 days
   const iso = addDaysISO(start, offset);
+  const isPT = String(category ?? "").trim() === "PT";
   return {
     ...w,
-    name: sessionDateName(start, offset),
+    // PT: rename to "Monday 6 Oct". Everything else: keep the AI-generated name.
+    ...(isPT ? { name: sessionDateName(start, offset) } : {}),
     date: iso, // canonical field used by the Scheduled Date input + all save payloads
     scheduled_date: iso, // kept for any legacy readers
   };
@@ -61,7 +73,8 @@ export const dateSession = (
 export const dateAllSessions = (
   workouts: any[],
   weekNotes: Record<number, any>,
-): any[] => workouts.map((w) => dateSession(w, weekNotes));
+  category?: string,
+): any[] => workouts.map((w) => dateSession(w, weekNotes, category));
 
 // Re-date only the sessions of a single week, after its start date has changed.
 // `updatedWeekNotes` MUST already contain the new start_date for that week.
@@ -69,9 +82,10 @@ export const dateWeekSessions = (
   workouts: any[],
   week: number,
   updatedWeekNotes: Record<number, any>,
+  category?: string,
 ): any[] =>
   workouts.map((w) =>
     Number(w.week) === Number(week)
-      ? dateSession({ ...w, week }, updatedWeekNotes)
+      ? dateSession({ ...w, week }, updatedWeekNotes, category)
       : w,
   );

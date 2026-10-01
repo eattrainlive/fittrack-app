@@ -77,6 +77,10 @@ import {
 } from "@/lib/store";
 import { dateAllSessions, dateWeekSessions } from "@/lib/programDates";
 import {
+  dateWeekSessionsForCategory,
+  dateAllSessionsForCategory,
+} from "@/lib/programDateAdmin";
+import {
   addWeek as addProgWeek,
   addDay as addProgDay,
   repeatBlockTo as repeatProgBlock,
@@ -3862,10 +3866,12 @@ const Admin = () => {
                                       // Fusion, Stronger) — not Group PT only.
                                       if (newDate) {
                                         setProgWorkouts((prev) =>
-                                          dateWeekSessions(
+                                          dateWeekSessionsForCategory(
                                             prev,
                                             selectedWeek,
                                             updatedNotes,
+                                            newProgCategory ||
+                                              guessCategory(newProgName || ""),
                                           ),
                                         );
                                       }
@@ -3898,9 +3904,11 @@ const Admin = () => {
                                   size="sm"
                                   className="gap-2 ml-auto"
                                   onClick={async () => {
-                                    const updated = dateAllSessions(
+                                    const updated = dateAllSessionsForCategory(
                                       progWorkouts,
                                       progWeekNotes,
+                                      newProgCategory ||
+                                        guessCategory(newProgName || ""),
                                     );
                                     setProgWorkouts(updated);
                                     await autoSaveProgram(updated);
