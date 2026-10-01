@@ -10,6 +10,7 @@ import {
   Video,
   ChevronDown,
 } from "lucide-react";
+import { HabitExplainerVideo } from "@/components/HabitExplainerVideo";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -265,6 +266,8 @@ export const TrialSetup = ({ onFinished }: Props) => {
               Choose your habits
             </h2>
           </div>
+
+          <HabitExplainerVideo />
 
           {/* Compact helper video */}
           {content?.habits_video_url && (

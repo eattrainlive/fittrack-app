@@ -11,6 +11,7 @@ import {
   Pencil,
   Loader2,
 } from "lucide-react";
+import { HabitExplainerVideo } from "@/components/HabitExplainerVideo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -415,6 +416,7 @@ export function TrialGoalsCard({
 
           {step === "targets" && (
             <div className="space-y-4 py-2">
+              <HabitExplainerVideo title="How to set your targets" />
               <Field
                 id="step"
                 icon={<Footprints className="w-4 h-4 text-primary" />}
@@ -447,6 +449,7 @@ export function TrialGoalsCard({
 
           {step === "habits" && (
             <div className="space-y-4 py-2 max-h-[50vh] overflow-y-auto">
+              <HabitExplainerVideo />
               <p className="text-xs text-muted-foreground">
                 Pick up to 3 habits to build. They'll show in your habit tracker
                 and count toward your streaks.

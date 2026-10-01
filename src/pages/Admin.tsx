@@ -117,6 +117,8 @@ import { toast } from "sonner";
 import { Navigate, useNavigate } from "react-router-dom";
 import { QrCode, ArrowRightLeft, Eye } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import ExistingProgramsList from "@/components/ExistingProgramsList";
+import { PROG_CATEGORIES, guessCategory } from "@/lib/programCategories";
 import { MembersGrid } from "@/components/MembersGrid";
 import {
   loadRosterMembers,
@@ -248,6 +250,7 @@ const Admin = () => {
   const [newProgType, setNewProgType] = useState<
     "program" | "session_folder" | "GroupPT" | "wow"
   >("program");
+  const [newProgCategory, setNewProgCategory] = useState<string>("Foundations");
   const [progWorkouts, setProgWorkouts] = useState<any[]>([]);
   const [progWeekNotes, setProgWeekNotes] = useState<Record<number, any>>({});
   const weekLabel = (n: number) => {
@@ -1582,6 +1585,7 @@ const Admin = () => {
         name: newProgName,
         description: newProgDesc,
         stream: newProgStream,
+        category: newProgCategory || guessCategory(newProgName),
         start_date: week1Start,
         coverImage: newProgCover,
         type: newProgType,
@@ -1639,6 +1643,7 @@ const Admin = () => {
     setNewProgName("");
     setNewProgDesc("");
     setNewProgStream("Foundations");
+    setNewProgCategory("Foundations");
     setNewProgStartDate("");
     setNewProgDays(5);
     setNewProgCover("");
@@ -1654,6 +1659,7 @@ const Admin = () => {
     setNewProgName(prog.name);
     setNewProgDesc(prog.description || "");
     setNewProgStream(prog.stream || "Fusion");
+    setNewProgCategory(prog.category || guessCategory(prog.name || ""));
     setNewProgStartDate(prog.start_date || "");
     setNewProgCover(prog.coverImage || "");
     setNewProgType(
@@ -1859,6 +1865,7 @@ const Admin = () => {
       name: newProgName || "Untitled AI Program",
       description: newProgDesc,
       stream: newProgStream,
+      category: newProgCategory || guessCategory(newProgName || ""),
       start_date: week1Start,
       coverImage: newProgCover,
       type: newProgType,
@@ -3227,6 +3234,25 @@ const Admin = () => {
                           </Select>
                         </div>
                       )}
+
+                      <div className="space-y-2">
+                        <Label>Category</Label>
+                        <Select
+                          value={newProgCategory}
+                          onValueChange={setNewProgCategory}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PROG_CATEGORIES.map((c) => (
+                              <SelectItem key={c} value={c}>
+                                {c}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
                       <div className="space-y-2">
                         <Label>Length (Weeks)</Label>
@@ -5281,145 +5307,13 @@ const Admin = () => {
             </Button>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {programs.map((p) => (
-              <Card key={p.id} className="bg-muted/50 border-border">
-                <CardHeader>
-                  <CardTitle className="flex justify-between items-start">
-                    <span>{p.name}</span>
-                    <div className="flex gap-1 -mt-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={() => handleEditProgram(p)}
-                        title="Edit Program"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={() => handleDuplicateProgram(p.id)}
-                        title="Duplicate Program"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive h-8 w-8"
-                        onClick={() => handleDeleteProgram(p.id)}
-                        title="Delete Program"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardTitle>
-                  <CardDescription>{p.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-muted-foreground mt-2">
-                    {p.weeks && p.daysPerWeek ? (
-                      <div className="space-y-4">
-                        <p>
-                          {p.weeks} Weeks • {p.daysPerWeek} Days/Week
-                        </p>
-                        {p.workouts &&
-                          p.workouts.length > 0 &&
-                          (() => {
-                            const byWeek: Record<
-                              number,
-                              { w: any; idx: number }[]
-                            > = {};
-                            p.workouts.forEach((w: any, idx: number) => {
-                              const wk = w.week || 1;
-                              (byWeek[wk] ||= []).push({ w, idx });
-                            });
-                            const weeks = Object.keys(byWeek)
-                              .map(Number)
-                              .sort((a, b) => a - b);
-                            const tvWeekLabel = (wk: number) => {
-                              const n = p.weekNotes?.[wk];
-                              if (n?.label?.trim()) return n.label.trim();
-                              if (n?.start_date)
-                                return `W/C ${new Date(n.start_date + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}`;
-                              return `Week ${wk}`;
-                            };
-                            return (
-                              <div className="space-y-2">
-                                <Label className="text-xs uppercase text-muted-foreground">
-                                  Workouts (TV Display)
-                                </Label>
-                                <Accordion type="multiple" className="w-full">
-                                  {weeks.map((wk) => (
-                                    <AccordionItem
-                                      key={wk}
-                                      value={`tvwk-${wk}`}
-                                    >
-                                      <AccordionTrigger className="text-sm font-bold">
-                                        {tvWeekLabel(wk)}
-                                      </AccordionTrigger>
-                                      <AccordionContent>
-                                        <div className="grid grid-cols-2 gap-2">
-                                          {byWeek[wk]
-                                            .sort(
-                                              (a, b) =>
-                                                (a.w.day || 0) - (b.w.day || 0),
-                                            )
-                                            .map(({ w, idx }) => (
-                                              <Button
-                                                key={idx}
-                                                variant="outline"
-                                                size="sm"
-                                                className="justify-start gap-2 h-auto py-2"
-                                                onClick={() =>
-                                                  window.open(
-                                                    `/tv/${p.id}/${idx}`,
-                                                    "_blank",
-                                                  )
-                                                }
-                                              >
-                                                <PlayCircle className="h-4 w-4 shrink-0 text-primary" />
-                                                <span className="truncate">
-                                                  {w.name}
-                                                </span>
-                                              </Button>
-                                            ))}
-                                        </div>
-                                      </AccordionContent>
-                                    </AccordionItem>
-                                  ))}
-                                </Accordion>
-                              </div>
-                            );
-                          })()}
-                      </div>
-                    ) : (
-                      <ul className="list-disc list-inside">
-                        {p.exercises?.map((ex: any, i: number) => {
-                          if (ex.isSection)
-                            return (
-                              <li key={i} className="font-bold mt-2 list-none">
-                                {ex.name}
-                              </li>
-                            );
-                          const exerciseName =
-                            exById[String(ex.name)]?.name || ex.name;
-                          return (
-                            <li key={i}>
-                              {exerciseName} - {ex.sets}x{ex.reps}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <ExistingProgramsList
+            programs={programs}
+            exById={exById}
+            onEdit={handleEditProgram}
+            onDuplicate={handleDuplicateProgram}
+            onDelete={handleDeleteProgram}
+          />
         </TabsContent>
         <TabsContent value="wow" className="space-y-6 mt-6">
           <div className="flex justify-between items-center mb-6">

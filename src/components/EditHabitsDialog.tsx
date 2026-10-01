@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
 import { getHabitLibrary } from "@/lib/trialGoals";
 import { saveTrialHabits } from "@/lib/trialHub";
+import { HabitExplainerVideo } from "@/components/HabitExplainerVideo";
 
 interface CurrentHabit {
   id: string;
@@ -99,6 +100,8 @@ export const EditHabitsDialog = ({
             Edit your habits
           </DialogTitle>
         </DialogHeader>
+
+        <HabitExplainerVideo />
 
         <div className="grid grid-cols-2 gap-2">
           {(showAll ? library : library.slice(0, 8)).map((h) => {

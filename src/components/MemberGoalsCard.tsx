@@ -13,6 +13,7 @@ import {
   Flame,
   Heart,
 } from "lucide-react";
+import { HabitExplainerVideo } from "@/components/HabitExplainerVideo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -427,6 +428,7 @@ export function MemberGoalsCard({
           </DialogHeader>
 
           <div className="space-y-4 py-2">
+            <HabitExplainerVideo />
             {/* ── 3 habits for the month (hero) ── */}
             <div className="space-y-2">
               {habits.length === 0 && (
