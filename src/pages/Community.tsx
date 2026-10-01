@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Facebook,
@@ -6,6 +7,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import UpcomingEvents from "@/components/UpcomingEvents";
+import { logFeatureView } from "@/lib/featureTracking";
 
 const FACEBOOK_GROUP_URL = "https://www.facebook.com/groups/307886632668642";
 
@@ -78,6 +80,9 @@ function CommunityCard({
 
 export default function Community() {
   const navigate = useNavigate();
+  useEffect(() => {
+    logFeatureView("community");
+  }, []);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24 space-y-6">
@@ -110,7 +115,7 @@ export default function Community() {
         />
         <CommunityCard
           icon={<MessageSquare className="h-6 w-6" />}
-          title="Community Wall"
+          title="Community Feed"
           subtitle="Share wins, photos and shout-outs"
           onClick={() => navigate("/community/wall")}
         />

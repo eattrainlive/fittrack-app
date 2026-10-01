@@ -108,6 +108,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { supabase } from "@/lib/supabase";
+import { logFeatureView } from "@/lib/featureTracking";
 
 function ComingSoon({ title }: { title: string }) {
   return (
@@ -126,6 +127,9 @@ function ComingSoon({ title }: { title: string }) {
 }
 
 export default function Nutrition() {
+  useEffect(() => {
+    logFeatureView("nutrition");
+  }, []);
   const [nutrition, setNutrition] = useState<any>(null);
   const [memberHabits, setMemberHabits] = useState<any[]>([]);
   const [habitsLibrary, setHabitsLibrary] = useState<any[]>([]);
@@ -141,11 +145,17 @@ export default function Nutrition() {
     "habits",
   );
   const [showSeasonReview, setShowSeasonReview] = useState(false);
+  useEffect(() => {
+    if (activeTab === "habits") logFeatureView("habits");
+  }, [activeTab]);
   const [isUploading, setIsUploading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Hub section router
   const [nutSection, setNutSection] = useState<string | null>(null);
+  useEffect(() => {
+    if (nutSection === "recipes") logFeatureView("recipes");
+  }, [nutSection]);
   const [flags, setFlags] = useState<any>(null);
 
   const [newMeasurement, setNewMeasurement] = useState({

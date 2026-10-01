@@ -167,6 +167,7 @@ import { ExerciseCardPreview } from "@/components/ExerciseCardPreview";
 import { TrackingTypeSelector } from "@/components/TrackingTypeSelector";
 import { useApplyDraft } from "@/lib/useApplyDraft";
 import { LeaderboardSectionFields } from "@/components/LeaderboardSectionFields";
+import UsageDashboard from "@/components/UsageDashboard";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -2354,6 +2355,7 @@ const Admin = () => {
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="usage">Usage</TabsTrigger>
         </TabsList>
         <TabsContent value="exercises" className="space-y-6 mt-6">
           <Card className="bg-card border-border">
@@ -6565,6 +6567,10 @@ const Admin = () => {
         </TabsContent>
 
         <TvDisplayTab programs={programs} />
+
+        <TabsContent value="usage" className="space-y-6 mt-6">
+          <UsageDashboard staffSecret={staffSecret} />
+        </TabsContent>
 
         <SettingsTab />
         <ExerciseCardPreview

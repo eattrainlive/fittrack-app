@@ -95,6 +95,7 @@ import { saveBlockScores } from "@/lib/blockScores";
 import { getEmbedUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { LeaderboardsBanner } from "@/components/WorkoutsBrowseStrips";
 
 import { supabase } from "@/lib/supabase";
 import { ConditioningTimer } from "@/components/ConditioningTimer";
@@ -146,6 +147,16 @@ import {
   getNextVisible,
   getPrevVisible,
 } from "@/components/WorkoutNavFooter";
+import { logFeatureView } from "@/lib/featureTracking";
+
+const STREAM_FEATURE: Record<string, string> = {
+  Foundations: "foundations",
+  Stronger: "stronger",
+  Fusion: "fusion",
+  Performance: "performance",
+  GroupPT: "group_pt",
+  "Group PT": "group_pt",
+};
 
 const Workouts = () => {
   const navigate = useNavigate();
@@ -256,6 +267,12 @@ const Workouts = () => {
     stream?: string;
     title?: string;
   }>({});
+  useEffect(() => {
+    logFeatureView("workouts");
+    const stream = activeWorkoutMeta?.stream;
+    if (stream && STREAM_FEATURE[stream])
+      logFeatureView(STREAM_FEATURE[stream]);
+  }, [activeWorkoutMeta?.stream]);
   const [conditioningResults, setConditioningResults] = useState<
     Record<string, any>
   >({});
@@ -1068,6 +1085,9 @@ const Workouts = () => {
                   </button>
                 );
               })()}
+            {activeTab === "All" && !searchQuery && (
+              <LeaderboardsBanner onOpen={() => navigate("/leaderboards")} />
+            )}
           </div>
 
           <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">

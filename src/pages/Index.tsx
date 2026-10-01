@@ -50,8 +50,12 @@ import {
 import { isTrialEligible, isMemberEligible } from "@/lib/trialSummary";
 import { PoweredByETL } from "@/components/PoweredByETL";
 import CommunityBanner from "@/components/CommunityBanner";
+import { logFeatureView } from "@/lib/featureTracking";
 
 const Index = () => {
+  useEffect(() => {
+    logFeatureView("home");
+  }, []);
   const [history, setHistory] = useState<any[]>([]);
   const [bodyweight, setBodyweight] = useState<any[]>([]);
   const [activeProgram, setActiveProgram] = useState<any>(null);

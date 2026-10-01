@@ -20,8 +20,12 @@ import {
 import { BlockLeaderboardDialog } from "@/components/BlockLeaderboardDialog";
 import { ETLWatermark } from "@/components/ETLWatermark";
 import { ETL_LOGO_ON_DARK } from "@/lib/brand";
+import { logFeatureView } from "@/lib/featureTracking";
 
 const Leaderboards = () => {
+  useEffect(() => {
+    logFeatureView("leaderboard");
+  }, []);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [currentWow, setCurrentWow] = useState<any>(null);

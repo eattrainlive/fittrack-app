@@ -34,6 +34,7 @@ import {
   reorderSections,
 } from "@/lib/store";
 import { updateResourceSection } from "@/lib/resourceSections";
+import { logFeatureView } from "@/lib/usageEvents";
 import { getEmbedUrl } from "@/lib/utils";
 import { ResourceItem } from "./ResourceItem";
 import {
@@ -111,6 +112,10 @@ export function ResourcesSection({
     setSections(secs);
     setResources(res);
     setLoading(false);
+  }, [page]);
+
+  useEffect(() => {
+    if (page === "recipes") logFeatureView("recipes");
   }, [page]);
 
   useEffect(() => {

@@ -40,8 +40,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { PastWorkouts } from "@/components/PastWorkouts";
 import { MemberProgressHub } from "@/components/MemberProgressHub";
+import { logFeatureView } from "@/lib/featureTracking";
 
 const Progress = () => {
+  useEffect(() => {
+    logFeatureView("progress");
+  }, []);
   const [bodyweightData, setBodyweightData] = useState<any[]>([]);
   const [newWeight, setNewWeight] = useState("");
   const [newBodyFat, setNewBodyFat] = useState("");

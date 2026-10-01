@@ -38,6 +38,7 @@ import { onUserSignIn, onUserSignOut } from "./lib/userCache";
 import { markOnboarded } from "./lib/onboarding";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocation, useNavigationType } from "react-router-dom";
+import { logFeatureView, streamToFeature } from "@/lib/usageEvents";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,35 @@ const AppRoutes = () => {
 
   useEffect(() => {
     setPrevLocation(location.pathname);
+  }, [location.pathname]);
+
+  // Feature-view tracking for the Staff Hub Usage dashboard.
+  // Logs one event per feature per session when a member opens a key screen.
+  useEffect(() => {
+    const path = location.pathname;
+    const map: Record<string, Parameters<typeof logFeatureView>[0]> = {
+      "/workouts": "workouts",
+      "/progress": "progress",
+      "/community": "community",
+      "/community/wall": "community",
+      "/nutrition": "nutrition",
+      "/leaderboards": "leaderboard",
+    };
+    const feature = map[path];
+    if (feature) logFeatureView(feature);
+    // Per-programme view: when on /workouts, log the active programme's stream.
+    if (path === "/workouts") {
+      try {
+        const ap = localStorage.getItem("fittrack_active_program");
+        if (ap) {
+          const parsed = JSON.parse(ap);
+          const pf = streamToFeature(parsed?.stream);
+          if (pf) logFeatureView(pf);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
   }, [location.pathname]);
 
   const isTabSwitch =
