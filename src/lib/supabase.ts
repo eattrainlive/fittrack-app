@@ -13,6 +13,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    // localStorage (NOT sessionStorage) so the session survives the app
+    // being closed and reopened — fixes unexpected logouts in the PWA.
+    storage: window.localStorage,
     storageKey: "fittrack-auth",
   },
 });

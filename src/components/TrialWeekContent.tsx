@@ -3,7 +3,6 @@ import {
   CheckCircle2,
   Circle,
   Lock,
-  Play,
   ChevronDown,
   ChevronUp,
   CheckSquare,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { VideoThumbnailCard } from "@/components/VideoThumbnailCard";
 import { toast } from "@/components/ui/sonner";
 import {
   getAllTrialWeekContent,
@@ -146,19 +146,11 @@ export function TrialWeekContent({ currentWeek }: Props) {
                     {w.video_url && (
                       <Dialog>
                         <DialogTrigger asChild>
-                          <button className="w-full flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-2.5 text-left hover:bg-muted/70 transition">
-                            <div className="w-9 h-9 rounded-md bg-primary/15 flex items-center justify-center shrink-0">
-                              <Play className="w-4 h-4 text-primary fill-primary" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium leading-tight">
-                                Watch this week's lesson
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                Week {w.week_number} video
-                              </p>
-                            </div>
-                          </button>
+                          <VideoThumbnailCard
+                            videoUrl={w.video_url}
+                            title="Watch this week's lesson"
+                            subtitle={`Week ${w.week_number} video`}
+                          />
                         </DialogTrigger>
                         <DialogContent className="max-w-2xl p-0 overflow-hidden">
                           <div className="aspect-video w-full bg-black">
