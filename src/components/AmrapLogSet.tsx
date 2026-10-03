@@ -14,6 +14,8 @@ interface AmrapLogSetProps {
   onUpdateExercise: (id: number, field: string, value: any) => void;
   /** Called with the round count so the block's score/result reflects it. */
   onRoundsChange?: (rounds: number) => void;
+  /** Open the tutorial video for an exercise (same modal the strength rows use). */
+  onOpenVideo?: (url: string, title: string) => void;
 }
 
 /**
@@ -35,6 +37,7 @@ export function AmrapLogSet({
   sectionType,
   onUpdateExercise,
   onRoundsChange,
+  onOpenVideo,
 }: AmrapLogSetProps) {
   // Live input values per exercise for the NEXT round to be logged.
   const [liveValues, setLiveValues] = useState<Record<number, any>>({});
@@ -176,7 +179,16 @@ export function AmrapLogSet({
             >
               <div className="flex items-center gap-2 mb-2">
                 {libEx?.videoUrl ? (
-                  <PlayCircle className="h-4 w-4 text-primary shrink-0" />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenVideo?.(libEx.videoUrl, libEx.name || name)
+                    }
+                    aria-label={`Watch ${name} tutorial`}
+                    className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-full border border-primary/40 text-primary active:scale-95 transition"
+                  >
+                    <PlayCircle className="h-4 w-4" />
+                  </button>
                 ) : (
                   <Dumbbell className="h-4 w-4 text-muted-foreground shrink-0" />
                 )}

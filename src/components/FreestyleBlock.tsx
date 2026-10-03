@@ -107,7 +107,8 @@ export const FreestyleBlock = ({
               (e) => String(e.id) === String(ex.name),
             );
             const name = libEx?.name || ex.label || ex.name || "Exercise";
-            const videoUrl = libEx?.video || libEx?.video_url || "";
+            const videoUrl =
+              libEx?.videoUrl || libEx?.video || libEx?.video_url || "";
             const embed = getEmbedUrl(videoUrl);
             return (
               <div key={ex.id || i}>

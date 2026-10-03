@@ -2471,6 +2471,10 @@ const Workouts = () => {
                                   exerciseLibrary={exerciseLibrary}
                                   sectionType={st2}
                                   onUpdateExercise={updateExercise}
+                                  onOpenVideo={(url, title) => {
+                                    setVideoTutorial(url);
+                                    setVideoTitle(title);
+                                  }}
                                   onRoundsChange={(rounds: number) =>
                                     setConditioningResults((prev) => ({
                                       ...prev,
