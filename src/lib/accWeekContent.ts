@@ -61,7 +61,7 @@ export const updateWeekContent = async (
 
 /**
  * Convert a Loom / YouTube / Vimeo URL into an embeddable iframe src.
- * Supports: youtube.com/watch?v=, youtu.be/, loom.com/share/, vimeo.com/.
+ * Supports: youtube.com/watch?v=, youtu.be/, youtube shorts, loom.com/share/, vimeo.com/<id>/<hash>.
  */
 export const getEmbedUrl = (url: string): string | null => {
   if (!url) return null;
@@ -73,6 +73,10 @@ export const getEmbedUrl = (url: string): string | null => {
     );
     if (m) return `https://www.youtube.com/embed/${m[1]}`;
 
+    // YouTube Shorts
+    m = u.match(/youtube\.com\/shorts\/([\w-]+)/);
+    if (m) return `https://www.youtube.com/embed/${m[1]}`;
+
     // YouTube embed (already)
     if (/youtube\.com\/embed\//.test(u)) return u;
 
@@ -80,9 +84,13 @@ export const getEmbedUrl = (url: string): string | null => {
     m = u.match(/loom\.com\/(?:share|embed)\/([A-Za-z0-9]+)/);
     if (m) return `https://www.loom.com/embed/${m[1]}`;
 
-    // Vimeo
-    m = u.match(/vimeo\.com\/(\d+)/);
-    if (m) return `https://player.vimeo.com/video/${m[1]}`;
+    // Already a player.vimeo.com embed URL — use as-is (preserves ?h= unlisted hash)
+    if (/player\.vimeo\.com\/video\//.test(u)) return u;
+
+    // Vimeo — supports unlisted videos with a hash: vimeo.com/<id>/<hash>
+    m = u.match(/vimeo\.com\/(?:video\/)?(\d+)(?:\/(\w+))?/);
+    if (m)
+      return `https://player.vimeo.com/video/${m[1]}${m[2] ? `?h=${m[2]}` : ""}`;
 
     // Fallback: return as-is (may still work in an iframe)
     return u;

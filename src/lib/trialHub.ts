@@ -43,7 +43,7 @@ export const saveTrialHubContent = async (c: TrialHubContent) => {
   return { error };
 };
 
-// Convert any Loom/YouTube URL to an embeddable iframe URL.
+// Convert any Loom/YouTube/Vimeo URL to an embeddable iframe URL.
 export const getEmbedUrl = (url: string): string | null => {
   if (!url) return null;
   try {
@@ -58,6 +58,9 @@ export const getEmbedUrl = (url: string): string | null => {
       if (v) return `https://www.youtube.com/embed/${v}`;
       if (u.pathname.startsWith("/embed/"))
         return `https://www.youtube.com/embed/${u.pathname.split("/")[2]}`;
+      // YouTube Shorts
+      const shorts = u.pathname.match(/^\/shorts\/([\w-]+)/);
+      if (shorts) return `https://www.youtube.com/embed/${shorts[1]}`;
     }
     // Loom
     if (host === "loom.com" || host === "www.loom.com") {
@@ -66,11 +69,20 @@ export const getEmbedUrl = (url: string): string | null => {
       const id = parts[parts.length - 1];
       return `https://www.loom.com/embed/${id}`;
     }
-    // Vimeo
+    // Vimeo — supports unlisted videos with a hash: vimeo.com/<id>/<hash>
     if (host === "vimeo.com" || host === "player.vimeo.com") {
       const parts = u.pathname.split("/").filter(Boolean);
-      const id = parts[parts.length - 1];
-      return `https://player.vimeo.com/video/${id}`;
+      // Already an embed URL: player.vimeo.com/video/<id>[?h=<hash>]
+      if (host === "player.vimeo.com" && parts[0] === "video" && parts[1]) {
+        return url; // use as-is (preserves any ?h= query already present)
+      }
+      const id = parts[0];
+      const hash = parts[1];
+      if (id) {
+        return hash
+          ? `https://player.vimeo.com/video/${id}?h=${hash}`
+          : `https://player.vimeo.com/video/${id}`;
+      }
     }
     // Fallback: return as-is (might already be an embed URL)
     return url;

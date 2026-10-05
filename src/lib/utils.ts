@@ -7,12 +7,15 @@ export function cn(...inputs: ClassValue[]) {
 
 export function getEmbedUrl(url: string | undefined): string {
   if (!url) return "";
+  // Already a Vimeo embed URL — use as-is (preserves any ?h= unlisted hash)
+  if (url.includes("player.vimeo.com")) return url;
+  // Vimeo — supports unlisted videos with a hash: vimeo.com/<id>/<hash>
   const vim = url.match(/vimeo\.com\/(?:video\/)?(\d+)(?:\/(\w+))?/);
   if (vim)
     return `https://player.vimeo.com/video/${vim[1]}${vim[2] ? `?h=${vim[2]}` : ""}`;
-  if (url.includes("player.vimeo.com")) return url;
+  // YouTube — watch, short, youtu.be, embed
   const yt = url.match(
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]+)/,
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([\w-]+)/,
   );
   if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
   return url;

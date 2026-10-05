@@ -42,13 +42,17 @@ const SCORE_TYPES: { key: FreestyleScore["type"]; label: string }[] = [
 const getEmbedUrl = (url: string): string | null => {
   if (!url) return null;
   const yt = url.match(
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]+)/,
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([\w-]+)/,
   );
   if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
   const loom = url.match(/loom\.com\/share\/([\w-]+)/);
   if (loom) return `https://www.loom.com/embed/${loom[1]}`;
-  const vimeo = url.match(/vimeo\.com\/(\d+)/);
-  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+  // Already a player.vimeo.com embed URL — use as-is (preserves ?h= unlisted hash)
+  if (/player\.vimeo\.com\/video\//.test(url)) return url;
+  // Vimeo — supports unlisted videos with a hash: vimeo.com/<id>/<hash>
+  const vimeo = url.match(/vimeo\.com\/(?:video\/)?(\d+)(?:\/(\w+))?/);
+  if (vimeo)
+    return `https://player.vimeo.com/video/${vimeo[1]}${vimeo[2] ? `?h=${vimeo[2]}` : ""}`;
   return url;
 };
 
