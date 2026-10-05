@@ -2,7 +2,7 @@ import { useEffect, useState, forwardRef } from "react";
 import { Play } from "lucide-react";
 import { getVideoThumbnail } from "@/lib/videoThumbnail";
 
-interface Props {
+interface Props extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   videoUrl: string;
   title: string;
   subtitle?: string;
@@ -15,7 +15,7 @@ interface Props {
  * if no thumbnail can be resolved.
  */
 export const VideoThumbnailCard = forwardRef<HTMLButtonElement, Props>(
-  ({ videoUrl, title, subtitle }, ref) => {
+  ({ videoUrl, title, subtitle, ...props }, ref) => {
     const [thumb, setThumb] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -33,6 +33,7 @@ export const VideoThumbnailCard = forwardRef<HTMLButtonElement, Props>(
       <button
         ref={ref}
         type="button"
+        {...props}
         className="w-full text-left rounded-lg border border-border bg-muted/40 overflow-hidden hover:bg-muted/70 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {thumb ? (
