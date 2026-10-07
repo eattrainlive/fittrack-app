@@ -1,4 +1,4 @@
-// Netlify Function: staffhub
+// Netlify Function: staffhub  (ESM — project uses "type":"module")
 // Proxies the ETL Staff Hub Apps Script so the shared key + member PII never reach the browser.
 //
 // Security model:
@@ -6,16 +6,8 @@
 //  - PII lists (trialists/reachout/lapsed/actions) are returned ONLY to a verified, logged-in STAFF
 //    user (we add the Apps Script key server-side). So the function URL alone can't leak names.
 //
-// Netlify env vars (Site settings → Environment variables):
-//   STAFFHUB_SCRIPT_URL        = Apps Script /exec web-app URL
-//   STAFFHUB_SECRET            = same long random string as SHARED_SECRET in the .gs
-//   SUPABASE_URL               = https://<project>.supabase.co
-//   SUPABASE_SERVICE_ROLE_KEY  = service role key (server-side token + staff verification)
-//
-// Client calls (NO key ever sent from the browser):
-//   GET  /.netlify/functions/staffhub                                   → metrics only
-//   GET  /.netlify/functions/staffhub  + Authorization: Bearer <token>  → full, if staff
-//   POST /.netlify/functions/staffhub  + same auth, body { actions:[] } → log actions (staff only)
+// Netlify env vars:
+//   STAFFHUB_SCRIPT_URL, STAFFHUB_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 
 const SCRIPT_URL = process.env.STAFFHUB_SCRIPT_URL;
 const SECRET     = process.env.STAFFHUB_SECRET;
@@ -51,7 +43,7 @@ async function isStaff(authHeader) {
   }
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (!SCRIPT_URL || !SECRET) return reply(500, { ok: false, error: "proxy not configured" });
   const staff = await isStaff(
     (event.headers && (event.headers.authorization || event.headers.Authorization)) || "",
