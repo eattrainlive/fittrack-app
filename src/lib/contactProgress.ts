@@ -99,6 +99,44 @@ const emailKey = (e?: string | null) =>
     .toLowerCase()
     .trim();
 
+/**
+ * Ask the Netlify proxy to fire the GHL "reach-out WhatsApp" workflow for this
+ * person. The GHL webhook URL lives server-side; we only send name/email + list.
+ * Returns true only if GHL accepted it (so we don't mark "WhatsApp sent" on a
+ * failed fire).
+ */
+async function fireWhatsAppTrigger<M extends ContactMember>(
+  c: EnrichedContact<M>,
+  listType: ListType,
+  by: string,
+): Promise<boolean> {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token ?? "";
+    const res = await fetch("/.netlify/functions/staffhub-whatsapp", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: c.member.email,
+        first: c.member.first,
+        last: c.member.last,
+        name: c.name,
+        list_type: listType,
+        by,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    return res.ok && data?.ok !== false;
+  } catch {
+    return false;
+  }
+}
+
 export interface LogContactArgs {
   kind: "no_answer" | "whatsapp" | "answered";
   outcome?: string; // required for "answered": an AnswerOutcome.key
@@ -188,6 +226,9 @@ export function useContactProgress<M extends ContactMember>(
         if (status === "todo") status = "in_progress";
         outcomeLabel = `No answer (call ${attempts})`;
       } else if (args.kind === "whatsapp") {
+        // Fire the GHL workflow first; only record "sent" if GHL accepted it.
+        const fired = await fireWhatsAppTrigger(c, listType, staffName || "Staff");
+        if (!fired) return false;
         whatsappSent = true;
         if (status === "todo") status = "in_progress";
         outcomeLabel = "WhatsApp sent";

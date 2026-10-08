@@ -27,7 +27,8 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
 ## Secrets (in dashboards only — never in repo/client)
 - Supabase function secrets: SERVICE_ROLE, STAFF_SECRET, GHL_WEBHOOK_URL, GYMOS_WEBHOOK_SECRET,
   INVITE_REDIRECT, TRIAL_STARTED_WEBHOOK_URL (if set), ANTHROPIC_API_KEY, COACH_USER_ID.
-- Netlify env: STAFFHUB_SCRIPT_URL, STAFFHUB_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
+- Netlify env: STAFFHUB_SCRIPT_URL, STAFFHUB_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+  GHL_WHATSAPP_WEBHOOK_URL (reach-out WhatsApp trigger).
 
 ## In progress
 - **ETL Staff Hub** inside the app, reading a Google Apps Script via the `staffhub` Netlify proxy.
@@ -65,8 +66,14 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
     (export 63): Reach out & Win back now use a shared `ContactCadenceList` in StaffHubCallLists.tsx
     (status pills + Call1·2·3·WhatsApp tracker + No answer/WhatsApp/Answered + log sheet w/ outcome
     chips + note). Trialists/proxy untouched; no-PII-cache fix held. Verified by static review
-    (imports/types/braces OK; full typecheck still blocked by SheetJS CDN dep). PENDING: confirm SQL
-    run in Supabase, then push + test live.
+    (imports/types/braces OK; full typecheck still blocked by SheetJS CDN dep). LIVE and working
+    (confirmed 2026-10-08).
+  - WhatsApp → GHL automation (in progress): "Send WhatsApp" at the WhatsApp step fires a GHL inbound
+    webhook (coach-confirmed, not auto). New Netlify fn `netlify/functions/staffhub-whatsapp.js`
+    (staff-verified, holds GHL_WHATSAPP_WEBHOOK_URL server-side) + `contactProgress.ts` fires it in
+    the whatsapp branch (only marks sent if GHL accepts). GHL + Netlify-env steps:
+    `claude/GHL_whatsapp_reachout_setup.md`; builder catch-up: `claude/catch-up-contactprogress-whatsapp.md`.
+    PENDING: build GHL workflow, add GHL_WHATSAPP_WEBHOOK_URL in Netlify, push, paste catch-up, test.
 - Trial nurture sequence (v2) designed; GHL build + Phase-2 behaviour webhooks pending.
 
 ## Known loose ends
