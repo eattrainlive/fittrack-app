@@ -7,12 +7,66 @@ export interface StaffMetric {
   group: string;
 }
 
+// ---- PII call lists (returned ONLY to verified staff by the proxy) ----
+
+/** A current trialist whose trial has not yet been decided. */
+export interface Trialist {
+  first: string;
+  last: string;
+  email: string;
+  start: string | null;
+  trial: string;
+  category: string;
+  finishes: string | null;
+}
+
+/** A member hitting a 3/6/9/12-month milestone this month. */
+export interface ReachoutMember {
+  first: string;
+  last: string;
+  email: string;
+  membership: string;
+  category: string;
+  joined: string | null;
+  milestone: number;
+}
+
+/** A lapsed member in a priority win-back window. */
+export interface LapsedMember {
+  first: string;
+  last: string;
+  email: string;
+  membership: string;
+  category: string;
+  value: number;
+  cancelled: string | null;
+  window: string;
+  stage: string;
+  owner: string;
+}
+
+/** A row logged to the Actions tab (history of what staff have done). */
+export interface StaffAction {
+  logged: string | null;
+  type: string;
+  who: string;
+  email: string;
+  outcome: string;
+  note: string;
+  by: string;
+}
+
 export interface StaffHubResponse {
   ok: boolean;
   generated: string;
   trusted?: boolean;
   month_name?: string;
   metrics: StaffMetric[];
+  // Present only when the proxy verified the caller as staff:
+  trialists?: Trialist[];
+  reachout?: ReachoutMember[];
+  lapsed?: LapsedMember[];
+  actions?: StaffAction[];
 }
 
 const CACHE_KEY = "etl_staffhub_metrics_cache";
@@ -27,17 +81,32 @@ export function getCachedMetrics(): StaffHubResponse | null {
   }
 }
 
+/**
+ * Cache the response WITHOUT the PII lists — names/emails must never be
+ * persisted to localStorage. Only the (non-personal) metrics are cached so a
+ * flaky-wifi refresh can still show numbers.
+ */
 function setCachedMetrics(res: StaffHubResponse) {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(res));
+    const safe: StaffHubResponse = {
+      ok: res.ok,
+      generated: res.generated,
+      trusted: res.trusted,
+      month_name: res.month_name,
+      metrics: res.metrics,
+    };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(safe));
   } catch {
     /* ignore */
   }
 }
 
 /**
- * Fetch the "This month" metrics from the Netlify proxy.
- * Sends the current Supabase access token as a Bearer header.
+ * Fetch the Staff Hub payload from the Netlify proxy. Sends the current
+ * Supabase access token as a Bearer header. For a verified staff user the proxy
+ * also returns the PII call lists (trialists / reachout / lapsed / actions);
+ * for anyone else only `metrics` comes back. The lists are returned to the
+ * caller but never written to the cache.
  */
 export async function fetchStaffHubMetrics(): Promise<StaffHubResponse> {
   const {
@@ -58,9 +127,47 @@ export async function fetchStaffHubMetrics(): Promise<StaffHubResponse> {
 
   const data = (await res.json()) as StaffHubResponse;
   if (data && data.metrics) {
-    setCachedMetrics(data);
+    setCachedMetrics(data); // metrics only — never the PII lists
   }
   return data;
+}
+
+/** One action to append to the Staff Hub Actions log. */
+export interface StaffActionInput {
+  type: string; // e.g. "trialist" | "reachout" | "lapsed"
+  who: string; // member name
+  email: string;
+  outcome: string; // e.g. "Called – converting", "No answer", "Not interested"
+  note?: string;
+  by?: string; // staff member's name
+}
+
+/**
+ * Log one or more staff actions (append-only) via the proxy. The proxy adds the
+ * shared key server-side and only accepts POSTs from a verified staff user.
+ * Returns the number of rows logged.
+ */
+export async function logStaffActions(
+  actions: StaffActionInput[],
+): Promise<{ ok: boolean; logged: number }> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const accessToken = session?.access_token ?? "";
+
+  const res = await fetch("/.netlify/functions/staffhub", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ actions }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Staff Hub log failed: ${res.status}`);
+  }
+  return (await res.json()) as { ok: boolean; logged: number };
 }
 
 // ---- formatting helpers (display only; no maths on the raw values) ----

@@ -33,14 +33,20 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
 - **ETL Staff Hub** inside the app, reading a Google Apps Script via the `staffhub` Netlify proxy.
   - Screen 1 "This Month" — LIVE and pulling real metrics. Comparison sub-lines fixed (now read
     "down from X last month" with direction icon, not the delta as the lead number).
-  - Next: the three call lists (Current trialists / Member reachout / Lapsed win-back), which use the
-    staff-gated PII path of the proxy.
+  - Call lists (Trialists / Reach out / Win back): backend ready. `src/lib/staffHubMetrics.ts`
+    extended with list types + `logStaffActions` (PII never cached to localStorage). Builder brief:
+    `claude/builder-prompt-staffhub-call-lists.md`. Awaiting builder build of the 3 list screens.
 - Trial nurture sequence (v2) designed; GHL build + Phase-2 behaviour webhooks pending.
 
 ## Known loose ends
 - `public.notifications` table missing → console error PGRST205 from the Notifications feature (needs
   a table or the feature disabling).
 - Some exercise-library entries are non-exercises ("How To Use…", "Overview") — to be cleaned.
+- 2026-10-08: a raw builder export was committed directly (the "Build" commits) and DELETED
+  `netlify/functions/staffhub.js` (commit 852c1fc) — the live Staff Hub proxy. Restored from
+  b7cdfd0. LESSON: never commit a builder export straight through GitHub Desktop — always run
+  `scripts/merge-builder-export.py` first (it skips `netlify/`). If a stray "Build" commit lands,
+  check `netlify/` and `supabase/` survived.
 
 ## Workflow switch (this change)
 - Repo connected to Cowork; added `scripts/merge-builder-export.py`, `claude/` docs, and brought the
