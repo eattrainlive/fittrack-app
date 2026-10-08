@@ -33,9 +33,15 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
 - **ETL Staff Hub** inside the app, reading a Google Apps Script via the `staffhub` Netlify proxy.
   - Screen 1 "This Month" — LIVE and pulling real metrics. Comparison sub-lines fixed (now read
     "down from X last month" with direction icon, not the delta as the lead number).
-  - Call lists (Trialists / Reach out / Win back): backend ready. `src/lib/staffHubMetrics.ts`
-    extended with list types + `logStaffActions` (PII never cached to localStorage). Builder brief:
-    `claude/builder-prompt-staffhub-call-lists.md`. Awaiting builder build of the 3 list screens.
+  - Call lists (Trialists / Reach out / Win back): BUILT and merged (export 61). New
+    `StaffHubCallLists.tsx`, `StaffHubTab.tsx`, `useStaffHubData.ts` (one shared fetch for numbers +
+    lists); `StaffHubMetrics.tsx` refactored to accept shared data as props (guarded against
+    double-fetch); `Admin.tsx` renders `<StaffHubTab/>` (whole page already staff-gated). Outcome
+    logging via `logStaffActions` → append-only Actions tab. Re-applied the no-PII-cache fix after
+    the export reverted it; catch-up prompt for the builder: `claude/catch-up-staffhub-call-lists.md`.
+    Couldn't run a full typecheck in the sandbox (npm install blocked on the SheetJS CDN dep) —
+    verified by static review + import/type checks. Pending: Michael pushes, tests live, pastes the
+    catch-up prompt into the builder.
 - Trial nurture sequence (v2) designed; GHL build + Phase-2 behaviour webhooks pending.
 
 ## Known loose ends

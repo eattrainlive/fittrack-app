@@ -174,7 +174,7 @@ import { TrackingTypeSelector } from "@/components/TrackingTypeSelector";
 import { useApplyDraft } from "@/lib/useApplyDraft";
 import { LeaderboardSectionFields } from "@/components/LeaderboardSectionFields";
 import UsageDashboard from "@/components/UsageDashboard";
-import { StaffHubMetrics } from "@/components/StaffHubMetrics";
+import { StaffHubTab } from "@/components/StaffHubTab";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -6476,7 +6476,7 @@ const Admin = () => {
           <UsageDashboard staffSecret={staffSecret} />
         </TabsContent>
         <TabsContent value="staffhub" className="space-y-6 mt-6">
-          <StaffHubMetrics />
+          <StaffHubTab />
         </TabsContent>
 
         <SettingsTab />

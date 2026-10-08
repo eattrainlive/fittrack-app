@@ -24,38 +24,57 @@ import {
  * Phone-first KPI dashboard reading live metrics from the Netlify proxy.
  * Metrics only (no PII); grouped from the payload, never hard-coded.
  */
-export function StaffHubMetrics() {
-  const [data, setData] = useState<StaffHubResponse | null>(() =>
+export function StaffHubMetrics({
+  data: sharedData,
+  loading: sharedLoading,
+  error: sharedError,
+  refreshing: sharedRefreshing,
+  onRefresh,
+}: {
+  data?: StaffHubResponse | null;
+  loading?: boolean;
+  error?: string | null;
+  refreshing?: boolean;
+  onRefresh?: () => void;
+}) {
+  const [localData, setLocalData] = useState<StaffHubResponse | null>(() =>
     getCachedMetrics(),
   );
-  const [loading, setLoading] = useState(!getCachedMetrics());
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const [localLoading, setLocalLoading] = useState(!getCachedMetrics());
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [localRefreshing, setLocalRefreshing] = useState(false);
 
   const load = useCallback(async (silent = false) => {
-    if (!silent) setRefreshing(true);
-    else setLoading(true);
+    if (!silent) setLocalRefreshing(true);
+    else setLocalLoading(true);
     try {
       const res = await fetchStaffHubMetrics();
-      setData(res);
-      setError(null);
+      setLocalData(res);
+      setLocalError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't refresh");
-      // keep the cached data on screen
+      setLocalError(e instanceof Error ? e.message : "Couldn't refresh");
       const cached = getCachedMetrics();
-      if (cached) setData(cached);
+      if (cached) setLocalData(cached);
     } finally {
-      setRefreshing(false);
-      setLoading(false);
+      setLocalRefreshing(false);
+      setLocalLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    if (sharedData !== undefined) return; // shared fetch owns it
     load(true);
     const onFocus = () => load(true);
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [load]);
+  }, [load, sharedData]);
+
+  const data = sharedData !== undefined ? sharedData : localData;
+  const loading = sharedLoading !== undefined ? sharedLoading : localLoading;
+  const error = sharedError !== undefined ? sharedError : localError;
+  const refreshing =
+    sharedRefreshing !== undefined ? sharedRefreshing : localRefreshing;
+  const reload = onRefresh ?? (() => load());
 
   // Index metrics by key for quick lookup
   const byKey = useMemo(() => {
@@ -125,7 +144,7 @@ export function StaffHubMetrics() {
           monthName={monthName}
           generated={generated}
           error={error}
-          onRefresh={() => load()}
+          onRefresh={reload}
           refreshing={refreshing}
         />
         <Card>
@@ -156,7 +175,7 @@ export function StaffHubMetrics() {
         monthName={monthName}
         generated={generated}
         error={error}
-        onRefresh={() => load()}
+        onRefresh={reload}
         refreshing={refreshing}
       />
 
@@ -357,7 +376,6 @@ function HeadlineCard({
             current={Number(value.replace(/[^\d-]/g, "")) || 0}
             last={compare.value}
             goodWhenUp={goodWhenUp}
-            compact
           />
         )}
       </CardContent>
@@ -369,12 +387,10 @@ function CompareChip({
   current,
   last,
   goodWhenUp,
-  compact,
 }: {
   current: number;
   last: number;
   goodWhenUp: boolean;
-  compact?: boolean;
 }) {
   if (last === 0 && current === 0) {
     return (
@@ -400,12 +416,10 @@ function CompareChip({
 
   return (
     <span
-      className={`text-[11px] flex items-center gap-0.5 ${color} ${compact ? "" : "font-medium"}`}
+      className={`text-[11px] font-medium flex items-center gap-0.5 ${color}`}
     >
       <Icon className="h-3 w-3" />
-      {compact
-        ? `${up ? "up" : down ? "down" : "same"} from ${last} last`
-        : `${up ? "up" : down ? "down" : "same"} from ${last} last month`}
+      {up ? "up" : down ? "down" : "same"} from {last} last month
     </span>
   );
 }
