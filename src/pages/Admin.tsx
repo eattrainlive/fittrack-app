@@ -174,6 +174,7 @@ import { TrackingTypeSelector } from "@/components/TrackingTypeSelector";
 import { useApplyDraft } from "@/lib/useApplyDraft";
 import { LeaderboardSectionFields } from "@/components/LeaderboardSectionFields";
 import UsageDashboard from "@/components/UsageDashboard";
+import { StaffHubMetrics } from "@/components/StaffHubMetrics";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -2367,6 +2368,7 @@ const Admin = () => {
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
           <TabsTrigger value="usage">Usage</TabsTrigger>
+          <TabsTrigger value="staffhub">This Month</TabsTrigger>
         </TabsList>
         <TabsContent value="exercises" className="space-y-6 mt-6">
           <Card className="bg-card border-border">
@@ -6472,6 +6474,9 @@ const Admin = () => {
 
         <TabsContent value="usage" className="space-y-6 mt-6">
           <UsageDashboard staffSecret={staffSecret} />
+        </TabsContent>
+        <TabsContent value="staffhub" className="space-y-6 mt-6">
+          <StaffHubMetrics />
         </TabsContent>
 
         <SettingsTab />
