@@ -404,8 +404,8 @@ function CompareChip({
     >
       <Icon className="h-3 w-3" />
       {compact
-        ? `${Math.abs(diff)} vs ${last} last`
-        : `${Math.abs(diff)} ${up ? "up" : down ? "down" : "same"} from ${last} last month`}
+        ? `${up ? "up" : down ? "down" : "same"} from ${last} last`
+        : `${up ? "up" : down ? "down" : "same"} from ${last} last month`}
     </span>
   );
 }

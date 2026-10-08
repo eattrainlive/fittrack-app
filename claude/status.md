@@ -31,8 +31,8 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
 
 ## In progress
 - **ETL Staff Hub** inside the app, reading a Google Apps Script via the `staffhub` Netlify proxy.
-  - Screen 1 "This Month" — LIVE and pulling real metrics. Pending: fix the vs-last-month comparison
-    sub-lines (showing the delta as the lead number instead of "down from X last month").
+  - Screen 1 "This Month" — LIVE and pulling real metrics. Comparison sub-lines fixed (now read
+    "down from X last month" with direction icon, not the delta as the lead number).
   - Next: the three call lists (Current trialists / Member reachout / Lapsed win-back), which use the
     staff-gated PII path of the proxy.
 - Trial nurture sequence (v2) designed; GHL build + Phase-2 behaviour webhooks pending.
