@@ -53,8 +53,20 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
     helpers the builder factored out), wired into the Trialists tab (reach-out/win-back untouched).
     No-PII-cache fix held through this export. Verified by static review (imports/types/braces all OK;
     full typecheck still blocked by the SheetJS CDN dep). PENDING: confirm SQL was run in Supabase,
-    then push + test live. Minor known nit: clicking a card's already-current stage shows a
-    "Moved to X" toast but does nothing (harmless no-op).
+    then push + test live. LIVE and working (confirmed 2026-10-08). Minor known nit: clicking a
+    card's already-current stage shows a "Moved to X" toast but does nothing (harmless no-op).
+  - Reach out + Win back CONTACT CADENCE (in progress): per-person call cadence — up to 3 calls, then
+    WhatsApp, note each touch, status buckets. Reach out → To do / In progress / Done; Win back → To
+    do / In progress / Joined / Not interested. New: `supabase/sql/staff_contact_progress_setup.sql`
+    (per email+list_type row: attempts, whatsapp_sent, status, last_note/outcome, owner; staff RLS),
+    `src/lib/contactProgress.ts` (`useContactProgress` hook — buckets + `logContact` advances cadence,
+    upserts, logs to Actions tab). WhatsApp step just records the touch (no phone in the data). Builder
+    brief (incl. hook to create): `claude/builder-prompt-staffhub-contact-cadence.md`. BUILT + merged
+    (export 63): Reach out & Win back now use a shared `ContactCadenceList` in StaffHubCallLists.tsx
+    (status pills + Call1·2·3·WhatsApp tracker + No answer/WhatsApp/Answered + log sheet w/ outcome
+    chips + note). Trialists/proxy untouched; no-PII-cache fix held. Verified by static review
+    (imports/types/braces OK; full typecheck still blocked by SheetJS CDN dep). PENDING: confirm SQL
+    run in Supabase, then push + test live.
 - Trial nurture sequence (v2) designed; GHL build + Phase-2 behaviour webhooks pending.
 
 ## Known loose ends
