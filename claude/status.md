@@ -40,8 +40,21 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
     logging via `logStaffActions` → append-only Actions tab. Re-applied the no-PII-cache fix after
     the export reverted it; catch-up prompt for the builder: `claude/catch-up-staffhub-call-lists.md`.
     Couldn't run a full typecheck in the sandbox (npm install blocked on the SheetJS CDN dep) —
-    verified by static review + import/type checks. Pending: Michael pushes, tests live, pastes the
-    catch-up prompt into the builder.
+    verified by static review + import/type checks. LIVE and working (confirmed 2026-10-08). Reminder:
+    paste `claude/catch-up-staffhub-call-lists.md` into the builder so it keeps the no-PII-cache fix.
+  - Trialist STAGE BUCKETS (in progress): Trialists tab becomes a mini pipeline — To contact /
+    Booked review / Joined / Not joined. Auto-moves from live data (trial_cohort.converted → Joined
+    [locked, ground truth; catches the sheet-vs-Supabase lag, e.g. Michelle Purdy]; review_bookings →
+    Booked review) + manual override. New: `supabase/sql/staff_trial_stage_setup.sql` (override table,
+    staff RLS), `src/lib/trialStages.ts` (`useTrialStages` hook — joins cohort/reviews/overrides,
+    computes stage, setStage persists + logs). Builder brief (incl. the hook to create in the builder):
+    `claude/builder-prompt-staffhub-trialist-buckets.md`. BUILT + merged (export 62): new
+    `TrialistPipeline.tsx` (4 stage pills + move dropdown), `staffHubShared.tsx` (shared card/sheet
+    helpers the builder factored out), wired into the Trialists tab (reach-out/win-back untouched).
+    No-PII-cache fix held through this export. Verified by static review (imports/types/braces all OK;
+    full typecheck still blocked by the SheetJS CDN dep). PENDING: confirm SQL was run in Supabase,
+    then push + test live. Minor known nit: clicking a card's already-current stage shows a
+    "Moved to X" toast but does nothing (harmless no-op).
 - Trial nurture sequence (v2) designed; GHL build + Phase-2 behaviour webhooks pending.
 
 ## Known loose ends

@@ -104,11 +104,7 @@ export function getCachedMetrics(): StaffHubResponse | null {
   }
 }
 
-/**
- * Cache the response WITHOUT the PII lists — member names/emails must never be
- * persisted to localStorage. Only the (non-personal) metrics are cached so a
- * flaky-wifi refresh can still show the numbers.
- */
+// Cache WITHOUT the PII lists — names/emails must never be persisted to localStorage.
 function setCachedMetrics(res: StaffHubResponse) {
   try {
     const safe: StaffHubResponse = {
