@@ -73,7 +73,14 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
     (staff-verified, holds GHL_WHATSAPP_WEBHOOK_URL server-side) + `contactProgress.ts` fires it in
     the whatsapp branch (only marks sent if GHL accepts). GHL + Netlify-env steps:
     `claude/GHL_whatsapp_reachout_setup.md`; builder catch-up: `claude/catch-up-contactprogress-whatsapp.md`.
-    PENDING: build GHL workflow, add GHL_WHATSAPP_WEBHOOK_URL in Netlify, push, paste catch-up, test.
+    LIVE and working (tested 2026-10-08).
+  - Win-back ROUTES (in progress): lapsed members split by old membership → Gym/Core+ ("Gym route":
+    2 weeks free then restart) vs Classes/PT/Group PT ("Coached route": free goal-reset + 4-week
+    kickstart, with gym-access ease-back fallback). `contactProgress.ts` adds `winbackRoute()` +
+    passes route/membership/category in the lapsed WhatsApp payload; `staffhub-whatsapp.js` forwards
+    them to GHL; win-back cards show a route badge + offer hint. GHL branch steps + landing-page copy:
+    `claude/GHL_winback_routes_and_landing_pages.md`; builder catch-up: `claude/catch-up-winback-routes.md`.
+    PENDING: build 2 landing pages + GHL branches (list_type→route), push repo, paste catch-up, test.
 - Trial nurture sequence (v2) designed; GHL build + Phase-2 behaviour webhooks pending.
 
 ## Known loose ends

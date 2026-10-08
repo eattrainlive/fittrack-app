@@ -28,6 +28,8 @@ import {
   useContactProgress,
   STATUS_LABELS,
   ANSWER_OUTCOMES,
+  winbackRoute,
+  WINBACK_ROUTE_LABELS,
   type ListType,
   type ContactStatus,
   type ContactMember,
@@ -170,6 +172,29 @@ function LapsedList({ list }: { list: LapsedMember[] }) {
               Cancelled {fmtMonthYear(m.cancelled)}
             </span>
           </div>
+          {(() => {
+            const route = winbackRoute(m.membership, m.category);
+            const offer =
+              route === "coached"
+                ? "Free goal-reset + 4-week kickstart (or ease back on gym access)"
+                : "2 weeks free, then restart";
+            return (
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                    route === "coached"
+                      ? "bg-primary/10 text-primary"
+                      : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+                  }`}
+                >
+                  {WINBACK_ROUTE_LABELS[route]}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Offer: {offer}
+                </span>
+              </div>
+            );
+          })()}
           <p className="mt-1 text-[11px] text-muted-foreground">
             {m.stage}
             {m.owner ? ` · Owner: ${m.owner}` : ""}

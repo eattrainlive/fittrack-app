@@ -59,10 +59,15 @@ export const handler = async (event) => {
   const email = String(body.email || "").trim();
   if (!email) return reply(400, { ok: false, error: "email required" });
 
-  // Payload GHL can map onto a contact (match/create by email, then Send WhatsApp).
+  // Payload GHL can map onto a contact (match by email, then branch + send).
+  // `route` (gym | coached) + `membership` let the win-back workflow pick the
+  // right offer / landing page.
   const payload = {
     trigger: "staffhub_whatsapp",
     list_type: String(body.list_type || ""),
+    route: String(body.route || ""),
+    membership: String(body.membership || ""),
+    category: String(body.category || ""),
     email,
     first_name: String(body.first || ""),
     last_name: String(body.last || ""),

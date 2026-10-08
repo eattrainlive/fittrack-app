@@ -100,10 +100,30 @@ const emailKey = (e?: string | null) =>
     .trim();
 
 /**
- * Ask the Netlify proxy to fire the GHL "reach-out WhatsApp" workflow for this
- * person. The GHL webhook URL lives server-side; we only send name/email + list.
- * Returns true only if GHL accepted it (so we don't mark "WhatsApp sent" on a
- * failed fire).
+ * Win-back route from the old membership. "coached" = Classes / PT / Group PT
+ * (relationship-led comeback offer); "gym" = Gym / Core+ and everything else
+ * (easy self-serve restart). Drives which offer/landing page GHL sends.
+ */
+export type WinbackRoute = "gym" | "coached";
+export const WINBACK_ROUTE_LABELS: Record<WinbackRoute, string> = {
+  gym: "Gym route",
+  coached: "Coached route",
+};
+export function winbackRoute(
+  membership?: string | null,
+  category?: string | null,
+): WinbackRoute {
+  const s = `${membership ?? ""} ${category ?? ""}`.toLowerCase();
+  if (/\bpt\b|personal|class|team training|group/.test(s)) return "coached";
+  return "gym"; // gym, core+, anything else
+}
+
+/**
+ * Ask the Netlify proxy to fire the GHL WhatsApp workflow for this person. The
+ * GHL webhook URL lives server-side; we only send name/email + list, plus (for
+ * win-back) the route + old membership so GHL picks the right offer/landing
+ * page. Returns true only if GHL accepted it (so we don't mark "WhatsApp sent"
+ * on a failed fire).
  */
 async function fireWhatsAppTrigger<M extends ContactMember>(
   c: EnrichedContact<M>,
@@ -115,6 +135,14 @@ async function fireWhatsAppTrigger<M extends ContactMember>(
       data: { session },
     } = await supabase.auth.getSession();
     const token = session?.access_token ?? "";
+    // Win-back only: carry the route + old membership so GHL sends the matching
+    // offer. (reachout ignores these.)
+    const m = c.member as unknown as {
+      membership?: string | null;
+      category?: string | null;
+    };
+    const route =
+      listType === "lapsed" ? winbackRoute(m.membership, m.category) : undefined;
     const res = await fetch("/.netlify/functions/staffhub-whatsapp", {
       method: "POST",
       headers: {
@@ -127,6 +155,9 @@ async function fireWhatsAppTrigger<M extends ContactMember>(
         last: c.member.last,
         name: c.name,
         list_type: listType,
+        route,
+        membership: m.membership ?? null,
+        category: m.category ?? null,
         by,
       }),
     });
