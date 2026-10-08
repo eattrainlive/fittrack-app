@@ -173,7 +173,7 @@ import { ExerciseCardPreview } from "@/components/ExerciseCardPreview";
 import { TrackingTypeSelector } from "@/components/TrackingTypeSelector";
 import { useApplyDraft } from "@/lib/useApplyDraft";
 import { LeaderboardSectionFields } from "@/components/LeaderboardSectionFields";
-import UsageDashboard from "@/components/UsageDashboard";
+import { InsightsTab } from "@/components/InsightsTab";
 import { StaffHubTab } from "@/components/StaffHubTab";
 
 const Admin = () => {
@@ -2367,8 +2367,8 @@ const Admin = () => {
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
-          <TabsTrigger value="usage">Usage</TabsTrigger>
-          <TabsTrigger value="staffhub">This Month</TabsTrigger>
+          <TabsTrigger value="insights">Insights</TabsTrigger>
+          <TabsTrigger value="calllists">Call Lists</TabsTrigger>
         </TabsList>
         <TabsContent value="exercises" className="space-y-6 mt-6">
           <Card className="bg-card border-border">
@@ -6472,10 +6472,10 @@ const Admin = () => {
 
         <TvDisplayTab programs={programs} />
 
-        <TabsContent value="usage" className="space-y-6 mt-6">
-          <UsageDashboard staffSecret={staffSecret} />
+        <TabsContent value="insights" className="space-y-6 mt-6">
+          <InsightsTab staffSecret={staffSecret} />
         </TabsContent>
-        <TabsContent value="staffhub" className="space-y-6 mt-6">
+        <TabsContent value="calllists" className="space-y-6 mt-6">
           <StaffHubTab />
         </TabsContent>
 

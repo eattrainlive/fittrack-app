@@ -7,12 +7,22 @@ export interface StaffMetric {
   group: string;
 }
 
+export interface MonthRow {
+  month: string; // "January".."December" or "YEAR"
+  tab?: string;
+  started?: boolean;
+  [key: string]: number | string | boolean | undefined;
+}
+
 export interface StaffHubResponse {
   ok: boolean;
   generated: string;
   trusted?: boolean;
   month_name?: string;
   metrics: StaffMetric[];
+  months?: MonthRow[];
+  year?: MonthRow | null;
+  labels?: Record<string, string>;
   // Staff-only call lists (present only when the caller is verified staff)
   trialists?: Trialist[];
   reachout?: ReachoutMember[];
@@ -113,6 +123,9 @@ function setCachedMetrics(res: StaffHubResponse) {
       trusted: res.trusted,
       month_name: res.month_name,
       metrics: res.metrics,
+      months: res.months,
+      year: res.year,
+      labels: res.labels,
     };
     localStorage.setItem(CACHE_KEY, JSON.stringify(safe));
   } catch {

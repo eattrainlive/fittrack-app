@@ -100,9 +100,8 @@ const emailKey = (e?: string | null) =>
     .trim();
 
 /**
- * Win-back route from the old membership. "coached" = Classes / PT / Group PT
- * (relationship-led comeback offer); "gym" = Gym / Core+ and everything else
- * (easy self-serve restart). Drives which offer/landing page GHL sends.
+ * Win-back route from the old membership. "coached" = Classes / PT / Group PT;
+ * "gym" = Gym / Core+ and everything else. Drives which offer GHL sends.
  */
 export type WinbackRoute = "gym" | "coached";
 export const WINBACK_ROUTE_LABELS: Record<WinbackRoute, string> = {
@@ -118,13 +117,7 @@ export function winbackRoute(
   return "gym"; // gym, core+, anything else
 }
 
-/**
- * Ask the Netlify proxy to fire the GHL WhatsApp workflow for this person. The
- * GHL webhook URL lives server-side; we only send name/email + list, plus (for
- * win-back) the route + old membership so GHL picks the right offer/landing
- * page. Returns true only if GHL accepted it (so we don't mark "WhatsApp sent"
- * on a failed fire).
- */
+/** Fire the reach-out WhatsApp workflow via our Netlify proxy (URL stays server-side). */
 async function fireWhatsAppTrigger<M extends ContactMember>(
   c: EnrichedContact<M>,
   listType: ListType,
@@ -135,14 +128,14 @@ async function fireWhatsAppTrigger<M extends ContactMember>(
       data: { session },
     } = await supabase.auth.getSession();
     const token = session?.access_token ?? "";
-    // Win-back only: carry the route + old membership so GHL sends the matching
-    // offer. (reachout ignores these.)
     const m = c.member as unknown as {
       membership?: string | null;
       category?: string | null;
     };
     const route =
-      listType === "lapsed" ? winbackRoute(m.membership, m.category) : undefined;
+      listType === "lapsed"
+        ? winbackRoute(m.membership, m.category)
+        : undefined;
     const res = await fetch("/.netlify/functions/staffhub-whatsapp", {
       method: "POST",
       headers: {
@@ -257,8 +250,12 @@ export function useContactProgress<M extends ContactMember>(
         if (status === "todo") status = "in_progress";
         outcomeLabel = `No answer (call ${attempts})`;
       } else if (args.kind === "whatsapp") {
-        // Fire the GHL workflow first; only record "sent" if GHL accepted it.
-        const fired = await fireWhatsAppTrigger(c, listType, staffName || "Staff");
+        // Fire the workflow first; only record "sent" if it was accepted.
+        const fired = await fireWhatsAppTrigger(
+          c,
+          listType,
+          staffName || "Staff",
+        );
         if (!fired) return false;
         whatsappSent = true;
         if (status === "todo") status = "in_progress";

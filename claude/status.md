@@ -83,6 +83,18 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
     PENDING: build 2 landing pages + GHL branches (list_type→route), push repo, paste catch-up, test.
 - Trial nurture sequence (v2) designed; GHL build + Phase-2 behaviour webhooks pending.
 
+## Insights tab (in progress)
+- Merging Usage + This-Month KPIs into one **Insights** tab (This month / Trends / Usage switch) +
+  splitting call lists into their own **Call Lists** tab. Backend already serves the yearly series —
+  the Apps Script returns `months` (Jan–Dec), `year` (YTD), `labels` alongside `metrics`. Extended
+  `staffHubMetrics.ts` (`MonthRow` type + months/year/labels on StaffHubResponse, cached — non-PII).
+  Builder brief (incl. lib edits + new TrendsView with recharts): `claude/builder-prompt-staffhub-insights-tab.md`.
+  No YoY yet (one year of data). BUILT + merged (export 64): `InsightsTab.tsx` (This month/Trends/
+  Usage switch), `TrendsView.tsx` (Year-so-far cards + metric picker + recharts bar, keys/labels from
+  payload), Admin tabs → Insights + Call Lists, StaffHubTab trimmed to call-lists-only. Win-back/
+  WhatsApp/PII-cache all verified intact through this export. Static review clean (imports/types/
+  braces OK; full typecheck still blocked by SheetJS CDN). PENDING: push + test live.
+
 ## Known loose ends
 - `public.notifications` table missing → console error PGRST205 from the Notifications feature (needs
   a table or the feature disabling).
