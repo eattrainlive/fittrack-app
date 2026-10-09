@@ -95,6 +95,19 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
   WhatsApp/PII-cache all verified intact through this export. Static review clean (imports/types/
   braces OK; full typecheck still blocked by SheetJS CDN). PENDING: push + test live.
 
+## Accountability (6-week, cohort starts 19 Oct)
+- Onboarding launch (BUILT + merged, export 20): required 5-item minimum (why, front+side photos,
+  weight+3 measurements, baseline steps, nutrition approach) via `onboardingStatus()` single source of
+  truth; `onboarding_completed_at` stamped on completion; coach "mark onboarded" sets BOTH
+  `onboarding_done`+`onboarding_completed_at` (`setOnboardingComplete`); dashboard "Finish setting up"
+  card for late joiners; Roster x/5 + "Onboarding incomplete" filter (new `AccRosterTab.tsx`). SQL run
+  (`acc_onboarding_completed.sql`: +onboarding_completed_at, cohort start → 2026-10-19). No win-back/
+  Staff Hub regressions. PENDING: push.
+- Cumulative habit stack (PREPPED, not built): `supabase/sql/acc_week_habits.sql` (week→habit map,
+  default stack seeded — Michael to confirm the "plate" habit id) + builder brief
+  `claude/builder-prompt-acc-cumulative-habits.md`. For after onboarding; live by 19 Oct.
+- Breakdown doc for planning: `/Programming/ETL_6week_accountability_breakdown.md`.
+
 ## Known loose ends
 - `public.notifications` table missing → console error PGRST205 from the Notifications feature (needs
   a table or the feature disabling).

@@ -46,6 +46,7 @@ export const DEMO_CLIENT: AccClient = {
   cohort_id: "demo-cohort",
   coach_user_id: "demo-coach",
   onboarding_done: true,
+  onboarding_completed_at: todayMinus(21),
   nutrition_approach: "plate",
   created_at: todayMinus(21),
   onboarding: { q5: 4, q42: "Really want to feel confident on the beach." },
@@ -61,7 +62,8 @@ export const DEMO_CLIENT: AccClient = {
     thigh: 58,
     tummy: 98,
     steps: 5200,
-    photos: [],
+    avg_steps_baseline: 5200,
+    photos: ["demo-front", "demo-side"],
   },
   step_target: 8000,
   accountability_style: "gentle nudges",
@@ -193,6 +195,28 @@ const demoLatestMeas = {
   thigh: 57,
 };
 
+/** A demo client with incomplete onboarding (for the "finish setup" preview). */
+export const DEMO_INCOMPLETE_CLIENT: AccClient = {
+  ...DEMO_CLIENT,
+  id: "demo-incomplete",
+  onboarding_done: false,
+  onboarding_completed_at: null,
+  why: null,
+  nutrition_approach: null,
+  baseline: {
+    weight: 82.4,
+    height: "175cm",
+    chest: 104,
+    waist: 96,
+    bodyFat: 31,
+    thigh: 58,
+    tummy: 98,
+    steps: 5200,
+    avg_steps_baseline: 5200,
+    photos: [],
+  },
+};
+
 export function getDemoData(week: number): PreviewData {
   // Pick the right week content for the selected week
   const themes: Record<number, AccWeekContent> = {
@@ -254,6 +278,15 @@ export function getDemoData(week: number): PreviewData {
     latestMeas: demoLatestMeas,
     coachName: "Carla",
     coachAvatar: null,
+  };
+}
+
+/** Demo data with an incomplete-onboarding client (for preview). */
+export function getDemoDataIncomplete(week: number): PreviewData {
+  const base = getDemoData(week);
+  return {
+    ...base,
+    client: { ...DEMO_INCOMPLETE_CLIENT },
   };
 }
 

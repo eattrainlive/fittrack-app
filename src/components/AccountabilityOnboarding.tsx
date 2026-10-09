@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/dialog";
 import {
   Loader2,
-  Camera,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -21,22 +20,20 @@ import {
   Activity,
   Brain,
   ClipboardCheck,
+  CircleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import {
   saveMyOnboarding,
+  saveOnboardingProgress,
+  onboardingStatus,
+  markOnboardingComplete,
+  ONBOARDING_ITEM_LABELS,
+  ONBOARDING_ITEM_SHORT_LABELS,
   type AccClient,
 } from "@/lib/accountabilityProgramme";
-import {
-  ShortText,
-  LongText,
-  NumberField,
-  Scale05,
-  MultiSelect,
-  SingleSelect,
-  QLabel,
-} from "./onboardingFields";
+import { OnboardingSection } from "./OnboardingSections";
 
 interface SectionDef {
   key: string;
@@ -96,6 +93,37 @@ const SECTIONS: SectionDef[] = [
   },
 ];
 
+/** Build a live client object from current form state for onboardingStatus. */
+function buildLiveClient(
+  client: AccClient,
+  f: Record<string, any>,
+  photoFront: string | null,
+  photoSide: string | null,
+): AccClient {
+  const photos = [photoFront, photoSide].filter(Boolean) as string[];
+  const baseline: Record<string, any> = {
+    ...((client.baseline as Record<string, any>) || {}),
+    weight: f.q10 ? Number(f.q10) : null,
+    chest: f.q12 ? Number(f.q12) : null,
+    waist: f.q13 ? Number(f.q13) : null,
+    tummy: f.q16 ? Number(f.q16) : null,
+    thigh: f.q15 ? Number(f.q15) : null,
+    steps: f.q28 ? Number(f.q28) : null,
+    avg_steps_baseline: f.q28 ? Number(f.q28) : null,
+    photos,
+  };
+  const why = (f.q2 && f.q2.trim()) || (f.q1 && f.q1.trim()) || null;
+  let nutritionApproach: string | null = null;
+  if (f.q39)
+    nutritionApproach = f.q39 === "Unsure" ? "plate" : f.q39.toLowerCase();
+  return {
+    ...client,
+    why: why || client.why || null,
+    baseline,
+    nutrition_approach: nutritionApproach || client.nutrition_approach || null,
+  };
+}
+
 export function AccountabilityOnboarding({
   client,
   onDone,
@@ -109,6 +137,8 @@ export function AccountabilityOnboarding({
   const [photoFront, setPhotoFront] = useState<string | null>(null);
   const [photoSide, setPhotoSide] = useState<string | null>(null);
   const [f, setF] = useState<Record<string, any>>({});
+  const [showMissing, setShowMissing] = useState(false);
+  const savingRef = useRef(false);
 
   const set = (k: string, v: any) => setF((prev) => ({ ...prev, [k]: v }));
 
@@ -125,6 +155,7 @@ export function AccountabilityOnboarding({
 
   const start = () => {
     setSection(0);
+    setShowMissing(false);
     setOpen(true);
   };
   const goNext = () => setSection((s) => Math.min(s + 1, SECTIONS.length - 1));
@@ -160,6 +191,38 @@ export function AccountabilityOnboarding({
     }
   };
 
+  // Auto-save progress (best-effort) when navigating between sections.
+  const saveProgress = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    try {
+      const photos = [photoFront, photoSide].filter(Boolean) as string[];
+      const baseline: Record<string, any> = {
+        ...((client.baseline as Record<string, any>) || {}),
+        weight: f.q10 ? Number(f.q10) : null,
+        chest: f.q12 ? Number(f.q12) : null,
+        waist: f.q13 ? Number(f.q13) : null,
+        tummy: f.q16 ? Number(f.q16) : null,
+        thigh: f.q15 ? Number(f.q15) : null,
+        steps: f.q28 ? Number(f.q28) : null,
+        avg_steps_baseline: f.q28 ? Number(f.q28) : null,
+        photos,
+      };
+      await saveOnboardingProgress(client.id, f, baseline);
+    } catch {
+      /* ignore — progress save is best-effort */
+    } finally {
+      savingRef.current = false;
+    }
+  };
+
+  const handleNav = (dir: "next" | "back" | "close") => {
+    saveProgress();
+    if (dir === "next") goNext();
+    else if (dir === "back") goBack();
+    else setOpen(false);
+  };
+
   const submit = async () => {
     setBusy(true);
     try {
@@ -173,6 +236,7 @@ export function AccountabilityOnboarding({
         thigh: f.q15 ? Number(f.q15) : null,
         tummy: f.q16 ? Number(f.q16) : null,
         steps: f.q28 ? Number(f.q28) : null,
+        avg_steps_baseline: f.q28 ? Number(f.q28) : null,
         photos,
       };
       const why = (f.q2 && f.q2.trim()) || (f.q1 && f.q1.trim()) || null;
@@ -181,9 +245,8 @@ export function AccountabilityOnboarding({
       const events = (f.q9 && f.q9.trim()) || null;
       const stepTarget = f.q28 ? Number(f.q28) : null;
       let nutritionApproach: string | null = null;
-      if (f.q39) {
+      if (f.q39)
         nutritionApproach = f.q39 === "Unsure" ? "plate" : f.q39.toLowerCase();
-      }
       const accountabilityStyle = f.q40 || null;
       const checkinPref = f.q41 || null;
 
@@ -207,7 +270,16 @@ export function AccountabilityOnboarding({
         } catch (_) {}
       }
 
-      toast.success("Onboarding complete — let's do this 🎯");
+      // Check the 5 required items and stamp completion if all present.
+      const live = buildLiveClient(client, f, photoFront, photoSide);
+      const status = onboardingStatus(live);
+      if (status.complete) {
+        await markOnboardingComplete(client.id);
+        toast.success("Onboarding complete — let's do this 🎯");
+      } else {
+        setShowMissing(true);
+        toast.success("Progress saved — finish the 5 items before day 1");
+      }
       setOpen(false);
       onDone?.();
     } catch (err: any) {
@@ -221,6 +293,10 @@ export function AccountabilityOnboarding({
   const sec = SECTIONS[section];
   const SecIcon = sec.icon;
 
+  // Live onboarding status from current form state.
+  const liveClient = buildLiveClient(client, f, photoFront, photoSide);
+  const status = onboardingStatus(liveClient);
+
   return (
     <>
       <Button onClick={start} className="gap-2">
@@ -228,7 +304,13 @@ export function AccountabilityOnboarding({
         {client.onboarding_done ? "Review onboarding" : "Complete onboarding"}
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(o) => {
+          if (!o) saveProgress();
+          setOpen(o);
+        }}
+      >
         <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -241,6 +323,49 @@ export function AccountabilityOnboarding({
             <DialogDescription>{sec.desc}</DialogDescription>
           </DialogHeader>
 
+          {/* Needed to start checklist */}
+          <div className="rounded-lg border border-border bg-muted/30 p-2.5">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Needed to start
+              </span>
+              <span className="text-xs font-bold text-primary">
+                {status.done}/5
+              </span>
+            </div>
+            <div className="grid grid-cols-1 gap-1">
+              {(
+                ["why", "photos", "measurements", "steps", "nutrition"] as const
+              ).map((key) => {
+                const done = !status.missing.includes(key);
+                return (
+                  <div key={key} className="flex items-center gap-2 text-xs">
+                    <span
+                      className={`flex h-4 w-4 items-center justify-center rounded-full border ${
+                        done
+                          ? "bg-primary border-primary"
+                          : "border-border bg-background"
+                      }`}
+                    >
+                      {done && (
+                        <Check className="w-3 h-3 text-primary-foreground" />
+                      )}
+                    </span>
+                    <span
+                      className={
+                        done
+                          ? "text-muted-foreground line-through"
+                          : "text-foreground font-medium"
+                      }
+                    >
+                      {ONBOARDING_ITEM_LABELS[key]}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="h-1 rounded-full bg-muted overflow-hidden">
             <div
               className="h-full bg-primary transition-all"
@@ -249,468 +374,46 @@ export function AccountabilityOnboarding({
           </div>
 
           <div className="overflow-y-auto flex-1 -mx-1 px-1 space-y-5 py-2">
-            {section === 0 && (
-              <>
-                <div>
-                  <QLabel n={1}>What made you join right now?</QLabel>
-                  <ShortText
-                    value={f.q1 || ""}
-                    onChange={(v) => set("q1", v)}
-                    placeholder="e.g. a friend's wedding, fed up of feeling tired…"
-                  />
-                </div>
-                <div>
-                  <QLabel n={2}>
-                    Beyond losing weight, WHY — what would change day-to-day?
-                  </QLabel>
-                  <LongText
-                    value={f.q2 || ""}
-                    onChange={(v) => set("q2", v)}
-                    placeholder="The deeper reason…"
-                  />
-                </div>
-                <div>
-                  <QLabel n={3}>
-                    How would hitting this affect work / family / confidence /
-                    social / health?
-                  </QLabel>
-                  <LongText value={f.q3 || ""} onChange={(v) => set("q3", v)} />
-                </div>
-                <div>
-                  <QLabel n={4}>
-                    Picture yourself at the end — what can you do / feel / wear?
-                  </QLabel>
-                  <LongText value={f.q4 || ""} onChange={(v) => set("q4", v)} />
-                </div>
-                <div>
-                  <QLabel n={5}>How ready & motivated are you?</QLabel>
-                  <Scale05 value={f.q5 || ""} onChange={(v) => set("q5", v)} />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    0 = not at all, 5 = all in
-                  </p>
-                </div>
-                <div>
-                  <QLabel n={6}>Main goal for the six weeks</QLabel>
-                  <MultiSelect
-                    options={[
-                      "Fat Loss",
-                      "More Energy",
-                      "Strength",
-                      "Confidence",
-                      "Better Habits",
-                    ]}
-                    value={f.q6 || []}
-                    onChange={(v) => set("q6", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={7}>
-                    If the scale barely moved but you felt fitter / ate better —
-                    success?
-                  </QLabel>
-                  <SingleSelect
-                    options={["Yes", "No"]}
-                    value={f.q7 || ""}
-                    onChange={(v) => set("q7", v)}
-                  />
-                </div>
-              </>
-            )}
-
-            {section === 1 && (
-              <>
-                <div>
-                  <QLabel n={8}>Non-scale wins that matter most</QLabel>
-                  <MultiSelect
-                    options={[
-                      "Energy",
-                      "Sleep",
-                      "Clothes fitting",
-                      "Fewer cravings",
-                      "Confidence",
-                    ]}
-                    value={f.q8 || []}
-                    onChange={(v) => set("q8", v)}
-                    allowOther
-                  />
-                </div>
-                <div>
-                  <QLabel n={9}>
-                    A specific date / event you're working towards?
-                  </QLabel>
-                  <ShortText
-                    value={f.q9 || ""}
-                    onChange={(v) => set("q9", v)}
-                    placeholder="e.g. holiday in June, birthday…"
-                  />
-                </div>
-              </>
-            )}
-
-            {section === 2 && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <QLabel n={10}>Current weight (kg)</QLabel>
-                  <NumberField
-                    value={f.q10 || ""}
-                    onChange={(v) => set("q10", v)}
-                    placeholder="e.g. 78"
-                  />
-                </div>
-                <div>
-                  <QLabel n={11}>Height</QLabel>
-                  <ShortText
-                    value={f.q11 || ""}
-                    onChange={(v) => set("q11", v)}
-                    placeholder="e.g. 175 cm / 5'9"
-                  />
-                </div>
-                <div>
-                  <QLabel n={12}>Chest (cm)</QLabel>
-                  <NumberField
-                    value={f.q12 || ""}
-                    onChange={(v) => set("q12", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={13}>Waist (cm)</QLabel>
-                  <NumberField
-                    value={f.q13 || ""}
-                    onChange={(v) => set("q13", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={14}>Body fat % (Evolt)</QLabel>
-                  <NumberField
-                    value={f.q14 || ""}
-                    onChange={(v) => set("q14", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={15}>Thigh (cm)</QLabel>
-                  <NumberField
-                    value={f.q15 || ""}
-                    onChange={(v) => set("q15", v)}
-                  />
-                </div>
-                <div className="col-span-2">
-                  <QLabel n={16}>Tummy (cm)</QLabel>
-                  <NumberField
-                    value={f.q16 || ""}
-                    onChange={(v) => set("q16", v)}
-                  />
-                </div>
-              </div>
-            )}
-
-            {section === 3 && (
-              <>
-                <div>
-                  <QLabel n={17}>
-                    How would you prefer to track progress?
-                  </QLabel>
-                  <MultiSelect
-                    options={[
-                      "Measurements",
-                      "Weight",
-                      "Photos",
-                      "How clothes fit",
-                    ]}
-                    value={f.q17 || []}
-                    onChange={(v) => set("q17", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={18}>
-                    Baseline photos (front + side, same spot / lighting)
-                  </QLabel>
-                  <div className="grid grid-cols-2 gap-3">
-                    {(["front", "side"] as const).map((which) => {
-                      const url = which === "front" ? photoFront : photoSide;
-                      return (
-                        <label
-                          key={which}
-                          className="flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-muted/40 p-4 cursor-pointer hover:bg-muted/60 transition aspect-square overflow-hidden"
-                        >
-                          {url ? (
-                            <img
-                              src={url}
-                              alt={which}
-                              className="w-full h-full object-cover rounded-lg"
-                            />
-                          ) : (
-                            <>
-                              <Camera className="w-6 h-6 text-primary" />
-                              <span className="text-xs font-medium capitalize">
-                                {which} photo
-                              </span>
-                            </>
-                          )}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => handlePhoto(e, which)}
-                            disabled={busy}
-                          />
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Private — only you and your coach see these.
-                  </p>
-                </div>
-                <div>
-                  <QLabel n={19}>Energy on a normal day</QLabel>
-                  <Scale05
-                    value={f.q19 || ""}
-                    onChange={(v) => set("q19", v)}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    0 = exhausted, 5 = buzzing
-                  </p>
-                </div>
-              </>
-            )}
-
-            {section === 4 && (
-              <>
-                <div>
-                  <QLabel n={20}>Typical day of eating (what & when)</QLabel>
-                  <LongText
-                    value={f.q20 || ""}
-                    onChange={(v) => set("q20", v)}
-                    placeholder="Breakfast at 7, coffee, sandwich at 12…"
-                  />
-                </div>
-                <div>
-                  <QLabel n={21}>How many meals + snacks a day?</QLabel>
-                  <ShortText
-                    value={f.q21 || ""}
-                    onChange={(v) => set("q21", v)}
-                    placeholder="e.g. 3 meals, 2 snacks"
-                  />
-                </div>
-                <div>
-                  <QLabel n={22}>
-                    How often a good protein source at each meal?
-                  </QLabel>
-                  <SingleSelect
-                    options={["Never", "Some", "Most", "Every meal"]}
-                    value={f.q22 || ""}
-                    onChange={(v) => set("q22", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={23}>Water on a typical day?</QLabel>
-                  <SingleSelect
-                    options={["<1L", "1–2L", "2L+"]}
-                    value={f.q23 || ""}
-                    onChange={(v) => set("q23", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={24}>When & why do you snack?</QLabel>
-                  <MultiSelect
-                    options={[
-                      "Habit",
-                      "Social",
-                      "Hunger",
-                      "Boredom",
-                      "Stress",
-                      "Tiredness",
-                    ]}
-                    value={f.q24 || []}
-                    onChange={(v) => set("q24", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={25}>Biggest cravings / hardest to resist?</QLabel>
-                  <ShortText
-                    value={f.q25 || ""}
-                    onChange={(v) => set("q25", v)}
-                    placeholder="e.g. chocolate in the evenings…"
-                  />
-                </div>
-                <div>
-                  <QLabel n={26}>Alcoholic drinks in a typical week?</QLabel>
-                  <NumberField
-                    value={f.q26 || ""}
-                    onChange={(v) => set("q26", v)}
-                    placeholder="e.g. 4"
-                  />
-                </div>
-                <div>
-                  <QLabel n={27}>
-                    Foods you love & want to keep / can't stand?
-                  </QLabel>
-                  <ShortText
-                    value={f.q27 || ""}
-                    onChange={(v) => set("q27", v)}
-                  />
-                </div>
-              </>
-            )}
-
-            {section === 5 && (
-              <>
-                <div>
-                  <QLabel n={28}>Steps on a normal day (guess is fine)</QLabel>
-                  <NumberField
-                    value={f.q28 || ""}
-                    onChange={(v) => set("q28", v)}
-                    placeholder="e.g. 5000"
-                  />
-                </div>
-                <div>
-                  <QLabel n={29}>
-                    Job mostly: sitting / on your feet / active?
-                  </QLabel>
-                  <SingleSelect
-                    options={["Sitting", "On your feet", "Active"]}
-                    value={f.q29 || ""}
-                    onChange={(v) => set("q29", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={30}>
-                    Currently exercise / train? What & days/week?
-                  </QLabel>
-                  <ShortText
-                    value={f.q30 || ""}
-                    onChange={(v) => set("q30", v)}
-                    placeholder="e.g. gym twice a week, walks…"
-                  />
-                </div>
-                <div>
-                  <QLabel n={31}>Sleep hours & quality?</QLabel>
-                  <ShortText
-                    value={f.q31 || ""}
-                    onChange={(v) => set("q31", v)}
-                    placeholder="e.g. 7 hrs, decent…"
-                  />
-                </div>
-              </>
-            )}
-
-            {section === 6 && (
-              <>
-                <div>
-                  <QLabel n={32}>Stress level right now</QLabel>
-                  <Scale05
-                    value={f.q32 || ""}
-                    onChange={(v) => set("q32", v)}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    0 = chilled, 5 = overwhelmed
-                  </p>
-                </div>
-                <div>
-                  <QLabel n={33}>What does a typical week look like?</QLabel>
-                  <LongText
-                    value={f.q33 || ""}
-                    onChange={(v) => set("q33", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={34}>
-                    What have you tried before? What worked / didn't?
-                  </QLabel>
-                  <LongText
-                    value={f.q34 || ""}
-                    onChange={(v) => set("q34", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={35}>
-                    When you've fallen off track, what caused it?
-                  </QLabel>
-                  <LongText
-                    value={f.q35 || ""}
-                    onChange={(v) => set("q35", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={36}>What do you STOP doing when slipping?</QLabel>
-                  <ShortText
-                    value={f.q36 || ""}
-                    onChange={(v) => set("q36", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={37}>
-                    When you're doing well, what's usually in place?
-                  </QLabel>
-                  <ShortText
-                    value={f.q37 || ""}
-                    onChange={(v) => set("q37", v)}
-                  />
-                </div>
-              </>
-            )}
-
-            {section === 7 && (
-              <>
-                <div>
-                  <QLabel n={38}>
-                    Confidence to stick to daily habits for 6 weeks
-                  </QLabel>
-                  <Scale05
-                    value={f.q38 || ""}
-                    onChange={(v) => set("q38", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={39}>
-                    Plate method (no tracking) vs precise tracking?
-                  </QLabel>
-                  <SingleSelect
-                    options={["Plate", "Tracking", "Unsure"]}
-                    value={f.q39 || ""}
-                    onChange={(v) => set("q39", v)}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Unsure? We'll start with the plate method.
-                  </p>
-                </div>
-                <div>
-                  <QLabel n={40}>What accountability helps most?</QLabel>
-                  <SingleSelect
-                    options={[
-                      "Gentle nudges",
-                      "Firm push",
-                      "Data review",
-                      "Group",
-                    ]}
-                    value={f.q40 || ""}
-                    onChange={(v) => set("q40", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={41}>Weekly check-in preference</QLabel>
-                  <SingleSelect
-                    options={["Phone call", "Loom video", "Either"]}
-                    value={f.q41 || ""}
-                    onChange={(v) => set("q41", v)}
-                  />
-                </div>
-                <div>
-                  <QLabel n={42}>Anything else you want me to know?</QLabel>
-                  <LongText
-                    value={f.q42 || ""}
-                    onChange={(v) => set("q42", v)}
-                  />
-                </div>
-              </>
-            )}
+            <OnboardingSection
+              section={section}
+              f={f}
+              set={set}
+              photoFront={photoFront}
+              photoSide={photoSide}
+              busy={busy}
+              handlePhoto={handlePhoto}
+            />
           </div>
+
+          {/* Missing items warning on last section */}
+          {isLast && showMissing && !status.complete && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs">
+              <div className="flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-500 mb-1">
+                <CircleAlert className="w-3.5 h-3.5" />
+                Your coach needs these before day 1:
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {status.missing.map((m) => (
+                  <span
+                    key={m}
+                    className="rounded-full bg-amber-500/20 px-2 py-0.5 text-amber-700 dark:text-amber-500"
+                  >
+                    {ONBOARDING_ITEM_SHORT_LABELS[m] || m}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
             <Button
               variant="ghost"
               size="sm"
-              onClick={section === 0 ? () => setOpen(false) : goBack}
+              onClick={
+                section === 0
+                  ? () => handleNav("close")
+                  : () => handleNav("back")
+              }
               disabled={busy}
               className="gap-1"
             >
@@ -722,7 +425,7 @@ export function AccountabilityOnboarding({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={goNext}
+                  onClick={() => handleNav("next")}
                   disabled={busy}
                 >
                   Skip
@@ -748,7 +451,7 @@ export function AccountabilityOnboarding({
               ) : (
                 <Button
                   size="sm"
-                  onClick={goNext}
+                  onClick={() => handleNav("next")}
                   disabled={busy}
                   className="gap-1"
                 >

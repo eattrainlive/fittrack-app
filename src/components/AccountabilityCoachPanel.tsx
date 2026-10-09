@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { WeekContentEditor } from "@/components/WeekContentEditor";
 import { AccountabilityCheckinInbox } from "@/components/AccountabilityCheckinInbox";
 import { AccountabilityPreview } from "@/components/AccountabilityPreview";
+import { AccRosterTab } from "@/components/AccRosterTab";
 import { BookOpen, Users, Inbox, Eye } from "lucide-react";
 import {
   Card,
@@ -55,7 +56,10 @@ import {
   removeClient,
   assignCoach,
   setOnboardingDone,
+  setOnboardingComplete,
   setNutritionApproach,
+  onboardingStatus,
+  ONBOARDING_ITEM_SHORT_LABELS,
   currentWeekOf,
   type AccCohort,
   type AccClient,
@@ -74,7 +78,7 @@ interface AppMember {
 }
 
 /** Compact onboarding summary for the coach roster. */
-function OnboardingSummary({ c }: { c: AccClient }) {
+export function OnboardingSummary({ c }: { c: AccClient }) {
   const [open, setOpen] = useState(false);
   if (!c.onboarding_done) return null;
   const b = (c.baseline as any) || {};
@@ -195,7 +199,7 @@ function OnboardingSummary({ c }: { c: AccClient }) {
 }
 
 /** Compact check-in summary for the coach roster. */
-function CheckinSummary({ c }: { c: AccClient }) {
+export function CheckinSummary({ c }: { c: AccClient }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<AccCheckin[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -314,6 +318,7 @@ export function AccountabilityCoachPanel() {
   const [search, setSearch] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [coachFilter, setCoachFilter] = useState("all");
+  const [incompleteOnly, setIncompleteOnly] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<"roster" | "content" | "checkins" | "preview">(
     "roster",
@@ -521,175 +526,14 @@ export function AccountabilityCoachPanel() {
 
       {tab === "preview" && <AccountabilityPreview />}
 
-      {tab === "roster" && (
-        <>
-          {/* Cohort header */}
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <CardTitle className="font-heading text-2xl tracking-wider">
-                    {cohort.name}
-                  </CardTitle>
-                  <CardDescription>
-                    Starts {formatDate(cohort.start_date)} · {cohort.weeks}{" "}
-                    weeks
-                  </CardDescription>
-                </div>
-                <Badge variant="secondary" className="text-sm">
-                  {weekLabel}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="flex flex-wrap items-center gap-3">
-              <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button className="gap-2">
-                    <UserPlus className="h-4 w-4" /> Enrol client
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80 p-0" align="start">
-                  <Command shouldFilter={false}>
-                    <CommandInput
-                      placeholder="Search members by email…"
-                      value={search}
-                      onValueChange={setSearch}
-                    />
-                    <CommandList>
-                      <CommandEmpty>
-                        {busy ? "Enrolling…" : "No members found"}
-                      </CommandEmpty>
-                      <CommandGroup>
-                        {availableMembers.slice(0, 50).map((m) => (
-                          <CommandItem
-                            key={m.id}
-                            value={m.id}
-                            onSelect={() => handleEnrol(m)}
-                          >
-                            <div className="flex flex-col">
-                              <span>{m.full_name || m.email}</span>
-                              {m.full_name && (
-                                <span className="text-xs text-muted-foreground">
-                                  {m.email}
-                                </span>
-                              )}
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">Filter:</Label>
-                <Select value={coachFilter} onValueChange={setCoachFilter}>
-                  <SelectTrigger className="w-48 h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All clients</SelectItem>
-                    <SelectItem value="none">Unassigned</SelectItem>
-                    {staff.map((s) => (
-                      <SelectItem key={s.user_id} value={s.user_id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Badge variant="outline">{clients.length} enrolled</Badge>
-            </CardContent>
-          </Card>
-
-          {/* Roster */}
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg">Client roster</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {filteredClients.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-6 text-center">
-                  No clients in this view yet. Enrol members above.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {filteredClients.map((c) => (
-                    <div
-                      key={c.id}
-                      className="flex flex-col md:flex-row md:items-center gap-3 rounded-lg border border-border p-3"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">
-                          {memberName(c.user_id)}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-2 mt-1">
-                          {c.onboarding_done ? (
-                            <Badge className="bg-primary/15 text-primary border-0 text-xs">
-                              <Check className="w-3 h-3 mr-1" /> Onboarded
-                            </Badge>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className="text-xs text-muted-foreground"
-                            >
-                              Onboarding pending
-                            </Badge>
-                          )}
-                          {c.nutrition_approach && (
-                            <Badge variant="outline" className="text-xs">
-                              {c.nutrition_approach}
-                            </Badge>
-                          )}
-                        </div>
-                        <OnboardingSummary c={c} />
-                        <CheckinSummary c={c} />
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Input
-                          placeholder="Nutrition approach"
-                          defaultValue={c.nutrition_approach || ""}
-                          onBlur={(e) => handleApproach(c.id, e.target.value)}
-                          className="w-40 h-9"
-                        />
-                        <Select
-                          value={c.coach_user_id || "none"}
-                          onValueChange={(v) => handleAssign(c.id, v)}
-                        >
-                          <SelectTrigger className="w-40 h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Unassigned</SelectItem>
-                            {staff.map((s) => (
-                              <SelectItem key={s.user_id} value={s.user_id}>
-                                {s.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOnboarding(c)}
-                        >
-                          {c.onboarding_done ? "Undo" : "Onboarded"}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemove(c)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </>
+      {tab === "roster" && cohort && (
+        <AccRosterTab
+          cohort={cohort}
+          clients={clients}
+          staff={staff}
+          appMembers={appMembers}
+          reload={load}
+        />
       )}
     </div>
   );

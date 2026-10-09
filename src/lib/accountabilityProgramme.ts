@@ -15,6 +15,7 @@ export interface AccClient {
   onboarding_done: boolean;
   nutrition_approach: string | null;
   created_at: string;
+  onboarding_completed_at?: string | null;
   // Onboarding (added by accountability_onboarding_schema.sql)
   onboarding?: Record<string, any> | null;
   why?: string | null;
@@ -176,7 +177,6 @@ export const saveMyOnboarding = async (
       derailers: payload.derailers ?? null,
       events: payload.events ?? null,
       baseline: payload.baseline ?? {},
-      step_target: payload.step_target ?? null,
       nutrition_approach: payload.nutrition_approach ?? null,
       accountability_style: payload.accountability_style ?? null,
       checkin_pref: payload.checkin_pref ?? null,
@@ -237,4 +237,126 @@ export const currentWeekOf = (startDate: string, weeks: number): number => {
   const week = Math.floor(diffDays / 7) + 1;
   if (week > weeks) return weeks + 1;
   return week;
+};
+
+export interface OnboardingStatus {
+  complete: boolean;
+  done: number;
+  missing: string[];
+}
+
+export const REQUIRED_ONBOARDING_ITEMS = [
+  "why",
+  "photos",
+  "measurements",
+  "steps",
+  "nutrition",
+] as const;
+
+export const ONBOARDING_ITEM_LABELS: Record<string, string> = {
+  why: "Your why",
+  photos: "Baseline photos (front + side)",
+  measurements: "Weight + 3 measurements",
+  steps: "Average daily steps",
+  nutrition: "Nutrition approach",
+};
+
+export const ONBOARDING_ITEM_SHORT_LABELS: Record<string, string> = {
+  why: "No why",
+  photos: "No photos",
+  measurements: "No measurements",
+  steps: "No steps",
+  nutrition: "No approach",
+};
+
+/**
+ * Single source of truth for the 5 required onboarding items.
+ * `complete === true` when all five are present.
+ */
+export const onboardingStatus = (
+  client: AccClient | null | undefined,
+): OnboardingStatus => {
+  if (!client) {
+    return {
+      complete: false,
+      done: 0,
+      missing: [...REQUIRED_ONBOARDING_ITEMS],
+    };
+  }
+  const b = (client.baseline as Record<string, any>) || {};
+  const missing: string[] = [];
+
+  // 1. One-sentence why
+  if (!client.why || !String(client.why).trim()) missing.push("why");
+
+  // 2. Baseline photos: front AND side
+  const photos: any[] = Array.isArray(b.photos) ? b.photos : [];
+  if (photos.length < 2) missing.push("photos");
+
+  // 3. Current weight + 3 measurements
+  const hasWeight = b.weight != null && Number(b.weight) > 0;
+  const measKeys = ["chest", "waist", "tummy", "thigh"];
+  const measCount = measKeys.filter(
+    (k) => b[k] != null && Number(b[k]) > 0,
+  ).length;
+  if (!hasWeight || measCount < 3) missing.push("measurements");
+
+  // 4. Average daily steps baseline
+  const steps = b.avg_steps_baseline ?? b.steps;
+  if (steps == null || Number(steps) <= 0) missing.push("steps");
+
+  // 5. Nutrition approach
+  if (!client.nutrition_approach || !String(client.nutrition_approach).trim())
+    missing.push("nutrition");
+
+  const done = REQUIRED_ONBOARDING_ITEMS.length - missing.length;
+  return { complete: missing.length === 0, done, missing };
+};
+
+/** Set onboarding_completed_at = now() only if it's currently null. */
+export const markOnboardingComplete = async (
+  clientId: string,
+): Promise<{ error: any }> => {
+  const { error } = await supabase
+    .from("acc_clients")
+    .update({ onboarding_completed_at: new Date().toISOString() })
+    .eq("id", clientId)
+    .is("onboarding_completed_at", null);
+  return { error };
+};
+
+/**
+ * Manual coach override: sets BOTH onboarding_done and onboarding_completed_at
+ * so the manual flag and the 5-item rule stay in sync.
+ */
+export const setOnboardingComplete = async (
+  clientId: string,
+  done: boolean,
+): Promise<{ error: any }> => {
+  const payload = done
+    ? {
+        onboarding_done: true,
+        onboarding_completed_at: new Date().toISOString(),
+      }
+    : { onboarding_done: false, onboarding_completed_at: null };
+  const { error } = await supabase
+    .from("acc_clients")
+    .update(payload)
+    .eq("id", clientId);
+  return { error };
+};
+
+/** Save onboarding form progress without marking complete. */
+export const saveOnboardingProgress = async (
+  clientId: string,
+  onboarding: Record<string, any>,
+  baseline?: Record<string, any>,
+): Promise<{ error: any }> => {
+  const payload: Record<string, any> = { onboarding };
+  if (baseline) payload.baseline = baseline;
+  const { error } = await supabase
+    .from("acc_clients")
+    .update(payload)
+    .eq("id", clientId);
+  return { error };
 };

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
-import { Loader2, Eye } from "lucide-react";
+import { Loader2, Eye, CircleAlert, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { saveHabitCheckin, deleteHabitCheckin } from "@/lib/habitCheckins";
 import { toast } from "@/components/ui/sonner";
@@ -7,6 +8,9 @@ import {
   getActiveCohort,
   getMyClientRecord,
   currentWeekOf,
+  onboardingStatus,
+  ONBOARDING_ITEM_LABELS,
+  ONBOARDING_ITEM_SHORT_LABELS,
   type AccClient,
   type AccCohort,
 } from "@/lib/accountabilityProgramme";
@@ -373,11 +377,61 @@ export function AccountabilityDashboard({
     else onOpenCheckin?.();
   };
 
+  const obStatus = onboardingStatus(client);
+  const showFinishSetup = week >= 1 && !obStatus.complete;
+
   return (
     <div className="space-y-4 max-w-2xl mx-auto">
       {readOnly && (
         <div className="flex items-center justify-center gap-1.5 rounded-lg bg-primary/10 border border-primary/30 py-1.5 text-xs font-medium text-primary">
           <Eye className="w-3.5 h-3.5" /> Preview — read only
+        </div>
+      )}
+
+      {showFinishSetup && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
+          <div className="flex items-start gap-3">
+            <CircleAlert className="w-5 h-5 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <h3 className="font-heading font-bold text-base">
+                Finish setting up — about 5 minutes
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Your coach needs a few things before day 1.
+              </p>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {obStatus.missing.map((m) => (
+                  <span
+                    key={m}
+                    className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-500"
+                  >
+                    {ONBOARDING_ITEM_SHORT_LABELS[m] || m}
+                  </span>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                {!readOnly && (
+                  <Button
+                    size="sm"
+                    onClick={() => onOpenOnboarding?.()}
+                    className="gap-1.5"
+                  >
+                    Complete setup <ArrowRight className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+                <a
+                  href="#week-0"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (!readOnly) window.location.hash = "#week-0";
+                  }}
+                  className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                >
+                  Start here — watch the setup videos
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
