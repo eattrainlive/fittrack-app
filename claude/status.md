@@ -1,6 +1,6 @@
 # FitTrack — status
 
-_Last updated: 2026-10-08_
+_Last updated: 2026-10-09_
 
 ## Stack
 - React + Vite PWA, Tailwind/shadcn. Hosted on **Netlify** (auto-deploys from `main`).
@@ -107,6 +107,22 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
   default stack seeded — Michael to confirm the "plate" habit id) + builder brief
   `claude/builder-prompt-acc-cumulative-habits.md`. For after onboarding; live by 19 Oct.
 - Breakdown doc for planning: `/Programming/ETL_6week_accountability_breakdown.md`.
+- Programme content (2026-10-09, PREPPED): content load script lives in Michael's "6 Week Programmes"
+  folder (`App Content Load - Oct 26 cohort.sql`) — fills `acc_week_content` W0–W6 (teaching, video,
+  resources from a URL list at the top) and adds programme-worded tick habits 101–104 (Balanced plate,
+  Hit my water target, Hit my step target, Snacks planned) + REMAPS `acc_week_habits` to
+  101,102 (W1) · 1 (W2) · 103 (W3) · 104 (W4). Run order: `acc_week_habits.sql` → content load →
+  `acc_checkin_addon.sql`. Videos must be YouTube/Vimeo/Loom links (Everfit-hosted won't embed).
+- Check-in upgrade (2026-10-09, PREPPED, not built): `supabase/sql/acc_checkin_addon.sql`
+  (+`acc_week_content.checkin_addon`, W1–5 questions seeded) + builder brief
+  `claude/builder-prompt-acc-checkin-week3.md` — W3 SOS plan → `acc_clients.sos_plan`, W3 step target →
+  `step_target` (Steps card drops the 8000 default), weekly `avg_steps` question + computed
+  `avg_weight`, week add-on question, Q2/Q8/Q10 copy. Live by 25 Oct (SOS/steps by 8 Nov).
+  Order for the builder: cumulative habits brief first (needed by 19 Oct), then this one.
+- Decisions (2026-10-09): no WhatsApp group — cohort wall to be built instead; live call Wednesdays
+  12:00; daily nudges via GHL WhatsApp (Week 1 daily, then Mon/Wed/Sun + triggered); steps are manual;
+  late joiners allowed; re-sign offer on hold. Planning doc: Claude doc "6-Week Accountability
+  Programme — App Build Plan (19 Oct cohort)".
 
 ## Known loose ends
 - `public.notifications` table missing → console error PGRST205 from the Notifications feature (needs
