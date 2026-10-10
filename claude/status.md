@@ -41,10 +41,12 @@ into builder; run `acc_checkin_loom_url.sql` before week-1 check-ins.
    fix (acc_checkins has no user_id/cohort_id). PENDING push + a real end-to-end check-in test.
 5. ✅ Nutrition-tracking visibility — MEMBER side live (export 23 pushed; `acc_tracking_fields.sql` run):
    TrackingBlock in weekly+final check-ins (gated on nutrition_approach='tracking'), onboarding "which app"
-   Q (additive, required-5 untouched), roster plate/tracking select. COACH side NOT built yet — builder
-   stubbed `setTrackingTargets`/`TRACKING_APP_LABELS` but no UI. Brief out: `brief-coach-tracking-panel.md`
-   (targets editor + per-check-in numbers/screenshot + actual-vs-target colour + <4-days flag + MFP diary
-   link / screenshot hint for every other tracker). → Michael to paste into builder.
+   Q (additive, required-5 untouched), roster plate/tracking select. COACH side now BUILT too (export 24):
+   new `TrackingTargetsCard` (targets editor via setTrackingTargets + MFP diary link / per-tracker
+   screenshot hint + suggested-protein-from-baseline) and `CheckinCard` per-week numbers (days/7 + <4 Low
+   flag, calories ±10% amber band, protein green≥target/amber, screenshot thumbnail). Reviewed clean,
+   parses OK. PENDING: Michael push export 24. Minor leftovers (non-blocking): dead TRACKING_APP_LABELS
+   const in AccountabilityClientConsole.tsx; suggested-protein reads baseline.weight (verify key).
 6. C3 week-3 SOS plan + step target (by 8 Nov) — brief TBW.
 
 **Other workstreams (live):** Staff Hub (Insights tab + call lists), win-back engine (gym + PT, GHL).

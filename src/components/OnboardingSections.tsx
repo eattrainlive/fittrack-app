@@ -425,9 +425,7 @@ export function OnboardingSection({
 
       {/* Optional: which tracking app (if any). Does NOT affect the 5 required items. */}
       <div className="pt-2 border-t border-border">
-        <QLabel n={42}>
-          If you track your food, which app do you use?
-        </QLabel>
+        <QLabel n={42}>If you track your food, which app do you use?</QLabel>
         <SingleSelect
           options={["MyFitnessPal", "Nutracheck", "Other", "I don't track"]}
           value={f.trackingAppLabel || ""}
@@ -447,8 +445,8 @@ export function OnboardingSection({
               placeholder="Your MyFitnessPal username"
             />
             <p className="text-xs text-muted-foreground">
-              Set your diary to Public (MyFitnessPal → Settings → Diary
-              Settings → Public) so your coach can view it.
+              Set your diary to Public (MyFitnessPal → Settings → Diary Settings
+              → Public) so your coach can view it.
             </p>
           </div>
         )}

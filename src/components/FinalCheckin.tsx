@@ -339,7 +339,15 @@ export function FinalCheckin({
               </>
             )}
 
-            <TrackingBlock approach={client.nutrition_approach} f={f} set={set} trackShot={trackShot} setTrackShot={setTrackShot} busy={busy} week={6} />
+            <TrackingBlock
+              approach={client.nutrition_approach}
+              f={f}
+              set={set}
+              trackShot={trackShot}
+              setTrackShot={setTrackShot}
+              busy={busy}
+              week={6}
+            />
 
             {section === 1 && (
               <>

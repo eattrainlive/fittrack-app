@@ -125,7 +125,11 @@ export function WeeklyCheckin({
           )
         : null;
 
-      const responses: Record<string, any> = { ...f, q10photo: photoUrl, trackShot };
+      const responses: Record<string, any> = {
+        ...f,
+        q10photo: photoUrl,
+        trackShot,
+      };
       if (weekContent?.checkin_addon) {
         responses.weekQ = weekContent.checkin_addon;
         responses.weekA = f.weekA ?? "";
@@ -304,7 +308,15 @@ export function WeeklyCheckin({
               />
             </div>
 
-            <TrackingBlock approach={client.nutrition_approach} f={f} set={set} trackShot={trackShot} setTrackShot={setTrackShot} busy={busy} week={week} />
+            <TrackingBlock
+              approach={client.nutrition_approach}
+              f={f}
+              set={set}
+              trackShot={trackShot}
+              setTrackShot={setTrackShot}
+              busy={busy}
+              week={week}
+            />
 
             {weekContent?.checkin_addon && (
               <div>

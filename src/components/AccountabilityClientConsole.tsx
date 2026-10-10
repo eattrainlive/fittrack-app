@@ -38,12 +38,11 @@ import {
 } from "@/lib/accountabilityCheckins";
 import {
   WEEK_THEMES,
-  setTrackingTargets,
-  setTrackingApp,
   type AccClient,
   type AccCohort,
 } from "@/lib/accountabilityProgramme";
 import { getEmbedUrl } from "@/lib/accWeekContent";
+import { TrackingTargetsCard } from "./TrackingTargetsCard";
 
 const TRACKING_APP_LABELS: Record<string, string> = {
   mfp: "MyFitnessPal",
@@ -246,9 +245,11 @@ function ReplyEditor({
 
 function CheckinCard({
   checkin,
+  client,
   onSaved,
 }: {
   checkin: AccCheckin;
+  client: AccClient;
   onSaved: () => void;
 }) {
   const r = checkin.responses || {};
@@ -333,6 +334,83 @@ function CheckinCard({
               {Number(checkin.avg_weight).toFixed(1)} kg
             </span>
           </p>
+        )}
+        {/* Tracking numbers (tracking clients only) */}
+        {(r.trackDays != null ||
+          r.trackCalories != null ||
+          r.trackProtein != null ||
+          r.trackShot) && (
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 space-y-1.5">
+            <p className="text-xs font-semibold text-primary">Tracking</p>
+            {r.trackDays != null && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Days logged:
+                </span>
+                <span className="text-sm font-semibold">{r.trackDays}/7</span>
+                {Number(r.trackDays) < 4 && (
+                  <Badge className="bg-amber-500/15 text-amber-600 border-0 text-xs">
+                    Low
+                  </Badge>
+                )}
+              </div>
+            )}
+            {r.trackCalories != null && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Calories:</span>
+                <span
+                  className={`text-sm font-semibold ${
+                    client.calorie_target
+                      ? Math.abs(
+                          Number(r.trackCalories) -
+                            Number(client.calorie_target),
+                        ) <=
+                        Number(client.calorie_target) * 0.1
+                        ? ""
+                        : "text-amber-600"
+                      : ""
+                  }`}
+                >
+                  {r.trackCalories}
+                </span>
+                {client.calorie_target && (
+                  <span className="text-xs text-muted-foreground">
+                    · target {client.calorie_target}
+                  </span>
+                )}
+              </div>
+            )}
+            {r.trackProtein != null && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Protein:</span>
+                <span
+                  className={`text-sm font-semibold ${
+                    client.protein_target
+                      ? Number(r.trackProtein) >= Number(client.protein_target)
+                        ? "text-green-600"
+                        : "text-amber-600"
+                      : ""
+                  }`}
+                >
+                  {r.trackProtein} g
+                </span>
+                {client.protein_target && (
+                  <span className="text-xs text-muted-foreground">
+                    · target {client.protein_target} g
+                  </span>
+                )}
+              </div>
+            )}
+            {r.trackShot && (
+              <a href={r.trackShot} target="_blank" rel="noopener noreferrer">
+                <img
+                  src={r.trackShot}
+                  alt="tracking summary"
+                  className="h-20 rounded-lg border border-border object-cover"
+                />
+              </a>
+            )}
+          </div>
         )}
         {isFinal && r.q15 != null && (
           <p className="text-sm">
@@ -489,6 +567,9 @@ export function AccountabilityClientConsole({
         </CardContent>
       </Card>
 
+      {/* Tracking targets (tracking clients only) */}
+      <TrackingTargetsCard client={client} onSaved={load} />
+
       {/* Non-scale trends */}
       {checkins.length > 0 && (
         <Card className="bg-card border-border">
@@ -569,7 +650,14 @@ export function AccountabilityClientConsole({
         ) : (
           [...checkins]
             .sort((a, b) => b.week_number - a.week_number)
-            .map((c) => <CheckinCard key={c.id} checkin={c} onSaved={load} />)
+            .map((c) => (
+              <CheckinCard
+                key={c.id}
+                checkin={c}
+                client={client}
+                onSaved={load}
+              />
+            ))
         )}
       </div>
     </div>
