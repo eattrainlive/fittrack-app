@@ -1,6 +1,45 @@
 # FitTrack — status
 
-_Last updated: 2026-10-09_
+_Last updated: 2026-10-10_
+
+---
+
+## 👋 HANDSHAKE — read this first (shared by the planning chat, the build chat, and Michael)
+How we work: the **planning chat** writes requirements; the **build chat** (owns the repo) decides
+implementation, writes SQL + builder prompts, and guards against breakage; **Michael** runs SQL in
+Supabase, pastes prompts into the AI builder, and pushes via GitHub Desktop. The repo is the source of
+truth; this file is the single shared state. Keep this section short and current — detail lives below.
+
+**Hard schema gotchas (the live DB has drifted from old migrations — check before writing queries):**
+- `member_habits`: `id, member_id, habit_id, habit_name, status, position, started_at` — NO `user_id`,
+  NO `name`. `habit_checkins`: `member_id, habit_id, member_habit_id, date, done, count_value`.
+- `member_measurements`: `member_id` + `date` (NO `user_id`, NO `created_at`); cols waist/hips/chest/
+  thigh/arm (NO tummy/bodyfat).
+- `acc_clients`: has `enrolled_at` (NO `created_at`); plus ad-hoc `onboarding_done`, `onboarding_completed_at`.
+- `staff_users`: only `user_id` + `note` (NO email). `members.id` == auth uid.
+- `nutrition_approach` ∈ {plate, tracking} (DB check — use a select, not free text).
+- Programme habits 101–104 are `active=false` (hidden from member pickers via getHabitLibrary filter).
+
+**Current focus:** 6-Week Accountability cohort — onboarding opens Mon 12 Oct, Week 1 starts 19 Oct.
+
+**Accountability — done & live:** onboarding (required-5 + late-joiner card + roster x/5), content load
+(weeks 0–6 + hidden habits + stack), C1 stacked habit rings (+ fixed broken member_habits/checkins
+queries), roster bug fixes (enrolled clients show, coach list, approach select, measurements).
+
+**Accountability — PENDING (Michael):** push measurements fix (2 files) + paste `catch-up-acc-roster-fixes.md`
+into builder; run `acc_checkin_loom_url.sql` before week-1 check-ins.
+
+**Accountability — build queue (briefs written, priority order):**
+1. Home-screen entry point for enrolled members (brief TBW — members currently only reach the programme
+   via a card on the Nutrition tab; biggest launch risk).
+2. Video cards in lessons — `builder-prompt-acc-video-cards.md`.
+3. C4 live-call link — `acc_cohort_call_link.sql` + `builder-prompt-acc-livecall.md`.
+4. C2 weekly check-in upgrades (by 25 Oct) — brief TBW; `acc_checkin_addon.sql` data seeded.
+5. C3 week-3 SOS plan + step target (by 8 Nov) — brief TBW.
+
+**Other workstreams (live):** Staff Hub (Insights tab + call lists), win-back engine (gym + PT, GHL).
+
+---
 
 ## Stack
 - React + Vite PWA, Tailwind/shadcn. Hosted on **Netlify** (auto-deploys from `main`).
