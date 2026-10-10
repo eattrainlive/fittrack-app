@@ -360,8 +360,8 @@ export const loadRealClientData = async (
     supabase
       .from("member_measurements")
       .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
+      .eq("member_id", userId)
+      .order("date", { ascending: false })
       .limit(1),
   ]);
 

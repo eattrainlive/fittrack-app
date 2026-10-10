@@ -54,3 +54,14 @@ remove the now-unused `Input` import):
   </SelectContent>
 </Select>
 ```
+
+## 4. Dashboard measurements never loaded (`AccountabilityDashboard.tsx` + `src/lib/accPreviewData.ts`)
+`member_measurements` uses `member_id` (not `user_id`) and has a `date` column (no `created_at`).
+Fix the query in BOTH files:
+```ts
+.from("member_measurements")
+.select("*")
+.eq("member_id", <uid>)
+.order("date", { ascending: false })
+.limit(1)
+```

@@ -178,11 +178,12 @@ export function AccountabilityDashboard({
     setPhotos((ph ?? []) as any);
 
     // Latest measurements
+    // member_measurements uses member_id (not user_id) and has `date` (no created_at).
     const { data: meas } = await supabase
       .from("member_measurements")
       .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
+      .eq("member_id", user.id)
+      .order("date", { ascending: false })
       .limit(1);
     setLatestMeas((meas?.[0] as any) ?? null);
 
