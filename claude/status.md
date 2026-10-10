@@ -26,8 +26,9 @@ truth; this file is the single shared state. Keep this section short and current
 (weeks 0–6 + hidden habits + stack), C1 stacked habit rings (+ fixed broken member_habits/checkins
 queries), roster bug fixes (enrolled clients show, coach list, approach select, measurements).
 
-**Accountability — PENDING (Michael):** push measurements fix (2 files) + paste `catch-up-acc-roster-fixes.md`
-into builder; run `acc_checkin_loom_url.sql` before week-1 check-ins.
+**Accountability — PENDING (Michael):** push export 69 (C3). ✅ `acc_checkin_loom_url.sql` run.
+(Roster fixes 1–3 confirmed live via coach-assign working; measurements fix #4 — verify dashboard shows
+latest measurements.)
 
 **Accountability — build queue (priority order):**
 1. ✅ Home-screen entry point (built, export 66 — AccountabilityCard self-hides + renders on Index Home).
