@@ -5,6 +5,8 @@ export interface AccCohort {
   name: string;
   start_date: string;
   weeks: number;
+  call_url?: string | null;
+  call_label?: string | null;
 }
 
 export interface AccClient {
@@ -94,6 +96,21 @@ export const getCohortClients = async (
     console.warn("getCohortClients failed", e);
     return [];
   }
+};
+
+/** Staff: set the cohort's live-call link + label (acc_cohorts.call_url / call_label). */
+export const setCohortCall = async (
+  cohortId: string,
+  call: { call_url?: string | null; call_label?: string | null },
+): Promise<{ error: any }> => {
+  const { error } = await supabase
+    .from("acc_cohorts")
+    .update({
+      call_url: call.call_url ?? null,
+      call_label: call.call_label ?? null,
+    })
+    .eq("id", cohortId);
+  return { error };
 };
 
 /** Staff: enrol a member into a cohort. */

@@ -42,3 +42,19 @@ Don't touch onboarding, check-ins, Staff Hub / win-back.
 4. Preview dashboard shows the card.
 
 **Deploy:** SQL in Supabase → builder export → `scripts/merge-builder-export.py` → review → push.
+
+---
+## Type note (do this so it compiles)
+`getActiveCohort` already does `select *`, so the new columns come back automatically after the SQL.
+Add them to the `AccCohort` interface in `src/lib/accountabilityProgramme.ts` so `cohort.call_url` /
+`cohort.call_label` type-check:
+```ts
+export interface AccCohort {
+  id: string;
+  name: string;
+  start_date: string;
+  weeks: number;
+  call_url?: string | null;
+  call_label?: string | null;
+}
+```

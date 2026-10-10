@@ -85,6 +85,8 @@ export const DEMO_COHORT: AccCohort = {
   name: "6 Week Accountability Programme",
   start_date: todayMinus(18),
   weeks: 6,
+  call_url: "https://zoom.us/j/demo",
+  call_label: "Wednesdays 12:00",
 };
 
 export const DEMO_WEEK_CONTENT: AccWeekContent = {

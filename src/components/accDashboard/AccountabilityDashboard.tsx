@@ -26,6 +26,7 @@ import type { PreviewData } from "@/lib/accPreviewData";
 
 import { HeroCard } from "@/components/accDashboard/Hero";
 import { LessonCard } from "@/components/accDashboard/Lesson";
+import { LiveCallCard } from "@/components/accDashboard/LiveCallCard";
 import { FormsStatusCard } from "@/components/accDashboard/FormsStatus";
 import {
   HabitsCard,
@@ -503,6 +504,12 @@ export function AccountabilityDashboard({
         checkinDue={checkinDue}
         checkinDone={weeklyDone(week)}
         onStartCheckin={onStartCheckin}
+      />
+
+      <LiveCallCard
+        callUrl={cohort.call_url}
+        callLabel={cohort.call_label}
+        readOnly={readOnly}
       />
 
       <FormsStatusCard

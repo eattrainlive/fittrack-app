@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -22,7 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { UserPlus, Trash2, Check, Loader2 } from "lucide-react";
+import { UserPlus, Trash2, Check, Loader2, Video, Save } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import {
@@ -31,6 +32,7 @@ import {
   assignCoach,
   setOnboardingComplete,
   setNutritionApproach,
+  setCohortCall,
   onboardingStatus,
   ONBOARDING_ITEM_SHORT_LABELS,
   currentWeekOf,
@@ -84,6 +86,30 @@ export function AccRosterTab({
   const [coachFilter, setCoachFilter] = useState("all");
   const [incompleteOnly, setIncompleteOnly] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // Live-call link editor (cohort-level: acc_cohorts.call_url / call_label)
+  const [callUrl, setCallUrl] = useState(cohort.call_url || "");
+  const [callLabel, setCallLabel] = useState(
+    cohort.call_label || "Wednesdays 12:00",
+  );
+  const [callOpen, setCallOpen] = useState(false);
+  const [callSaving, setCallSaving] = useState(false);
+
+  const handleSaveCall = async () => {
+    setCallSaving(true);
+    const { error } = await setCohortCall(cohort.id, {
+      call_url: callUrl.trim() || null,
+      call_label: callLabel.trim() || null,
+    });
+    setCallSaving(false);
+    if (error) {
+      toast.error("Couldn't save call link");
+      return;
+    }
+    toast.success("Live call link saved");
+    setCallOpen(false);
+    reload();
+  };
 
   const enrolledIds = new Set(clients.map((c) => c.user_id));
   const availableMembers = appMembers.filter(
@@ -251,6 +277,60 @@ export function AccRosterTab({
             </Button>
           </div>
           <Badge variant="outline">{clients.length} enrolled</Badge>
+
+          {/* Live call link (cohort-level) */}
+          <Popover open={callOpen} onOpenChange={setCallOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-2">
+                <Video className="h-4 w-4" />
+                {cohort.call_url ? "Edit live call" : "Set live call"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-4" align="end">
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs">Live call label</Label>
+                  <Input
+                    className="mt-1 h-9"
+                    value={callLabel}
+                    onChange={(e) => setCallLabel(e.target.value)}
+                    placeholder="Wednesdays 12:00"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Zoom / call URL</Label>
+                  <Input
+                    className="mt-1 h-9"
+                    value={callUrl}
+                    onChange={(e) => setCallUrl(e.target.value)}
+                    placeholder="https://zoom.us/j/…"
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCallOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveCall}
+                    disabled={callSaving}
+                    className="gap-1.5"
+                  >
+                    {callSaving ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Save className="h-3.5 w-3.5" />
+                    )}
+                    Save
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 

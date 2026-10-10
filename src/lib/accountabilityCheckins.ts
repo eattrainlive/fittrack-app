@@ -34,11 +34,11 @@ export interface CheckinPayload {
 export const saveCheckin = async (
   payload: CheckinPayload,
 ): Promise<{ error: any }> => {
+  // acc_checkins keys on client_id only — it has NO user_id / cohort_id columns
+  // (writing them errors the whole upsert and blocks check-in submission).
   const { error } = await supabase.from("acc_checkins").upsert(
     {
       client_id: payload.clientId,
-      user_id: payload.userId,
-      cohort_id: payload.cohortId,
       week_number: payload.weekNumber,
       responses: payload.responses,
       avg_weight: payload.avgWeight ?? null,
