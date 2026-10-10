@@ -12,6 +12,7 @@ import { Loader2, Check, ClipboardList, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { saveCheckin, getMyCheckin } from "@/lib/accountabilityCheckins";
+import { TrackingBlock } from "./TrackingBlock";
 import {
   ShortText,
   LongText,
@@ -38,6 +39,7 @@ export function WeeklyCheckin({
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [trackShot, setTrackShot] = useState<string | null>(null);
   const [f, setF] = useState<Record<string, any>>({});
   const [weekContent, setWeekContent] = useState<any>(null);
   const [unlockedHabits, setUnlockedHabits] = useState<string[]>([]);
@@ -52,10 +54,12 @@ export function WeeklyCheckin({
         setF({ ...existing.responses });
         setSubmitted(true);
         setPhotoUrl(existing.responses.q10photo || null);
+        setTrackShot(existing.responses.trackShot || null);
       } else {
         setF({});
         setSubmitted(false);
         setPhotoUrl(null);
+        setTrackShot(null);
       }
       const wc = await getWeekContent(week);
       setWeekContent(wc);
@@ -121,7 +125,7 @@ export function WeeklyCheckin({
           )
         : null;
 
-      const responses: Record<string, any> = { ...f, q10photo: photoUrl };
+      const responses: Record<string, any> = { ...f, q10photo: photoUrl, trackShot };
       if (weekContent?.checkin_addon) {
         responses.weekQ = weekContent.checkin_addon;
         responses.weekA = f.weekA ?? "";
@@ -299,6 +303,8 @@ export function WeeklyCheckin({
                 placeholder="e.g. 7500"
               />
             </div>
+
+            <TrackingBlock approach={client.nutrition_approach} f={f} set={set} trackShot={trackShot} setTrackShot={setTrackShot} busy={busy} week={week} />
 
             {weekContent?.checkin_addon && (
               <div>

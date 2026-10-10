@@ -28,6 +28,12 @@ export interface AccClient {
   accountability_style?: string | null;
   checkin_pref?: string | null;
   sos_plan?: string | null;
+  // Nutrition tracking (added by acc_tracking_fields.sql)
+  tracking_app?: string | null;
+  tracking_app_other?: string | null;
+  mfp_username?: string | null;
+  calorie_target?: number | null;
+  protein_target?: number | null;
 }
 
 export interface OnboardingPayload {
@@ -40,6 +46,9 @@ export interface OnboardingPayload {
   nutrition_approach?: string | null;
   accountability_style?: string | null;
   checkin_pref?: string | null;
+  tracking_app?: string | null;
+  tracking_app_other?: string | null;
+  mfp_username?: string | null;
 }
 
 /** The most recent / active cohort (members + staff can read). */
@@ -171,6 +180,44 @@ export const setNutritionApproach = async (
   return { error };
 };
 
+/** Staff: set calorie + protein targets (tracking clients only). */
+export const setTrackingTargets = async (
+  clientId: string,
+  targets: {
+    calorie_target?: number | null;
+    protein_target?: number | null;
+  },
+): Promise<{ error: any }> => {
+  const { error } = await supabase
+    .from("acc_clients")
+    .update({
+      calorie_target: targets.calorie_target ?? null,
+      protein_target: targets.protein_target ?? null,
+    })
+    .eq("id", clientId);
+  return { error };
+};
+
+/** Staff or client: set tracking app info (clients start tracking mid-programme). */
+export const setTrackingApp = async (
+  clientId: string,
+  app: {
+    tracking_app?: string | null;
+    tracking_app_other?: string | null;
+    mfp_username?: string | null;
+  },
+): Promise<{ error: any }> => {
+  const { error } = await supabase
+    .from("acc_clients")
+    .update({
+      tracking_app: app.tracking_app ?? null,
+      tracking_app_other: app.tracking_app_other ?? null,
+      mfp_username: app.mfp_username ?? null,
+    })
+    .eq("id", clientId);
+  return { error };
+};
+
 /** Client: mark their own onboarding done. */
 export const completeMyOnboarding = async (
   clientId: string,
@@ -198,6 +245,9 @@ export const saveMyOnboarding = async (
       nutrition_approach: payload.nutrition_approach ?? null,
       accountability_style: payload.accountability_style ?? null,
       checkin_pref: payload.checkin_pref ?? null,
+      tracking_app: payload.tracking_app ?? null,
+      tracking_app_other: payload.tracking_app_other ?? null,
+      mfp_username: payload.mfp_username ?? null,
       onboarding_done: true,
     })
     .eq("id", clientId);

@@ -22,6 +22,7 @@ import {
   getMyCheckin,
   saveFinalOutcome,
 } from "@/lib/accountabilityCheckins";
+import { TrackingBlock } from "./TrackingBlock";
 import {
   ShortText,
   LongText,
@@ -106,6 +107,7 @@ export function FinalCheckin({
   const [afterFront, setAfterFront] = useState<string | null>(null);
   const [afterSide, setAfterSide] = useState<string | null>(null);
   const [f, setF] = useState<Record<string, any>>({});
+  const [trackShot, setTrackShot] = useState<string | null>(null);
 
   const set = (k: string, v: any) => setF((prev) => ({ ...prev, [k]: v }));
 
@@ -118,11 +120,13 @@ export function FinalCheckin({
         setSubmitted(true);
         setAfterFront(existing.responses.afterFront || null);
         setAfterSide(existing.responses.afterSide || null);
+        setTrackShot(existing.responses.trackShot || null);
       } else {
         setF({});
         setSubmitted(false);
         setAfterFront(null);
         setAfterSide(null);
+        setTrackShot(null);
       }
     })();
   }, [open, client.id]);
@@ -180,6 +184,7 @@ export function FinalCheckin({
         afterFront,
         afterSide,
         afterMeasurements,
+        trackShot,
       };
 
       const {
@@ -333,6 +338,8 @@ export function FinalCheckin({
                 </div>
               </>
             )}
+
+            <TrackingBlock approach={client.nutrition_approach} f={f} set={set} trackShot={trackShot} setTrackShot={setTrackShot} busy={busy} week={6} />
 
             {section === 1 && (
               <>

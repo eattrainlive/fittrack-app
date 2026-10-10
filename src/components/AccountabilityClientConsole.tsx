@@ -38,10 +38,19 @@ import {
 } from "@/lib/accountabilityCheckins";
 import {
   WEEK_THEMES,
+  setTrackingTargets,
+  setTrackingApp,
   type AccClient,
   type AccCohort,
 } from "@/lib/accountabilityProgramme";
 import { getEmbedUrl } from "@/lib/accWeekContent";
+
+const TRACKING_APP_LABELS: Record<string, string> = {
+  mfp: "MyFitnessPal",
+  nutracheck: "Nutracheck",
+  other: "Other",
+  none: "I don't track",
+};
 
 const themeFor = (week: number) =>
   WEEK_THEMES.find((t) => t.week === week) || null;

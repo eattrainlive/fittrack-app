@@ -260,6 +260,9 @@ export function AccountabilityOnboarding({
         nutrition_approach: nutritionApproach,
         accountability_style: accountabilityStyle,
         checkin_pref: checkinPref,
+        tracking_app: f.tracking_app || null,
+        tracking_app_other: f.tracking_app_other || null,
+        mfp_username: f.mfp_username || null,
       });
       if (error) throw error;
 

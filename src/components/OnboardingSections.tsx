@@ -422,8 +422,49 @@ export function OnboardingSection({
           onChange={(v) => set("q41", v)}
         />
       </div>
+
+      {/* Optional: which tracking app (if any). Does NOT affect the 5 required items. */}
+      <div className="pt-2 border-t border-border">
+        <QLabel n={42}>
+          If you track your food, which app do you use?
+        </QLabel>
+        <SingleSelect
+          options={["MyFitnessPal", "Nutracheck", "Other", "I don't track"]}
+          value={f.trackingAppLabel || ""}
+          onChange={(v) => {
+            set("trackingAppLabel", v);
+            if (v === "MyFitnessPal") set("tracking_app", "mfp");
+            else if (v === "Nutracheck") set("tracking_app", "nutracheck");
+            else if (v === "Other") set("tracking_app", "other");
+            else if (v === "I don't track") set("tracking_app", "none");
+          }}
+        />
+        {f.tracking_app === "mfp" && (
+          <div className="mt-2 space-y-1">
+            <ShortText
+              value={f.mfp_username || ""}
+              onChange={(v) => set("mfp_username", v)}
+              placeholder="Your MyFitnessPal username"
+            />
+            <p className="text-xs text-muted-foreground">
+              Set your diary to Public (MyFitnessPal → Settings → Diary
+              Settings → Public) so your coach can view it.
+            </p>
+          </div>
+        )}
+        {f.tracking_app === "other" && (
+          <div className="mt-2">
+            <ShortText
+              value={f.tracking_app_other || ""}
+              onChange={(v) => set("tracking_app_other", v)}
+              placeholder="Which app?"
+            />
+          </div>
+        )}
+      </div>
+
       <div>
-        <QLabel n={42}>Anything else you want me to know?</QLabel>
+        <QLabel n={43}>Anything else you want me to know?</QLabel>
         <LongText value={f.q42 || ""} onChange={(v) => set("q42", v)} />
       </div>
     </>
