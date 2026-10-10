@@ -13,6 +13,7 @@ export interface AccWeekContent {
   teaching: string;
   video_url: string;
   resources: AccWeekResource[];
+  checkin_addon?: string | null;
   updated_at?: string;
 }
 

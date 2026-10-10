@@ -298,6 +298,33 @@ function CheckinCard({
             <span className="text-muted-foreground">SOS trigger:</span> {r.q8}
           </p>
         )}
+        {r.weekQ && (
+          <div className="text-sm">
+            <span className="text-muted-foreground">Week question:</span>{" "}
+            {r.weekQ}
+            {r.weekA && (
+              <p className="mt-0.5 pl-2 border-l-2 border-border text-foreground">
+                {r.weekA}
+              </p>
+            )}
+          </div>
+        )}
+        {checkin.avg_steps != null && (
+          <p className="text-sm">
+            <span className="text-muted-foreground">Avg steps:</span>{" "}
+            <span className="font-semibold">
+              {Number(checkin.avg_steps).toLocaleString()}/day
+            </span>
+          </p>
+        )}
+        {checkin.avg_weight != null && (
+          <p className="text-sm">
+            <span className="text-muted-foreground">Avg weight:</span>{" "}
+            <span className="font-semibold">
+              {Number(checkin.avg_weight).toFixed(1)} kg
+            </span>
+          </p>
+        )}
         {isFinal && r.q15 != null && (
           <p className="text-sm">
             <span className="text-muted-foreground">Programme rating:</span>{" "}

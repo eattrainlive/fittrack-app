@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,7 +12,15 @@ import { Loader2, Check, ClipboardList, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { saveCheckin, getMyCheckin } from "@/lib/accountabilityCheckins";
-import { ShortText, LongText, Scale05, QLabel } from "./onboardingFields";
+import {
+  ShortText,
+  LongText,
+  Scale05,
+  NumberField,
+  QLabel,
+} from "./onboardingFields";
+import { getWeekContent } from "@/lib/accWeekContent";
+import { getAccWeekHabits } from "@/lib/accWeekHabits";
 import type { AccClient, AccCohort } from "@/lib/accountabilityProgramme";
 
 export function WeeklyCheckin({
@@ -30,6 +39,8 @@ export function WeeklyCheckin({
   const [submitted, setSubmitted] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [f, setF] = useState<Record<string, any>>({});
+  const [weekContent, setWeekContent] = useState<any>(null);
+  const [unlockedHabits, setUnlockedHabits] = useState<string[]>([]);
 
   const set = (k: string, v: any) => setF((prev) => ({ ...prev, [k]: v }));
 
@@ -46,6 +57,10 @@ export function WeeklyCheckin({
         setSubmitted(false);
         setPhotoUrl(null);
       }
+      const wc = await getWeekContent(week);
+      setWeekContent(wc);
+      const stack = await getAccWeekHabits(week);
+      setUnlockedHabits(stack.map((h) => h.name));
     })();
   }, [open, client.id, week]);
 
@@ -78,11 +93,39 @@ export function WeeklyCheckin({
   const submit = async () => {
     setBusy(true);
     try {
-      const responses = { ...f, q10photo: photoUrl };
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("No user");
+
+      // Compute this programme week's average bodyweight from history.
+      const start = new Date(cohort.start_date + "T00:00:00");
+      start.setDate(start.getDate() + (week - 1) * 7);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 7);
+      const { data: bw } = await supabase
+        .from("bodyweight_history")
+        .select("date, weight")
+        .eq("user_id", user.id);
+      const inWindow = (bw ?? []).filter((b: any) => {
+        const d = new Date(b.date + "T00:00:00");
+        return d >= start && d < end;
+      });
+      const avgWeight = inWindow.length
+        ? Number(
+            (
+              inWindow.reduce((s: number, b: any) => s + Number(b.weight), 0) /
+              inWindow.length
+            ).toFixed(1),
+          )
+        : null;
+
+      const responses: Record<string, any> = { ...f, q10photo: photoUrl };
+      if (weekContent?.checkin_addon) {
+        responses.weekQ = weekContent.checkin_addon;
+        responses.weekA = f.weekA ?? "";
+      }
 
       const { error } = await saveCheckin({
         clientId: client.id,
@@ -90,6 +133,8 @@ export function WeeklyCheckin({
         cohortId: cohort.id,
         weekNumber: week,
         responses,
+        avgSteps: Number(f.avgSteps) || null,
+        avgWeight,
       });
       if (error) throw error;
       toast.success("Check-in submitted — great work 🎉");
@@ -139,9 +184,13 @@ export function WeeklyCheckin({
 
             <div>
               <QLabel n={2}>
-                How consistently did you hit each habit (plate / protein / water
-                / steps / this week's new habit)?
+                How consistently did you hit your habits this week?
               </QLabel>
+              {unlockedHabits.length > 0 && (
+                <p className="text-xs text-muted-foreground mb-2">
+                  {unlockedHabits.join(" · ")}
+                </p>
+              )}
               <Scale05 value={f.q2 || ""} onChange={(v) => set("q2", v)} />
               <p className="text-xs text-muted-foreground mt-1">
                 0 = not at all, 5 = nailed it
@@ -183,8 +232,9 @@ export function WeeklyCheckin({
 
             <div>
               <QLabel n={8}>
-                Did any 'slip' triggers show up (from your SOS plan) — and what
-                will you do next week?
+                {week <= 2
+                  ? "What might trip you up next week, and what will you do about it?"
+                  : "Did any 'slip' triggers show up (from your SOS plan) — and what will you do next week?"}
               </QLabel>
               <LongText value={f.q8 || ""} onChange={(v) => set("q8", v)} />
             </div>
@@ -199,10 +249,7 @@ export function WeeklyCheckin({
             </div>
 
             <div>
-              <QLabel n={10}>
-                Done your progress photos — and how are you feeling about
-                progress?
-              </QLabel>
+              <QLabel n={10}>How are you feeling about progress?</QLabel>
               <div className="mb-2">
                 <label className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/40 p-3 cursor-pointer hover:bg-muted/60 transition">
                   {photoUrl ? (
@@ -215,7 +262,9 @@ export function WeeklyCheckin({
                     <>
                       <Camera className="w-5 h-5 text-primary" />
                       <span className="text-xs font-medium">
-                        Add progress photo
+                        {week === 3
+                          ? "Add your midpoint photo"
+                          : "Add progress photo (optional)"}
                       </span>
                     </>
                   )}
@@ -227,6 +276,11 @@ export function WeeklyCheckin({
                     disabled={busy}
                   />
                 </label>
+                {week === 3 && !photoUrl && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Same spot and pose as day 0 — private, just for you.
+                  </p>
+                )}
               </div>
               <LongText
                 value={f.q10 || ""}
@@ -236,7 +290,28 @@ export function WeeklyCheckin({
             </div>
 
             <div>
-              <QLabel n={11}>
+              <Label className="block text-sm font-medium mb-2">
+                Your average daily steps this week
+              </Label>
+              <NumberField
+                value={f.avgSteps || ""}
+                onChange={(v) => set("avgSteps", v)}
+                placeholder="e.g. 7500"
+              />
+            </div>
+
+            {weekContent?.checkin_addon && (
+              <div>
+                <QLabel n={11}>{weekContent.checkin_addon}</QLabel>
+                <LongText
+                  value={f.weekA || ""}
+                  onChange={(v) => set("weekA", v)}
+                />
+              </div>
+            )}
+
+            <div>
+              <QLabel n={weekContent?.checkin_addon ? 12 : 11}>
                 Anything you want help with or want me to know?
               </QLabel>
               <LongText value={f.q11 || ""} onChange={(v) => set("q11", v)} />

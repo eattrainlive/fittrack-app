@@ -59,28 +59,52 @@ export function WeightCard({
   );
 }
 
-export function StepsCard({ stepTarget }: { stepTarget: number }) {
+export function StepsCard({
+  stepTarget,
+  lastWeekAvg,
+}: {
+  stepTarget: number | null;
+  lastWeekAvg: number | null;
+}) {
+  const hasTarget = stepTarget != null && Number(stepTarget) > 0;
   return (
     <Card className="bg-card border-border">
       <CardHeader className="pb-1">
         <CardTitle className="text-sm text-muted-foreground">Steps</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="font-heading text-3xl tracking-tight">
-          {stepTarget.toLocaleString()}
-          <span className="text-base text-muted-foreground ml-1">/ day</span>
-        </p>
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
-          Your target
-        </p>
-        <div className="mt-3 h-2 rounded-full bg-muted overflow-hidden">
-          <div
-            className="h-full bg-primary rounded-full"
-            style={{ width: "100%" }}
-          />
-        </div>
-        <p className="text-xs text-muted-foreground mt-1.5">
-          Log steps in your daily check-ins
+        {hasTarget ? (
+          <>
+            <p className="font-heading text-3xl tracking-tight">
+              {Number(stepTarget).toLocaleString()}
+              <span className="text-base text-muted-foreground ml-1">
+                / day
+              </span>
+            </p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+              Your target
+            </p>
+            <div className="mt-3 h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-primary rounded-full"
+                style={{
+                  width: `${lastWeekAvg != null ? Math.min(100, Math.round((Number(lastWeekAvg) / Number(stepTarget)) * 100)) : 0}%`,
+                }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1.5">
+              {lastWeekAvg != null
+                ? `Last week's avg: ${Number(lastWeekAvg).toLocaleString()}/day`
+                : "No steps logged yet"}
+            </p>
+          </>
+        ) : (
+          <p className="font-heading text-2xl tracking-tight text-muted-foreground">
+            Target set in Week 3
+          </p>
+        )}
+        <p className="text-xs text-muted-foreground mt-2">
+          Log your average steps in your Sunday check-in.
         </p>
       </CardContent>
     </Card>

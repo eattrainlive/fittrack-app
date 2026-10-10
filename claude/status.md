@@ -34,10 +34,11 @@ into builder; run `acc_checkin_loom_url.sql` before week-1 check-ins.
 2. ✅ Video cards in lessons (built, export 66 — new `AccResourceList`: play-icon cards + in-app dialog).
 3. ✅ C4 live-call link (built — `acc_cohort_call_link.sql` run; `setCohortCall` + Roster editor +
    `LiveCallCard` with Wed Live-now logic). Michael sets the Zoom link in Roster header.
-4. C2 weekly check-in upgrades (by 25 Oct) — brief `builder-prompt-acc-checkin-c2.md` (avg steps Q,
-   computed avg weight, week-specific Q, copy fixes, steps card, coach console). `acc_checkin_addon.sql`
-   seeded. ⚠ CRITICAL FIX done in repo (PENDING push): `saveCheckin` wrote user_id/cohort_id which
-   don't exist on acc_checkins → every check-in errored. Fixed + catch-up `catch-up-acc-checkin-save-fix.md`.
+4. ✅ C2 weekly check-in upgrades (built, export 22): avg-steps Q + computed avg-weight (from
+   bodyweight_history window) → acc_checkins.avg_steps/avg_weight; week-specific Q (checkin_addon) saved
+   as responses.weekQ/weekA + shown in coach console; copy fixes (Q2 unlocked habits, Q8 no-SOS wks1–2,
+   Q10 week-3 midpoint photo); Steps card shows target + last-week avg. INCLUDES the critical saveCheckin
+   fix (acc_checkins has no user_id/cohort_id). PENDING push + a real end-to-end check-in test.
 5. C3 week-3 SOS plan + step target (by 8 Nov) — brief TBW.
 
 **Other workstreams (live):** Staff Hub (Insights tab + call lists), win-back engine (gym + PT, GHL).

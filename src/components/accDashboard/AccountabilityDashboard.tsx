@@ -318,6 +318,11 @@ export function AccountabilityDashboard({
         new Date(a.coach_replied_at!).getTime(),
     )[0];
 
+  const latestCheckinWithSteps = [...checkins]
+    .filter((c) => c.submitted_at && c.avg_steps != null)
+    .sort((a, b) => b.week_number - a.week_number)[0];
+  const lastWeekAvgSteps = latestCheckinWithSteps?.avg_steps ?? null;
+
   const habitRings: HabitRingData[] = (() => {
     const rows = memberHabits as any[];
     // Order + "new this week" tag from the programme stack when available.
@@ -535,7 +540,10 @@ export function AccountabilityDashboard({
           weightDelta={weightDelta}
           points={sparkPts}
         />
-        <StepsCard stepTarget={client.step_target || 8000} />
+        <StepsCard
+          stepTarget={client.step_target ? Number(client.step_target) : null}
+          lastWeekAvg={lastWeekAvgSteps}
+        />
       </div>
 
       <NonScaleTrends checkins={checkins} />
