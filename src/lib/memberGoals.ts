@@ -182,7 +182,11 @@ export const saveMemberGoals = async (input: {
 
 export const getHabitLibrary = async () => {
   try {
-    return await getHabits();
+    const all = await getHabits();
+    // Only habits members can self-select. Inactive habits (e.g. programme-only
+    // accountability habits, active=false) are hidden from pickers but still
+    // resolve by id elsewhere via getHabits().
+    return (all || []).filter((h: any) => h?.active !== false);
   } catch {
     return [];
   }
