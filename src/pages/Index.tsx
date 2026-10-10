@@ -42,6 +42,7 @@ import { Button } from "@/components/ui/button";
 import { MemberGoalsCard } from "@/components/MemberGoalsCard";
 import MemberProgressCard from "@/components/MemberProgressCard";
 import { CheckInCodeCard } from "@/components/CheckInCodeCard";
+import { AccountabilityCard } from "@/components/AccountabilityCard";
 import {
   isTrialProduct,
   daysSince,
@@ -239,6 +240,8 @@ const Index = () => {
       </div>
 
       <CheckInCodeCard />
+
+      <AccountabilityCard />
 
       {showMemberGoals && <MemberGoalsCard />}
 

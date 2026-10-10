@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Play, AlertCircle } from "lucide-react";
 import { getEmbedUrl, type AccWeekContent } from "@/lib/accWeekContent";
+import { AccResourceList } from "@/components/AccResourceList";
 
 export function LessonCard({
   content,
@@ -48,20 +49,8 @@ export function LessonCard({
                 {content.teaching}
               </p>
             )}
-            {content.resources?.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {content.resources.map((r, i) => (
-                  <a
-                    key={i}
-                    href={r.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs font-medium hover:bg-primary/10 hover:text-primary transition"
-                  >
-                    {r.title}
-                  </a>
-                ))}
-              </div>
+            {content.resources && content.resources.length > 0 && (
+              <AccResourceList resources={content.resources} />
             )}
           </>
         ) : (

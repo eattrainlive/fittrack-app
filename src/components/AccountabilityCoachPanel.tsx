@@ -331,13 +331,11 @@ export function AccountabilityCoachPanel() {
     if (c) {
       const [cs, { data: staffRows, error: staffErr }] = await Promise.all([
         getCohortClients(c.id),
-        // staff_users has only user_id + note (NO email column) — selecting a
-        // non-existent column errors and returns no coaches.
         supabase.from("staff_users").select("user_id"),
       ]);
       if (staffErr) console.warn("staff_users load error", staffErr);
       setClients(cs);
-      // Names are resolved from the members table below (by user_id).
+      // Resolve staff names from auth metadata via members list
       const staffRows2 = (staffRows as any[]) ?? [];
       const staffWithEmails = staffRows2.map((s) => ({
         user_id: s.user_id,

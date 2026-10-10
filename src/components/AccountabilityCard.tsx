@@ -40,6 +40,8 @@ export function AccountabilityCard() {
   }, []);
 
   if (!cfg) return null;
+  // Show only when relevant: enrolled members, or a programme open for sign-ups.
+  if (!enrolled && !cfg.enabled) return null;
 
   const subtitle = cfg.startDate
     ? `Starts ${formatDate(cfg.startDate)}`

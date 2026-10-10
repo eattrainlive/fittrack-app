@@ -29,11 +29,10 @@ queries), roster bug fixes (enrolled clients show, coach list, approach select, 
 **Accountability — PENDING (Michael):** push measurements fix (2 files) + paste `catch-up-acc-roster-fixes.md`
 into builder; run `acc_checkin_loom_url.sql` before week-1 check-ins.
 
-**Accountability — build queue (briefs written, priority order):**
-1. Home-screen entry point for enrolled members (brief TBW — members currently only reach the programme
-   via a card on the Nutrition tab; biggest launch risk).
-2. Video cards in lessons — `builder-prompt-acc-video-cards.md`.
-3. C4 live-call link — `acc_cohort_call_link.sql` + `builder-prompt-acc-livecall.md`.
+**Accountability — build queue (priority order):**
+1. ✅ Home-screen entry point (built, export 66 — AccountabilityCard self-hides + renders on Index Home).
+2. ✅ Video cards in lessons (built, export 66 — new `AccResourceList`: play-icon cards + in-app dialog).
+3. C4 live-call link — `acc_cohort_call_link.sql` + `builder-prompt-acc-livecall.md` (ready to build).
 4. C2 weekly check-in upgrades (by 25 Oct) — brief TBW; `acc_checkin_addon.sql` data seeded.
 5. C3 week-3 SOS plan + step target (by 8 Nov) — brief TBW.
 

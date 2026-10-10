@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, ExternalLink, PlayCircle } from "lucide-react";
+import { Loader2, PlayCircle } from "lucide-react";
 import {
   getWeekContent,
   getEmbedUrl,
   type AccWeekContent,
 } from "@/lib/accWeekContent";
+import { AccResourceList } from "@/components/AccResourceList";
 
 /**
  * Renders the staff-authored content for a given week:
@@ -81,22 +82,7 @@ export function WeekContentView({ weekNumber }: { weekNumber: number }) {
       )}
 
       {content!.resources && content!.resources.length > 0 && (
-        <div className="space-y-1.5">
-          {content!.resources
-            .filter((r) => r.url)
-            .map((r, i) => (
-              <a
-                key={i}
-                href={r.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-sm text-primary hover:underline"
-              >
-                <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                {r.title || r.url}
-              </a>
-            ))}
-        </div>
+        <AccResourceList resources={content!.resources} />
       )}
     </div>
   );
