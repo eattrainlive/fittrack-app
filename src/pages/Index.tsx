@@ -44,6 +44,10 @@ import MemberProgressCard from "@/components/MemberProgressCard";
 import { CheckInCodeCard } from "@/components/CheckInCodeCard";
 import { AccountabilityCard } from "@/components/AccountabilityCard";
 import {
+  getActiveCohort,
+  getMyClientRecord,
+} from "@/lib/accountabilityProgramme";
+import {
   isTrialProduct,
   daysSince,
   getTrialBaselineCapturedAt,
@@ -66,6 +70,7 @@ const Index = () => {
   const [showBaseline, setShowBaseline] = useState(false);
   const [showTrialProgress, setShowTrialProgress] = useState(false);
   const [showMemberGoals, setShowMemberGoals] = useState(false);
+  const [accEnrolled, setAccEnrolled] = useState(false);
   const navigate = useNavigate();
 
   const loadData = async () => {
@@ -115,6 +120,13 @@ const Index = () => {
       setShowTrialProgress(!!member && isTrialEligible(member.product));
       // Member goals card: non-trialists with an active membership.
       setShowMemberGoals(!!member && isMemberEligible(member.product));
+      // Hide monthly-habits card for enrolled accountability members —
+      // the programme manages their habits via the weekly stack.
+      const accCohort = await getActiveCohort();
+      if (accCohort) {
+        const accClient = await getMyClientRecord(accCohort.id);
+        setAccEnrolled(!!accClient);
+      }
     } catch {
       setShowBaseline(false);
       setShowTrialProgress(false);
@@ -243,7 +255,7 @@ const Index = () => {
 
       <AccountabilityCard />
 
-      {showMemberGoals && <MemberGoalsCard />}
+      {showMemberGoals && !accEnrolled && <MemberGoalsCard />}
 
       {showTrialProgress && (
         <button

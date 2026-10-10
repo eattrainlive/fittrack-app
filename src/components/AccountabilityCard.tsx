@@ -8,6 +8,8 @@ import {
 import {
   getActiveCohort,
   getMyClientRecord,
+  currentWeekOf,
+  type AccCohort,
 } from "@/lib/accountabilityProgramme";
 
 const formatDate = (iso: string) => {
@@ -25,15 +27,17 @@ export function AccountabilityCard() {
   const navigate = useNavigate();
   const [cfg, setCfg] = useState<AccountabilitySettings | null>(null);
   const [enrolled, setEnrolled] = useState(false);
+  const [cohort, setCohort] = useState<AccCohort | null>(null);
 
   useEffect(() => {
     (async () => {
       const settings = await getAccountabilitySettings();
       setCfg(settings);
       // Check if this member is enrolled in the active cohort.
-      const cohort = await getActiveCohort();
-      if (cohort) {
-        const client = await getMyClientRecord(cohort.id);
+      const activeCohort = await getActiveCohort();
+      if (activeCohort) {
+        setCohort(activeCohort);
+        const client = await getMyClientRecord(activeCohort.id);
         setEnrolled(!!client);
       }
     })();
@@ -43,9 +47,21 @@ export function AccountabilityCard() {
   // Show only when relevant: enrolled members, or a programme open for sign-ups.
   if (!enrolled && !cfg.enabled) return null;
 
-  const subtitle = cfg.startDate
-    ? `Starts ${formatDate(cfg.startDate)}`
-    : "Coming soon";
+  let subtitle: string;
+  if (enrolled && cohort) {
+    const wk = currentWeekOf(cohort.start_date, cohort.weeks);
+    if (wk === 0) {
+      subtitle = `Starts ${formatDate(cohort.start_date)}`;
+    } else if (wk > cohort.weeks) {
+      subtitle = "Programme complete";
+    } else {
+      subtitle = `Week ${wk} of ${cohort.weeks}`;
+    }
+  } else {
+    subtitle = cfg.startDate
+      ? `Starts ${formatDate(cfg.startDate)}`
+      : "Coming soon";
+  }
 
   const handleClick = () => {
     // Enrolled members always go to the programme space.
