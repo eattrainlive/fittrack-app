@@ -161,6 +161,10 @@ export function AccRosterTab({
   const handleApproach = async (clientId: string, approach: string) => {
     const { error } = await setNutritionApproach(clientId, approach);
     if (error) toast.error("Couldn't save approach");
+    else {
+      toast.success("Approach updated");
+      reload();
+    }
   };
 
   const memberName = (uid: string) =>
