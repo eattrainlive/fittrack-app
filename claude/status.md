@@ -102,10 +102,27 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
   `onboarding_done`+`onboarding_completed_at` (`setOnboardingComplete`); dashboard "Finish setting up"
   card for late joiners; Roster x/5 + "Onboarding incomplete" filter (new `AccRosterTab.tsx`). SQL run
   (`acc_onboarding_completed.sql`: +onboarding_completed_at, cohort start → 2026-10-19). No win-back/
-  Staff Hub regressions. PENDING: push.
-- Cumulative habit stack (PREPPED, not built): `supabase/sql/acc_week_habits.sql` (week→habit map,
-  default stack seeded — Michael to confirm the "plate" habit id) + builder brief
-  `claude/builder-prompt-acc-cumulative-habits.md`. For after onboarding; live by 19 Oct.
+  Staff Hub regressions. LIVE (pushed).
+- Working model (from 9 Oct): a separate planning chat sends requirements; this chat owns
+  implementation + guards against breakage. Their pushes land in-repo (commit 669f9a5: acc_checkin_addon.sql,
+  builder-prompt-acc-checkin-week3.md, status bullets — verified no backend wiped).
+- Content load (RUN): `acc_content_load_oct2026.sql` (week content 0–6 + habits 101–104 `active=false`
+  + acc_week_habits remap W1→101,102 · W2→1 · W3→103 · W4→104). Habits hidden from member pickers via
+  getHabitLibrary `active!==false` filter (`trialGoals.ts`+`memberGoals.ts`, pushed; catch-up
+  `catch-up-hide-inactive-habits.md`). `acc_checkin_addon.sql` RUN (checkin_addon col + W1–5 Qs).
+  `acc_week_habits.sql` RUN once — do NOT re-run (would re-add old library habits to the stack).
+- SCHEMA NOTE: `member_habits` has NO user_id/name — real cols: id, member_id, habit_id, habit_name,
+  status, position, started_at. The acc dashboard queried user_id/name (also habit_checkins) → silently
+  empty → acc habit rings currently BROKEN. C1 fixes both queries + adds the stack.
+- C1 stacked rings (BUILT + merged, export 65): new `src/lib/accWeekHabits.ts` (`ensureAccHabitsUnlocked`
+  + `getAccWeekHabits`/`getAccWeekHabitIds`); dashboard + accPreviewData fixed to member_id/habit_name
+  (the pre-existing broken-query bug); rings sourced from the stack w/ "New this week"; unlock guarded
+  in preview. No regressions. Verified by static review. PENDING: push + test.
+- C4 live-call link (READY, by 21 Oct): `acc_cohort_call_link.sql` (+call_url/call_label on acc_cohorts)
+  + `builder-prompt-acc-livecall.md` (staff editor + member "Join live call" card, Live-now Wed 12–13 UK).
+- C2 weekly check-in upgrades (by 25 Oct): avg_steps Q, computed avg_weight, week-specific Q (checkin_addon
+  seeded), copy fixes. Spec: `builder-prompt-acc-checkin-week3.md` (planning). Brief TBW.
+- C3 week-3 SOS plan + step_target capture (by 8 Nov). Brief TBW.
 - Breakdown doc for planning: `/Programming/ETL_6week_accountability_breakdown.md`.
 - Programme content (2026-10-09, PREPPED): content load script lives in Michael's "6 Week Programmes"
   folder (`App Content Load - Oct 26 cohort.sql`) — fills `acc_week_content` W0–W6 (teaching, video,

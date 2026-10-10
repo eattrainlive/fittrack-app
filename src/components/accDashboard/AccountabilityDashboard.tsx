@@ -16,6 +16,7 @@ import {
 } from "@/lib/accountabilityProgramme";
 import { getMyCheckins, type AccCheckin } from "@/lib/accountabilityCheckins";
 import { getWeekContent } from "@/lib/accWeekContent";
+import { ensureAccHabitsUnlocked, getAccWeekHabits } from "@/lib/accWeekHabits";
 import {
   rollingAverage,
   sparklinePoints,
@@ -85,8 +86,21 @@ export function AccountabilityDashboard({
     { date: string; habit_id: string | null; member_habit_id?: string | null }[]
   >(previewData?.habitCheckins ?? []);
   const [memberHabits, setMemberHabits] = useState<
-    { id: string; name: string }[]
+    {
+      id: string;
+      habit_id?: number | null;
+      habit_name?: string;
+      name?: string;
+    }[]
   >(previewData?.memberHabits ?? []);
+  const [weekHabits, setWeekHabits] = useState<
+    {
+      habit_id: number;
+      week_number: number;
+      sort: number;
+      name: string;
+    }[]
+  >(previewData?.weekHabits ?? []);
   const [photos, setPhotos] = useState<any[]>(previewData?.photos ?? []);
   const [latestMeas, setLatestMeas] = useState<any>(
     previewData?.latestMeas ?? null,
@@ -113,9 +127,10 @@ export function AccountabilityDashboard({
       setLoading(false);
       return;
     }
+    const week = currentWeekOf(c.start_date, c.weeks);
     const [cks, wc] = await Promise.all([
       getMyCheckins(me.id),
-      getWeekContent(currentWeekOf(c.start_date, c.weeks)),
+      getWeekContent(week),
     ]);
     setCheckins(cks);
     setWeekContent(wc);
@@ -138,16 +153,20 @@ export function AccountabilityDashboard({
       (bw ?? []).map((b: any) => ({ date: b.date, weight: Number(b.weight) })),
     );
 
-    // Habits + checkins
+    // Habits + checkins — use the real columns (member_id, habit_name).
+    // Unlock the programme habit stack for the current week first, then read.
+    await ensureAccHabitsUnlocked(week);
+    const stack = await getAccWeekHabits(week);
+    setWeekHabits(stack);
     const { data: mh } = await supabase
       .from("member_habits")
-      .select("id, name")
-      .eq("user_id", user.id);
+      .select("id, habit_id, habit_name, status")
+      .eq("member_id", user.id);
     setMemberHabits((mh ?? []) as any);
     const { data: hc } = await supabase
       .from("habit_checkins")
       .select("date, habit_id, member_habit_id")
-      .eq("user_id", user.id);
+      .eq("member_id", user.id);
     setHabitCheckins((hc ?? []) as any);
 
     // Photos
@@ -205,6 +224,7 @@ export function AccountabilityDashboard({
     setBwEntries(previewData.bwEntries);
     setHabitCheckins(previewData.habitCheckins);
     setMemberHabits(previewData.memberHabits);
+    setWeekHabits(previewData.weekHabits ?? []);
     setPhotos(previewData.photos);
     setLatestMeas(previewData.latestMeas);
     setCoachName(previewData.coachName);
@@ -296,13 +316,45 @@ export function AccountabilityDashboard({
         new Date(a.coach_replied_at!).getTime(),
     )[0];
 
-  const habitRings: HabitRingData[] = memberHabits.map((h) => ({
-    id: h.id,
-    name: h.name,
-    checkins: habitCheckins.filter(
-      (c) => c.member_habit_id === h.id || c.habit_id === h.id,
-    ),
-  }));
+  const habitRings: HabitRingData[] = (() => {
+    const rows = memberHabits as any[];
+    // Order + "new this week" tag from the programme stack when available.
+    const stack = weekHabits.length
+      ? weekHabits
+      : rows.map((h, i) => ({
+          habit_id: Number(h.habit_id ?? i),
+          week_number: 0,
+          sort: i,
+          name: h.habit_name || h.name || `Habit ${i + 1}`,
+        }));
+    const rings: HabitRingData[] = [];
+    for (const s of stack) {
+      const row = rows.find((h) => Number(h.habit_id) === Number(s.habit_id));
+      if (!row) continue;
+      rings.push({
+        id: row.id,
+        name: s.name || row.habit_name || row.name || "Habit",
+        newThisWeek: s.week_number === week,
+        checkins: habitCheckins.filter(
+          (c) => c.member_habit_id === row.id || c.habit_id === row.id,
+        ),
+      });
+    }
+    // Fallback if the stack didn't match any member_habits rows.
+    if (rings.length === 0) {
+      for (const h of rows) {
+        rings.push({
+          id: h.id,
+          name: h.habit_name || h.name || "Habit",
+          newThisWeek: false,
+          checkins: habitCheckins.filter(
+            (c) => c.member_habit_id === h.id || c.habit_id === h.id,
+          ),
+        });
+      }
+    }
+    return rings;
+  })();
 
   const todayStr = new Date().toISOString().split("T")[0];
 

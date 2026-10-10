@@ -7,6 +7,7 @@ import { habitWeekCount, habitStreak } from "@/lib/accDashboardHelpers";
 export interface HabitRingData {
   id: string;
   name: string;
+  newThisWeek?: boolean;
   checkins: { date: string; habit_id?: string; member_habit_id?: string }[];
 }
 
@@ -159,6 +160,11 @@ export function HabitsCard({
                   <p className="text-[10px] text-muted-foreground text-center max-w-[72px] leading-tight">
                     {h.name}
                   </p>
+                  {h.newThisWeek && (
+                    <span className="text-[9px] font-semibold text-primary bg-primary/10 rounded-full px-1.5 py-0.5">
+                      New this week
+                    </span>
+                  )}
                   <span
                     className={
                       "text-[9px] font-medium " +

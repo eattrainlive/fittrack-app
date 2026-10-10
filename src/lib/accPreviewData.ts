@@ -6,6 +6,7 @@ import {
 } from "./accountabilityProgramme";
 import { getWeekContent, type AccWeekContent } from "./accWeekContent";
 import { getClientCheckins, type AccCheckin } from "./accountabilityCheckins";
+import { getAccWeekHabits, type AccWeekHabit } from "./accWeekHabits";
 
 /** The shape of data the dashboard renders. */
 export interface PreviewData {
@@ -19,7 +20,14 @@ export interface PreviewData {
     habit_id: string;
     member_habit_id?: string | null;
   }[];
-  memberHabits: { id: string; name: string }[];
+  memberHabits: {
+    id: string;
+    habit_id?: number | null;
+    habit_name?: string;
+    name?: string;
+  }[];
+  /** Programme habit stack unlocked so far (drives ring order + "new this week"). */
+  weekHabits?: AccWeekHabit[];
   photos: any[];
   latestMeas: any;
   coachName: string;
@@ -104,11 +112,14 @@ const demoBw = [
   { date: todayMinus(1), weight: 80.2 },
 ];
 
-const demoHabits = [
-  { id: demoHabitId(1), name: "Build your plate" },
-  { id: demoHabitId(2), name: "Protein at every meal" },
-  { id: demoHabitId(3), name: "Hydration 2L+" },
-  { id: demoHabitId(4), name: "Steps target" },
+// Programme habit stack (cumulative): W1 plate + water, W2 protein,
+// W3 steps, W4 snacks, W5–6 hold 5. habit_ids match the real programme habits.
+const demoAccHabits: AccWeekHabit[] = [
+  { habit_id: 101, name: "Build your plate", week_number: 1, sort: 1 },
+  { habit_id: 102, name: "Hit my water target", week_number: 1, sort: 2 },
+  { habit_id: 1, name: "Protein at every meal", week_number: 2, sort: 3 },
+  { habit_id: 103, name: "Steps target", week_number: 3, sort: 4 },
+  { habit_id: 104, name: "Planned snacks", week_number: 4, sort: 5 },
 ];
 
 const demoHabitCheckins: {
@@ -117,12 +128,12 @@ const demoHabitCheckins: {
   member_habit_id?: string | null;
 }[] = [];
 // ~6 days of check-ins per habit over the last week
-for (let h = 1; h <= 4; h++) {
+for (let h = 1; h <= 5; h++) {
   for (let d = 0; d < 6; d++) {
     demoHabitCheckins.push({ date: todayMinus(d), habit_id: demoHabitId(h) });
   }
 }
-// Add a few older days to build a streak
+// Add a few older days to build a streak on the first habit
 for (let d = 7; d <= 12; d++) {
   demoHabitCheckins.push({ date: todayMinus(d), habit_id: demoHabitId(1) });
 }
@@ -266,6 +277,8 @@ export function getDemoData(week: number): PreviewData {
       habit: "Sliding Scale + results & photos",
     },
   };
+  // Programme habit stack unlocked so far for this preview week.
+  const unlocked = demoAccHabits.filter((h) => h.week_number <= week);
   return {
     client: DEMO_CLIENT,
     cohort: DEMO_COHORT,
@@ -273,7 +286,12 @@ export function getDemoData(week: number): PreviewData {
     checkins: demoCheckins.filter((c) => c.week_number < week),
     bwEntries: demoBw,
     habitCheckins: demoHabitCheckins,
-    memberHabits: demoHabits.slice(0, Math.min(week, 4)),
+    memberHabits: unlocked.map((h, i) => ({
+      id: demoHabitId(i + 1),
+      habit_id: h.habit_id,
+      habit_name: h.name,
+    })),
+    weekHabits: unlocked,
     photos: demoPhotos,
     latestMeas: demoLatestMeas,
     coachName: "Carla",
@@ -309,9 +327,12 @@ export const loadRealClientData = async (
   if (!clientRow) return null;
   const client = clientRow as AccClient;
 
-  const [checkins, weekContent] = await Promise.all([
+  const week = currentWeekOfReal(cohort, client);
+
+  const [checkins, weekContent, weekHabits] = await Promise.all([
     getClientCheckins(clientId),
-    getWeekContent(currentWeekOfReal(cohort, client)),
+    getWeekContent(week),
+    getAccWeekHabits(week),
   ]);
 
   const userId = client.user_id;
@@ -322,11 +343,15 @@ export const loadRealClientData = async (
       .select("date, weight")
       .eq("user_id", userId)
       .order("date", { ascending: true }),
-    supabase.from("member_habits").select("id, name").eq("user_id", userId),
+    // Real columns: member_id (not user_id), habit_name (not name).
+    supabase
+      .from("member_habits")
+      .select("id, habit_id, habit_name")
+      .eq("member_id", userId),
     supabase
       .from("habit_checkins")
       .select("date, habit_id, member_habit_id")
-      .eq("user_id", userId),
+      .eq("member_id", userId),
     supabase
       .from("member_photos")
       .select("id, url, created_at, is_baseline, phase")
@@ -372,6 +397,7 @@ export const loadRealClientData = async (
     })),
     habitCheckins: (hc.data ?? []) as any,
     memberHabits: (mh.data ?? []) as any,
+    weekHabits,
     photos: (ph.data ?? []) as any,
     latestMeas: (meas.data?.[0] as any) ?? null,
     coachName,
