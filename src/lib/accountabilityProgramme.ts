@@ -83,11 +83,12 @@ export const getCohortClients = async (
   cohortId: string,
 ): Promise<AccClient[]> => {
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("acc_clients")
       .select("*")
       .eq("cohort_id", cohortId)
-      .order("created_at", { ascending: true });
+      .order("enrolled_at", { ascending: true });
+    if (error) console.warn("getCohortClients error", error);
     return (data as AccClient[]) ?? [];
   } catch (e) {
     console.warn("getCohortClients failed", e);
