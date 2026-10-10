@@ -39,7 +39,13 @@ into builder; run `acc_checkin_loom_url.sql` before week-1 check-ins.
    as responses.weekQ/weekA + shown in coach console; copy fixes (Q2 unlocked habits, Q8 no-SOS wks1–2,
    Q10 week-3 midpoint photo); Steps card shows target + last-week avg. INCLUDES the critical saveCheckin
    fix (acc_checkins has no user_id/cohort_id). PENDING push + a real end-to-end check-in test.
-5. C3 week-3 SOS plan + step target (by 8 Nov) — brief TBW.
+5. ✅ Nutrition-tracking visibility — MEMBER side live (export 23 pushed; `acc_tracking_fields.sql` run):
+   TrackingBlock in weekly+final check-ins (gated on nutrition_approach='tracking'), onboarding "which app"
+   Q (additive, required-5 untouched), roster plate/tracking select. COACH side NOT built yet — builder
+   stubbed `setTrackingTargets`/`TRACKING_APP_LABELS` but no UI. Brief out: `brief-coach-tracking-panel.md`
+   (targets editor + per-check-in numbers/screenshot + actual-vs-target colour + <4-days flag + MFP diary
+   link / screenshot hint for every other tracker). → Michael to paste into builder.
+6. C3 week-3 SOS plan + step target (by 8 Nov) — brief TBW.
 
 **Other workstreams (live):** Staff Hub (Insights tab + call lists), win-back engine (gym + PT, GHL).
 
