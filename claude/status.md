@@ -26,7 +26,11 @@ truth; this file is the single shared state. Keep this section short and current
 (weeks 0–6 + hidden habits + stack), C1 stacked habit rings (+ fixed broken member_habits/checkins
 queries), roster bug fixes (enrolled clients show, coach list, approach select, measurements).
 
-**Accountability — PENDING (Michael):** push export 69 (C3). ✅ `acc_checkin_loom_url.sql` run.
+**Accountability — PENDING (Michael):** push export 69 (C3) + the 2 video-embed files
+(`accWeekContent.ts`, `accPreviewData.ts`) + paste `catch-up-acc-video-embed-preview.md`.
+✅ `acc_checkin_loom_url.sql` run. Video-embed fix: getEmbedUrl now only embeds absolute http(s) URLs
+(placeholder "#" was loading the app shell in the iframe); preview seed now has real per-week Vimeo
+(was one shared demo week with "#" links). Live content was already correct.
 (Roster fixes 1–3 confirmed live via coach-assign working; measurements fix #4 — verify dashboard shows
 latest measurements.)
 

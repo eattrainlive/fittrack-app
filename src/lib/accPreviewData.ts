@@ -96,11 +96,8 @@ export const DEMO_WEEK_CONTENT: AccWeekContent = {
   habit: "Steps target + Motivation SOS plan",
   teaching:
     "This week we're building your daily step target and creating your personal Motivation SOS plan — a simple, pre-decided response for when willpower dips. You don't need to be perfect; you need a plan for the moments you're not.",
-  video_url: "https://www.loom.com/share/demo",
-  resources: [
-    { title: "Step target calculator", url: "#" },
-    { title: "SOS plan template", url: "#" },
-  ],
+  video_url: "https://vimeo.com/739617323",
+  resources: [{ title: "Thu — Your SOS plan", url: "https://vimeo.com/560321641" }],
 };
 
 const demoBw = [
@@ -262,6 +259,11 @@ export function getDemoData(week: number): PreviewData {
       habit: "Set your baseline",
       teaching:
         "Welcome! Before we start, we'll capture your baseline so we can measure progress.",
+      video_url: "https://vimeo.com/740669361",
+      resources: [
+        { title: "Meet the scales", url: "https://vimeo.com/740669361" },
+        { title: "Your why", url: "https://vimeo.com/740659811/1e505697f6" },
+      ],
     },
     1: {
       ...DEMO_WEEK_CONTENT,
@@ -269,6 +271,11 @@ export function getDemoData(week: number): PreviewData {
       title: "Foundations",
       theme: "Foundations",
       habit: "Build your plate + hydration",
+      video_url: "https://vimeo.com/1012011826",
+      resources: [
+        { title: "Tue — Building your plate", url: "https://vimeo.com/1012394089" },
+        { title: "Thu — Hydration", url: "https://vimeo.com/1013410677" },
+      ],
     },
     2: {
       ...DEMO_WEEK_CONTENT,
@@ -276,6 +283,12 @@ export function getDemoData(week: number): PreviewData {
       title: "Fuel",
       theme: "Fuel",
       habit: "Protein at every meal + hand portions",
+      video_url: "https://vimeo.com/1017423995",
+      resources: [
+        { title: "Tue — Hand portions", url: "https://vimeo.com/1014225831" },
+        { title: "Wed — Protein swaps", url: "https://vimeo.com/1017570117" },
+        { title: "Fri — Nutrient density", url: "https://vimeo.com/1017903906" },
+      ],
     },
     3: DEMO_WEEK_CONTENT,
     4: {
@@ -284,6 +297,12 @@ export function getDemoData(week: number): PreviewData {
       title: "Real life",
       theme: "Real life",
       habit: "Smarter snacking, cravings, alcohol",
+      video_url: "https://vimeo.com/1015118918",
+      resources: [
+        { title: "Wed — Cravings", url: "https://vimeo.com/1021978017" },
+        { title: "Thu — Loss of motivation", url: "https://vimeo.com/809683505" },
+        { title: "Fri — Calories in alcohol", url: "https://vimeo.com/809687911" },
+      ],
     },
     5: {
       ...DEMO_WEEK_CONTENT,
@@ -291,6 +310,13 @@ export function getDemoData(week: number): PreviewData {
       title: "Refine",
       theme: "Refine",
       habit: "Labels, fats, carbs & fibre + optional tracking",
+      video_url: "https://vimeo.com/1017942117",
+      resources: [
+        { title: "Wed — Fats & carbs", url: "https://vimeo.com/748271372" },
+        { title: "Thu — Fibre", url: "https://vimeo.com/913595843" },
+        { title: "Fri — Protein deep-dive", url: "https://vimeo.com/913591485" },
+        { title: "Fri — Protein timing", url: "https://vimeo.com/1017580452" },
+      ],
     },
     6: {
       ...DEMO_WEEK_CONTENT,
@@ -298,6 +324,8 @@ export function getDemoData(week: number): PreviewData {
       title: "Lock it in",
       theme: "Lock it in",
       habit: "Sliding Scale + results & photos",
+      video_url: "https://vimeo.com/752061215",
+      resources: [],
     },
   };
   // Programme habit stack unlocked so far for this preview week.
