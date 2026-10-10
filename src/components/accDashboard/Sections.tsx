@@ -9,12 +9,35 @@ import {
   Video,
   Users,
   FileText,
+  Pencil,
 } from "lucide-react";
 import { getEmbedUrl } from "@/lib/accWeekContent";
 import { fmtDate } from "@/lib/accDashboardHelpers";
 import { PhotoTile } from "../accDashboardWidgets";
-import type { AccClient } from "@/lib/accountabilityProgramme";
+import { saveMySosPlan, type AccClient } from "@/lib/accountabilityProgramme";
 import type { AccCheckin } from "@/lib/accountabilityCheckins";
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+
+const parseSosPlan = (plan?: string | null) => {
+  if (!plan) return { sos_on: "", sos_sign: "", sos_action: "" };
+  const onIt = plan.match(/When I'm on it:\s*(.*)/)?.[1]?.trim() || "";
+  const sign = plan.match(/First sign I'm slipping:\s*(.*)/)?.[1]?.trim() || "";
+  const action = plan.match(/What I'll do:\s*(.*)/)?.[1]?.trim() || "";
+  return { sos_on: onIt, sos_sign: sign, sos_action: action };
+};
+
+const buildSosPlan = (onIt: string, sign: string, action: string) =>
+  `When I'm on it: ${onIt}\nFirst sign I'm slipping: ${sign}\nWhat I'll do: ${action}`;
 
 const REPLY_FORMAT_ICON: Record<string, any> = {
   call: Phone,
@@ -205,16 +228,110 @@ export function CoachReplyCard({
   );
 }
 
-export function SosPlanCard({ sosPlan }: { sosPlan: string }) {
+export function SosPlanCard({
+  sosPlan,
+  clientId,
+  readOnly,
+  onSaved,
+}: {
+  sosPlan: string;
+  clientId: string;
+  readOnly?: boolean;
+  onSaved?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [onIt, setOnIt] = useState("");
+  const [sign, setSign] = useState("");
+  const [action, setAction] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const openEdit = () => {
+    const p = parseSosPlan(sosPlan);
+    setOnIt(p.sos_on);
+    setSign(p.sos_sign);
+    setAction(p.sos_action);
+    setOpen(true);
+  };
+
+  const save = async () => {
+    setBusy(true);
+    const { error } = await saveMySosPlan(
+      clientId,
+      buildSosPlan(onIt, sign, action),
+    );
+    setBusy(false);
+    if (error) {
+      toast.error("Couldn't save your SOS plan");
+    } else {
+      toast.success("SOS plan updated");
+      setOpen(false);
+      onSaved?.();
+    }
+  };
+
   return (
-    <Card className="bg-card border-primary/30 border-l-4 border-l-primary">
-      <CardContent className="py-4">
-        <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
-          <Target className="w-3.5 h-3.5" /> Your SOS plan
-        </p>
-        <p className="text-sm text-muted-foreground mt-1">{sosPlan}</p>
-      </CardContent>
-    </Card>
+    <>
+      <Card className="bg-card border-primary/30 border-l-4 border-l-primary">
+        <CardContent className="py-4">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
+              <Target className="w-3.5 h-3.5" /> Your SOS plan
+            </p>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={openEdit}
+                className="text-xs font-medium text-primary hover:underline flex items-center gap-1 shrink-0"
+              >
+                <Pencil className="w-3 h-3" /> Edit
+              </button>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">
+            {sosPlan}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit your SOS plan</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="block text-sm font-medium mb-1.5">
+                When I'm on it, I…
+              </Label>
+              <Input value={onIt} onChange={(e) => setOnIt(e.target.value)} />
+            </div>
+            <div>
+              <Label className="block text-sm font-medium mb-1.5">
+                The first sign I'm slipping is…
+              </Label>
+              <Input value={sign} onChange={(e) => setSign(e.target.value)} />
+            </div>
+            <div>
+              <Label className="block text-sm font-medium mb-1.5">
+                When I spot it, the first thing I'll do is…
+              </Label>
+              <Input
+                value={action}
+                onChange={(e) => setAction(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={save} disabled={busy}>
+              {busy ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

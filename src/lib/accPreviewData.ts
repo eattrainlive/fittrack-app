@@ -77,7 +77,7 @@ export const DEMO_CLIENT: AccClient = {
   accountability_style: "gentle nudges",
   checkin_pref: "either",
   sos_plan:
-    "When I'm stressed and reach for snacks, I'll drink a glass of water and step outside for 2 minutes first.",
+    "When I'm on it: prep lunches Sunday, walk at lunchtime\nFirst sign I'm slipping: skip the food shop, hit snooze twice\nWhat I'll do: book the food shop, 10-min walk",
 };
 
 export const DEMO_COHORT: AccCohort = {
@@ -181,6 +181,27 @@ const demoCheckins: AccCheckin[] = [
     coach_replied_at: new Date(Date.now() - 6 * 86400000).toISOString(),
     coach_user_id: "demo-coach",
     flagged: false,
+  },
+  {
+    id: "demo-ck3",
+    client_id: "demo-client",
+    user_id: "demo-user",
+    cohort_id: "demo-cohort",
+    week_number: 3,
+    responses: {
+      q1: 4,
+      q3: "Hit 7,000 steps 5 days and used my SOS plan twice",
+      q4: 4,
+      q5: 3,
+      q6: 4,
+      sos_on: "prep lunches Sunday, walk at lunchtime",
+      sos_sign: "skip the food shop, hit snooze twice",
+      sos_action: "book the food shop, 10-min walk",
+      step_target: 7000,
+    },
+    avg_weight: 80.7,
+    avg_steps: 6800,
+    submitted_at: new Date(Date.now() - 1 * 86400000).toISOString(),
   },
 ];
 

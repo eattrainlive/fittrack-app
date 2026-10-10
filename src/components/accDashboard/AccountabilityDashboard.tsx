@@ -566,7 +566,14 @@ export function AccountabilityDashboard({
         />
       )}
 
-      {client.sos_plan && <SosPlanCard sosPlan={client.sos_plan} />}
+      {client.sos_plan && (
+        <SosPlanCard
+          sosPlan={client.sos_plan}
+          clientId={client.id}
+          readOnly={readOnly}
+          onSaved={load}
+        />
+      )}
 
       <WinsStrip wins={wins} />
     </div>

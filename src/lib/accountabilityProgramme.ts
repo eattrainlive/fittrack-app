@@ -198,6 +198,33 @@ export const setTrackingTargets = async (
   return { error };
 };
 
+/** Member (Week 3 check-in) or dashboard edit: save the SOS plan, and the step target when provided. */
+export const saveMySosPlan = async (
+  clientId: string,
+  sosPlan: string,
+  stepTarget?: number | null,
+): Promise<{ error: any }> => {
+  const patch: Record<string, any> = { sos_plan: sosPlan };
+  if (stepTarget !== undefined) patch.step_target = stepTarget;
+  const { error } = await supabase
+    .from("acc_clients")
+    .update(patch)
+    .eq("id", clientId);
+  return { error };
+};
+
+/** Coach: set a client's daily step target from the console (doesn't touch sos_plan). */
+export const setStepTarget = async (
+  clientId: string,
+  stepTarget: number | null,
+): Promise<{ error: any }> => {
+  const { error } = await supabase
+    .from("acc_clients")
+    .update({ step_target: stepTarget })
+    .eq("id", clientId);
+  return { error };
+};
+
 /** Staff or client: set tracking app info (clients start tracking mid-programme). */
 export const setTrackingApp = async (
   clientId: string,

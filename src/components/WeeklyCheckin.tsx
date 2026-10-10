@@ -22,7 +22,20 @@ import {
 } from "./onboardingFields";
 import { getWeekContent } from "@/lib/accWeekContent";
 import { getAccWeekHabits } from "@/lib/accWeekHabits";
+import { saveMySosPlan } from "@/lib/accountabilityProgramme";
 import type { AccClient, AccCohort } from "@/lib/accountabilityProgramme";
+
+/** Parse the stored 3-line SOS plan block back into its fields. */
+const parseSosPlan = (plan?: string | null) => {
+  if (!plan) return { sos_on: "", sos_sign: "", sos_action: "" };
+  const onIt = plan.match(/When I'm on it:\s*(.*)/)?.[1]?.trim() || "";
+  const sign = plan.match(/First sign I'm slipping:\s*(.*)/)?.[1]?.trim() || "";
+  const action = plan.match(/What I'll do:\s*(.*)/)?.[1]?.trim() || "";
+  return { sos_on: onIt, sos_sign: sign, sos_action: action };
+};
+
+const buildSosPlan = (onIt: string, sign: string, action: string) =>
+  `When I'm on it: ${onIt}\nFirst sign I'm slipping: ${sign}\nWhat I'll do: ${action}`;
 
 export function WeeklyCheckin({
   client,
@@ -56,7 +69,30 @@ export function WeeklyCheckin({
         setPhotoUrl(existing.responses.q10photo || null);
         setTrackShot(existing.responses.trackShot || null);
       } else {
-        setF({});
+        // Prefill Week-3 SOS fields from the saved plan / responses.
+        if (week === 3) {
+          const parsed = parseSosPlan(client.sos_plan);
+          const stepBase =
+            client.step_target ??
+            ((client.baseline?.avg_steps_baseline ?? client.baseline?.steps)
+              ? Math.round(
+                  (Number(
+                    client.baseline.avg_steps_baseline ?? client.baseline.steps,
+                  ) +
+                    1500) /
+                    500,
+                ) * 500
+              : null);
+          setF({
+            sos_on: parsed.sos_on || existing?.responses?.sos_on || "",
+            sos_sign: parsed.sos_sign || existing?.responses?.sos_sign || "",
+            sos_action:
+              parsed.sos_action || existing?.responses?.sos_action || "",
+            stepTargetInput: stepBase ?? "",
+          });
+        } else {
+          setF({});
+        }
         setSubmitted(false);
         setPhotoUrl(null);
         setTrackShot(null);
@@ -66,7 +102,14 @@ export function WeeklyCheckin({
       const stack = await getAccWeekHabits(week);
       setUnlockedHabits(stack.map((h) => h.name));
     })();
-  }, [open, client.id, week]);
+  }, [
+    open,
+    client.id,
+    client.sos_plan,
+    client.step_target,
+    client.baseline,
+    week,
+  ]);
 
   const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -130,6 +173,15 @@ export function WeeklyCheckin({
         q10photo: photoUrl,
         trackShot,
       };
+      // Week 3: keep the SOS fields + chosen step target in the responses
+      // so the coach console can see them in that week's row.
+      if (week === 3) {
+        if (f.sos_on) responses.sos_on = f.sos_on;
+        if (f.sos_sign) responses.sos_sign = f.sos_sign;
+        if (f.sos_action) responses.sos_action = f.sos_action;
+        if (f.stepTargetInput)
+          responses.step_target = Number(f.stepTargetInput);
+      }
       if (weekContent?.checkin_addon) {
         responses.weekQ = weekContent.checkin_addon;
         responses.weekA = f.weekA ?? "";
@@ -146,6 +198,26 @@ export function WeeklyCheckin({
       });
       if (error) throw error;
       toast.success("Check-in submitted — great work 🎉");
+
+      // Week 3: save the SOS plan + step target (best-effort, don't block).
+      if (week === 3 && (f.sos_on || f.sos_sign || f.sos_action)) {
+        const planBlock = buildSosPlan(
+          f.sos_on || "",
+          f.sos_sign || "",
+          f.sos_action || "",
+        );
+        const stepT = f.stepTargetInput ? Number(f.stepTargetInput) : null;
+        const { error: sosErr } = await saveMySosPlan(
+          client.id,
+          planBlock,
+          stepT,
+        );
+        if (sosErr)
+          toast.warning(
+            "Check-in saved, but SOS plan didn't save — try editing it on your dashboard.",
+          );
+      }
+
       setSubmitted(true);
       setOpen(false);
       onDone?.();
@@ -182,6 +254,64 @@ export function WeeklyCheckin({
           </DialogHeader>
 
           <div className="overflow-y-auto flex-1 -mx-1 px-1 space-y-5 py-2">
+            {week === 3 && (
+              <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+                <div>
+                  <Label className="block text-sm font-semibold text-primary">
+                    Your SOS plan
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    A pre-decided response for when willpower dips — so you
+                    don't have to think in the moment.
+                  </p>
+                </div>
+                <div>
+                  <Label className="block text-sm font-medium mb-1">
+                    When I'm on it, I…
+                  </Label>
+                  <ShortText
+                    value={f.sos_on || ""}
+                    onChange={(v) => set("sos_on", v)}
+                    placeholder="e.g. prep lunches Sunday, walk at lunch"
+                  />
+                </div>
+                <div>
+                  <Label className="block text-sm font-medium mb-1">
+                    The first sign I'm slipping is…
+                  </Label>
+                  <ShortText
+                    value={f.sos_sign || ""}
+                    onChange={(v) => set("sos_sign", v)}
+                    placeholder="e.g. skip the food shop, hit snooze twice"
+                  />
+                </div>
+                <div>
+                  <Label className="block text-sm font-medium mb-1">
+                    When I spot it, the first thing I'll do is…
+                  </Label>
+                  <ShortText
+                    value={f.sos_action || ""}
+                    onChange={(v) => set("sos_action", v)}
+                    placeholder="e.g. book the food shop, 10-min walk"
+                  />
+                </div>
+                <div>
+                  <Label className="block text-sm font-medium mb-1.5">
+                    Your daily step target from now on
+                  </Label>
+                  <NumberField
+                    value={f.stepTargetInput || ""}
+                    onChange={(v) => set("stepTargetInput", v)}
+                    placeholder="e.g. 7000"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Your recent average plus 1,500–2,000. A bump, not a leap to
+                    10k.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div>
               <QLabel n={1}>Overall, how did this week go?</QLabel>
               <Scale05 value={f.q1 || ""} onChange={(v) => set("q1", v)} />

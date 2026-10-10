@@ -49,11 +49,11 @@ into builder; run `acc_checkin_loom_url.sql` before week-1 check-ins.
    calls reload() (Plate⇄Tracking updated live, not only after refresh) — `catch-up-acc-approach-refresh.md`.
    Minor leftovers (non-blocking): dead TRACKING_APP_LABELS const in AccountabilityClientConsole.tsx;
    suggested-protein reads baseline.weight (verify key).
-6. C3 week-3 SOS plan + step target (by 8 Nov) — BRIEF OUT: `brief-c3-sos-step-target.md`. Narrowed:
-   §3–§5 of the old week-3 spec (weekly steps Q, computed avg weight, add-on Q, copy) already shipped in
-   C2. C3 = the capture only: Week-3 SOS section (3 fields) + step-target field in WeeklyCheckin →
-   `saveMySosPlan`; coach step-target editor in console (all clients, separate from TrackingTargetsCard);
-   editable dashboard SosPlanCard. No SQL (sos_plan + step_target already on acc_clients). → paste to builder.
+6. ✅ C3 week-3 SOS plan + step target — BUILT (export 69), reviewed clean, parses OK. WeeklyCheckin
+   week-3 SOS section (3 fields) + step-target (prefill baseline+1500) → `saveMySosPlan`; new
+   `StepTargetCard` coach editor (all clients) via `setStepTarget`; editable dashboard `SosPlanCard`
+   (readOnly prop respected). SOS block round-trips: `buildSosPlan` ⇄ `parseSosPlan` (WeeklyCheckin +
+   Sections). No SQL. PENDING: Michael push export 69.
 
 **Other workstreams (live):** Staff Hub (Insights tab + call lists), win-back engine (gym + PT, GHL).
 
