@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -315,12 +314,18 @@ export function AccRosterTab({
                       <CheckinSummary c={c} />
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Input
-                        placeholder="Nutrition approach"
-                        defaultValue={c.nutrition_approach || ""}
-                        onBlur={(e) => handleApproach(c.id, e.target.value)}
-                        className="w-40 h-9"
-                      />
+                      <Select
+                        value={c.nutrition_approach || "plate"}
+                        onValueChange={(v) => handleApproach(c.id, v)}
+                      >
+                        <SelectTrigger className="w-40 h-9">
+                          <SelectValue placeholder="Approach" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="plate">Plate</SelectItem>
+                          <SelectItem value="tracking">Tracking</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <Select
                         value={c.coach_user_id || "none"}
                         onValueChange={(v) => handleAssign(c.id, v)}

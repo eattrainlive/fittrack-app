@@ -329,17 +329,20 @@ export function AccountabilityCoachPanel() {
     const c = await getActiveCohort();
     setCohort(c);
     if (c) {
-      const [cs, { data: staffRows }] = await Promise.all([
+      const [cs, { data: staffRows, error: staffErr }] = await Promise.all([
         getCohortClients(c.id),
-        supabase.from("staff_users").select("user_id, email"),
+        // staff_users has only user_id + note (NO email column) — selecting a
+        // non-existent column errors and returns no coaches.
+        supabase.from("staff_users").select("user_id"),
       ]);
+      if (staffErr) console.warn("staff_users load error", staffErr);
       setClients(cs);
-      // Resolve staff names from auth metadata via members list
+      // Names are resolved from the members table below (by user_id).
       const staffRows2 = (staffRows as any[]) ?? [];
       const staffWithEmails = staffRows2.map((s) => ({
         user_id: s.user_id,
-        email: s.email || "",
-        name: s.email?.split("@")[0] || "Coach",
+        email: "",
+        name: "Coach",
       }));
       // Try to enrich names from members table
       if (staffWithEmails.length) {
