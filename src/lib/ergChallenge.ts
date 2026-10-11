@@ -2,12 +2,15 @@ import { supabase } from "./supabase";
 
 export type ErgMachine = "bike" | "rower" | "ski";
 
-export const ERG_MACHINES: { key: ErgMachine; label: string; target: number }[] =
-  [
-    { key: "bike", label: "Bike Erg", target: 2_000_000 },
-    { key: "rower", label: "Rower", target: 1_000_000 },
-    { key: "ski", label: "Ski Erg", target: 1_000_000 },
-  ];
+export const ERG_MACHINES: {
+  key: ErgMachine;
+  label: string;
+  target: number;
+}[] = [
+  { key: "bike", label: "Bike Erg", target: 2_000_000 },
+  { key: "rower", label: "Rower", target: 1_000_000 },
+  { key: "ski", label: "Ski Erg", target: 1_000_000 },
+];
 
 export const ERG_MACHINE_LABELS: Record<ErgMachine, string> = {
   bike: "Bike Erg",
@@ -46,9 +49,7 @@ export const ergSummaryMap = (rows: ErgRow[]): Record<ErgMachine, ErgRow> => {
 
 export const logErgMetres = async (machine: ErgMachine, metres: number) => {
   // member_id defaults to auth.uid() in the DB.
-  return await supabase
-    .from("erg_challenge_logs")
-    .insert({ machine, metres });
+  return await supabase.from("erg_challenge_logs").insert({ machine, metres });
 };
 
 export interface MyErgLog {
@@ -93,9 +94,12 @@ export async function syncWorkoutErgMetres(workout: any): Promise<void> {
     if (!workout?.exercises) return;
     const perMachine: Partial<Record<ErgMachine, number>> = {};
     for (const ex of workout.exercises as any[]) {
-      const key = ERG_NAME_TO_MACHINE[
-        String(ex?.name || "").trim().toLowerCase()
-      ];
+      const key =
+        ERG_NAME_TO_MACHINE[
+          String(ex?.name || "")
+            .trim()
+            .toLowerCase()
+        ];
       if (!key) continue;
       // Sum distance across the exercise's sets, converting to metres by unit.
       let m = 0;

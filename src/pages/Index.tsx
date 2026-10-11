@@ -5,17 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Activity,
-  Flame,
-  TrendingUp,
-  Users,
-  Scale,
-  Play,
-  Dumbbell,
-  ChevronRight,
-  Sparkles,
-} from "lucide-react";
+import { Activity, Flame, TrendingUp, Users, Scale, ChevronRight, Sparkles } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -38,10 +28,8 @@ import { format, subDays, isSameDay } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { MemberGoalsCard } from "@/components/MemberGoalsCard";
-import MemberProgressCard from "@/components/MemberProgressCard";
-import { CheckInCodeCard } from "@/components/CheckInCodeCard";
+import { CheckInHeaderButton } from "@/components/CheckInHeaderButton";
 import { AccountabilityCard } from "@/components/AccountabilityCard";
 import TodayHabitsCard from "@/components/TodayHabitsCard";
 import ErgChallengeCard from "@/components/ErgChallengeCard";
@@ -58,6 +46,7 @@ import { isTrialEligible, isMemberEligible } from "@/lib/trialSummary";
 import { PoweredByETL } from "@/components/PoweredByETL";
 import CommunityBanner from "@/components/CommunityBanner";
 import { logFeatureView } from "@/lib/featureTracking";
+import { getMemberGoals } from "@/lib/memberGoals";
 
 const Index = () => {
   useEffect(() => {
@@ -73,6 +62,7 @@ const Index = () => {
   const [showTrialProgress, setShowTrialProgress] = useState(false);
   const [showMemberGoals, setShowMemberGoals] = useState(false);
   const [accEnrolled, setAccEnrolled] = useState(false);
+  const [needsGoalsSetup, setNeedsGoalsSetup] = useState(false);
   const navigate = useNavigate();
 
   const loadData = async () => {
@@ -128,6 +118,13 @@ const Index = () => {
       if (accCohort) {
         const accClient = await getMyClientRecord(accCohort.id);
         setAccEnrolled(!!accClient);
+      }
+      // First-run goals setup: open the goals/targets editor once for
+      // non-trial members with no goals row yet (unless they dismissed it).
+      const dismissed = localStorage.getItem("etl_goals_setup_dismissed") === "1";
+      if (showMemberGoals && !dismissed) {
+        const g = await getMemberGoals();
+        if (!g) setNeedsGoalsSetup(true);
       }
     } catch {
       setShowBaseline(false);
@@ -241,19 +238,20 @@ const Index = () => {
 
   return (
     <div className="flex-1 space-y-6 p-4 md:p-8 pt-6 pb-24">
-      <div className="flex flex-col mb-6">
-        <span className="text-sm font-medium text-muted-foreground">
-          {getGreeting()},
-        </span>
-        <h2 className="text-3xl font-heading tracking-wider uppercase leading-none">
-          {userName || "there"}
-        </h2>
-        <p className="text-muted-foreground text-sm mt-1">
-          Ready to crush your goals today?
-        </p>
+      <div className="flex items-start justify-between gap-3 mb-6">
+        <div className="min-w-0 flex flex-col">
+          <span className="text-sm font-medium text-muted-foreground">
+            {getGreeting()},
+          </span>
+          <h2 className="text-3xl font-heading tracking-wider uppercase leading-none">
+            {userName || "there"}
+          </h2>
+          <p className="text-muted-foreground text-sm mt-1">
+            Ready to crush your goals today?
+          </p>
+        </div>
+        <CheckInHeaderButton />
       </div>
-
-      <CheckInCodeCard />
 
       <AccountabilityCard />
 
@@ -261,7 +259,24 @@ const Index = () => {
 
       <ErgChallengeCard />
 
-      {showMemberGoals && !accEnrolled && <MemberGoalsCard />}
+
+      {showMemberGoals &&
+        !accEnrolled &&
+        needsGoalsSetup && (
+          <MemberGoalsCard
+            autoOpen
+            variant="editButton"
+            hideHabits
+            onSaved={() => {
+              setNeedsGoalsSetup(false);
+              localStorage.removeItem("etl_goals_setup_dismissed");
+            }}
+            onDismiss={() => {
+              setNeedsGoalsSetup(false);
+              localStorage.setItem("etl_goals_setup_dismissed", "1");
+            }}
+          />
+        )}
 
       {showTrialProgress && (
         <button
@@ -288,92 +303,7 @@ const Index = () => {
         </button>
       )}
 
-      {!showTrialProgress && <MemberProgressCard />}
-
-      <div className="space-y-3">
-        {/* Up Next programme strip (lime) */}
-        {activeProgram &&
-        allowedAccess &&
-        allowedAccess.includes(bucketOf(activeProgram)) ? (
-          (() => {
-            const localToday = () => {
-              const d = new Date();
-              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-            };
-            const today = localToday();
-            const dated =
-              activeProgram.workouts?.filter((c: any) => c.date) || [];
-
-            let targetWorkout =
-              activeProgram.workouts[activeProgram.currentIndex];
-            let targetIndex = activeProgram.currentIndex;
-            let isRestDay = false;
-
-            if (dated.length > 0) {
-              const todays = dated.filter((c: any) => c.date === today);
-              if (todays.length > 0) {
-                targetWorkout = todays[0];
-                targetIndex = activeProgram.workouts.indexOf(todays[0]);
-              } else {
-                isRestDay = true;
-              }
-            }
-
-            return (
-              <button
-                onClick={() => navigate("/workouts")}
-                className="w-full flex items-center gap-3 bg-card border border-border border-l-4 border-l-primary rounded-xl p-3 text-left shadow-sm active:scale-[0.99] transition"
-              >
-                <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
-                  <Dumbbell className="w-5 h-5 text-primary" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                    Up Next
-                  </p>
-                  <p className="font-heading text-xl tracking-wider uppercase leading-none">
-                    {activeProgram.stream || activeProgram.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {isRestDay
-                      ? "Rest Day"
-                      : `${targetWorkout?.name} · Workout ${targetIndex + 1} of ${activeProgram.workouts.length}`}
-                  </p>
-                </div>
-                <span className="shrink-0 inline-flex items-center gap-1 bg-primary text-primary-foreground font-bold text-xs px-3 py-2 rounded-lg">
-                  <Play className="w-3.5 h-3.5 fill-current" />{" "}
-                  {isRestDay ? "View" : "Start"}
-                </span>
-              </button>
-            );
-          })()
-        ) : (
-          <button
-            onClick={() => navigate("/workouts")}
-            className="w-full flex items-center gap-3 bg-card border border-border border-l-4 border-l-muted rounded-xl p-3 text-left shadow-sm active:scale-[0.99] transition"
-          >
-            <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
-              <Dumbbell className="w-5 h-5 text-muted-foreground" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                No Active Program
-              </p>
-              <p className="font-heading text-xl tracking-wider uppercase leading-none text-muted-foreground">
-                Browse Library
-              </p>
-              <p className="text-xs text-muted-foreground truncate">
-                Find your next program
-              </p>
-            </div>
-            <span className="shrink-0 inline-flex items-center gap-1 bg-muted text-muted-foreground font-bold text-xs px-3 py-2 rounded-lg">
-              Browse
-            </span>
-          </button>
-        )}
-
-        <CommunityBanner />
-      </div>
+      <CommunityBanner />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card className="bg-card border-border">

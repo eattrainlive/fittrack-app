@@ -285,6 +285,7 @@ export function MemberProgressHub() {
             editControl={
               <MemberGoalsCard
                 variant="editButton"
+                hideHabits
                 onSaved={handleGoalsSaved}
               />
             }

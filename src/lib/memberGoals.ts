@@ -191,4 +191,85 @@ export const getHabitLibrary = async () => {
     return [];
   }
 };
+
+/**
+ * Save ONLY the 3 monthly habits (habit_1/2/3) + stamp goals_month.
+ * Does NOT touch calorie_target / primary_goal / other goal fields, so
+ * editing habits from the daily tracker doesn't wipe existing targets.
+ * Also seeds the chosen habits into member_habits (resolves names → ids).
+ */
+export const setMonthlyHabits = async (
+  habitTexts: (string | null)[],
+): Promise<void> => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+  const ht = (habitTexts || [])
+    .slice(0, 3)
+    .map((h) => (h ?? "").trim() || null);
+  while (ht.length < 3) ht.push(null);
+
+  const payload = {
+    habit_1: ht[0],
+    habit_2: ht[1],
+    habit_3: ht[2],
+    goals_month: currentMonthStr(),
+  };
+
+  // Update only habit fields on an existing row; insert a minimal row if none.
+  const { data: existing } = await supabase
+    .from("member_goals")
+    .select("member_id")
+    .eq("member_id", user.id)
+    .maybeSingle();
+  if (existing) {
+    const { error } = await supabase
+      .from("member_goals")
+      .update(payload)
+      .eq("member_id", user.id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from("member_goals").insert({
+      member_id: user.id,
+      ...payload,
+      set_at: new Date().toISOString(),
+    });
+    if (error) throw error;
+  }
+
+  // Seed the chosen habits into member_habits (resolve names → ids).
+  try {
+    const lib = await getHabits();
+    const nameToId = new Map<string, number>();
+    for (const h of lib || []) {
+      if (h?.id != null)
+        nameToId.set(
+          String(h.name || "")
+            .toLowerCase()
+            .trim(),
+          Number(h.id),
+        );
+    }
+    const validIds: number[] = [];
+    for (const t of ht) {
+      if (!t) continue;
+      const id = nameToId.get(t.toLowerCase().trim());
+      if (id != null) validIds.push(id);
+    }
+    if (validIds.length) {
+      await saveMemberHabits(
+        validIds.map((habitId, i) => ({
+          habit_id: habitId,
+          status: i === 0 ? "active" : "queued",
+          position: i,
+          started_at: i === 0 ? new Date().toISOString() : null,
+        })),
+      );
+    }
+  } catch {
+    /* ignore */
+  }
+};
+
 export { saveMemberMacros, asInt };

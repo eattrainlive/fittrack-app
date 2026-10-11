@@ -282,3 +282,12 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
    auto-count from workouts wired into saveWorkoutToHistory (upsert on source_ref, km→m, only bike/row/ski
    ergs). FIXED: ErgChallengeCard was mounted twice in Index.tsx → now once. All recurring fixes survived.
    PENDING: push export 28 + Index.tsx fix.
+
+15. ✅ Home-screen tidy-up — BUILT (export 29), reviewed, all parse. CheckInHeaderButton (QR in header);
+   removed Up Next strip + MemberProgressCard + always-on goals card (stats grid kept); first-login goals
+   setup gated (new+non-enrolled, hideHabits); goals/targets editor lives on Progress hub; TodayHabitsCard
+   HabitsPickerDialog (Set/Edit habits, general only) via no-clobber setMonthlyHabits; monthly "reassess
+   your habits?" nudge (never resets, goals_month). FIXED: added hideHabits to MemberProgressHub's
+   MemberGoalsCard so Progress edits goals/targets only (habits single-sourced in tracker). All recurring
+   fixes survived; erg card single mount. PENDING: push export 29 + MemberProgressHub.tsx; tell builder to
+   keep hideHabits on that card. (brief: brief-home-tidyup.md)

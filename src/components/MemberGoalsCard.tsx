@@ -1,10 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  Target,
-  Scale,
-  Footprints,
-  Dumbbell,
-  Salad,
   ChevronRight,
   Check,
   Pencil,
@@ -37,37 +32,22 @@ import {
   type PrimaryGoal,
 } from "@/lib/memberGoals";
 import { getMemberSummary, type ProgressSummary } from "@/lib/trialSummary";
-
-const PRIMARY_GOAL_OPTIONS: {
-  value: PrimaryGoal;
-  label: string;
-  emoji: string;
-}[] = [
-  { value: "fat_loss", label: "Fat loss", emoji: "🔥" },
-  { value: "strength", label: "Strength", emoji: "💪" },
-  { value: "fitness", label: "Fitness", emoji: "🏃" },
-  { value: "health", label: "Health", emoji: "❤️" },
-];
-
-const FOCUS_AREA_OPTIONS = [
-  "Legs",
-  "Core",
-  "Upper body",
-  "Mobility",
-  "Conditioning",
-  "Posture",
-  "Back",
-  "Shoulders",
-];
-
-const fmtNum = (n?: number | null) => (n == null ? "" : String(n));
-
-const currentMonthStr = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-};
-const monthLabel = () =>
-  new Date().toLocaleDateString("en-GB", { month: "long" });
+import {
+  PRIMARY_GOAL_OPTIONS,
+  fmtNum,
+  fmtKg,
+  currentMonthStr,
+  monthLabel,
+  GoalStat,
+  Field,
+} from "@/components/MemberGoalsParts";
+import {
+  Target,
+  Scale,
+  Footprints,
+  Dumbbell,
+  Salad,
+} from "@/components/MemberGoalsParts";
 
 type Habit = { id: number; name: string };
 
@@ -76,42 +56,39 @@ export function MemberGoalsCard({
   autoOpen,
   variant = "full",
   initialGoals,
+  hideHabits = false,
+  onDismiss,
 }: {
   onSaved?: (g: MemberGoals | null) => void;
   autoOpen?: boolean;
   variant?: "full" | "editButton";
   initialGoals?: MemberGoals | null;
+  hideHabits?: boolean;
+  onDismiss?: () => void;
 }) {
-  // Seed from the parent's already-loaded goals so the first render is correct
-  // (no null → fetch flash) when the hub passes them through.
   const [goals, setGoals] = useState<MemberGoals | null>(initialGoals ?? null);
   const [summary, setSummary] = useState<ProgressSummary | null>(null);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (autoOpen) setOpen(true);
-  }, [autoOpen]);
+  const savedRef = useRef(false);
   const [busy, setBusy] = useState(false);
 
-  // form state — picked holds the habit NAME (or custom text), never the id
   const [weight, setWeight] = useState("");
   const [focus, setFocus] = useState("");
   const [stepTarget, setStepTarget] = useState("");
   const [sessionsPerWeek, setSessionsPerWeek] = useState("");
   const [calorieTarget, setCalorieTarget] = useState("");
   const [picked, setPicked] = useState<(string | null)[]>([null, null, null]);
-  const [customMode, setCustomMode] = useState<boolean[]>([
-    false,
-    false,
-    false,
-  ]);
+  const [customMode, setCustomMode] = useState<boolean[]>([false, false, false]);
   const [primaryGoal, setPrimaryGoal] = useState<PrimaryGoal | "">("");
   const [goalText, setGoalText] = useState("");
   const [targetWeight, setTargetWeight] = useState("");
   const [targetDate, setTargetDate] = useState("");
-  const [focusAreas, setFocusAreas] = useState<string[]>([]);
-  const [showMore, setShowMore] = useState(false);
+  const [showMore, setShowMore] = useState(!!hideHabits);
+
+  useEffect(() => {
+    if (autoOpen) setOpen(true);
+  }, [autoOpen]);
 
   useEffect(() => {
     (async () => {
@@ -127,14 +104,12 @@ export function MemberGoalsCard({
         setGoalText(g.goal_text || "");
         setTargetWeight(g.target_weight != null ? String(g.target_weight) : "");
         setTargetDate(g.target_date || "");
-        setFocusAreas(Array.isArray(g.focus_areas) ? g.focus_areas : []);
         const p: (string | null)[] = [
           g.habit_1 ?? null,
           g.habit_2 ?? null,
           g.habit_3 ?? null,
         ];
         setPicked(p);
-        // If a stored habit isn't a known library name, treat it as custom text.
         setCustomMode(
           p.map((t) => {
             if (!t) return false;
@@ -144,10 +119,6 @@ export function MemberGoalsCard({
           }),
         );
       }
-      // NOTE: do NOT call onSaved here — it triggers the parent's reload loop
-      // (mount → onSaved → load → re-render → remount → …). onSaved fires only
-      // after an actual save (see save()).
-      // Load progress summary for the progress-vs-goals panel.
       try {
         const s = await getMemberSummary();
         setSummary(s);
@@ -179,7 +150,6 @@ export function MemberGoalsCard({
     setGoalText(g?.goal_text || "");
     setTargetWeight(g?.target_weight != null ? String(g.target_weight) : "");
     setTargetDate(g?.target_date || "");
-    setFocusAreas(Array.isArray(g?.focus_areas) ? g!.focus_areas! : []);
     const p: (string | null)[] = [
       g?.habit_1 ?? null,
       g?.habit_2 ?? null,
@@ -196,6 +166,7 @@ export function MemberGoalsCard({
 
   const openDialog = () => {
     resetForm(goals);
+    setShowMore(!!hideHabits);
     setOpen(true);
   };
 
@@ -204,24 +175,26 @@ export function MemberGoalsCard({
     try {
       const sw = parseFloat(weight);
       const tw = parseFloat(targetWeight);
+      const habitTexts = hideHabits
+        ? [goals?.habit_1 ?? null, goals?.habit_2 ?? null, goals?.habit_3 ?? null]
+        : picked.map((h) => (h ? h.trim() : null));
       const g = await saveMemberGoals({
         startWeight: sw > 0 ? sw : null,
         focus: focus.trim() || null,
         stepTarget: stepTarget ? parseInt(stepTarget, 10) : null,
         sessionsPerWeek: sessionsPerWeek ? parseInt(sessionsPerWeek, 10) : null,
         calorieTarget: calorieTarget ? parseInt(calorieTarget, 10) : null,
-        habitTexts: picked.map((h) => (h ? h.trim() : null)),
+        habitTexts,
         primaryGoal: primaryGoal || null,
         goalText: goalText.trim() || null,
         targetWeight: tw > 0 ? tw : null,
         targetDate: targetDate || null,
-        focusAreas: focusAreas.length ? focusAreas : null,
       });
       setGoals(g);
       toast.success("Goals saved 🎯");
+      savedRef.current = true;
       setOpen(false);
       onSaved?.(g);
-      // Refresh the progress panel.
       try {
         const s = await getMemberSummary();
         setSummary(s);
@@ -239,14 +212,12 @@ export function MemberGoalsCard({
 
   const monthSet = goals?.goals_month === currentMonthStr();
   const hasHabits = !!(goals?.habit_1 || goals?.habit_2 || goals?.habit_3);
+  const showEmpty = hideHabits ? !goals : !monthSet || !hasHabits;
 
-  // Progress vs goals values
   const g = goals;
   const s = summary;
   const sessActual = s?.sessionsPerWeekActual ?? 0;
   const sessTarget = g?.sessions_per_week;
-  const sessOnTrack =
-    sessTarget && sessActual >= sessTarget ? "smashing it" : "on track";
   const weightNow = s?.weightNow;
   const weightStart = g?.start_weight;
   const daysLogged = s?.daysLogged ?? 0;
@@ -256,7 +227,7 @@ export function MemberGoalsCard({
 
   return (
     <>
-      {!monthSet || !hasHabits ? (
+      {showEmpty ? (
         <Card className="bg-primary/10 border-primary/40 border-l-4 border-l-primary">
           <CardContent className="p-4 sm:p-5 space-y-3">
             <div className="flex items-start gap-3">
@@ -265,20 +236,27 @@ export function MemberGoalsCard({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                  This month
+                  {hideHabits ? "Goals & targets" : "This month"}
                 </p>
                 <h2 className="font-heading text-lg sm:text-xl tracking-wide leading-tight mt-0.5">
-                  Your 3 habits for {monthLabel()}
+                  {hideHabits
+                    ? "Your goals & targets"
+                    : `Your 3 habits for ${monthLabel()}`}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Pick the 3 habits you'll focus on this month — they'll show in
-                  your habit tracker.
+                  {hideHabits
+                    ? "Set your primary goal, focus and optional targets."
+                    : "Pick the 3 habits you'll focus on this month — they'll show in your habit tracker."}
                 </p>
               </div>
             </div>
             <div className="flex gap-2">
               <Button size="sm" onClick={openDialog} disabled={busy}>
-                {hasHabits ? `Update ${monthLabel()} habits` : "Choose habits"}
+                {hideHabits
+                  ? "Set goals & targets"
+                  : hasHabits
+                    ? `Update ${monthLabel()} habits`
+                    : "Choose habits"}
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
@@ -294,10 +272,12 @@ export function MemberGoalsCard({
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                    This month
+                    {hideHabits ? "Goals & targets" : "This month"}
                   </p>
                   <h2 className="font-heading text-lg tracking-wide leading-none mt-0.5">
-                    Your 3 habits for {monthLabel()}
+                    {hideHabits
+                      ? "Your goals & targets"
+                      : `Your 3 habits for ${monthLabel()}`}
                   </h2>
                 </div>
               </div>
@@ -312,8 +292,7 @@ export function MemberGoalsCard({
               </Button>
             </div>
 
-            {/* This month's habits (hero) */}
-            {(g!.habit_1 || g!.habit_2 || g!.habit_3) && (
+            {!hideHabits && (g!.habit_1 || g!.habit_2 || g!.habit_3) && (
               <div className="space-y-1.5">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                   <Heart className="w-3 h-3" /> This month's habits
@@ -322,11 +301,7 @@ export function MemberGoalsCard({
                   {[g!.habit_1, g!.habit_2, g!.habit_3]
                     .filter((h) => h != null)
                     .map((h) => (
-                      <Badge
-                        key={h}
-                        variant="secondary"
-                        className="font-normal"
-                      >
+                      <Badge key={h} variant="secondary" className="font-normal">
                         {habitName(h)}
                       </Badge>
                     ))}
@@ -334,18 +309,15 @@ export function MemberGoalsCard({
               </div>
             )}
 
-            {/* Hero line */}
             {s && (loggedSessions > 0 || totalVolume > 0) && (
               <div className="flex items-center gap-2 rounded-lg bg-primary/5 border border-primary/20 px-3 py-2">
                 <TrendingUp className="w-4 h-4 text-primary shrink-0" />
                 <p className="text-sm font-medium">
-                  {loggedSessions} sessions · {fmtKg(totalVolume)} kg lifted
-                  this period
+                  {loggedSessions} sessions · {fmtKg(totalVolume)} kg lifted this period
                 </p>
               </div>
             )}
 
-            {/* Targets vs actual */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {sessTarget && (
                 <GoalStat
@@ -400,7 +372,6 @@ export function MemberGoalsCard({
               )}
             </div>
 
-            {/* Review due */}
             {g!.review_due && (
               <p className="text-xs text-muted-foreground pt-2 border-t border-border/60">
                 Next review:{" "}
@@ -414,116 +385,125 @@ export function MemberGoalsCard({
         </Card>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(o) => {
+          setOpen(o);
+          if (!o) {
+            if (!savedRef.current) onDismiss?.();
+            savedRef.current = false;
+          }
+        }}
+      >
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Heart className="w-4 h-4 text-primary" />
-              Your 3 habits for {monthLabel()}
+              {hideHabits ? "Your goals & targets" : `Your 3 habits for ${monthLabel()}`}
             </DialogTitle>
             <DialogDescription>
-              Pick the habits you'll build this month — they'll show in your
-              habit tracker. Optional targets below.
+              {hideHabits
+                ? "Set your primary goal, focus and optional targets."
+                : "Pick the habits you'll build this month — they'll show in your habit tracker. Optional targets below."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <HabitExplainerVideo />
-            {/* ── 3 habits for the month (hero) ── */}
-            <div className="space-y-2">
-              {habits.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  No habit library loaded yet — you can type custom habits
-                  below.
-                </p>
-              )}
-              {[0, 1, 2].map((slot) => (
-                <div key={slot} className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">
-                    Habit {slot + 1}
-                    {slot > 0 ? " (optional)" : ""}
-                  </Label>
-                  {customMode[slot] ? (
-                    <div className="flex gap-2">
-                      <Input
-                        type="text"
-                        placeholder="Type your own habit…"
-                        value={picked[slot] ?? ""}
-                        onChange={(e) =>
-                          setPicked((p) =>
-                            p.map((x, i) => (i === slot ? e.target.value : x)),
-                          )
-                        }
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="shrink-0"
-                        onClick={() => {
-                          setCustomMode((m) =>
-                            m.map((x, i) => (i === slot ? false : x)),
-                          );
-                          setPicked((p) =>
-                            p.map((x, i) => (i === slot ? null : x)),
-                          );
-                        }}
-                      >
-                        List
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <select
-                        className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        value={
-                          picked[slot] &&
-                          habits.some(
-                            (h) =>
-                              h.name.toLowerCase() ===
-                              picked[slot]!.toLowerCase(),
-                          )
-                            ? picked[slot]!
-                            : ""
-                        }
-                        onChange={(e) =>
-                          setPicked((p) =>
-                            p.map((x, i) =>
-                              i === slot ? e.target.value || null : x,
-                            ),
-                          )
-                        }
-                      >
-                        <option value="">— None —</option>
-                        {habits.map((h) => (
-                          <option key={h.id} value={h.name}>
-                            {h.name}
-                          </option>
-                        ))}
-                      </select>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="shrink-0"
-                        onClick={() => {
-                          setCustomMode((m) =>
-                            m.map((x, i) => (i === slot ? true : x)),
-                          );
-                          setPicked((p) =>
-                            p.map((x, i) => (i === slot ? null : x)),
-                          );
-                        }}
-                      >
-                        Custom
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+            {!hideHabits && (
+              <div className="space-y-2">
+                {habits.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No habit library loaded yet — you can type custom habits below.
+                  </p>
+                )}
+                {[0, 1, 2].map((slot) => (
+                  <div key={slot} className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Habit {slot + 1}
+                      {slot > 0 ? " (optional)" : ""}
+                    </Label>
+                    {customMode[slot] ? (
+                      <div className="flex gap-2">
+                        <Input
+                          type="text"
+                          placeholder="Type your own habit…"
+                          value={picked[slot] ?? ""}
+                          onChange={(e) =>
+                            setPicked((p) =>
+                              p.map((x, i) => (i === slot ? e.target.value : x)),
+                            )
+                          }
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => {
+                            setCustomMode((m) =>
+                              m.map((x, i) => (i === slot ? false : x)),
+                            );
+                            setPicked((p) =>
+                              p.map((x, i) => (i === slot ? null : x)),
+                            );
+                          }}
+                        >
+                          List
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <select
+                          className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          value={
+                            picked[slot] &&
+                            habits.some(
+                              (h) =>
+                                h.name.toLowerCase() ===
+                                picked[slot]!.toLowerCase(),
+                            )
+                              ? picked[slot]!
+                              : ""
+                          }
+                          onChange={(e) =>
+                            setPicked((p) =>
+                              p.map((x, i) =>
+                                i === slot ? e.target.value || null : x,
+                              ),
+                            )
+                          }
+                        >
+                          <option value="">— None —</option>
+                          {habits.map((h) => (
+                            <option key={h.id} value={h.name}>
+                              {h.name}
+                            </option>
+                          ))}
+                        </select>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => {
+                            setCustomMode((m) =>
+                              m.map((x, i) => (i === slot ? true : x)),
+                            );
+                            setPicked((p) =>
+                              p.map((x, i) => (i === slot ? null : x)),
+                            );
+                          }}
+                        >
+                          Custom
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
-            {/* ── More (optional targets) ── */}
             <div className="rounded-lg border border-border/60">
               <button
                 type="button"
@@ -531,7 +511,7 @@ export function MemberGoalsCard({
                 className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground"
               >
                 <span className="flex items-center gap-1.5">
-                  <Target className="w-3.5 h-3.5" /> More (optional targets)
+                  <Target className="w-3.5 h-3.5" /> Goals & targets
                 </span>
                 <ChevronRight
                   className={`w-4 h-4 transition ${showMore ? "rotate-90" : ""}`}
@@ -540,9 +520,40 @@ export function MemberGoalsCard({
               {showMore && (
                 <div className="space-y-4 px-3 pb-3 pt-1">
                   <div className="space-y-2">
+                    <Label>Primary goal</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {PRIMARY_GOAL_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setPrimaryGoal(opt.value)}
+                          className={
+                            "rounded-lg border px-3 py-2 text-sm font-medium transition " +
+                            (primaryGoal === opt.value
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background text-foreground")
+                          }
+                        >
+                          {opt.emoji} {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="goaltext">Goal note</Label>
+                    <Textarea
+                      id="goaltext"
+                      placeholder="e.g. Lose 5kg by summer, feel stronger"
+                      value={goalText}
+                      onChange={(e) => setGoalText(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <Label htmlFor="focus" className="flex items-center gap-2">
-                      <Target className="w-4 h-4 text-primary" /> Main focus /
-                      why
+                      <Target className="w-4 h-4 text-primary" /> Main focus / why
                     </Label>
                     <Input
                       id="focus"
@@ -554,8 +565,7 @@ export function MemberGoalsCard({
 
                   <div className="space-y-2">
                     <Label htmlFor="bw" className="flex items-center gap-2">
-                      <Scale className="w-4 h-4 text-primary" /> Start weight
-                      (kg)
+                      <Scale className="w-4 h-4 text-primary" /> Start weight (kg)
                     </Label>
                     <Input
                       id="bw"
@@ -621,69 +631,6 @@ export function MemberGoalsCard({
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-const fmtKg = (n: number) => n.toLocaleString();
-
-function GoalStat({
-  icon: Icon,
-  label,
-  target,
-  actual,
-  status,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  target: string;
-  actual: string;
-  status: string;
-}) {
-  return (
-    <div className="space-y-1 rounded-lg border border-border/60 bg-muted/20 p-2.5">
-      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-        <Icon className="w-3 h-3" /> {label}
-      </p>
-      <div className="flex items-baseline gap-1.5">
-        <span className="font-heading text-base leading-none">{actual}</span>
-        <span className="text-xs text-muted-foreground">/ {target}</span>
-      </div>
-      <p className="text-[10px] text-primary font-medium capitalize">
-        {status}
-      </p>
-    </div>
-  );
-}
-
-function Field({
-  id,
-  icon,
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  id: string;
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className="flex items-center gap-2 text-sm">
-        {icon} {label}
-      </Label>
-      <Input
-        id={id}
-        type="number"
-        inputMode="numeric"
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </div>
   );
 }
 

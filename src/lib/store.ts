@@ -994,7 +994,10 @@ export const saveWorkoutToHistory = async (
     }
     clearDirty("history");
     dequeue("history");
-    setSyncStatus("saved"); void import("./ergChallenge").then((m) => m.syncWorkoutErgMetres(newWorkout).catch(() => {}));
+    setSyncStatus("saved");
+    void import("./ergChallenge").then((m) =>
+      m.syncWorkoutErgMetres(newWorkout).catch(() => {}),
+    );
     return { success: true, workout: newWorkout };
   } catch (e) {
     logError("saveWorkoutToHistory", "workout_history", e);
