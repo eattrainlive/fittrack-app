@@ -95,10 +95,12 @@ export function FinalCheckin({
   client,
   cohort,
   onDone,
+  demo = false,
 }: {
   client: AccClient;
   cohort: AccCohort;
   onDone?: () => void;
+  demo?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [section, setSection] = useState(0);
@@ -144,6 +146,14 @@ export function FinalCheckin({
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (demo) {
+      const url = URL.createObjectURL(file);
+      if (which === "front") setAfterFront(url);
+      else setAfterSide(url);
+      toast.success("Photo added");
+      e.target.value = "";
+      return;
+    }
     setBusy(true);
     try {
       const {
@@ -169,6 +179,13 @@ export function FinalCheckin({
   };
 
   const submit = async () => {
+    if (demo) {
+      toast.success("Demo — nothing was saved");
+      setSubmitted(true);
+      setOpen(false);
+      onDone?.();
+      return;
+    }
     setBusy(true);
     try {
       const afterMeasurements = {
@@ -347,6 +364,7 @@ export function FinalCheckin({
               setTrackShot={setTrackShot}
               busy={busy}
               week={6}
+              demo={demo}
             />
 
             {section === 1 && (

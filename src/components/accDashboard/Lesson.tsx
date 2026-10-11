@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, AlertCircle } from "lucide-react";
+import { Play, AlertCircle, Check } from "lucide-react";
 import { getEmbedUrl, type AccWeekContent } from "@/lib/accWeekContent";
 import { AccResourceList } from "@/components/AccResourceList";
+import { useVideoProgress } from "@/lib/accVideoProgress";
 
 export function LessonCard({
   content,
@@ -10,14 +11,19 @@ export function LessonCard({
   checkinDue,
   checkinDone,
   onStartCheckin,
+  readOnly,
 }: {
   content: AccWeekContent | null;
   week: number;
   checkinDue: boolean;
   checkinDone: boolean;
   onStartCheckin: () => void;
+  readOnly?: boolean;
 }) {
   const embed = content?.video_url ? getEmbedUrl(content.video_url) : null;
+  const { watched, toggle } = useVideoProgress(week);
+  const mainWatched = !!content?.video_url && watched.has(content.video_url);
+
   return (
     <Card className="bg-card border-border">
       <CardHeader className="pb-2">
@@ -44,13 +50,32 @@ export function LessonCard({
                 />
               </div>
             )}
+            {embed && content?.video_url && (
+              <button
+                type="button"
+                disabled={readOnly}
+                onClick={() => toggle(content!.video_url!)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                  mainWatched
+                    ? "bg-primary/15 border-primary/40 text-primary"
+                    : "border-border text-muted-foreground hover:text-primary"
+                } ${readOnly ? "opacity-50" : ""}`}
+              >
+                <Check className="h-3.5 w-3.5" />
+                {mainWatched ? "Watched" : "Mark as watched"}
+              </button>
+            )}
             {content.teaching && (
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                 {content.teaching}
               </p>
             )}
             {content.resources && content.resources.length > 0 && (
-              <AccResourceList resources={content.resources} />
+              <AccResourceList
+                resources={content.resources}
+                weekNumber={week}
+                readOnly={readOnly}
+              />
             )}
           </>
         ) : (

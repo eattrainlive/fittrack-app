@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Loader2, Eye, Users, UserCircle } from "lucide-react";
+import { Loader2, Eye, Users, UserCircle, Camera } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,9 +20,13 @@ import {
 import {
   getDemoData,
   loadRealClientData,
+  DEMO_CLIENT,
+  DEMO_COHORT,
   type PreviewData,
 } from "@/lib/accPreviewData";
 import { AccountabilityDashboard } from "@/components/accDashboard/AccountabilityDashboard";
+import { WeeklyCheckin } from "@/components/WeeklyCheckin";
+import { FinalCheckin } from "@/components/FinalCheckin";
 
 const WEEKS = [0, 1, 2, 3, 4, 5, 6];
 
@@ -38,6 +42,7 @@ export function AccountabilityPreview() {
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [realData, setRealData] = useState<PreviewData | null>(null);
   const [realLoading, setRealLoading] = useState(false);
+  const [approach, setApproach] = useState<"plate" | "tracking">("plate");
 
   // Load cohort + clients once
   const load = useCallback(async () => {
@@ -191,6 +196,32 @@ export function AccountabilityPreview() {
                 </Select>
               </div>
             )}
+
+            {source === "demo" && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                  Nutrition approach
+                </p>
+                <div className="flex gap-1.5">
+                  <Button
+                    size="sm"
+                    variant={approach === "plate" ? "default" : "outline"}
+                    onClick={() => setApproach("plate")}
+                    className="h-8 px-3 text-xs"
+                  >
+                    Plate
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={approach === "tracking" ? "default" : "outline"}
+                    onClick={() => setApproach("tracking")}
+                    className="h-8 px-3 text-xs"
+                  >
+                    Tracking
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -202,6 +233,42 @@ export function AccountabilityPreview() {
           previewWeek={week}
           readOnly
         />
+      )}
+
+      {/* Check-in form preview (demo mode only) */}
+      {source === "demo" && (
+        <Card className="bg-card border-border">
+          <CardContent className="py-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Camera className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-semibold">
+                Preview the member's check-in form
+              </h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              This opens the real check-in form for the selected week. Nothing
+              you enter here is saved.
+            </p>
+            {week === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">
+                No check-in in week 0 — that week is onboarding.
+              </p>
+            ) : week === 6 ? (
+              <FinalCheckin
+                demo
+                client={{ ...DEMO_CLIENT, nutrition_approach: approach }}
+                cohort={DEMO_COHORT}
+              />
+            ) : (
+              <WeeklyCheckin
+                demo
+                client={{ ...DEMO_CLIENT, nutrition_approach: approach }}
+                cohort={DEMO_COHORT}
+                week={week}
+              />
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {source === "real" && (

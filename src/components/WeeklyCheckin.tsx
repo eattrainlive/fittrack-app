@@ -42,11 +42,13 @@ export function WeeklyCheckin({
   cohort,
   week,
   onDone,
+  demo = false,
 }: {
   client: AccClient;
   cohort: AccCohort;
   week: number;
   onDone?: () => void;
+  demo?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -114,6 +116,12 @@ export function WeeklyCheckin({
   const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (demo) {
+      setPhotoUrl(URL.createObjectURL(file));
+      toast.success("Photo added");
+      e.target.value = "";
+      return;
+    }
     setBusy(true);
     try {
       const {
@@ -138,6 +146,13 @@ export function WeeklyCheckin({
   };
 
   const submit = async () => {
+    if (demo) {
+      toast.success("Demo — nothing was saved");
+      setSubmitted(true);
+      setOpen(false);
+      onDone?.();
+      return;
+    }
     setBusy(true);
     try {
       const {
@@ -446,6 +461,7 @@ export function WeeklyCheckin({
               setTrackShot={setTrackShot}
               busy={busy}
               week={week}
+              demo={demo}
             />
 
             {weekContent?.checkin_addon && (

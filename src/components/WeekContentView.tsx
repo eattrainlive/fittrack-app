@@ -1,20 +1,23 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, PlayCircle } from "lucide-react";
+import { Loader2, PlayCircle, Check } from "lucide-react";
 import {
   getWeekContent,
   getEmbedUrl,
   type AccWeekContent,
 } from "@/lib/accWeekContent";
 import { AccResourceList } from "@/components/AccResourceList";
+import { useVideoProgress } from "@/lib/accVideoProgress";
 
 /**
  * Renders the staff-authored content for a given week:
- * teaching copy, embedded video, and resource links.
+ * teaching copy, embedded video, and resource links. Each video carries a
+ * "mark as watched" toggle so members/coaches can track lesson progress.
  */
 export function WeekContentView({ weekNumber }: { weekNumber: number }) {
   const [content, setContent] = useState<AccWeekContent | null>(null);
   const [loading, setLoading] = useState(true);
+  const { watched, toggle } = useVideoProgress(weekNumber);
 
   useEffect(() => {
     let active = true;
@@ -48,6 +51,7 @@ export function WeekContentView({ weekNumber }: { weekNumber: number }) {
   if (!hasAnything) return null;
 
   const embed = content!.video_url ? getEmbedUrl(content!.video_url) : null;
+  const mainWatched = !!content!.video_url && watched.has(content!.video_url);
 
   return (
     <div className="mt-3 space-y-3">
@@ -70,6 +74,20 @@ export function WeekContentView({ weekNumber }: { weekNumber: number }) {
           />
         </div>
       )}
+      {embed && content!.video_url && (
+        <button
+          type="button"
+          onClick={() => toggle(content!.video_url!)}
+          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+            mainWatched
+              ? "bg-primary/15 border-primary/40 text-primary"
+              : "border-border text-muted-foreground hover:text-primary"
+          }`}
+        >
+          <Check className="h-3.5 w-3.5" />
+          {mainWatched ? "Watched" : "Mark as watched"}
+        </button>
+      )}
       {content!.video_url && !embed && (
         <a
           href={content!.video_url}
@@ -82,7 +100,10 @@ export function WeekContentView({ weekNumber }: { weekNumber: number }) {
       )}
 
       {content!.resources && content!.resources.length > 0 && (
-        <AccResourceList resources={content!.resources} />
+        <AccResourceList
+          resources={content!.resources}
+          weekNumber={weekNumber}
+        />
       )}
     </div>
   );

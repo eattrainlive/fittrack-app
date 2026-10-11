@@ -16,6 +16,7 @@ export function TrackingBlock({
   setTrackShot,
   busy,
   week,
+  demo = false,
 }: {
   approach: string | null | undefined;
   f: Record<string, any>;
@@ -24,6 +25,7 @@ export function TrackingBlock({
   setTrackShot: (url: string | null) => void;
   busy: boolean;
   week: number;
+  demo?: boolean;
 }) {
   if (approach !== "tracking") return null;
 
@@ -31,6 +33,11 @@ export function TrackingBlock({
     const file = e.target.files?.[0];
     if (!file) return;
     try {
+      if (demo) {
+        setTrackShot(URL.createObjectURL(file));
+        toast.success("Screenshot added");
+        return;
+      }
       const {
         data: { user },
       } = await supabase.auth.getUser();

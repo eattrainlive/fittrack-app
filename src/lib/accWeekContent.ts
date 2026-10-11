@@ -94,9 +94,7 @@ export const getEmbedUrl = (url: string): string | null => {
       return `https://player.vimeo.com/video/${m[1]}${m[2] ? `?h=${m[2]}` : ""}`;
 
     // Fallback: only treat an absolute http(s) URL as embeddable. Placeholders
-    // ("#"), relative paths and empty-ish values are NOT videos — returning them
-    // would load them in the iframe and resolve "#"/relative against the app
-    // origin (showing the app itself). Those fall through to a plain link instead.
+    // ("#"), relative paths and empty-ish values are NOT videos.
     return /^https?:\/\//i.test(u) ? u : null;
   } catch {
     return null;

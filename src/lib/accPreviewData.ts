@@ -97,7 +97,9 @@ export const DEMO_WEEK_CONTENT: AccWeekContent = {
   teaching:
     "This week we're building your daily step target and creating your personal Motivation SOS plan — a simple, pre-decided response for when willpower dips. You don't need to be perfect; you need a plan for the moments you're not.",
   video_url: "https://vimeo.com/739617323",
-  resources: [{ title: "Thu — Your SOS plan", url: "https://vimeo.com/560321641" }],
+  resources: [
+    { title: "Thu — Your SOS plan", url: "https://vimeo.com/560321641" },
+  ],
 };
 
 const demoBw = [
@@ -273,8 +275,8 @@ export function getDemoData(week: number): PreviewData {
       habit: "Build your plate + hydration",
       video_url: "https://vimeo.com/1012011826",
       resources: [
-        { title: "Tue — Building your plate", url: "https://vimeo.com/1012394089" },
-        { title: "Thu — Hydration", url: "https://vimeo.com/1013410677" },
+        { title: "Building your plate", url: "https://vimeo.com/1012394089" },
+        { title: "Hydration", url: "https://vimeo.com/1013410677" },
       ],
     },
     2: {
@@ -285,9 +287,9 @@ export function getDemoData(week: number): PreviewData {
       habit: "Protein at every meal + hand portions",
       video_url: "https://vimeo.com/1017423995",
       resources: [
-        { title: "Tue — Hand portions", url: "https://vimeo.com/1014225831" },
-        { title: "Wed — Protein swaps", url: "https://vimeo.com/1017570117" },
-        { title: "Fri — Nutrient density", url: "https://vimeo.com/1017903906" },
+        { title: "Hand portions", url: "https://vimeo.com/1014225831" },
+        { title: "Protein swaps", url: "https://vimeo.com/1017570117" },
+        { title: "Nutrient density", url: "https://vimeo.com/1017903906" },
       ],
     },
     3: DEMO_WEEK_CONTENT,
@@ -299,9 +301,9 @@ export function getDemoData(week: number): PreviewData {
       habit: "Smarter snacking, cravings, alcohol",
       video_url: "https://vimeo.com/1015118918",
       resources: [
-        { title: "Wed — Cravings", url: "https://vimeo.com/1021978017" },
-        { title: "Thu — Loss of motivation", url: "https://vimeo.com/809683505" },
-        { title: "Fri — Calories in alcohol", url: "https://vimeo.com/809687911" },
+        { title: "Cravings", url: "https://vimeo.com/1021978017" },
+        { title: "Loss of motivation", url: "https://vimeo.com/809683505" },
+        { title: "Calories in alcohol", url: "https://vimeo.com/809687911" },
       ],
     },
     5: {
@@ -312,10 +314,10 @@ export function getDemoData(week: number): PreviewData {
       habit: "Labels, fats, carbs & fibre + optional tracking",
       video_url: "https://vimeo.com/1017942117",
       resources: [
-        { title: "Wed — Fats & carbs", url: "https://vimeo.com/748271372" },
-        { title: "Thu — Fibre", url: "https://vimeo.com/913595843" },
-        { title: "Fri — Protein deep-dive", url: "https://vimeo.com/913591485" },
-        { title: "Fri — Protein timing", url: "https://vimeo.com/1017580452" },
+        { title: "Fats & carbs", url: "https://vimeo.com/748271372" },
+        { title: "Fibre", url: "https://vimeo.com/913595843" },
+        { title: "Protein deep-dive", url: "https://vimeo.com/913591485" },
+        { title: "Protein timing", url: "https://vimeo.com/1017580452" },
       ],
     },
     6: {

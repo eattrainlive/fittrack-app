@@ -54,6 +54,10 @@ latest measurements.)
    calls reload() (Plate⇄Tracking updated live, not only after refresh) — `catch-up-acc-approach-refresh.md`.
    Minor leftovers (non-blocking): dead TRACKING_APP_LABELS const in AccountabilityClientConsole.tsx;
    suggested-protein reads baseline.weight (verify key).
+7. ✅ Filmable check-in preview — BUILT (export 25), reviewed clean, parses OK. `demo` prop on
+   WeeklyCheckin + FinalCheckin + TrackingBlock (interactive, skips all saves/uploads); Plate/Tracking
+   toggle + "Preview check-in form" card in AccountabilityPreview (Coach panel → Preview). No SQL.
+   PENDING: Michael push export 25. (Video-embed fixes survived this export.)
 6. ✅ C3 week-3 SOS plan + step target — BUILT (export 69), reviewed clean, parses OK. WeeklyCheckin
    week-3 SOS section (3 fields) + step-target (prefill baseline+1500) → `saveMySosPlan`; new
    `StepTargetCard` coach editor (all clients) via `setStepTarget`; editable dashboard `SosPlanCard`

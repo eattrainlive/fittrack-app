@@ -509,6 +509,7 @@ export function AccountabilityDashboard({
         checkinDue={checkinDue}
         checkinDone={weeklyDone(week)}
         onStartCheckin={onStartCheckin}
+        readOnly={readOnly}
       />
 
       <LiveCallCard
