@@ -3,13 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check, Flame, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { saveHabitCheckin, deleteHabitCheckin } from "@/lib/habitCheckins";
+import { toast } from "sonner";
 import {
   getActiveCohort,
   getMyClientRecord,
   currentWeekOf,
 } from "@/lib/accountabilityProgramme";
 import { ensureAccHabitsUnlocked } from "@/lib/accWeekHabits";
-import { toast } from "sonner";
 
 interface ActiveHabit {
   id: string;
@@ -20,7 +20,7 @@ interface ActiveHabit {
 
 interface CheckinRow {
   date: string;
-  habit_id?: string | null;
+  habit_id?: number | null;
   member_habit_id?: string | null;
 }
 
@@ -42,10 +42,9 @@ export default function TodayHabitsCard() {
 
     const today = todayStr();
 
-    // If this member is on the accountability programme, make sure the current
-    // week's habit stack is unlocked into member_habits first — so the home card
-    // never lags the programme (the dashboard does the same unlock on its load).
-    // Idempotent + best-effort; personal habits are untouched and still shown.
+    // Unlock the programme habit stack for enrolled accountability members
+    // so the home card doesn't lag the dashboard by one visit at each week
+    // rollover. Idempotent + best-effort — never block the habit list on this.
     try {
       const cohort = await getActiveCohort();
       if (cohort) {
@@ -102,11 +101,15 @@ export default function TodayHabitsCard() {
     } else {
       setCheckins((prev) => [
         ...prev,
-        { date: today, habit_id: h.habit_id as any, member_habit_id: h.id },
+        { date: today, habit_id: h.habit_id, member_habit_id: h.id },
       ]);
     }
 
-    const payload = { member_habit_id: h.id, habit_id: h.habit_id, date: today };
+    const payload = {
+      member_habit_id: h.id,
+      habit_id: h.habit_id,
+      date: today,
+    };
     const res = doneToday
       ? await deleteHabitCheckin(payload)
       : await saveHabitCheckin(payload);

@@ -274,3 +274,11 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
    + edited TodayHabitsCard.tsx. (brief: `brief-home-habit-checkoff.md`) New TodayHabitsCard on Index (under AccountabilityCard): lists active
    member_habits, toggles today's habit_checkins via save/deleteHabitCheckin, done count, self-hides if
    none. Reuses existing plumbing; syncs with dashboard rings. No SQL. → paste to builder.
+
+14. ✅ Million Metre erg challenge — BUILT (export 28), reviewed. SQL erg_challenge.sql (table + RLS +
+   erg_challenge_summary RPC; idempotent w/ alter-add for source/source_ref) RUN by Michael. Lib
+   ergChallenge.ts (ERG_MACHINES bike=2M/rower=1M/ski=1M, deadline Xmas, summary RPC, log, syncWorkoutErgMetres);
+   ErgChallengeCard (home) + ErgLogDialog + ErgChallengePage (/challenge) + Community link. Phase 2
+   auto-count from workouts wired into saveWorkoutToHistory (upsert on source_ref, km→m, only bike/row/ski
+   ergs). FIXED: ErgChallengeCard was mounted twice in Index.tsx → now once. All recurring fixes survived.
+   PENDING: push export 28 + Index.tsx fix.

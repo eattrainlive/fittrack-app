@@ -29,12 +29,14 @@ import Schedule from "./pages/Schedule";
 import Leaderboards from "./pages/Leaderboards";
 import Community from "./pages/Community";
 import CommunityWall from "./pages/CommunityWall";
+import ErgChallengePage from "./pages/ErgChallengePage";
 import Feed from "./pages/Feed";
 
 import { useEffect, useState } from "react";
 import { syncFromSupabase, syncProfile } from "./lib/store";
 import { supabase } from "./lib/supabase";
 import { onUserSignIn, onUserSignOut } from "./lib/userCache";
+import { initErgSync } from "./lib/ergSyncInit";
 import { markOnboarded } from "./lib/onboarding";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocation, useNavigationType } from "react-router-dom";
@@ -139,6 +141,7 @@ const AppRoutes = () => {
                 <Route path="/feed" element={<Feed />} />
                 <Route path="/community" element={<Community />} />
                 <Route path="/community/wall" element={<CommunityWall />} />
+                <Route path="/challenge" element={<ErgChallengePage />} />
                 <Route path="/workouts" element={<Workouts />} />
                 <Route path="/exercises" element={<Exercises />} />
                 <Route path="/progress" element={<Progress />} />
@@ -172,6 +175,7 @@ const AppRoutes = () => {
               <Route path="/feed" element={<Feed />} />
               <Route path="/community" element={<Community />} />
               <Route path="/community/wall" element={<CommunityWall />} />
+              <Route path="/challenge" element={<ErgChallengePage />} />
               <Route path="/workouts" element={<Workouts />} />
               <Route path="/exercises" element={<Exercises />} />
               <Route path="/progress" element={<Progress />} />
@@ -225,6 +229,9 @@ const AppContent = () => {
         // is still null, stamp it now. This backfills people who set up before
         // the onboarded_at tracking shipped.
         markOnboarded();
+        // Auto-count erg metres from saved workouts into the Million Metre
+        // challenge (best-effort; no double count via source_ref upsert).
+        initErgSync();
       } else if (event === "SIGNED_OUT") {
         onUserSignOut();
         localStorage.removeItem("fittrack_current_uid");

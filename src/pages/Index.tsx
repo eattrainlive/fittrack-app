@@ -44,6 +44,7 @@ import MemberProgressCard from "@/components/MemberProgressCard";
 import { CheckInCodeCard } from "@/components/CheckInCodeCard";
 import { AccountabilityCard } from "@/components/AccountabilityCard";
 import TodayHabitsCard from "@/components/TodayHabitsCard";
+import ErgChallengeCard from "@/components/ErgChallengeCard";
 import {
   getActiveCohort,
   getMyClientRecord,
@@ -257,6 +258,8 @@ const Index = () => {
       <AccountabilityCard />
 
       <TodayHabitsCard />
+
+      <ErgChallengeCard />
 
       {showMemberGoals && !accEnrolled && <MemberGoalsCard />}
 

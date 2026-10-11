@@ -5,6 +5,7 @@ import {
   CalendarDays,
   MessageSquare,
   ExternalLink,
+  Bike,
 } from "lucide-react";
 import UpcomingEvents from "@/components/UpcomingEvents";
 import { logFeatureView } from "@/lib/featureTracking";
@@ -118,6 +119,12 @@ export default function Community() {
           title="Community Feed"
           subtitle="Share wins, photos and shout-outs"
           onClick={() => navigate("/community/wall")}
+        />
+        <CommunityCard
+          icon={<Bike className="h-6 w-6" />}
+          title="Million Metre Challenge"
+          subtitle="Rack up metres on the ergs by Christmas"
+          onClick={() => navigate("/challenge")}
         />
       </section>
 
