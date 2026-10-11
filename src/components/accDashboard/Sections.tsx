@@ -46,42 +46,77 @@ const REPLY_FORMAT_ICON: Record<string, any> = {
   written: FileText,
 };
 
+export type PosePhotos = {
+  front?: string | null;
+  side?: string | null;
+  back?: string | null;
+};
+
+const POSES = ["front", "side", "back"] as const;
+
 export function PhotosCard({
-  baselinePhoto,
-  latestPhoto,
+  thenPhotos,
+  nowPhotos,
   week,
   onUpload,
+  readOnly,
 }: {
-  baselinePhoto: any;
-  latestPhoto: any;
+  thenPhotos: PosePhotos;
+  nowPhotos: PosePhotos;
   week: number;
   onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  readOnly?: boolean;
 }) {
+  const hasNow = !!(nowPhotos.front || nowPhotos.side || nowPhotos.back);
   return (
     <Card className="bg-card border-border">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Photos</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-2">
-          <PhotoTile
-            photo={baselinePhoto}
-            label="Before"
-            emptyText="No baseline"
-          />
-          <PhotoTile photo={latestPhoto} label="Now" emptyText="Add a photo" />
+      <CardContent className="space-y-3">
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+            Then
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {POSES.map((pose) => (
+              <PhotoTile
+                key={pose}
+                photo={thenPhotos[pose] ? { url: thenPhotos[pose] } : null}
+                label={String(pose)}
+                emptyText="No baseline"
+              />
+            ))}
+          </div>
         </div>
-        <label className="mt-2 flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-xs font-medium text-muted-foreground hover:text-primary hover:border-primary/40 cursor-pointer transition">
-          <Camera className="w-3.5 h-3.5" /> Add now
-          <input
-            type="file"
-            accept="image/*"
-            onChange={onUpload}
-            className="hidden"
-          />
-        </label>
-        {(week === 3 || week === 6) && !latestPhoto && (
-          <p className="text-[11px] text-amber-600 mt-1.5 text-center">
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+            Now
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {POSES.map((pose) => (
+              <PhotoTile
+                key={pose}
+                photo={nowPhotos[pose] ? { url: nowPhotos[pose] } : null}
+                label={String(pose)}
+                emptyText="Add in check-in"
+              />
+            ))}
+          </div>
+        </div>
+        {!readOnly && (
+          <label className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-xs font-medium text-muted-foreground hover:text-primary hover:border-primary/40 cursor-pointer transition">
+            <Camera className="w-3.5 h-3.5" /> Add now
+            <input
+              type="file"
+              accept="image/*"
+              onChange={onUpload}
+              className="hidden"
+            />
+          </label>
+        )}
+        {(week === 3 || week === 6) && !hasNow && (
+          <p className="text-[11px] text-amber-600 text-center">
             📸 {week === 3 ? "Mid-point" : "Final"} photo due this week
           </p>
         )}

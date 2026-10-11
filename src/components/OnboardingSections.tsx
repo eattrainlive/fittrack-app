@@ -15,10 +15,11 @@ interface SectionProps {
   set: (k: string, v: any) => void;
   photoFront: string | null;
   photoSide: string | null;
+  photoBack: string | null;
   busy: boolean;
   handlePhoto: (
     e: React.ChangeEvent<HTMLInputElement>,
-    which: "front" | "side",
+    which: "front" | "side" | "back",
   ) => void;
 }
 
@@ -28,6 +29,7 @@ export function OnboardingSection({
   set,
   photoFront,
   photoSide,
+  photoBack,
   busy,
   handlePhoto,
 }: SectionProps) {
@@ -189,13 +191,18 @@ export function OnboardingSection({
           <QLabel n={18}>
             Baseline photos (front + side, same spot / lighting)
           </QLabel>
-          <div className="grid grid-cols-2 gap-3">
-            {(["front", "side"] as const).map((which) => {
-              const url = which === "front" ? photoFront : photoSide;
+          <div className="grid grid-cols-3 gap-2">
+            {(["front", "side", "back"] as const).map((which) => {
+              const url =
+                which === "front"
+                  ? photoFront
+                  : which === "side"
+                    ? photoSide
+                    : photoBack;
               return (
                 <label
                   key={which}
-                  className="flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-muted/40 p-4 cursor-pointer hover:bg-muted/60 transition aspect-square overflow-hidden"
+                  className="flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-muted/40 p-3 cursor-pointer hover:bg-muted/60 transition aspect-square overflow-hidden"
                 >
                   {url ? (
                     <img
@@ -205,8 +212,8 @@ export function OnboardingSection({
                     />
                   ) : (
                     <>
-                      <Camera className="w-6 h-6 text-primary" />
-                      <span className="text-xs font-medium capitalize">
+                      <Camera className="w-5 h-5 text-primary" />
+                      <span className="text-[11px] font-medium capitalize">
                         {which} photo
                       </span>
                     </>
@@ -223,7 +230,8 @@ export function OnboardingSection({
             })}
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Private — only you and your coach see these.
+            Front + side are required; back is optional. Private — only you and
+            your coach see these.
           </p>
         </div>
         <div>

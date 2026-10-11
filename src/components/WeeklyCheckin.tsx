@@ -54,7 +54,9 @@ export function WeeklyCheckin({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoFront, setPhotoFront] = useState<string | null>(null);
+  const [photoSide, setPhotoSide] = useState<string | null>(null);
+  const [photoBack, setPhotoBack] = useState<string | null>(null);
   const [trackShot, setTrackShot] = useState<string | null>(null);
   const [f, setF] = useState<Record<string, any>>({});
   const [weekContent, setWeekContent] = useState<any>(null);
@@ -69,7 +71,16 @@ export function WeeklyCheckin({
       if (existing) {
         setF({ ...existing.responses });
         setSubmitted(true);
-        setPhotoUrl(existing.responses.q10photo || null);
+        const ep = existing.responses.photos;
+        if (ep && typeof ep === "object" && !Array.isArray(ep)) {
+          setPhotoFront(ep.front ?? existing.responses.q10photo ?? null);
+          setPhotoSide(ep.side ?? null);
+          setPhotoBack(ep.back ?? null);
+        } else {
+          setPhotoFront(existing.responses.q10photo ?? null);
+          setPhotoSide(null);
+          setPhotoBack(null);
+        }
         setTrackShot(existing.responses.trackShot || null);
       } else {
         // Prefill Week-3 SOS fields from the saved plan / responses.
@@ -97,7 +108,9 @@ export function WeeklyCheckin({
           setF({});
         }
         setSubmitted(false);
-        setPhotoUrl(null);
+        setPhotoFront(null);
+        setPhotoSide(null);
+        setPhotoBack(null);
         setTrackShot(null);
       }
       const wc = await getWeekContent(week);
@@ -114,11 +127,17 @@ export function WeeklyCheckin({
     week,
   ]);
 
-  const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePosePhoto = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    which: "front" | "side" | "back",
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (demo) {
-      setPhotoUrl(URL.createObjectURL(file));
+      const url = URL.createObjectURL(file);
+      if (which === "front") setPhotoFront(url);
+      else if (which === "side") setPhotoSide(url);
+      else setPhotoBack(url);
       toast.success("Photo added");
       e.target.value = "";
       return;
@@ -131,13 +150,15 @@ export function WeeklyCheckin({
       } = await supabase.auth.getUser();
       if (!user) throw new Error("No user");
       const ext = up.name.split(".").pop();
-      const path = `nutrition-photos/${user.id}/acc-week${week}-${Date.now()}.${ext}`;
+      const path = `nutrition-photos/${user.id}/acc-week${week}-${which}-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("media")
         .upload(path, up);
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("media").getPublicUrl(path);
-      setPhotoUrl(data.publicUrl);
+      if (which === "front") setPhotoFront(data.publicUrl);
+      else if (which === "side") setPhotoSide(data.publicUrl);
+      else setPhotoBack(data.publicUrl);
       toast.success("Photo added");
     } catch (err: any) {
       toast.error("Photo upload failed: " + err.message);
@@ -187,7 +208,8 @@ export function WeeklyCheckin({
 
       const responses: Record<string, any> = {
         ...f,
-        q10photo: photoUrl,
+        q10photo: photoFront,
+        photos: { front: photoFront, side: photoSide, back: photoBack },
         trackShot,
       };
       // Week 3: keep the SOS fields + chosen step target in the responses
@@ -405,38 +427,53 @@ export function WeeklyCheckin({
 
             <div>
               <QLabel n={10}>How are you feeling about progress?</QLabel>
-              <div className="mb-2">
-                <label className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/40 p-3 cursor-pointer hover:bg-muted/60 transition">
-                  {photoUrl ? (
-                    <img
-                      src={photoUrl}
-                      alt="progress"
-                      className="h-24 object-cover rounded-lg"
-                    />
-                  ) : (
-                    <>
-                      <Camera className="w-5 h-5 text-primary" />
-                      <span className="text-xs font-medium">
-                        {week === 3
-                          ? "Add your midpoint photo"
-                          : "Add progress photo (optional)"}
-                      </span>
-                    </>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handlePhoto}
-                    disabled={busy}
-                  />
-                </label>
-                {week === 3 && !photoUrl && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Same spot and pose as day 0 — private, just for you.
+              <div className="mb-2 grid grid-cols-3 gap-2">
+                {(["front", "side", "back"] as const).map((which) => {
+                  const url =
+                    which === "front"
+                      ? photoFront
+                      : which === "side"
+                        ? photoSide
+                        : photoBack;
+                  return (
+                    <label
+                      key={which}
+                      className="flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-muted/40 p-2 cursor-pointer hover:bg-muted/60 transition aspect-square overflow-hidden"
+                    >
+                      {url ? (
+                        <img
+                          src={url}
+                          alt={which}
+                          className="w-full h-full object-cover rounded-lg"
+                        />
+                      ) : (
+                        <>
+                          <Camera className="w-4 h-4 text-primary" />
+                          <span className="text-[10px] font-medium capitalize">
+                            {which}
+                          </span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handlePosePhoto(e, which)}
+                        disabled={busy}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+              {week === 3 &&
+                !photoFront &&
+                !photoSide &&
+                !photoBack && (
+                  <p className="text-xs text-muted-foreground -mt-1 mb-1">
+                    Midpoint photo — same spot and pose as day 0 (private, just
+                    for you).
                   </p>
                 )}
-              </div>
               <LongText
                 value={f.q10 || ""}
                 onChange={(v) => set("q10", v)}

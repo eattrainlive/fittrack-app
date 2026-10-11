@@ -43,6 +43,7 @@ import {
   CoachReplyCard,
   SosPlanCard,
   WinsStrip,
+  type PosePhotos,
 } from "@/components/accDashboard/Sections";
 import { toDisplayableImage } from "@/lib/imageUpload";
 
@@ -304,9 +305,38 @@ export function AccountabilityDashboard({
       : null;
   const sparkPts = sparklinePoints(bwEntries);
 
-  const baselinePhoto =
-    photos.find((p) => p.is_baseline) || photos[photos.length - 1];
-  const latestPhoto = photos.find((p) => !p.is_baseline) || photos[0];
+  // Then = baseline poses from client.baseline.photos (PosePhotos);
+  // fall back to legacy array [front, side] by index.
+  const thenPhotos: PosePhotos = (() => {
+    const bp: any = (client.baseline as any)?.photos;
+    if (bp && typeof bp === "object" && !Array.isArray(bp)) {
+      return {
+        front: bp.front ?? null,
+        side: bp.side ?? null,
+        back: bp.back ?? null,
+      };
+    }
+    if (Array.isArray(bp)) {
+      return { front: bp[0] ?? null, side: bp[1] ?? null, back: bp[2] ?? null };
+    }
+    return { front: null, side: null, back: null };
+  })();
+
+  // Now = most recent submitted checkin whose responses.photos has any pose.
+  const nowPhotos: PosePhotos = (() => {
+    const latest = [...checkins]
+      .filter((c) => c.submitted_at && (c.responses as any)?.photos)
+      .sort((a, b) => b.week_number - a.week_number)[0];
+    const np = (latest?.responses as any)?.photos;
+    if (np && typeof np === "object" && !Array.isArray(np)) {
+      return {
+        front: np.front ?? null,
+        side: np.side ?? null,
+        back: np.back ?? null,
+      };
+    }
+    return { front: null, side: null, back: null };
+  })();
 
   const weeklyDone = (w: number) =>
     checkins.some((c) => c.week_number === w && c.submitted_at);
@@ -553,10 +583,11 @@ export function AccountabilityDashboard({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <PhotosCard
-          baselinePhoto={baselinePhoto}
-          latestPhoto={latestPhoto}
+          thenPhotos={thenPhotos}
+          nowPhotos={nowPhotos}
           week={week}
           onUpload={handlePhotoUpload}
+          readOnly={readOnly}
         />
         <MeasurementsCard client={client} latestMeas={latestMeas} />
       </div>

@@ -384,9 +384,11 @@ export const onboardingStatus = (
   // 1. One-sentence why
   if (!client.why || !String(client.why).trim()) missing.push("why");
 
-  // 2. Baseline photos: front AND side
-  const photos: any[] = Array.isArray(b.photos) ? b.photos : [];
-  if (photos.length < 2) missing.push("photos");
+  // 2. Baseline photos: front AND side (back is optional)
+  const p: any = b.photos || {};
+  const hasFront = !!(p.front ?? (Array.isArray(b.photos) && b.photos[0]));
+  const hasSide = !!(p.side ?? (Array.isArray(b.photos) && b.photos[1]));
+  if (!hasFront || !hasSide) missing.push("photos");
 
   // 3. Current weight + 3 measurements
   const hasWeight = b.weight != null && Number(b.weight) > 0;

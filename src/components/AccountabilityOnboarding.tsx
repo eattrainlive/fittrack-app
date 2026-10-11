@@ -100,8 +100,8 @@ function buildLiveClient(
   f: Record<string, any>,
   photoFront: string | null,
   photoSide: string | null,
+  photoBack: string | null,
 ): AccClient {
-  const photos = [photoFront, photoSide].filter(Boolean) as string[];
   const baseline: Record<string, any> = {
     ...((client.baseline as Record<string, any>) || {}),
     weight: f.q10 ? Number(f.q10) : null,
@@ -111,7 +111,7 @@ function buildLiveClient(
     thigh: f.q15 ? Number(f.q15) : null,
     steps: f.q28 ? Number(f.q28) : null,
     avg_steps_baseline: f.q28 ? Number(f.q28) : null,
-    photos,
+    photos: { front: photoFront, side: photoSide, back: photoBack },
   };
   const why = (f.q2 && f.q2.trim()) || (f.q1 && f.q1.trim()) || null;
   let nutritionApproach: string | null = null;
@@ -137,6 +137,7 @@ export function AccountabilityOnboarding({
   const [busy, setBusy] = useState(false);
   const [photoFront, setPhotoFront] = useState<string | null>(null);
   const [photoSide, setPhotoSide] = useState<string | null>(null);
+  const [photoBack, setPhotoBack] = useState<string | null>(null);
   const [f, setF] = useState<Record<string, any>>({});
   const [showMissing, setShowMissing] = useState(false);
   const savingRef = useRef(false);
@@ -146,10 +147,17 @@ export function AccountabilityOnboarding({
   useEffect(() => {
     if (client.onboarding && Object.keys(client.onboarding).length) {
       setF({ ...client.onboarding });
-      const b = client.baseline || {};
-      if (b.photos) {
+    }
+    const b: any = client.baseline || {};
+    if (b.photos) {
+      if (Array.isArray(b.photos)) {
         setPhotoFront(b.photos[0] || null);
         setPhotoSide(b.photos[1] || null);
+        setPhotoBack(b.photos[2] || null);
+      } else {
+        setPhotoFront(b.photos.front ?? null);
+        setPhotoSide(b.photos.side ?? null);
+        setPhotoBack(b.photos.back ?? null);
       }
     }
   }, [client]);
@@ -164,7 +172,7 @@ export function AccountabilityOnboarding({
 
   const handlePhoto = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    which: "front" | "side",
+    which: "front" | "side" | "back",
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -183,7 +191,8 @@ export function AccountabilityOnboarding({
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("media").getPublicUrl(path);
       if (which === "front") setPhotoFront(data.publicUrl);
-      else setPhotoSide(data.publicUrl);
+      else if (which === "side") setPhotoSide(data.publicUrl);
+      else setPhotoBack(data.publicUrl);
       toast.success("Photo added");
     } catch (err: any) {
       toast.error("Photo upload failed: " + err.message);
@@ -198,7 +207,6 @@ export function AccountabilityOnboarding({
     if (savingRef.current) return;
     savingRef.current = true;
     try {
-      const photos = [photoFront, photoSide].filter(Boolean) as string[];
       const baseline: Record<string, any> = {
         ...((client.baseline as Record<string, any>) || {}),
         weight: f.q10 ? Number(f.q10) : null,
@@ -208,7 +216,7 @@ export function AccountabilityOnboarding({
         thigh: f.q15 ? Number(f.q15) : null,
         steps: f.q28 ? Number(f.q28) : null,
         avg_steps_baseline: f.q28 ? Number(f.q28) : null,
-        photos,
+        photos: { front: photoFront, side: photoSide, back: photoBack },
       };
       await saveOnboardingProgress(client.id, f, baseline);
     } catch {
@@ -228,7 +236,6 @@ export function AccountabilityOnboarding({
   const submit = async () => {
     setBusy(true);
     try {
-      const photos = [photoFront, photoSide].filter(Boolean) as string[];
       const baseline: Record<string, any> = {
         weight: f.q10 ? Number(f.q10) : null,
         height: f.q11 || null,
@@ -239,7 +246,7 @@ export function AccountabilityOnboarding({
         tummy: f.q16 ? Number(f.q16) : null,
         steps: f.q28 ? Number(f.q28) : null,
         avg_steps_baseline: f.q28 ? Number(f.q28) : null,
-        photos,
+        photos: { front: photoFront, side: photoSide, back: photoBack },
       };
       const why = (f.q2 && f.q2.trim()) || (f.q1 && f.q1.trim()) || null;
       const derailers =
@@ -276,7 +283,7 @@ export function AccountabilityOnboarding({
       }
 
       // Check the 5 required items and stamp completion if all present.
-      const live = buildLiveClient(client, f, photoFront, photoSide);
+      const live = buildLiveClient(client, f, photoFront, photoSide, photoBack);
       const status = onboardingStatus(live);
       if (status.complete) {
         await markOnboardingComplete(client.id);
@@ -299,7 +306,13 @@ export function AccountabilityOnboarding({
   const SecIcon = sec.icon;
 
   // Live onboarding status from current form state.
-  const liveClient = buildLiveClient(client, f, photoFront, photoSide);
+  const liveClient = buildLiveClient(
+    client,
+    f,
+    photoFront,
+    photoSide,
+    photoBack,
+  );
   const status = onboardingStatus(liveClient);
 
   return (
@@ -385,6 +398,7 @@ export function AccountabilityOnboarding({
               set={set}
               photoFront={photoFront}
               photoSide={photoSide}
+              photoBack={photoBack}
               busy={busy}
               handlePhoto={handlePhoto}
             />

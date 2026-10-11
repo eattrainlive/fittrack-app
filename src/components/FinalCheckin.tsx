@@ -109,6 +109,7 @@ export function FinalCheckin({
   const [submitted, setSubmitted] = useState(false);
   const [afterFront, setAfterFront] = useState<string | null>(null);
   const [afterSide, setAfterSide] = useState<string | null>(null);
+  const [afterBack, setAfterBack] = useState<string | null>(null);
   const [f, setF] = useState<Record<string, any>>({});
   const [trackShot, setTrackShot] = useState<string | null>(null);
 
@@ -121,14 +122,23 @@ export function FinalCheckin({
       if (existing) {
         setF({ ...existing.responses });
         setSubmitted(true);
-        setAfterFront(existing.responses.afterFront || null);
-        setAfterSide(existing.responses.afterSide || null);
+        const ep = existing.responses.photos;
+        if (ep && typeof ep === "object" && !Array.isArray(ep)) {
+          setAfterFront(ep.front ?? existing.responses.afterFront ?? null);
+          setAfterSide(ep.side ?? existing.responses.afterSide ?? null);
+          setAfterBack(ep.back ?? null);
+        } else {
+          setAfterFront(existing.responses.afterFront || null);
+          setAfterSide(existing.responses.afterSide || null);
+          setAfterBack(null);
+        }
         setTrackShot(existing.responses.trackShot || null);
       } else {
         setF({});
         setSubmitted(false);
         setAfterFront(null);
         setAfterSide(null);
+        setAfterBack(null);
         setTrackShot(null);
       }
     })();
@@ -143,14 +153,15 @@ export function FinalCheckin({
 
   const handlePhoto = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    which: "front" | "side",
+    which: "front" | "side" | "back",
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (demo) {
       const url = URL.createObjectURL(file);
       if (which === "front") setAfterFront(url);
-      else setAfterSide(url);
+      else if (which === "side") setAfterSide(url);
+      else setAfterBack(url);
       toast.success("Photo added");
       e.target.value = "";
       return;
@@ -170,7 +181,8 @@ export function FinalCheckin({
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("media").getPublicUrl(path);
       if (which === "front") setAfterFront(data.publicUrl);
-      else setAfterSide(data.publicUrl);
+      else if (which === "side") setAfterSide(data.publicUrl);
+      else setAfterBack(data.publicUrl);
       toast.success("Photo added");
     } catch (err: any) {
       toast.error("Photo upload failed: " + err.message);
@@ -202,6 +214,8 @@ export function FinalCheckin({
         ...f,
         afterFront,
         afterSide,
+        afterBack,
+        photos: { front: afterFront, side: afterSide, back: afterBack },
         afterMeasurements,
         trackShot,
       };
@@ -227,7 +241,7 @@ export function FinalCheckin({
         consent_testimonial: f.q21 || null,
         testimonial_willing: f.q11 || null,
         referrals: f.q23 || null,
-        afterPhotos: [afterFront, afterSide].filter(Boolean),
+        afterPhotos: [afterFront, afterSide, afterBack].filter(Boolean),
         afterMeasurements,
       };
       const { error: ocErr } = await saveFinalOutcome(client.id, {
@@ -406,15 +420,20 @@ export function FinalCheckin({
                 {/* After photos + measurements */}
                 <div className="pt-2 border-t border-border">
                   <p className="text-sm font-semibold mb-2">
-                    After photos (front + side)
+                    After photos (front + side + back)
                   </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    {(["front", "side"] as const).map((which) => {
-                      const url = which === "front" ? afterFront : afterSide;
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["front", "side", "back"] as const).map((which) => {
+                      const url =
+                        which === "front"
+                          ? afterFront
+                          : which === "side"
+                            ? afterSide
+                            : afterBack;
                       return (
                         <label
                           key={which}
-                          className="flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-muted/40 p-4 cursor-pointer hover:bg-muted/60 transition aspect-square overflow-hidden"
+                          className="flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-muted/40 p-3 cursor-pointer hover:bg-muted/60 transition aspect-square overflow-hidden"
                         >
                           {url ? (
                             <img
@@ -424,9 +443,9 @@ export function FinalCheckin({
                             />
                           ) : (
                             <>
-                              <Camera className="w-6 h-6 text-primary" />
+                              <Camera className="w-5 h-5 text-primary" />
                               <span className="text-xs font-medium capitalize">
-                                {which} photo
+                                {which}
                               </span>
                             </>
                           )}

@@ -64,6 +64,23 @@ latest measurements.)
    Admin.tsx uploads. PENDING: Michael push export 26.
    ⚠️ Preview client-name fix was DROPPED by export 26 again — RE-APPLIED in source (AccountabilityPreview.tsx).
    Builder must keep `catch-up-acc-preview-client-names.md` or it'll keep reverting.
+   ⚠️ HEIC conversion was failing silently (heic2any double-default export → wrong callable → fell back to
+   HEIC). FIXED in source `src/lib/imageUpload.ts` (robust callable resolution + array handling + logs
+   error). Catch-up: `catch-up-heic-convert-robust.md`. CONFIRMED WORKING by Michael (downloads .jpg now).
+10. ✅ Front/Side/Back photos end-to-end — BUILT (export 27), reviewed clean, all files parse. Onboarding
+   Back tile (front+side required, back optional, onboardingStatus reads object); weekly check-in 3 pose
+   tiles → responses.photos {front,side,back} (+legacy q10photo kept); final check-in adds back; dashboard
+   Then (baseline F/S/B, legacy-array fallback) vs Now (latest check-in with photos). PENDING: push export 27.
+   ⚠️ Export 27 REVERTED imageUpload.ts (robust HEIC) + AccountabilityPreview.tsx (names) AGAIN — both
+   RE-APPLIED in source. Bodyweight fix survived. Builder keeps dropping HEIC+preview fixes — must paste
+   `catch-up-heic-convert-robust.md` + `catch-up-acc-preview-client-names.md` into builder to stop it.
+   (original brief text below — SUPERSEDES
+   `brief-dashboard-baseline-photos.md` — discard that one). Onboarding adds Back tile (front+side still
+   required, back optional); weekly check-in goes 1→3 pose tiles; final check-in adds back; dashboard
+   Photos card = Then (baseline F/S/B) vs Now (latest check-in F/S/B). Standardise on
+   baseline.photos / responses.photos = { front, side, back }; keep reading old array/q10photo/afterFront
+   keys on prefill. No SQL. Also fixes the "No baseline" dashboard bug (dashboard read member_photos, not
+   baseline.photos). → paste to builder.
 7. ✅ Filmable check-in preview — BUILT (export 25), reviewed clean, parses OK. `demo` prop on
    WeeklyCheckin + FinalCheckin + TrackingBlock (interactive, skips all saves/uploads); Plate/Tracking
    toggle + "Preview check-in form" card in AccountabilityPreview (Coach panel → Preview). No SQL.
