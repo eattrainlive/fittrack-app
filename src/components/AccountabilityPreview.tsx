@@ -24,6 +24,7 @@ import {
   DEMO_COHORT,
   type PreviewData,
 } from "@/lib/accPreviewData";
+import { supabase } from "@/lib/supabase";
 import { AccountabilityDashboard } from "@/components/accDashboard/AccountabilityDashboard";
 import { WeeklyCheckin } from "@/components/WeeklyCheckin";
 import { FinalCheckin } from "@/components/FinalCheckin";
@@ -43,6 +44,7 @@ export function AccountabilityPreview() {
   const [realData, setRealData] = useState<PreviewData | null>(null);
   const [realLoading, setRealLoading] = useState(false);
   const [approach, setApproach] = useState<"plate" | "tracking">("plate");
+  const [names, setNames] = useState<Record<string, string>>({});
 
   // Load cohort + clients once
   const load = useCallback(async () => {
@@ -54,6 +56,19 @@ export function AccountabilityPreview() {
       setClients(cs);
       if (cs.length && !selectedClientId) {
         setSelectedClientId(cs[0].id);
+      }
+      // Resolve member names for the dropdown (clients store user_id only).
+      const uids = cs.map((x) => x.user_id).filter(Boolean);
+      if (uids.length) {
+        const { data: mem } = await supabase
+          .from("members")
+          .select("id, full_name, email")
+          .in("id", uids);
+        const map: Record<string, string> = {};
+        for (const m of (mem as any[]) ?? []) {
+          map[m.id] = m.full_name || m.email?.split("@")[0] || "";
+        }
+        setNames(map);
       }
     }
     setLoading(false);
@@ -188,7 +203,7 @@ export function AccountabilityPreview() {
                   <SelectContent>
                     {clients.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
-                        {c.user_id.slice(0, 8)}… ·{" "}
+                        {names[c.user_id] || `${c.user_id.slice(0, 8)}…`} ·{" "}
                         {c.onboarding_done ? "Onboarded" : "Pending"}
                       </SelectItem>
                     ))}

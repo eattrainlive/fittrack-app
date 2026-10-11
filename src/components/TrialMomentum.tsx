@@ -30,6 +30,7 @@ import {
   type HabitRingData,
 } from "@/components/accDashboard/Habits";
 import { EditHabitsDialog } from "@/components/EditHabitsDialog";
+import { toDisplayableImage } from "@/lib/imageUpload";
 
 export const TrialMomentum = () => {
   const [data, setData] = useState<TrialMomentumData | null>(null);
@@ -174,11 +175,12 @@ export const TrialMomentum = () => {
     isBaseline: boolean,
   ): Promise<boolean> => {
     try {
-      const ext = file.name.split(".").pop();
+      const up = await toDisplayableImage(file);
+      const ext = up.name.split(".").pop();
       const path = `photos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("media")
-        .upload(path, file);
+        .upload(path, up);
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
       const {

@@ -517,7 +517,7 @@ const Accountability = () => {
                   return;
                 }
                 const { saveBodyweight } = await import("@/lib/store");
-                const { success } = await saveBodyweight(w);
+                const { success } = await saveBodyweight({ weight: w });
                 if (success) {
                   toast.success("Weight logged");
                   setWeight("");

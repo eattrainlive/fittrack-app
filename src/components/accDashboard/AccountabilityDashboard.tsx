@@ -44,6 +44,7 @@ import {
   SosPlanCard,
   WinsStrip,
 } from "@/components/accDashboard/Sections";
+import { toDisplayableImage } from "@/lib/imageUpload";
 
 export interface DashboardProps {
   onOpenOnboarding?: () => void;
@@ -238,11 +239,12 @@ export function AccountabilityDashboard({
     const file = e.target.files?.[0];
     if (!file || !client) return;
     try {
-      const ext = file.name.split(".").pop();
+      const up = await toDisplayableImage(file);
+      const ext = up.name.split(".").pop();
       const path = `photos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("media")
-        .upload(path, file);
+        .upload(path, up);
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("media").getPublicUrl(path);
       const {

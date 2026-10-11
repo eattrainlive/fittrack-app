@@ -21,6 +21,7 @@ import {
 } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { setTrialBaselineCapturedAt } from "@/lib/trialBaseline";
+import { toDisplayableImage } from "@/lib/imageUpload";
 
 type LiftOption = { id: string; label: string };
 
@@ -108,15 +109,16 @@ export function BaselineCard({ onDismiss }: { onDismiss: () => void }) {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
+      const up = await toDisplayableImage(file);
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("No user");
-      const fileExt = file.name.split(".").pop();
+      const fileExt = up.name.split(".").pop();
       const filePath = `nutrition-photos/${user.id}/baseline-${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage
         .from("media")
-        .upload(filePath, file);
+        .upload(filePath, up);
       if (uploadError) throw uploadError;
       const { data } = supabase.storage.from("media").getPublicUrl(filePath);
       setPhotoUrl(data.publicUrl);

@@ -109,6 +109,7 @@ import {
 } from "recharts";
 import { supabase } from "@/lib/supabase";
 import { logFeatureView } from "@/lib/featureTracking";
+import { toDisplayableImage } from "@/lib/imageUpload";
 
 function ComingSoon({ title }: { title: string }) {
   return (
@@ -586,18 +587,19 @@ export default function Nutrition() {
 
     setIsUploading(true);
     try {
+      const up = await toDisplayableImage(file);
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      const fileExt = file.name.split(".").pop();
+      const fileExt = up.name.split(".").pop();
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
       const filePath = `nutrition-photos/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("media")
-        .upload(filePath, file);
+        .upload(filePath, up);
 
       if (uploadError) throw uploadError;
 

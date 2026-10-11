@@ -33,6 +33,7 @@ import {
 } from "./onboardingFields";
 import { Label } from "@/components/ui/label";
 import type { AccClient, AccCohort } from "@/lib/accountabilityProgramme";
+import { toDisplayableImage } from "@/lib/imageUpload";
 
 interface SectionDef {
   key: string;
@@ -156,15 +157,16 @@ export function FinalCheckin({
     }
     setBusy(true);
     try {
+      const up = await toDisplayableImage(file);
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("No user");
-      const ext = file.name.split(".").pop();
+      const ext = up.name.split(".").pop();
       const path = `nutrition-photos/${user.id}/acc-after-${which}-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("media")
-        .upload(path, file);
+        .upload(path, up);
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("media").getPublicUrl(path);
       if (which === "front") setAfterFront(data.publicUrl);

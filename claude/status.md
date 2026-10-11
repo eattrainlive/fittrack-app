@@ -54,6 +54,16 @@ latest measurements.)
    calls reload() (Plate⇄Tracking updated live, not only after refresh) — `catch-up-acc-approach-refresh.md`.
    Minor leftovers (non-blocking): dead TRACKING_APP_LABELS const in AccountabilityClientConsole.tsx;
    suggested-protein reads baseline.weight (verify key).
+8. Onboarding "Save failed — retry" — FIXED in source (AccountabilityOnboarding.tsx): was
+   `saveBodyweight(Number(f.q10))` (number spread → no weight → sync error); now `{ weight: … }`.
+   Catch-up: `catch-up-acc-onboarding-bodyweight.md`. + preview client-name fix
+   (`catch-up-acc-preview-client-names.md`). → push both files + paste catch-ups.
+9. ✅ HEIC photos — BUILT (export 26): heic2any + `src/lib/imageUpload.ts` toDisplayableImage(); all
+   programme photo flows routed (onboarding baseline, weekly/final check-in photos, tracking screenshot,
+   progress, nutrition). Reviewed clean. NOT yet routed (non-programme, low priority): Profile.tsx avatar,
+   Admin.tsx uploads. PENDING: Michael push export 26.
+   ⚠️ Preview client-name fix was DROPPED by export 26 again — RE-APPLIED in source (AccountabilityPreview.tsx).
+   Builder must keep `catch-up-acc-preview-client-names.md` or it'll keep reverting.
 7. ✅ Filmable check-in preview — BUILT (export 25), reviewed clean, parses OK. `demo` prop on
    WeeklyCheckin + FinalCheckin + TrackingBlock (interactive, skips all saves/uploads); Plate/Tracking
    toggle + "Preview check-in form" card in AccountabilityPreview (Coach panel → Preview). No SQL.

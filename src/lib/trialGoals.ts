@@ -6,6 +6,7 @@ import {
   saveMemberMacros,
 } from "./store";
 import { setTrialBaselineCapturedAt } from "./trialBaseline";
+import { toDisplayableImage } from "./imageUpload";
 
 export const saveMemberPhoto = async (photo: {
   url: string;
@@ -194,15 +195,16 @@ export const uploadProgressPhoto = async (
   file: File,
 ): Promise<{ url: string } | { error: string }> => {
   try {
+    const up = await toDisplayableImage(file);
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return { error: "Not signed in" };
-    const ext = file.name.split(".").pop() || "jpg";
+    const ext = up.name.split(".").pop() || "jpg";
     const path = `${user.id}/progress-${Date.now()}.${ext}`;
     const { error: upErr } = await supabase.storage
       .from("media")
-      .upload(path, file, { upsert: false });
+      .upload(path, up, { upsert: false });
     if (upErr) throw upErr;
     const { data } = supabase.storage.from("media").getPublicUrl(path);
     return { url: data.publicUrl };

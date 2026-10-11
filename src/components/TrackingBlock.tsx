@@ -2,6 +2,7 @@ import { Camera } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { NumberField, QLabel } from "./onboardingFields";
+import { toDisplayableImage } from "@/lib/imageUpload";
 
 /**
  * Nutrition tracking block shown only when the client's approach is "tracking".
@@ -38,15 +39,16 @@ export function TrackingBlock({
         toast.success("Screenshot added");
         return;
       }
+      const up = await toDisplayableImage(file);
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("No user");
-      const ext = file.name.split(".").pop();
+      const ext = up.name.split(".").pop();
       const path = `nutrition-photos/${user.id}/acc-track-w${week}-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("media")
-        .upload(path, file);
+        .upload(path, up);
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("media").getPublicUrl(path);
       setTrackShot(data.publicUrl);
