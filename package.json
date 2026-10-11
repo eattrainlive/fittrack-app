@@ -50,7 +50,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^13.4.2",
-    "heic2any": "^0.0.4",
+    "heic-to": "^1.6.6",
     "html-to-image": "^1.11.13",
     "html5-qrcode": "^2.3.8",
     "input-otp": "^1.4.2",

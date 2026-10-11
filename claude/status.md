@@ -71,9 +71,14 @@ latest measurements.)
    Back tile (front+side required, back optional, onboardingStatus reads object); weekly check-in 3 pose
    tiles → responses.photos {front,side,back} (+legacy q10photo kept); final check-in adds back; dashboard
    Then (baseline F/S/B, legacy-array fallback) vs Now (latest check-in with photos). PENDING: push export 27.
-   ⚠️ Export 27 REVERTED imageUpload.ts (robust HEIC) + AccountabilityPreview.tsx (names) AGAIN — both
-   RE-APPLIED in source. Bodyweight fix survived. Builder keeps dropping HEIC+preview fixes — must paste
-   `catch-up-heic-convert-robust.md` + `catch-up-acc-preview-client-names.md` into builder to stop it.
+   ⚠️ Export 27 REVERTED imageUpload.ts + AccountabilityPreview.tsx (names) AGAIN — both re-applied.
+   Bodyweight fix survived. Combined catch-up for the two recurring fixes: `catch-up-KEEP-these-two-fixes.md`.
+11. HEIC root cause = heic2any's old libheif ("ERR_LIBHEIF format not supported" on modern iPhone HEIC).
+   FIXED in source: package.json heic2any→heic-to (^1.6.6); REWROTE `src/lib/imageUpload.ts` =
+   native <img>+canvas decode first (iOS decodes HEIC natively; downscales to 1600px → also fixes the
+   upload TIMEOUT from multi-MB photos) + heic-to fallback for desktop Chrome. Catch-up:
+   `catch-up-heic-switch-to-heic-to.md` (SUPERSEDES the heic2any catch-ups). No lockfile → Netlify npm
+   install picks up heic-to. PENDING: push package.json + imageUpload.ts; re-upload (ideally from iPhone).
    (original brief text below — SUPERSEDES
    `brief-dashboard-baseline-photos.md` — discard that one). Onboarding adds Back tile (front+side still
    required, back optional); weekly check-in goes 1→3 pose tiles; final check-in adds back; dashboard
