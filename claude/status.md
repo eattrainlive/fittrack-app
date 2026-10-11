@@ -265,3 +265,12 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
    Add centralised question-label maps (accFormQuestions.ts from existing QLabels) + "View full answers"
    expander on onboarding summary (AccountabilityCoachPanel) + "View all responses" on each CheckinCard
    (AccountabilityClientConsole). Display-only, no SQL. → paste to builder.
+
+13. ✅ Home-screen "Today's habits" quick check-off — BUILT (export 71), reviewed. TodayHabitsCard on
+   Index (under AccountabilityCard): active member_habits, toggles today's habit_checkins, done count,
+   self-hides if none. FIXED a done-match bug (was c.habit_id===h.id; h.id is the member_habit id) →
+   now matches on member_habit_id OR habit_id and saves both ids so it syncs with dashboard rings both
+   ways. Catch-up: `catch-up-today-habits-match.md`. All recurring fixes survived. PENDING: push export 71
+   + edited TodayHabitsCard.tsx. (brief: `brief-home-habit-checkoff.md`) New TodayHabitsCard on Index (under AccountabilityCard): lists active
+   member_habits, toggles today's habit_checkins via save/deleteHabitCheckin, done count, self-hides if
+   none. Reuses existing plumbing; syncs with dashboard rings. No SQL. → paste to builder.
