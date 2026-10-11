@@ -24,6 +24,12 @@ import {
 } from "@/lib/accountabilityCheckins";
 import { WEEK_THEMES, type AccClient } from "@/lib/accountabilityProgramme";
 import { getEmbedUrl } from "@/lib/accWeekContent";
+import {
+  CHECKIN_QUESTIONS,
+  FINAL_CHECKIN_QUESTIONS,
+  fmtAnswer,
+  fallbackLabel,
+} from "@/lib/accFormQuestions";
 
 const themeFor = (week: number) =>
   WEEK_THEMES.find((t) => t.week === week) || null;
@@ -226,9 +232,65 @@ export function AccCheckinCard({
   client: AccClient;
   onSaved: () => void;
 }) {
+  const [fullOpen, setFullOpen] = useState(false);
   const r = checkin.responses || {};
   const theme = themeFor(checkin.week_number);
   const isFinal = checkin.week_number === 6;
+
+  // Build the full-answers list from the question map for this check-in type.
+  const questionMap = isFinal ? FINAL_CHECKIN_QUESTIONS : CHECKIN_QUESTIONS;
+  const knownKeys = new Set(questionMap.map((q) => q.key));
+
+  // Curated keys already shown above (so we skip them in the full list).
+  const curatedKeys = new Set([
+    "q1",
+    "q3",
+    "q7",
+    "q8",
+    "weekQ",
+    "weekA",
+    "sos_on",
+    "sos_sign",
+    "sos_action",
+    "step_target",
+    "trackDays",
+    "trackCalories",
+    "trackProtein",
+    "trackShot",
+    "q15",
+    "q19",
+    "q20",
+    "q21",
+    "q22",
+  ]);
+
+  const fullAnswers = questionMap
+    .filter((q) => !curatedKeys.has(q.key))
+    .map(({ key, label }) => ({ key, label, display: fmtAnswer(r[key]) }))
+    .filter((a) => a.display);
+
+  // Also surface any answered keys not in the map (with a fallback label).
+  for (const k of Object.keys(r)) {
+    if (
+      !knownKeys.has(k) &&
+      !curatedKeys.has(k) &&
+      ![
+        "q10photo",
+        "photos",
+        "afterFront",
+        "afterSide",
+        "afterBack",
+        "afterMeasurements",
+      ].includes(k) &&
+      fmtAnswer(r[k])
+    ) {
+      fullAnswers.push({
+        key: k,
+        label: fallbackLabel(k),
+        display: fmtAnswer(r[k]),
+      });
+    }
+  }
 
   return (
     <Card
@@ -428,6 +490,31 @@ export function AccCheckinCard({
               </>
             )}
           </p>
+        )}
+
+        {/* Full-answers expander */}
+        {fullAnswers.length > 0 && (
+          <div className="pt-1">
+            <button
+              onClick={() => setFullOpen((v) => !v)}
+              className="text-xs text-primary font-medium flex items-center gap-1"
+            >
+              {fullOpen ? "Hide all responses" : "View all responses"}{" "}
+              <span className="text-muted-foreground">
+                ({fullAnswers.length})
+              </span>
+            </button>
+            {fullOpen && (
+              <div className="mt-2 rounded-lg border border-border bg-muted/20 p-3 space-y-1.5 text-xs">
+                {fullAnswers.map((a) => (
+                  <div key={a.key}>
+                    <p className="font-semibold text-foreground">{a.label}</p>
+                    <p className="text-muted-foreground">{a.display}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         <ReplyEditor checkin={checkin} onSaved={onSaved} />

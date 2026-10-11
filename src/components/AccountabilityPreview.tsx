@@ -37,6 +37,7 @@ const weekLabel = (w: number) =>
 export function AccountabilityPreview() {
   const [cohort, setCohort] = useState<AccCohort | null>(null);
   const [clients, setClients] = useState<AccClient[]>([]);
+  const [names, setNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [source, setSource] = useState<"demo" | "real">("demo");
   const [week, setWeek] = useState(3);
@@ -44,7 +45,6 @@ export function AccountabilityPreview() {
   const [realData, setRealData] = useState<PreviewData | null>(null);
   const [realLoading, setRealLoading] = useState(false);
   const [approach, setApproach] = useState<"plate" | "tracking">("plate");
-  const [names, setNames] = useState<Record<string, string>>({});
 
   // Load cohort + clients once
   const load = useCallback(async () => {
@@ -57,7 +57,7 @@ export function AccountabilityPreview() {
       if (cs.length && !selectedClientId) {
         setSelectedClientId(cs[0].id);
       }
-      // Resolve member names for the dropdown (clients store user_id only).
+      // acc_clients only stores user_id; resolve the member's name from members.
       const uids = cs.map((x) => x.user_id).filter(Boolean);
       if (uids.length) {
         const { data: mem } = await supabase

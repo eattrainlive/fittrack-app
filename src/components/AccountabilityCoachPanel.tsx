@@ -47,6 +47,7 @@ import {
   getClientCheckins,
   type AccCheckin,
 } from "@/lib/accountabilityCheckins";
+import { ONBOARDING_QUESTIONS, fmtAnswer } from "@/lib/accFormQuestions";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import {
@@ -80,10 +81,18 @@ interface AppMember {
 /** Compact onboarding summary for the coach roster. */
 export function OnboardingSummary({ c }: { c: AccClient }) {
   const [open, setOpen] = useState(false);
+  const [fullOpen, setFullOpen] = useState(false);
   if (!c.onboarding_done) return null;
   const b = (c.baseline as any) || {};
   const o = (c.onboarding as Record<string, any>) || {};
   const photos: string[] = b.photos || [];
+
+  // Build the full-answers list from the question map.
+  const fullAnswers = ONBOARDING_QUESTIONS.map(({ key, label }) => {
+    const val = o[key];
+    const display = fmtAnswer(val);
+    return { key, label, display };
+  }).filter((r) => r.display);
 
   return (
     <div className="w-full mt-2">
@@ -191,6 +200,31 @@ export function OnboardingSummary({ c }: { c: AccClient }) {
               <span className="font-semibold text-foreground">Note:</span>{" "}
               <span className="text-muted-foreground">{o.q42}</span>
             </p>
+          )}
+
+          {/* Full-answers expander */}
+          {fullAnswers.length > 0 && (
+            <div className="pt-2 border-t border-border">
+              <button
+                onClick={() => setFullOpen((v) => !v)}
+                className="text-xs text-primary font-medium flex items-center gap-1"
+              >
+                {fullOpen ? "Hide full answers" : "View full answers"}{" "}
+                <span className="text-muted-foreground">
+                  ({fullAnswers.length})
+                </span>
+              </button>
+              {fullOpen && (
+                <div className="mt-2 space-y-1.5">
+                  {fullAnswers.map((a) => (
+                    <div key={a.key}>
+                      <p className="font-semibold text-foreground">{a.label}</p>
+                      <p className="text-muted-foreground">{a.display}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

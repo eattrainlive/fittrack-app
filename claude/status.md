@@ -78,7 +78,8 @@ latest measurements.)
    native <img>+canvas decode first (iOS decodes HEIC natively; downscales to 1600px → also fixes the
    upload TIMEOUT from multi-MB photos) + heic-to fallback for desktop Chrome. Catch-up:
    `catch-up-heic-switch-to-heic-to.md` (SUPERSEDES the heic2any catch-ups). No lockfile → Netlify npm
-   install picks up heic-to. PENDING: push package.json + imageUpload.ts; re-upload (ideally from iPhone).
+   install picks up heic-to. ✅ CONFIRMED WORKING on iPhone (front+side render as JPEG, no timeout).
+   Pushed + deployed.
    (original brief text below — SUPERSEDES
    `brief-dashboard-baseline-photos.md` — discard that one). Onboarding adds Back tile (front+side still
    required, back optional); weekly check-in goes 1→3 pose tiles; final check-in adds back; dashboard
@@ -253,3 +254,14 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
 - Repo connected to Cowork; added `scripts/merge-builder-export.py`, `claude/` docs, and brought the
   backend (`supabase/`) into the repo. From now: Claude writes/tests backend in-repo; builder drafts
   screens; merge via the script; review diff; push. See `claude/workflow.md`.
+
+12. ✅ Coach "view full onboarding + check-in answers" — BUILT (export 70, 'fittrack-source 70'), reviewed
+   clean, all parse. accFormQuestions.ts (ONBOARDING/CHECKIN/FINAL_CHECKIN_QUESTIONS + fmtAnswer +
+   fallbackLabel); onboarding "View full answers" in AccountabilityCoachPanel; new AccCheckinCard with
+   final-aware "View all responses" (skips curated+blanks, sweeps unmapped keys). Export KEPT heic-to +
+   preview-names + bodyweight fixes (combined catch-up worked). PENDING: push export 70.
+   (brief: `brief-coach-view-full-forms.md`)
+   All answers already saved (acc_clients.onboarding / acc_checkins.responses); coach only sees summary.
+   Add centralised question-label maps (accFormQuestions.ts from existing QLabels) + "View full answers"
+   expander on onboarding summary (AccountabilityCoachPanel) + "View all responses" on each CheckinCard
+   (AccountabilityClientConsole). Display-only, no SQL. → paste to builder.

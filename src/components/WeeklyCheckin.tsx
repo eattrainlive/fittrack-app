@@ -465,15 +465,12 @@ export function WeeklyCheckin({
                   );
                 })}
               </div>
-              {week === 3 &&
-                !photoFront &&
-                !photoSide &&
-                !photoBack && (
-                  <p className="text-xs text-muted-foreground -mt-1 mb-1">
-                    Midpoint photo — same spot and pose as day 0 (private, just
-                    for you).
-                  </p>
-                )}
+              {week === 3 && !photoFront && !photoSide && !photoBack && (
+                <p className="text-xs text-muted-foreground -mt-1 mb-1">
+                  Midpoint photo — same spot and pose as day 0 (private, just
+                  for you).
+                </p>
+              )}
               <LongText
                 value={f.q10 || ""}
                 onChange={(v) => set("q10", v)}

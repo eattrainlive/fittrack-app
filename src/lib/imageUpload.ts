@@ -1,19 +1,3 @@
-/**
- * Make a user-picked image browser-displayable and upload-friendly.
- *
- * Two problems this solves:
- *  1. iPhones save HEIC/HEIF, which browsers can't render in <img>. We convert to JPEG.
- *  2. Phone photos are ~12MP / several MB, which makes uploads slow (and was timing out).
- *     We downscale the longest edge to MAX_EDGE and re-encode as JPEG.
- *
- * Strategy (in order):
- *  1. Native decode via <img> + canvas. Works for JPEG/PNG everywhere, and for HEIC on
- *     iOS Safari (which decodes HEIC natively) — i.e. the device most members upload from.
- *     Also downscales.
- *  2. HEIC fallback via `heic-to` (modern libheif-wasm) for browsers that can't decode HEIC
- *     natively (desktop Chrome/Firefox). Result is then downscaled too.
- *  3. If everything fails, return the original file (best-effort) and log the reason.
- */
 const MAX_EDGE = 1600;
 const JPEG_QUALITY = 0.85;
 
@@ -33,7 +17,10 @@ function loadImageEl(src: File | Blob): Promise<HTMLImageElement> {
   });
 }
 
-async function imgToJpegFile(img: HTMLImageElement, origName: string): Promise<File> {
+async function imgToJpegFile(
+  img: HTMLImageElement,
+  origName: string,
+): Promise<File> {
   const w = img.naturalWidth || img.width;
   const h = img.naturalHeight || img.height;
   if (!w || !h) throw new Error("image has no dimensions");
@@ -58,16 +45,14 @@ async function imgToJpegFile(img: HTMLImageElement, origName: string): Promise<F
 export async function toDisplayableImage(file: File): Promise<File> {
   const isHeic =
     /heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name);
-
   // 1. Native decode + downscale (JPEG/PNG everywhere; HEIC on iOS Safari).
   try {
     const img = await loadImageEl(file);
     return await imgToJpegFile(img, file.name);
   } catch {
-    // Native couldn't decode it (e.g. HEIC on desktop Chrome) — fall through.
+    /* native couldn't decode (e.g. HEIC on desktop Chrome) */
   }
-
-  // 2. HEIC fallback via heic-to (modern libheif), then downscale the JPEG.
+  // 2. HEIC fallback via heic-to (modern libheif), then downscale.
   if (isHeic) {
     try {
       const { heicTo } = await import("heic-to");
@@ -88,7 +73,5 @@ export async function toDisplayableImage(file: File): Promise<File> {
       return file;
     }
   }
-
-  // 3. Non-HEIC that failed native decode (rare) — upload as-is.
   return file;
 }
