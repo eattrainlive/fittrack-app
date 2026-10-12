@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Mail, Loader2, CheckCircle2 } from "lucide-react";
+import { Mail, Loader2, CheckCircle2, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -117,6 +117,21 @@ export function EmailButton({ email }: { email: string }) {
     >
       <Mail className="h-4 w-4" />
     </a>
+  );
+}
+
+/** Opens the member's full activity modal (resolves by email). */
+export function ActivityButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:bg-muted"
+      aria-label="View activity"
+      title="View activity"
+    >
+      <User className="h-4 w-4" />
+    </button>
   );
 }
 

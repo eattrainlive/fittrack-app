@@ -298,3 +298,9 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
    getErgLeaderboard; staff-only section on ErgChallengePage (member picker + machine + metres form;
    everyone's-totals table) gated by isStaff() ({staff && …} wraps the block). Members still see only
    collective + own; leaderboard RPC raises for non-staff. All recurring fixes survived. PENDING: push export 72.
+
+17. ✅ Call-list activity card — BUILT (export 73), reviewed, parses. Shared ActivityButton + Add an info/activity icon button
+   to each contact card in StaffHubCallLists (Reach out + Win back, ContactCadenceCard) + CurrentTrialistsBoard
+   that opens the same MemberActivityModal as the Members grid. Modal resolves by email (member-activity edge
+   fn takes memberUserId OR memberEmail), so call-list contacts work with no backend change. Don't hijack the
+   existing card tap (cadence sheet). No SQL. → paste to builder.

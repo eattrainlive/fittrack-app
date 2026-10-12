@@ -25,9 +25,11 @@ import {
   type TrialStage,
   type EnrichedTrialist,
 } from "@/lib/trialStages";
+import { MemberActivityModal } from "@/components/MemberActivityModal";
 import {
   OutcomeSheet,
   EmailButton,
+  ActivityButton,
   LoggedBadge,
   EmptyState,
   useOutcomeSheet,
@@ -41,16 +43,31 @@ export function TrialistPipeline({
   list,
   logged,
   onLogged,
+  staffSecret,
 }: {
   list: Trialist[];
   logged: Record<string, string>;
   onLogged: (email: string, outcome: string) => void;
+  staffSecret: string;
 }) {
   const { byStage, loading, setStage } = useTrialStages(list, staffName());
   const [stage, setStageView] = useState<TrialStage>("to_contact");
   const sheet = useOutcomeSheet();
+  const [activityMember, setActivityMember] = useState<any | null>(null);
+  const [activityOpen, setActivityOpen] = useState(false);
 
   const cards = byStage[stage] ?? [];
+
+  const openActivity = (t: EnrichedTrialist) => {
+    setActivityMember({
+      id: null,
+      email: t.email,
+      full_name: t.name,
+      membership: t.trial ?? null,
+      online_client: false,
+    });
+    setActivityOpen(true);
+  };
 
   return (
     <div className="space-y-3">
@@ -92,6 +109,7 @@ export function TrialistPipeline({
               logged={logged[t.email]}
               onLog={() => sheet.openFor(t.name, t.email)}
               onMove={(s) => setStage(t, s)}
+              onOpenActivity={() => openActivity(t)}
             />
           ))}
         </div>
@@ -107,6 +125,13 @@ export function TrialistPipeline({
           onLogged={onLogged}
         />
       )}
+
+      <MemberActivityModal
+        member={activityMember}
+        staffSecret={staffSecret}
+        open={activityOpen}
+        onOpenChange={setActivityOpen}
+      />
     </div>
   );
 }
@@ -116,11 +141,13 @@ function TrialistStageCard({
   logged,
   onLog,
   onMove,
+  onOpenActivity,
 }: {
   t: EnrichedTrialist;
   logged?: string;
   onLog: () => void;
   onMove: (stage: TrialStage) => Promise<boolean | void>;
+  onOpenActivity: () => void;
 }) {
   const [moving, setMoving] = useState(false);
   const chip = finishChip(t.finishes);
@@ -179,6 +206,7 @@ function TrialistStageCard({
           </div>
 
           <div className="flex items-center gap-1.5">
+            <ActivityButton onClick={onOpenActivity} />
             <EmailButton email={t.email} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

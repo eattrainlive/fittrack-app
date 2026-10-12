@@ -17,9 +17,11 @@ import {
   type LapsedMember,
 } from "@/lib/staffHubMetrics";
 import { TrialistPipeline } from "@/components/TrialistPipeline";
+import { MemberActivityModal } from "@/components/MemberActivityModal";
 import {
   EmptyState,
   EmailButton,
+  ActivityButton,
   staffName,
   fmtMonthYear,
   fmtDateTime,
@@ -49,10 +51,12 @@ export function StaffHubCallLists({
   data,
   loading,
   error,
+  staffSecret,
 }: {
   data: StaffHubResponse | null;
   loading: boolean;
   error: string | null;
+  staffSecret: string;
 }) {
   const [tab, setTab] = useState<TabKey>("trialists");
   const [logged, setLogged] = useState<Record<string, string>>({});
@@ -110,24 +114,32 @@ export function StaffHubCallLists({
         <TrialistPipeline
           list={trialists ?? []}
           logged={logged}
+          staffSecret={staffSecret}
           onLogged={(email, outcome) =>
             setLogged((s) => ({ ...s, [email]: outcome }))
           }
         />
       ) : tab === "reachout" ? (
-        <ReachoutList list={reachout ?? []} />
+        <ReachoutList list={reachout ?? []} staffSecret={staffSecret} />
       ) : (
-        <LapsedList list={lapsed ?? []} />
+        <LapsedList list={lapsed ?? []} staffSecret={staffSecret} />
       )}
     </div>
   );
 }
 
-function ReachoutList({ list }: { list: ReachoutMember[] }) {
+function ReachoutList({
+  list,
+  staffSecret,
+}: {
+  list: ReachoutMember[];
+  staffSecret: string;
+}) {
   return (
     <ContactCadenceList
       list={list}
       listType="reachout"
+      staffSecret={staffSecret}
       emptyText="No milestone check-ins due ✅"
       renderInfo={(m) => (
         <>
@@ -149,11 +161,18 @@ function ReachoutList({ list }: { list: ReachoutMember[] }) {
   );
 }
 
-function LapsedList({ list }: { list: LapsedMember[] }) {
+function LapsedList({
+  list,
+  staffSecret,
+}: {
+  list: LapsedMember[];
+  staffSecret: string;
+}) {
   return (
     <ContactCadenceList
       list={list}
       listType="lapsed"
+      staffSecret={staffSecret}
       emptyText="No lapsed members to win back ✅"
       renderInfo={(m) => (
         <>
@@ -208,11 +227,13 @@ function LapsedList({ list }: { list: LapsedMember[] }) {
 function ContactCadenceList<M extends ContactMember>({
   list,
   listType,
+  staffSecret,
   emptyText,
   renderInfo,
 }: {
   list: M[];
   listType: ListType;
+  staffSecret: string;
   emptyText: string;
   renderInfo: (m: M) => ReactNode;
 }) {
@@ -226,10 +247,24 @@ function ContactCadenceList<M extends ContactMember>({
     card: EnrichedContact<M>;
     kind: LogContactArgs["kind"];
   } | null>(null);
+  const [activityMember, setActivityMember] = useState<any | null>(null);
+  const [activityOpen, setActivityOpen] = useState(false);
 
   if (!list.length) return <EmptyState text={emptyText} />;
 
   const cards = byBucket[bucket] ?? [];
+
+  const openActivity = (c: EnrichedContact<M>) => {
+    const m = c.member as any;
+    setActivityMember({
+      id: m.user_id ?? m.id ?? null,
+      email: c.member.email,
+      full_name: c.name,
+      membership: m.membership ?? null,
+      online_client: m.online_client ?? false,
+    });
+    setActivityOpen(true);
+  };
 
   return (
     <div className="space-y-3">
@@ -271,6 +306,7 @@ function ContactCadenceList<M extends ContactMember>({
               listType={listType}
               renderInfo={renderInfo}
               onLog={(kind) => setSheet({ card: c, kind })}
+              onOpenActivity={() => openActivity(c)}
             />
           ))}
         </div>
@@ -291,6 +327,13 @@ function ContactCadenceList<M extends ContactMember>({
           }}
         />
       )}
+
+      <MemberActivityModal
+        member={activityMember}
+        staffSecret={staffSecret}
+        open={activityOpen}
+        onOpenChange={setActivityOpen}
+      />
     </div>
   );
 }
@@ -300,11 +343,13 @@ function ContactCadenceCard<M extends ContactMember>({
   listType,
   renderInfo,
   onLog,
+  onOpenActivity,
 }: {
   c: EnrichedContact<M>;
   listType: ListType;
   renderInfo: (m: M) => ReactNode;
   onLog: (kind: LogContactArgs["kind"]) => void;
+  onOpenActivity: () => void;
 }) {
   const terminal = TERMINAL[listType].includes(c.status);
 
@@ -316,7 +361,10 @@ function ContactCadenceCard<M extends ContactMember>({
             <p className="truncate font-semibold">{c.name}</p>
             {renderInfo(c.member)}
           </div>
-          <EmailButton email={c.member.email} />
+          <div className="flex items-center gap-1.5 shrink-0">
+            <ActivityButton onClick={onOpenActivity} />
+            <EmailButton email={c.member.email} />
+          </div>
         </div>
 
         <CadenceTracker

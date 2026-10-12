@@ -6476,7 +6476,7 @@ const Admin = () => {
           <InsightsTab staffSecret={staffSecret} />
         </TabsContent>
         <TabsContent value="calllists" className="space-y-6 mt-6">
-          <StaffHubTab />
+          <StaffHubTab staffSecret={staffSecret} />
         </TabsContent>
 
         <SettingsTab />
