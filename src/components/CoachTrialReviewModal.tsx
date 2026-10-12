@@ -198,7 +198,7 @@ export function CoachTrialReviewModal({
         text: "Gone quiet this week — reconnect before pitching.",
       });
     }
-    if (s.coachedUsed >= 6 || s.bestStreak >= 5 || s.prs.length > 0) {
+    if (s.coachedUsed >= 6 || s.bestStreak >= 5 || (s.prs?.length ?? 0) > 0) {
       flags.push({
         type: "success",
         text: "Strong engagement — safe to talk membership + next block.",
@@ -231,7 +231,7 @@ export function CoachTrialReviewModal({
         `0 of 12 PT sessions used — focus on scheduling their first Semi-Private session.`,
       );
     }
-    if (s.prs.length > 0) {
+    if ((s.prs?.length ?? 0) > 0) {
       const topPr = s.prs[0];
       talkingPoints.push(
         `Strength gain: +${topPr.gain} kg on ${topPr.exercise} (${topPr.start} kg → ${topPr.now} kg).`,
@@ -524,13 +524,13 @@ export function CoachTrialReviewModal({
             )}
 
             {/* Strength Wins */}
-            {s.prs.length > 0 && (
+            {(s.prs?.length ?? 0) > 0 && (
               <div className="space-y-2">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Strength Wins
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {s.prs.map((pr) => (
+                  {(s.prs ?? []).map((pr) => (
                     <div
                       key={pr.exercise}
                       className="p-2.5 rounded-lg bg-muted/30 border border-border text-xs flex items-center justify-between"
