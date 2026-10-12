@@ -334,7 +334,7 @@ export function MemberActivityModal({
                   <thead>
                     <tr className="bg-muted/30 text-muted-foreground">
                       <th className="text-left font-medium px-3 py-2"></th>
-                      {act.months.map((m) => (
+                      {(act.months ?? []).map((m) => (
                         <th
                           key={m.ym}
                           className={`text-right font-medium px-3 py-2 ${m.ym === curYm ? "text-foreground font-bold" : ""}`}
@@ -350,7 +350,7 @@ export function MemberActivityModal({
                         <td className="px-3 py-2 text-muted-foreground flex items-center gap-1">
                           <Dumbbell className="w-3 h-3" /> PT
                         </td>
-                        {act.months.map((m) => (
+                        {(act.months ?? []).map((m) => (
                           <td
                             key={m.ym}
                             className="text-right px-3 py-2 tabular-nums"
@@ -366,7 +366,7 @@ export function MemberActivityModal({
                       <td className="px-3 py-2 text-muted-foreground flex items-center gap-1">
                         <Calendar className="w-3 h-3" /> Classes
                       </td>
-                      {act.months.map((m) => (
+                      {(act.months ?? []).map((m) => (
                         <td
                           key={m.ym}
                           className="text-right px-3 py-2 tabular-nums"
@@ -381,7 +381,7 @@ export function MemberActivityModal({
                       <td className="px-3 py-2 text-muted-foreground flex items-center gap-1">
                         <DoorOpen className="w-3 h-3" /> Gym visits
                       </td>
-                      {act.months.map((m) => (
+                      {(act.months ?? []).map((m) => (
                         <td
                           key={m.ym}
                           className="text-right px-3 py-2 tabular-nums"
@@ -394,7 +394,7 @@ export function MemberActivityModal({
                       <td className="px-3 py-2 text-muted-foreground flex items-center gap-1">
                         <TrendingUp className="w-3 h-3" /> Sessions logged
                       </td>
-                      {act.months.map((m) => (
+                      {(act.months ?? []).map((m) => (
                         <td
                           key={m.ym}
                           className="text-right px-3 py-2 tabular-nums"
@@ -453,13 +453,13 @@ export function MemberActivityModal({
         ) : null}
 
         {/* Strength wins */}
-        {!summaryLoading && s && s.prs.length > 0 && (
+        {!summaryLoading && s && (s.prs?.length ?? 0) > 0 && (
           <div className="space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Strength Wins
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {s.prs.map((pr) => (
+              {(s.prs ?? []).map((pr) => (
                 <div
                   key={pr.exercise}
                   className="p-2.5 rounded-lg bg-muted/30 border border-border text-xs flex items-center justify-between"

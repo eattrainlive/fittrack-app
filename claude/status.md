@@ -299,7 +299,9 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
    everyone's-totals table) gated by isStaff() ({staff && …} wraps the block). Members still see only
    collective + own; leaderboard RPC raises for non-staff. All recurring fixes survived. PENDING: push export 72.
 
-17. ✅ Call-list activity card — BUILT (export 73), reviewed, parses. Shared ActivityButton + Add an info/activity icon button
+17. ✅ Call-list activity card — BUILT (export 73) + FIXED crash: MemberActivityModal did s.prs.length /
+   act.months.map unguarded → threw for a contact with no app data. Guarded (s.prs ?? [], act.months ?? []).
+   Push MemberActivityModal.tsx; tell builder to keep the guards. Shared ActivityButton + Add an info/activity icon button
    to each contact card in StaffHubCallLists (Reach out + Win back, ContactCadenceCard) + CurrentTrialistsBoard
    that opens the same MemberActivityModal as the Members grid. Modal resolves by email (member-activity edge
    fn takes memberUserId OR memberEmail), so call-list contacts work with no backend change. Don't hijack the
