@@ -10,10 +10,10 @@ create table if not exists public.erg_challenge_logs (
   member_id  uuid not null default auth.uid(),
   machine    text not null check (machine in ('bike','rower','ski')),
   metres     int  not null check (metres > 0 and metres <= 100000),
-  -- 'manual' = the member logged it; 'workout' = auto-counted from a saved
-  -- workout. source_ref dedupes auto entries so re-saving a workout replaces
-  -- its contribution instead of adding again (e.g. '<workout_id>:bike').
-  source     text not null default 'manual' check (source in ('manual','workout')),
+  -- 'manual' = the member logged it; 'staff' = a coach logged it for them;
+  -- 'workout' = auto-counted from a saved workout. source_ref dedupes auto
+  -- entries so re-saving a workout replaces its contribution (e.g. '<id>:bike').
+  source     text not null default 'manual',
   source_ref text,
   created_at timestamptz not null default now()
 );
@@ -24,10 +24,13 @@ alter table public.erg_challenge_logs
   add column if not exists source text not null default 'manual';
 alter table public.erg_challenge_logs
   add column if not exists source_ref text;
-do $$ begin
-  alter table public.erg_challenge_logs
-    add constraint erg_challenge_logs_source_chk check (source in ('manual','workout'));
-exception when duplicate_object then null; end $$;
+-- (Re)create the source check so it allows manual / workout / staff. Drop first
+-- so an older constraint (manual/workout only) is widened on re-run.
+alter table public.erg_challenge_logs
+  drop constraint if exists erg_challenge_logs_source_chk;
+alter table public.erg_challenge_logs
+  add constraint erg_challenge_logs_source_chk
+  check (source in ('manual','workout','staff'));
 
 create index if not exists erg_challenge_logs_machine_idx
   on public.erg_challenge_logs (machine);
@@ -44,6 +47,14 @@ drop policy if exists erg_logs_insert_own on public.erg_challenge_logs;
 create policy erg_logs_insert_own on public.erg_challenge_logs
   for insert to authenticated
   with check (member_id = auth.uid());
+
+-- INSERT (staff): a coach can log metres on behalf of any member (they set
+-- member_id to that member). Permissive policies are OR'd, so a member still
+-- inserts their own and staff can insert for anyone.
+drop policy if exists erg_logs_insert_staff on public.erg_challenge_logs;
+create policy erg_logs_insert_staff on public.erg_challenge_logs
+  for insert to authenticated
+  with check (public.is_staff());
 
 -- SELECT: a member sees their own rows (for "your contribution" / recent logs);
 -- staff can see all for oversight. The collective total is exposed via the RPC
@@ -78,6 +89,31 @@ as $$
 $$;
 
 grant execute on function public.erg_challenge_summary() to authenticated;
+
+-- Staff-only: per-member totals (across all machines) for oversight. Raises for
+-- non-staff so individual contributions are never exposed to members.
+create or replace function public.erg_challenge_leaderboard()
+returns table (member_id uuid, name text, total_metres bigint)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_staff() then
+    raise exception 'staff only';
+  end if;
+  return query
+    select l.member_id,
+           coalesce(m.full_name, m.email, left(l.member_id::text, 8)) as name,
+           sum(l.metres)::bigint as total_metres
+    from public.erg_challenge_logs l
+    left join public.members m on m.id = l.member_id
+    group by l.member_id, m.full_name, m.email
+    order by sum(l.metres) desc;
+end;
+$$;
+
+grant execute on function public.erg_challenge_leaderboard() to authenticated;
 
 -- notify PostgREST to reload the schema cache so the RPC is callable immediately.
 notify pgrst, 'reload schema';

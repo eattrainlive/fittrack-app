@@ -66,9 +66,7 @@ export function SetHabitsDialog({
     setCustomMode(
       picked.map((t) => {
         if (!t) return false;
-        return !habits.some(
-          (h) => h.name.toLowerCase() === t.toLowerCase(),
-        );
+        return !habits.some((h) => h.name.toLowerCase() === t.toLowerCase());
       }),
     );
   }, [habits, open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -96,8 +94,8 @@ export function SetHabitsDialog({
             Your 3 habits for {monthLabel()}
           </DialogTitle>
           <DialogDescription>
-            Pick the habits you'll build this month — they'll show in your
-            habit tracker.
+            Pick the habits you'll build this month — they'll show in your habit
+            tracker.
           </DialogDescription>
         </DialogHeader>
 

@@ -76,7 +76,11 @@ export default function TodayHabitsCard() {
     try {
       const g = await getMemberGoals();
       setGoalsMonth(g?.goals_month ?? null);
-      setCurHabits([g?.habit_1 ?? null, g?.habit_2 ?? null, g?.habit_3 ?? null]);
+      setCurHabits([
+        g?.habit_1 ?? null,
+        g?.habit_2 ?? null,
+        g?.habit_3 ?? null,
+      ]);
     } catch {
       /* ignore */
     }
@@ -253,7 +257,9 @@ export default function TodayHabitsCard() {
                   type="button"
                   onClick={() => toggle(h)}
                   className="w-full flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-left active:scale-[0.99] transition"
-                  title={done ? "Done today — tap to un-log" : "Tap to log today"}
+                  title={
+                    done ? "Done today — tap to un-log" : "Tap to log today"
+                  }
                 >
                   <span
                     className={
@@ -281,7 +287,8 @@ export default function TodayHabitsCard() {
           </div>
           {allDone && (
             <p className="text-xs text-primary flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" /> All done for today — nice one!
+              <Sparkles className="w-3.5 h-3.5" /> All done for today — nice
+              one!
             </p>
           )}
         </CardContent>

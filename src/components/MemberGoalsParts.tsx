@@ -85,10 +85,4 @@ export function Field({
   );
 }
 
-export {
-  Target,
-  Scale,
-  Footprints,
-  Dumbbell,
-  Salad,
-};
+export { Target, Scale, Footprints, Dumbbell, Salad };

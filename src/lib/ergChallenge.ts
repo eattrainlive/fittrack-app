@@ -52,6 +52,32 @@ export const logErgMetres = async (machine: ErgMachine, metres: number) => {
   return await supabase.from("erg_challenge_logs").insert({ machine, metres });
 };
 
+// Staff: log metres on behalf of a member (member_id set to that member).
+export const logErgMetresForMember = async (
+  memberId: string,
+  machine: ErgMachine,
+  metres: number,
+) =>
+  await supabase
+    .from("erg_challenge_logs")
+    .insert({ member_id: memberId, machine, metres, source: "staff" });
+
+export interface ErgLeaderRow {
+  member_id: string;
+  name: string;
+  total_metres: number;
+}
+
+// Staff-only: per-member totals (RPC raises for non-staff).
+export const getErgLeaderboard = async (): Promise<ErgLeaderRow[]> => {
+  const { data, error } = await supabase.rpc("erg_challenge_leaderboard");
+  if (error) {
+    console.error("erg_challenge_leaderboard", error);
+    return [];
+  }
+  return (data ?? []) as ErgLeaderRow[];
+};
+
 export interface MyErgLog {
   id: string;
   machine: ErgMachine;

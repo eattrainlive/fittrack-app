@@ -34,12 +34,20 @@ export function HabitsPickerDialog({
 }) {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [picked, setPicked] = useState<(string | null)[]>([null, null, null]);
-  const [customMode, setCustomMode] = useState<boolean[]>([false, false, false]);
+  const [customMode, setCustomMode] = useState<boolean[]>([
+    false,
+    false,
+    false,
+  ]);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setPicked([initial?.[0] ?? null, initial?.[1] ?? null, initial?.[2] ?? null]);
+      setPicked([
+        initial?.[0] ?? null,
+        initial?.[1] ?? null,
+        initial?.[2] ?? null,
+      ]);
     }
   }, [open, initial]);
 

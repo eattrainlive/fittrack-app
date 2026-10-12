@@ -79,7 +79,11 @@ export function MemberGoalsCard({
   const [sessionsPerWeek, setSessionsPerWeek] = useState("");
   const [calorieTarget, setCalorieTarget] = useState("");
   const [picked, setPicked] = useState<(string | null)[]>([null, null, null]);
-  const [customMode, setCustomMode] = useState<boolean[]>([false, false, false]);
+  const [customMode, setCustomMode] = useState<boolean[]>([
+    false,
+    false,
+    false,
+  ]);
   const [primaryGoal, setPrimaryGoal] = useState<PrimaryGoal | "">("");
   const [goalText, setGoalText] = useState("");
   const [targetWeight, setTargetWeight] = useState("");
@@ -176,7 +180,11 @@ export function MemberGoalsCard({
       const sw = parseFloat(weight);
       const tw = parseFloat(targetWeight);
       const habitTexts = hideHabits
-        ? [goals?.habit_1 ?? null, goals?.habit_2 ?? null, goals?.habit_3 ?? null]
+        ? [
+            goals?.habit_1 ?? null,
+            goals?.habit_2 ?? null,
+            goals?.habit_3 ?? null,
+          ]
         : picked.map((h) => (h ? h.trim() : null));
       const g = await saveMemberGoals({
         startWeight: sw > 0 ? sw : null,
@@ -301,7 +309,11 @@ export function MemberGoalsCard({
                   {[g!.habit_1, g!.habit_2, g!.habit_3]
                     .filter((h) => h != null)
                     .map((h) => (
-                      <Badge key={h} variant="secondary" className="font-normal">
+                      <Badge
+                        key={h}
+                        variant="secondary"
+                        className="font-normal"
+                      >
                         {habitName(h)}
                       </Badge>
                     ))}
@@ -313,7 +325,8 @@ export function MemberGoalsCard({
               <div className="flex items-center gap-2 rounded-lg bg-primary/5 border border-primary/20 px-3 py-2">
                 <TrendingUp className="w-4 h-4 text-primary shrink-0" />
                 <p className="text-sm font-medium">
-                  {loggedSessions} sessions · {fmtKg(totalVolume)} kg lifted this period
+                  {loggedSessions} sessions · {fmtKg(totalVolume)} kg lifted
+                  this period
                 </p>
               </div>
             )}
@@ -399,7 +412,9 @@ export function MemberGoalsCard({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Heart className="w-4 h-4 text-primary" />
-              {hideHabits ? "Your goals & targets" : `Your 3 habits for ${monthLabel()}`}
+              {hideHabits
+                ? "Your goals & targets"
+                : `Your 3 habits for ${monthLabel()}`}
             </DialogTitle>
             <DialogDescription>
               {hideHabits
@@ -414,7 +429,8 @@ export function MemberGoalsCard({
               <div className="space-y-2">
                 {habits.length === 0 && (
                   <p className="text-xs text-muted-foreground">
-                    No habit library loaded yet — you can type custom habits below.
+                    No habit library loaded yet — you can type custom habits
+                    below.
                   </p>
                 )}
                 {[0, 1, 2].map((slot) => (
@@ -431,7 +447,9 @@ export function MemberGoalsCard({
                           value={picked[slot] ?? ""}
                           onChange={(e) =>
                             setPicked((p) =>
-                              p.map((x, i) => (i === slot ? e.target.value : x)),
+                              p.map((x, i) =>
+                                i === slot ? e.target.value : x,
+                              ),
                             )
                           }
                         />
@@ -553,7 +571,8 @@ export function MemberGoalsCard({
 
                   <div className="space-y-2">
                     <Label htmlFor="focus" className="flex items-center gap-2">
-                      <Target className="w-4 h-4 text-primary" /> Main focus / why
+                      <Target className="w-4 h-4 text-primary" /> Main focus /
+                      why
                     </Label>
                     <Input
                       id="focus"
@@ -565,7 +584,8 @@ export function MemberGoalsCard({
 
                   <div className="space-y-2">
                     <Label htmlFor="bw" className="flex items-center gap-2">
-                      <Scale className="w-4 h-4 text-primary" /> Start weight (kg)
+                      <Scale className="w-4 h-4 text-primary" /> Start weight
+                      (kg)
                     </Label>
                     <Input
                       id="bw"

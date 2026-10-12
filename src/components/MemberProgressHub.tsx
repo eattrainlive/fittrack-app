@@ -307,7 +307,11 @@ export function MemberProgressHub() {
           </div>
         </div>
       ) : (
-        <MemberGoalsCard initialGoals={goals} onSaved={handleGoalsSaved} />
+        <MemberGoalsCard
+          hideHabits
+          initialGoals={goals}
+          onSaved={handleGoalsSaved}
+        />
       )}
 
       {/* ── b) Training ────────────────────────────────────────────────── */}

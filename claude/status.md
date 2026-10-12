@@ -291,3 +291,10 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
    MemberGoalsCard so Progress edits goals/targets only (habits single-sourced in tracker). All recurring
    fixes survived; erg card single mount. PENDING: push export 29 + MemberProgressHub.tsx; tell builder to
    keep hideHabits on that card. (brief: brief-home-tidyup.md)
+
+16. ✅ Erg challenge — staff tools — BUILT (export 72), reviewed, parses. SQL updated in erg_challenge.sql (widen source check to allow 'staff';
+   staff INSERT policy = log for any member; erg_challenge_leaderboard() RPC = per-member totals, raises
+   for non-staff). → Michael re-run SQL. BRIEF OUT: brief-erg-staff-tools.md — lib logErgMetresForMember +
+   getErgLeaderboard; staff-only section on ErgChallengePage (member picker + machine + metres form;
+   everyone's-totals table) gated by isStaff() ({staff && …} wraps the block). Members still see only
+   collective + own; leaderboard RPC raises for non-staff. All recurring fixes survived. PENDING: push export 72.

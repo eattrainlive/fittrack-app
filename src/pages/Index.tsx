@@ -5,7 +5,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Activity, Flame, TrendingUp, Users, Scale, ChevronRight, Sparkles } from "lucide-react";
+import {
+  Activity,
+  Flame,
+  TrendingUp,
+  Users,
+  Scale,
+  ChevronRight,
+  Sparkles,
+} from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -121,7 +129,8 @@ const Index = () => {
       }
       // First-run goals setup: open the goals/targets editor once for
       // non-trial members with no goals row yet (unless they dismissed it).
-      const dismissed = localStorage.getItem("etl_goals_setup_dismissed") === "1";
+      const dismissed =
+        localStorage.getItem("etl_goals_setup_dismissed") === "1";
       if (showMemberGoals && !dismissed) {
         const g = await getMemberGoals();
         if (!g) setNeedsGoalsSetup(true);
@@ -259,24 +268,21 @@ const Index = () => {
 
       <ErgChallengeCard />
 
-
-      {showMemberGoals &&
-        !accEnrolled &&
-        needsGoalsSetup && (
-          <MemberGoalsCard
-            autoOpen
-            variant="editButton"
-            hideHabits
-            onSaved={() => {
-              setNeedsGoalsSetup(false);
-              localStorage.removeItem("etl_goals_setup_dismissed");
-            }}
-            onDismiss={() => {
-              setNeedsGoalsSetup(false);
-              localStorage.setItem("etl_goals_setup_dismissed", "1");
-            }}
-          />
-        )}
+      {showMemberGoals && !accEnrolled && needsGoalsSetup && (
+        <MemberGoalsCard
+          autoOpen
+          variant="editButton"
+          hideHabits
+          onSaved={() => {
+            setNeedsGoalsSetup(false);
+            localStorage.removeItem("etl_goals_setup_dismissed");
+          }}
+          onDismiss={() => {
+            setNeedsGoalsSetup(false);
+            localStorage.setItem("etl_goals_setup_dismissed", "1");
+          }}
+        />
+      )}
 
       {showTrialProgress && (
         <button
