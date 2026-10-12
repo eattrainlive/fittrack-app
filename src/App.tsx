@@ -31,6 +31,7 @@ import Community from "./pages/Community";
 import CommunityWall from "./pages/CommunityWall";
 import ErgChallengePage from "./pages/ErgChallengePage";
 import Feed from "./pages/Feed";
+import { ParqGate } from "./components/ParqGate";
 
 import { useEffect, useState } from "react";
 import { syncFromSupabase, syncProfile } from "./lib/store";
@@ -135,6 +136,43 @@ const AppRoutes = () => {
               exit="exit"
               className="flex-1 overflow-y-auto overflow-x-hidden pb-16 bg-background"
             >
+              <ParqGate>
+                <Routes location={location}>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/feed" element={<Feed />} />
+                  <Route path="/community" element={<Community />} />
+                  <Route path="/community/wall" element={<CommunityWall />} />
+                  <Route path="/challenge" element={<ErgChallengePage />} />
+                  <Route path="/workouts" element={<Workouts />} />
+                  <Route path="/exercises" element={<Exercises />} />
+                  <Route path="/progress" element={<Progress />} />
+                  <Route path="/nutrition" element={<Nutrition />} />
+                  <Route path="/education" element={<Education />} />
+                  <Route
+                    path="/tv/:programId/:workoutIndex"
+                    element={<TVDisplay />}
+                  />
+                  <Route path="/x/:id" element={<ExerciseInfo />} />
+                  <Route path="/machine/:slug" element={<MachinePage />} />
+                  <Route path="/my-trial" element={<MyTrial />} />
+                  <Route path="/checkin" element={<CheckInKiosk />} />
+                  <Route path="/accountability" element={<Accountability />} />
+                  <Route path="/schedule" element={<Schedule />} />
+                  <Route path="/leaderboards" element={<Leaderboards />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/admin" element={<Admin />} />
+                  <Route path="/auth/callback" element={<Index />} />
+                  <Route path="/auth/confirm" element={<Index />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </ParqGate>
+            </motion.div>
+          </AnimatePresence>
+        ) : (
+          <div className="flex-1 overflow-y-auto overflow-x-hidden pb-16 bg-background">
+            <ParqGate>
               <Routes location={location}>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
@@ -165,40 +203,7 @@ const AppRoutes = () => {
                 <Route path="/auth/confirm" element={<Index />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
-            </motion.div>
-          </AnimatePresence>
-        ) : (
-          <div className="flex-1 overflow-y-auto overflow-x-hidden pb-16 bg-background">
-            <Routes location={location}>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/feed" element={<Feed />} />
-              <Route path="/community" element={<Community />} />
-              <Route path="/community/wall" element={<CommunityWall />} />
-              <Route path="/challenge" element={<ErgChallengePage />} />
-              <Route path="/workouts" element={<Workouts />} />
-              <Route path="/exercises" element={<Exercises />} />
-              <Route path="/progress" element={<Progress />} />
-              <Route path="/nutrition" element={<Nutrition />} />
-              <Route path="/education" element={<Education />} />
-              <Route
-                path="/tv/:programId/:workoutIndex"
-                element={<TVDisplay />}
-              />
-              <Route path="/x/:id" element={<ExerciseInfo />} />
-              <Route path="/machine/:slug" element={<MachinePage />} />
-              <Route path="/my-trial" element={<MyTrial />} />
-              <Route path="/checkin" element={<CheckInKiosk />} />
-              <Route path="/accountability" element={<Accountability />} />
-              <Route path="/schedule" element={<Schedule />} />
-              <Route path="/leaderboards" element={<Leaderboards />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/admin" element={<Admin />} />
-              <Route path="/auth/callback" element={<Index />} />
-              <Route path="/auth/confirm" element={<Index />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            </ParqGate>
           </div>
         )}
       </AppErrorBoundary>

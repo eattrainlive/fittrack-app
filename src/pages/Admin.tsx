@@ -175,6 +175,7 @@ import { useApplyDraft } from "@/lib/useApplyDraft";
 import { LeaderboardSectionFields } from "@/components/LeaderboardSectionFields";
 import { InsightsTab } from "@/components/InsightsTab";
 import { StaffHubTab } from "@/components/StaffHubTab";
+import { StaffParqList } from "@/components/StaffParqList";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -2369,6 +2370,7 @@ const Admin = () => {
           <TabsTrigger value="settings">Settings</TabsTrigger>
           <TabsTrigger value="insights">Insights</TabsTrigger>
           <TabsTrigger value="calllists">Call Lists</TabsTrigger>
+          <TabsTrigger value="parq">PAR-Q</TabsTrigger>
         </TabsList>
         <TabsContent value="exercises" className="space-y-6 mt-6">
           <Card className="bg-card border-border">
@@ -6477,6 +6479,9 @@ const Admin = () => {
         </TabsContent>
         <TabsContent value="calllists" className="space-y-6 mt-6">
           <StaffHubTab staffSecret={staffSecret} />
+        </TabsContent>
+        <TabsContent value="parq" className="space-y-6 mt-6">
+          <StaffParqList />
         </TabsContent>
 
         <SettingsTab />

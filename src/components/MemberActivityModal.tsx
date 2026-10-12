@@ -22,11 +22,13 @@ import {
   TrendingDown,
   TrendingUp,
   Minus,
+  AlertTriangle,
 } from "lucide-react";
 import { ActivityWinsGrid } from "@/components/ActivityWinsGrid";
 import { CoachPastWorkouts } from "@/components/CoachPastWorkouts";
 import { supabase } from "@/lib/supabase";
 import { getExercises } from "@/lib/store";
+import { getMemberParqStatus, type ParqStatus } from "@/lib/parq";
 import type { ProgressSummary } from "@/lib/trialSummary";
 
 interface MemberActivityModalProps {
@@ -132,10 +134,17 @@ export function MemberActivityModal({
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [act, setAct] = useState<MemberActivity | null>(null);
   const [actLoading, setActLoading] = useState(false);
+  const [parq, setParq] = useState<ParqStatus | null>(null);
   const [exercises] = useState<any[]>(getExercises());
 
   useEffect(() => {
     if (!open || !member) return;
+    setParq(null);
+    if (member.id) {
+      getMemberParqStatus(member.id)
+        .then(setParq)
+        .catch(() => setParq(null));
+    }
 
     // Full progress summary in staff mode (goals, nutrition, PRs, streak).
     setSummaryLoading(true);
@@ -155,7 +164,29 @@ export function MemberActivityModal({
           },
         );
         if (error) throw error;
-        if (data && !data.error) setSummary(data as ProgressSummary);
+        if (data && !data.error) {
+          const d = data as any;
+          // Normalise so profiles for people with no app activity don't crash
+          // on .toLocaleString() / .length in ActivityWinsGrid / the modal.
+          setSummary({
+            ...d,
+            prs: d.prs ?? [],
+            coachedUsed: d.coachedUsed ?? 0,
+            coachedTotal: d.coachedTotal ?? 0,
+            coachedUpcoming: d.coachedUpcoming ?? 0,
+            classesCount: d.classesCount ?? 0,
+            gymVisits: d.gymVisits ?? 0,
+            gymScansTotal: d.gymScansTotal ?? 0,
+            totalVolumeKg: d.totalVolumeKg ?? 0,
+            loggedSessions: d.loggedSessions ?? 0,
+            activitiesCount: d.activitiesCount ?? 0,
+            bestStreak: d.bestStreak ?? 0,
+            habitsBuilt: d.habitsBuilt ?? 0,
+            totalCheckins: d.totalCheckins ?? 0,
+            daysLogged: d.daysLogged ?? 0,
+            sessionsPerWeekActual: d.sessionsPerWeekActual ?? 0,
+          } as ProgressSummary);
+        }
       } catch (e) {
         console.error("Activity summary fetch failed", e);
       } finally {
@@ -180,7 +211,10 @@ export function MemberActivityModal({
           },
         );
         if (error) throw error;
-        if (data && !data.error) setAct(data as MemberActivity);
+        if (data && !data.error) {
+          const d = data as MemberActivity;
+          setAct({ ...d, months: d.months ?? [] });
+        }
       } catch (e) {
         console.error("Member-activity fetch failed", e);
       } finally {
@@ -263,8 +297,35 @@ export function MemberActivityModal({
                 )}
               </span>
             )}
+            {parq && (
+              <span className="ml-1">
+                · PAR-Q:{" "}
+                {parq.valid ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">
+                    completed{" "}
+                    {new Date(parq.completedAt!).toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </span>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-500">
+                    {parq.completedAt ? "expired" : "missing"}
+                  </span>
+                )}
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
+
+        {parq?.anyYes && (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            Flagged health answer — member answered "yes" to one or more PAR-Q
+            questions. Consider a follow-up.
+          </div>
+        )}
 
         {actLoading && !act ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">

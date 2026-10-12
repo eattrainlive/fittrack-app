@@ -316,3 +316,13 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
    that opens the same MemberActivityModal as the Members grid. Modal resolves by email (member-activity edge
    fn takes memberUserId OR memberEmail), so call-list contacts work with no backend change. Don't hijack the
    existing card tap (cadence sheet). No SQL. → paste to builder.
+
+18. ✅ Mandatory PAR-Q — BUILT (export 74), reviewed, parses. SQL par_q.sql (table + RLS + par_q_status_all
+   RPC) → Michael run. parq.ts (PARQ_QUESTIONS x7, getMyParqStatus/getMemberParqStatus, saveParq, 12mo
+   validity); ParqForm (7 Qs, any-yes GP notice, declaration name+agree, fail-soft skip); ParqGate wired in
+   App.tsx both route blocks (staff exempt, no-user passthrough, /auth//reset-password//checkin//tv bypass,
+   fail-soft); staff visibility on MemberActivityModal + StaffParqList in Admin. Applies to all (12mo expiry
+   catches existing members). heic-to kept this export. PENDING: run par_q.sql + push export 74.
+   ⚠️ Export 74 REVERTED activity-card no-data guards again → RE-APPLIED MemberActivityModal.tsx (s
+   normalise) + CoachTrialReviewModal.tsx (prs guards). Catch-up: catch-up-activity-card-guards.md. Push
+   both + paste catch-up.
