@@ -10,6 +10,12 @@ implementation, writes SQL + builder prompts, and guards against breakage; **Mic
 Supabase, pastes prompts into the AI builder, and pushes via GitHub Desktop. The repo is the source of
 truth; this file is the single shared state. Keep this section short and current — detail lives below.
 
+**⚠️ Builder exports OVERWRITE `package.json` (it's in the merge allow-list).** The `heic-to` dependency
+(HEIC→JPEG photo conversion) is a build-chat addition the builder doesn't know about, so every export that
+lacks it STRIPS it → photos go back to HEIC. EVERY time an export is pasted to the builder, also paste
+`catch-up-heic-switch-to-heic-to.md` (keeps `heic-to` in package.json + the two-pronged imageUpload.ts).
+After each merge, verify `grep heic-to package.json` before pushing.
+
 **Hard schema gotchas (the live DB has drifted from old migrations — check before writing queries):**
 - `member_habits`: `id, member_id, habit_id, habit_name, status, position, started_at` — NO `user_id`,
   NO `name`. `habit_checkins`: `member_id, habit_id, member_habit_id, date, done, count_value`.
