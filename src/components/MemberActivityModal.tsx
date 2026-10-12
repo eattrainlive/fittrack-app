@@ -209,7 +209,28 @@ export function MemberActivityModal({
       goals.habit_3 ||
       (Array.isArray(goals.focus_areas) && goals.focus_areas.length));
 
-  const s = summary;
+  // Normalise the summary so a contact with little/no app data still renders
+  // (missing numeric fields default to 0, prs to []) — avoids .toLocaleString()
+  // / .length on undefined in ActivityWinsGrid and below.
+  const s: any = summary
+    ? {
+        coachedUsed: 0,
+        coachedTotal: 0,
+        coachedUpcoming: 0,
+        classesCount: 0,
+        gymVisits: 0,
+        gymScansTotal: 0,
+        totalVolumeKg: 0,
+        loggedSessions: 0,
+        activitiesCount: 0,
+        bestStreak: 0,
+        totalCheckins: 0,
+        daysLogged: 0,
+        sessionsPerWeekActual: 0,
+        prs: [],
+        ...(summary as any),
+      }
+    : null;
   const curYm = currentMonthYm();
 
   return (

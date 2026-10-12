@@ -301,7 +301,11 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
 
 17. ✅ Call-list activity card — BUILT (export 73) + FIXED crash: MemberActivityModal did s.prs.length /
    act.months.map unguarded → threw for a contact with no app data. Guarded (s.prs ?? [], act.months ?? []).
-   Push MemberActivityModal.tsx; tell builder to keep the guards. Shared ActivityButton + Add an info/activity icon button
+   Then ActivityWinsGrid crashed on .toLocaleString() of undefined for NON-APP contacts (sparse
+   progress-summary). FIXED: normalise `s` in MemberActivityModal (default all numeric fields to 0, prs []).
+   Also guarded CoachTrialReviewModal s.prs. Only affected people not active on the app. Push
+   MemberActivityModal.tsx + CoachTrialReviewModal.tsx; tell builder to keep the normalise + guards.
+   Shared ActivityButton + Add an info/activity icon button
    to each contact card in StaffHubCallLists (Reach out + Win back, ContactCadenceCard) + CurrentTrialistsBoard
    that opens the same MemberActivityModal as the Members grid. Modal resolves by email (member-activity edge
    fn takes memberUserId OR memberEmail), so call-list contacts work with no backend change. Don't hijack the
