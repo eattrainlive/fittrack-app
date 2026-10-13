@@ -333,10 +333,23 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
 20. Trialists "not on app" — board fixed to read `onApp` (was `activated`; CurrentTrialistsBoard.tsx,
    committed). Catch-up: catch-up-trialists-onapp.md. RE-TEST after Supabase recovery + members loading;
    if still wrong, run members-grid-vs-trialists-tab diagnostic (match vs onboarded_at).
-21. Trialist nurture sequence — BRIEF OUT: brief-trial-nurture-sequence.md + trial_nurture.sql (run).
-   FitTrack cockpit (due-step engine from trial day + GymOS attendance) → GHL webhook (template_key +
-   coach_note) → GHL workflow writes Coach Note field + sends approved WhatsApp template. Needs Netlify env
-   GHL_TRIAL_NURTURE_WEBHOOK_URL + a GHL workflow. Then iterate on Carla's screen UX. → paste to builder.
+21. Trialist nurture sequence — BUILT (engine + proxy + welcome hook done; cockpit UI = builder brief).
+   30-day drip, 9 steps (welcome d1 AUTO, post_first d3, week1 d7, day10 momentum/reengage branch,
+   halfway d14, results_review d21, ending_soon d25, decision d28). Welcome auto-fires + logs via
+   gymos-webhook maybeStartTrial (TRIAL_STARTED_WEBHOOK_URL, step_key=welcome); all other steps Carla
+   reviews+sends from the cockpit → /.netlify/functions/trial-nurture (staff-only) → GHL_TRIAL_NURTURE_
+   WEBHOOK_URL (template_key + coach_note) → logs trial_nurture_log so no step repeats.
+   FILES (committed): src/lib/trialNurture.ts (catalogue + due/overdue engine + attendance flags
+   noShow/hotLead/neverAttended + branch-slot-satisfied-either-variant + UTC-stable day math + sendStep
+   + getNurtureBoard/History); netlify/functions/trial-nurture.js (staff-only proxy, mirrors staffhub-
+   whatsapp.js); gymos-webhook/index.ts maybeStartTrial (+welcome log). Engine unit-tested (day math,
+   branch flip, flags, overdue grace all verified).
+   DOCS: brief-trial-nurture-cockpit.md (builder UI brief, new "Trial Nurture" tab in call-lists);
+   GHL_trial_nurture_setup.md (2 workflows A/B, Coach Note field, 9 WhatsApp templates, 2 env vars).
+   SQL trial_nurture.sql already done. PENDING: run trial_nurture.sql; set Netlify GHL_TRIAL_NURTURE_
+   WEBHOOK_URL + Supabase TRIAL_STARTED_WEBHOOK_URL; build GHL workflows A+B + 9 templates + Coach Note
+   field; redeploy gymos-webhook; push repo; paste brief-trial-nurture-cockpit.md to builder.
+   THEN iterate on Carla's screen UX (make it effective + easy for daily use).
 
 22. Outage resilience batch (after the Supabase incident):
    - ✅ AppLayout green-ring lockout FIXED in source: 4s safety timeout on getSession (ring always clears)

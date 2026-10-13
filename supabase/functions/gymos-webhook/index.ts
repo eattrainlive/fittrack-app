@@ -45,9 +45,17 @@ async function maybeStartTrial(db: any, email: string | null, name: string | nul
     try {
       await fetch(TRIAL_STARTED_WEBHOOK, {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: name ?? tc.full_name ?? "", email, trial_start: startDay, trial_end: endDay }),
+        body: JSON.stringify({
+          name: name ?? tc.full_name ?? "", email, trial_start: startDay, trial_end: endDay,
+          step_key: "welcome", template_key: "trial_welcome",
+        }),
       });
-    } catch (_) { /* drip trigger is best-effort */ }
+      // Log the auto-welcome so the Trial Nurture cockpit shows it as sent and
+      // never re-offers it. Best-effort; service role bypasses RLS.
+      await db.from("trial_nurture_log").insert({
+        email, step_key: "welcome", template_key: "trial_welcome", sent_by: "auto",
+      });
+    } catch (_) { /* welcome drip + log are best-effort */ }
   }
 }
 
