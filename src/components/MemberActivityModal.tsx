@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { ActivityWinsGrid } from "@/components/ActivityWinsGrid";
 import { CoachPastWorkouts } from "@/components/CoachPastWorkouts";
+import { MemberMessagesSection } from "@/components/MemberMessagesSection";
 import { supabase } from "@/lib/supabase";
 import { getExercises } from "@/lib/store";
 import { getMemberParqStatus, type ParqStatus } from "@/lib/parq";
@@ -678,6 +679,9 @@ export function MemberActivityModal({
             exercises={exercises}
           />
         </div>
+
+        {/* Messages — read-only WhatsApp/SMS thread; reply via the GHL deep-link */}
+        <MemberMessagesSection email={member.email} />
       </DialogContent>
     </Dialog>
   );
