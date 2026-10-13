@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Trial Nurture — cockpit mockup</title>
+<style>
+  :root{
+    --bg:#f4f6f8; --card:#ffffff; --ink:#15202b; --muted:#6b7a88; --line:#e4e9ee;
+    --accent:#0e7c66; --accent-soft:#e3f3ee;
+    --due:#1d6fd6; --due-soft:#e5effb;
+    --overdue:#c23b2e; --overdue-soft:#fbe8e5;
+    --hot:#0e7c66; --hot-soft:#e3f3ee;
+    --warn:#b5711a; --warn-soft:#fbf0dd;
+    --red:#c23b2e; --red-soft:#fbe8e5;
+    --radius:14px; --shadow:0 1px 2px rgba(16,32,45,.06),0 4px 16px rgba(16,32,45,.05);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px}
+  h1{font-size:24px;margin:0;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .tabs{display:flex;gap:4px;background:#e9eef2;padding:4px;border-radius:12px;margin-bottom:22px;width:max-content}
+  .tab{font-size:13px;font-weight:600;color:var(--muted);padding:7px 14px;border-radius:9px;cursor:pointer;border:none;background:transparent}
+  .tab.active{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+  .section-h{display:flex;align-items:center;gap:10px;margin:26px 2px 12px}
+  .section-h h2{font-size:14px;margin:0;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .count{background:var(--ink);color:#fff;font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;margin-bottom:14px}
+  .card.gone{opacity:0;transform:translateY(-6px);transition:all .3s;height:0;padding:0;margin:0;border:0;overflow:hidden}
+  .crow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .who{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .name{font-size:17px;font-weight:700;letter-spacing:-.01em}
+  .act{font-size:12px;color:var(--accent);font-weight:600;text-decoration:none;border:1px solid var(--accent-soft);background:var(--accent-soft);padding:3px 9px;border-radius:7px;cursor:pointer}
+  .day{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .chip{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:5px}
+  .chip.hot{background:var(--hot-soft);color:var(--hot)}
+  .chip.warn{background:var(--warn-soft);color:var(--warn)}
+  .chip.red{background:var(--red-soft);color:var(--red)}
+  .step{margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)}
+  .step-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:10px}
+  .badge{font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;letter-spacing:.03em}
+  .badge.due{background:var(--due-soft);color:var(--due)}
+  .badge.overdue{background:var(--overdue-soft);color:var(--overdue)}
+  .pick-l{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  select.tplpick{font:inherit;font-size:14px;font-weight:600;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:7px 30px 7px 11px;background:#fcfdfe url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M3 4.5L6 7.5L9 4.5' stroke='%236b7a88' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>") no-repeat right 10px center;appearance:none;cursor:pointer}
+  .tplcode{font-size:11px;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f0f3f6;padding:2px 7px;border-radius:6px}
+  .blurb{font-size:12.5px;color:var(--muted);margin:2px 0 12px;line-height:1.45}
+  .lbl{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px;display:flex;align-items:center;gap:7px}
+  .lock{font-size:10px;font-weight:600;color:#9aa7b2;background:#eef2f5;padding:1px 6px;border-radius:5px;text-transform:none;letter-spacing:0}
+  .tplbody{font-size:14px;line-height:1.6;color:#44535f;background:#f7f9fb;border:1px solid var(--line);border-radius:10px;padding:11px 13px;white-space:pre-wrap}
+  .slot{display:inline-block;background:var(--accent-soft);color:var(--accent);border:1px dashed var(--accent);border-radius:6px;padding:0 7px;font-size:12.5px;font-weight:700}
+  textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font:inherit;font-size:14px;line-height:1.5;color:var(--ink);resize:vertical;min-height:58px;background:#fff}
+  textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .preview{font-size:14px;line-height:1.6;color:var(--ink);background:#eafaf1;border:1px solid #c9ead9;border-radius:10px;padding:11px 13px;white-space:pre-wrap}
+  .preview .note{background:#d6f3e4;border-radius:4px;padding:0 3px}
+  .actions{display:flex;align-items:center;gap:12px;margin-top:14px}
+  .send{background:var(--accent);color:#fff;border:none;font-weight:700;font-size:14px;padding:10px 20px;border-radius:10px;cursor:pointer}
+  .send:active{transform:translateY(1px)}
+  .seq-toggle{font-size:12.5px;font-weight:600;color:var(--muted);background:none;border:none;cursor:pointer;margin-left:auto}
+  .seq{display:none;margin-top:12px;padding:12px;background:#f7f9fb;border-radius:10px}
+  .seq.open{display:block}
+  .seq-item{display:flex;align-items:center;gap:10px;font-size:13px;padding:5px 0}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none}
+  .dot.sent{background:var(--accent)} .dot.now{background:var(--due)} .dot.up{background:#c7d0d8}
+  .seq-item .s-label{font-weight:600}
+  .seq-item .s-meta{color:var(--muted);margin-left:auto;font-size:12px}
+  .drip-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
+  .drip-next{font-size:12.5px;color:var(--muted)}
+  #upcoming{display:none}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:11px 20px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;transition:all .25s;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .muted-note{font-size:12px;color:var(--muted);text-align:center;margin-top:30px;font-style:italic}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Trial Nurture</h1>
+      <div class="sub">Work the list top to bottom. Overdue and hottest leads first.</div>
+    </div>
+    <div class="day">Tue 13 Oct · Carla</div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="show('due',this)">Due today</button>
+    <button class="tab" onclick="show('upcoming',this)">In the drip</button>
+  </div>
+
+  <div id="due">
+    <div class="section-h"><h2>Due today</h2><span class="count">5</span></div>
+
+    <div class="card" id="c1">
+      <div class="crow"><div class="who"><span class="name">Liam Patterson</span><span class="act">Activity ›</span></div><span class="day">Day 10 of 30</span></div>
+      <div class="chips"><span class="chip hot">● Hot lead · 4 visits wk1</span></div>
+      <div class="step" data-card="c1" data-state="due" data-tpl="momentum" data-name="Liam"
+           data-note="4 sessions this week already — seriously impressive."
+           data-seq="Welcome|auto · 3 Oct|sent;After 1st session|Carla · 6 Oct|sent;Week 1 win|Carla · 9 Oct|sent;Momentum|due now|now;Halfway check|Day 14|up;Book results review|Day 21|up"></div>
+    </div>
+
+    <div class="card" id="c2">
+      <div class="crow"><div class="who"><span class="name">Sophie Clark</span><span class="act">Activity ›</span></div><span class="day">Day 12 of 30</span></div>
+      <div class="chips"><span class="chip warn">● No-show · 6 days</span></div>
+      <div class="step" data-card="c2" data-state="overdue" data-tpl="reengage" data-name="Sophie"
+           data-note="Smashed your first week then went a bit quiet."
+           data-seq="Welcome|auto · 1 Oct|sent;After 1st session|Carla · 4 Oct|sent;Week 1 win|Carla · 8 Oct|sent;Re-engage|overdue|now;Halfway check|Day 14|up"></div>
+    </div>
+
+    <div class="card" id="c3">
+      <div class="crow"><div class="who"><span class="name">Chloe Baxter</span><span class="act">Activity ›</span></div><span class="day">Day 8 of 30</span></div>
+      <div class="chips"><span class="chip red">● Not been in yet</span></div>
+      <div class="step" data-card="c3" data-state="overdue" data-tpl="week1" data-name="Chloe"
+           data-note="Don't want you missing out after signing up."
+           data-seq="Welcome|auto · 5 Oct|sent;Week 1 win|overdue|now;Re-engage / Momentum|Day 10|up"></div>
+    </div>
+
+    <div class="card" id="c4">
+      <div class="crow"><div class="who"><span class="name">Ryan Docherty</span><span class="act">Activity ›</span></div><span class="day">Day 21 of 30</span></div>
+      <div class="chips"><span class="chip hot">● Hot lead · 9 visits</span></div>
+      <div class="step" data-card="c4" data-state="due" data-tpl="results_review" data-name="Ryan"
+           data-note="9 visits and your strength numbers are climbing."
+           data-seq="Welcome → Halfway|all sent|sent;Book results review|due now|now;Trial ending soon|Day 25|up;Decision|Day 28|up"></div>
+    </div>
+
+    <div class="card" id="c5">
+      <div class="crow"><div class="who"><span class="name">Jade Morrison</span><span class="act">Activity ›</span></div><span class="day">Day 3 of 30</span></div>
+      <div class="step" data-card="c5" data-state="due" data-tpl="post_first" data-name="Jade"
+           data-note="Hope the legs aren't too sore today!"
+           data-seq="Welcome|auto · 11 Oct|sent;After 1st session|due now|now;Week 1 win|Day 7|up"></div>
+    </div>
+  </div>
+
+  <div id="upcoming">
+    <div class="section-h"><h2>In the drip</h2><span class="count">3</span></div>
+    <div class="drip-row"><div class="who"><span class="name" style="font-size:15px">Emma Reid</span><span class="act">Activity ›</span></div><div class="drip-next">Day 2 · next: After 1st session (Day 3)</div></div>
+    <div class="drip-row"><div class="who"><span class="name" style="font-size:15px">Jack Wilson</span><span class="act">Activity ›</span></div><div class="drip-next">Day 5 · next: Week 1 win (Day 7)</div></div>
+    <div class="drip-row"><div class="who"><span class="name" style="font-size:15px">Aisha Khan</span><span class="act">Activity ›</span> <span class="chip hot" style="margin-left:6px">● Hot lead</span></div><div class="drip-next">Day 16 · next: Book results review (Day 21)</div></div>
+  </div>
+
+  <div class="muted-note">Mockup with sample trialists — layout for design review. Template wording is placeholder, to be written with Carla.</div>
+</div>
+
+<div class="toast" id="toast">Sent ✓</div>
+
+<script>
+  // The 9 templates. `before` / `after` are the fixed (approved) template copy;
+  // the coach note slots between them. {name} = trialist first name.
+  var TEMPLATES = {
+    welcome:        {label:"Welcome", code:"trial_welcome",
+      before:"Hi {name}, welcome to Eat Train Live Smart — we're buzzing to have you.",
+      after:"Your first session is where it all clicks. Reply here and we'll get you booked in."},
+    post_first:     {label:"After 1st session", code:"trial_post_first",
+      before:"Hey {name}, how did your first session feel?",
+      after:"Any aches, questions or wins — just reply, I'm right here to help you settle in."},
+    week1:          {label:"Week 1 win", code:"trial_week1",
+      before:"One week in, {name} — brilliant work getting started.",
+      after:"This week we build on it. Keep the sessions coming and you'll really start to feel it."},
+    momentum:       {label:"Momentum (attending)", code:"trial_momentum",
+      before:"Loving the consistency, {name} — this is exactly how results are built.",
+      after:"Keep that streak rolling. What session are you in for next?"},
+    reengage:       {label:"Re-engage (quiet)", code:"trial_reengage",
+      before:"Hey {name}, not seen you in a few days — everything ok?",
+      after:"Life gets busy, no stress. Let's get your next session booked and pick it straight back up."},
+    halfway:        {label:"Halfway check", code:"trial_halfway",
+      before:"Halfway through already, {name} — how are you feeling about your goal?",
+      after:"Fancy a quick progress review? Ten minutes to look at where you're at and map the rest out."},
+    results_review: {label:"Book results review", code:"trial_results_review",
+      before:"You've put the work in, {name}, and it shows.",
+      after:"Let's sit down and look at your results properly. When suits you for a review this week?"},
+    ending_soon:    {label:"Trial ending soon", code:"trial_ending_soon",
+      before:"Hard to believe, {name} — your trial wraps up in a few days.",
+      after:"Here are the options to keep your momentum going. Want me to run through which fits you best?"},
+    decision:       {label:"Decision / last chance", code:"trial_decision",
+      before:"Last few days of your trial, {name} — and I'd genuinely love to keep you with us.",
+      after:"Shall we get you set up before it ends so you don't lose your progress? Just say the word."}
+  };
+  var ORDER = ["welcome","post_first","week1","momentum","reengage","halfway","results_review","ending_soon","decision"];
+  var esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+  document.querySelectorAll(".step").forEach(function(el){
+    var name = el.dataset.name, suggested = el.dataset.tpl, note = el.dataset.note || "";
+    var state = el.dataset.state;
+    var opts = ORDER.map(k=>'<option value="'+k+'"'+(k===suggested?' selected':'')+'>'+
+      TEMPLATES[k].label + (k===suggested?' · suggested':'') +'</option>').join("");
+    var seq = (el.dataset.seq||"").split(";").filter(Boolean).map(function(s){
+      var p=s.split("|"); return '<div class="seq-item"><span class="dot '+p[2]+'"></span><span class="s-label">'+esc(p[0])+'</span><span class="s-meta">'+esc(p[1])+'</span></div>';
+    }).join("");
+    el.innerHTML =
+      '<div class="step-head"><span class="badge '+state+'">'+(state==='overdue'?'OVERDUE':'DUE')+'</span>'+
+        '<span class="pick-l">Template</span>'+
+        '<select class="tplpick">'+opts+'</select>'+
+        '<span class="tplcode"></span></div>'+
+      '<div class="blurb"></div>'+
+      '<div class="lbl">Template message <span class="lock">approved copy — fixed</span></div>'+
+      '<div class="tplbody"></div>'+
+      '<div class="lbl">Coach note <span class="lock">optional — the personal bit you add</span></div>'+
+      '<textarea class="noteinput">'+esc(note)+'</textarea>'+
+      '<div class="lbl">Sends as</div>'+
+      '<div class="preview"></div>'+
+      '<div class="actions"><button class="send">Send WhatsApp</button>'+
+        '<button class="seq-toggle">View sequence ▾</button></div>'+
+      '<div class="seq">'+seq+'</div>';
+
+    var sel=el.querySelector(".tplpick"), ta=el.querySelector(".noteinput");
+    function render(){
+      var t=TEMPLATES[sel.value];
+      var before=t.before.replace(/\{name\}/g,name), after=t.after.replace(/\{name\}/g,name);
+      el.querySelector(".tplcode").textContent=t.code;
+      el.querySelector(".blurb").textContent="";
+      el.querySelector(".tplbody").innerHTML=esc(before)+'\n<span class="slot">+ coach note</span>\n'+esc(after);
+      var n=ta.value.trim();
+      el.querySelector(".preview").innerHTML=esc(before)+'\n'+(n?'<span class="note">'+esc(n)+'</span>\n':'')+esc(after);
+    }
+    sel.addEventListener("change",render);
+    ta.addEventListener("input",render);
+    el.querySelector(".send").addEventListener("click",()=>sendCard(el.dataset.card));
+    el.querySelector(".seq-toggle").addEventListener("click",function(){el.querySelector(".seq").classList.toggle("open");});
+    render();
+  });
+
+  function show(id,btn){
+    document.getElementById('due').style.display = id==='due'?'block':'none';
+    document.getElementById('upcoming').style.display = id==='upcoming'?'block':'none';
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  function sendCard(id){
+    var c=document.getElementById(id);
+    c.classList.add('gone');
+    var t=document.getElementById('toast'); t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'),1600);
+    setTimeout(()=>{ c.style.display='none';
+      var n=document.querySelector('#due .count'); if(n) n.textContent=Math.max(0,parseInt(n.textContent)-1);
+    },320);
+  }
+</script>
+</body>
+</html>

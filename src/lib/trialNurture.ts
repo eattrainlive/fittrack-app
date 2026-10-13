@@ -32,7 +32,14 @@ export interface NurtureStep {
   auto?: boolean; // welcome only — fired server-side, shown as sent
   branch?: "attending" | "not_attending"; // Day-10 behaviour branch selector
   blurb: string; // what this touch is for (coach-facing)
-  defaultNote: string; // suggested personal note ({name} placeholder), editable
+  // The FIXED (Meta-approved) template copy, shown in the cockpit so the coach
+  // sees exactly what will send. The optional coach note slots BETWEEN before and
+  // after (GHL merges it via {{coach_note}}). ⚠ DISPLAY MIRROR of the GHL template
+  // — if you edit the wording here, update the matching GHL template too, and vice
+  // versa. {name} is filled with the trialist's first name at render.
+  templateBefore: string;
+  templateAfter: string;
+  defaultNote: string; // optional suggested coach note ({name} ok), editable/clearable
 }
 
 /** The full sequence. `day` drives "due"; order here is the natural order. */
@@ -45,7 +52,9 @@ export const NURTURE_STEPS: NurtureStep[] = [
     category: "welcome",
     auto: true,
     blurb: "Auto-sent when their trial starts — warm welcome + nudge to book session 1.",
-    defaultNote: "Welcome to the gym, {name}! So glad to have you. Let's get your first session booked in.",
+    templateBefore: "Hi {name}, welcome to Eat Train Live Smart — we're buzzing to have you.",
+    templateAfter: "Your first session is where it all clicks. Reply here and we'll get you booked in.",
+    defaultNote: "",
   },
   {
     key: "post_first",
@@ -54,7 +63,9 @@ export const NURTURE_STEPS: NurtureStep[] = [
     templateKey: "trial_post_first",
     category: "checkin",
     blurb: "Check in after their first session — how did it feel, any questions.",
-    defaultNote: "Hey {name}, great to see you get started! How did your first session feel?",
+    templateBefore: "Hey {name}, how did your first session feel?",
+    templateAfter: "Any aches, questions or wins — just reply, I'm right here to help you settle in.",
+    defaultNote: "",
   },
   {
     key: "week1_win",
@@ -63,7 +74,9 @@ export const NURTURE_STEPS: NurtureStep[] = [
     templateKey: "trial_week1",
     category: "checkin",
     blurb: "Celebrate week 1 + point them at what's next.",
-    defaultNote: "One week in, {name} — brilliant start. Here's what we'll build on this week.",
+    templateBefore: "One week in, {name} — brilliant work getting started.",
+    templateAfter: "This week we build on it. Keep the sessions coming and you'll really start to feel it.",
+    defaultNote: "",
   },
   {
     key: "day10_momentum",
@@ -73,7 +86,9 @@ export const NURTURE_STEPS: NurtureStep[] = [
     category: "behaviour",
     branch: "attending",
     blurb: "They're turning up — reinforce the habit, keep the streak going.",
-    defaultNote: "Loving the consistency, {name}! You're building a proper habit — keep it rolling.",
+    templateBefore: "Loving the consistency, {name} — this is exactly how results are built.",
+    templateAfter: "Keep that streak rolling. What session are you in for next?",
+    defaultNote: "",
   },
   {
     key: "day10_reengage",
@@ -83,7 +98,9 @@ export const NURTURE_STEPS: NurtureStep[] = [
     category: "behaviour",
     branch: "not_attending",
     blurb: "They've gone quiet — gentle re-engage + offer to book them back in.",
-    defaultNote: "Hey {name}, not seen you in a few days — everything ok? Let's get your next session booked.",
+    templateBefore: "Hey {name}, not seen you in a few days — everything ok?",
+    templateAfter: "Life gets busy, no stress. Let's get your next session booked and pick it straight back up.",
+    defaultNote: "",
   },
   {
     key: "halfway",
@@ -92,7 +109,9 @@ export const NURTURE_STEPS: NurtureStep[] = [
     templateKey: "trial_halfway",
     category: "convert",
     blurb: "Halfway point — goal check + offer to book a progress review.",
-    defaultNote: "Halfway through already, {name}! How are you feeling about your goal? Fancy a quick progress review?",
+    templateBefore: "Halfway through already, {name} — how are you feeling about your goal?",
+    templateAfter: "Fancy a quick progress review? Ten minutes to look at where you're at and map the rest out.",
+    defaultNote: "",
   },
   {
     key: "results_nudge",
@@ -101,7 +120,9 @@ export const NURTURE_STEPS: NurtureStep[] = [
     templateKey: "trial_results_review",
     category: "convert",
     blurb: "The convert conversation — invite them to book their results review.",
-    defaultNote: "You've put in the work, {name}. Let's sit down and look at your results — when suits for a review?",
+    templateBefore: "You've put the work in, {name}, and it shows.",
+    templateAfter: "Let's sit down and look at your results properly. When suits you for a review this week?",
+    defaultNote: "",
   },
   {
     key: "ending_soon",
@@ -110,7 +131,9 @@ export const NURTURE_STEPS: NurtureStep[] = [
     templateKey: "trial_ending_soon",
     category: "convert",
     blurb: "Heads-up the trial is ending + the membership options.",
-    defaultNote: "Your trial wraps up in a few days, {name} — here are the options to keep your momentum going.",
+    templateBefore: "Hard to believe, {name} — your trial wraps up in a few days.",
+    templateAfter: "Here are the options to keep your momentum going. Want me to run through which fits you best?",
+    defaultNote: "",
   },
   {
     key: "decision",
@@ -119,7 +142,9 @@ export const NURTURE_STEPS: NurtureStep[] = [
     templateKey: "trial_decision",
     category: "convert",
     blurb: "Final decision nudge before the trial ends.",
-    defaultNote: "Last few days, {name} — I'd love to keep you with us. Shall we get you set up before the trial ends?",
+    templateBefore: "Last few days of your trial, {name} — and I'd genuinely love to keep you with us.",
+    templateAfter: "Shall we get you set up before it ends so you don't lose your progress? Just say the word.",
+    defaultNote: "",
   },
 ];
 
@@ -178,9 +203,27 @@ export function trialDayFor(trialStart: string): number {
   return todayDayNum() - dayNum(trialStart) + 1;
 }
 
+export function firstName(name: string): string {
+  return String(name || "").trim().split(/\s+/)[0] || "there";
+}
+
 export function renderNote(tpl: string, name: string): string {
-  const first = String(name || "").trim().split(/\s+/)[0] || "there";
-  return tpl.replace(/\{name\}/g, first);
+  return tpl.replace(/\{name\}/g, firstName(name));
+}
+
+/** Fill {name} in a template's before/after copy for display. */
+export function renderTemplate(step: NurtureStep, name: string): { before: string; after: string } {
+  return {
+    before: step.templateBefore.replace(/\{name\}/g, firstName(name)),
+    after: step.templateAfter.replace(/\{name\}/g, firstName(name)),
+  };
+}
+
+/** The full message as it will send: template copy with the coach note slotted in. */
+export function renderFullMessage(step: NurtureStep, name: string, note: string): string {
+  const { before, after } = renderTemplate(step, name);
+  const n = (note || "").trim();
+  return [before, n, after].filter(Boolean).join("\n");
 }
 
 /**

@@ -1,74 +1,86 @@
 # Builder brief — Trial Nurture cockpit (Carla's screen)
 
-Build the UI only. **All logic already exists** in `src/lib/trialNurture.ts` (committed) —
-wire the screen to it, don't re-implement timing/attendance/sending.
+Build the UI only. **All logic + the template copy already exist** in `src/lib/trialNurture.ts`
+(committed) — wire the screen to it, don't re-implement timing/attendance/sending/copy.
+
+A clickable reference mockup of the exact card lives at
+`claude/mockups/trial-nurture-cockpit.html` — **match that layout**. (The message wording in the lib
+is placeholder and will be refined later; build against the fields, not the words.)
 
 ## What it is
-A daily cockpit for the coach (Carla) to work the 30-day trialist drip. Each trialist gets a
-sequence of WhatsApp touchpoints keyed off their trial day. The **Welcome** step auto-sends
-server-side when their trial starts; **every other step the coach reviews and sends by hand**.
-The screen tells her who's due a touch today, lets her tweak the personal note, and sends it.
+A daily cockpit for the coach (Carla) to work the 30-day trialist drip. The **Welcome** step
+auto-sends server-side when a trial starts; **every other step the coach reviews and sends by hand**.
+Each send = the step's approved WhatsApp template with an optional personal "coach note" merged in.
 
 ## Where it lives
-New tab **"Trial Nurture"** in the Staff Hub call-lists area, alongside the existing Trialists /
-Reach-out / Lapsed tabs (see `StaffHubCallLists.tsx`). Staff-only (same gating as the other call
-lists). Reuse from `@/components/staffHubShared`: `staffName()`, `EmptyState`, and the
-`ActivityButton` (clicking a trialist opens the existing `MemberActivityModal`, same as the other
-lists).
+New tab **"Trial Nurture"** in the Staff Hub call-lists area, beside Trialists / Reach-out / Lapsed
+(`StaffHubCallLists.tsx`). Staff-only. Reuse from `@/components/staffHubShared`: `staffName()`,
+`EmptyState`, `ActivityButton` (opens the existing `MemberActivityModal`).
 
-## Data — use these exports from `src/lib/trialNurture.ts`
+## Data — from `src/lib/trialNurture.ts`
 ```ts
 import {
-  getNurtureBoard,      // () => Promise<{ dueNow: NurtureTrialist[]; upcoming: NurtureTrialist[] }>
-  sendStep,             // (args) => Promise<{ ok: boolean; error?: string }>
-  getNurtureHistory,    // (email) => Promise<LogRow[]>  (newest first)
-  renderNote,           // (tpl, name) => string  — fills {name} with first name
-  NURTURE_STEPS,        // the full catalogue (for the "sequence" reference view, optional)
+  getNurtureBoard,     // () => Promise<{ dueNow: NurtureTrialist[]; upcoming: NurtureTrialist[] }>
+  sendStep,            // (args) => Promise<{ ok: boolean; error?: string }>
+  getNurtureHistory,   // (email) => Promise<LogRow[]>
+  renderTemplate,      // (step, name) => { before, after }   — fixed copy, {name} filled
+  renderFullMessage,   // (step, name, note) => string        — the "sends as" preview text
+  NURTURE_STEPS,       // all 9 steps, for the template dropdown
   type NurtureTrialist, type NurtureStep, type StepStatus,
 } from "@/lib/trialNurture";
 ```
+`NurtureTrialist`: `email, name, trialStart, trialEnd, trialDay, attended, attendedWeek1,
+daysSinceVisit, lastVisit, flags {noShow,hotLead,neverAttended}, steps[], nextStep`.
+`NurtureStep`: `key, label, day, templateKey, category, auto?, branch?, blurb, templateBefore,
+templateAfter, defaultNote`.
 
-`NurtureTrialist` shape (already computed for you):
-- `email`, `name`, `trialStart`, `trialEnd`, `trialDay` (1-based), `trialEnd`
-- `attended`, `attendedWeek1`, `daysSinceVisit` (null = never), `lastVisit`
-- `flags: { noShow, hotLead, neverAttended }`
-- `steps: StepStatus[]` — every step with `state: "sent" | "due" | "overdue" | "upcoming"`, plus `sentAt`/`sentBy` when sent
-- `nextStep: StepStatus | null` — **the single step to action now** (the one the send button fires)
+On mount: `const board = await getNurtureBoard();` (spinner while loading; never throws).
 
-`NurtureStep` (inside `step.step`): `key`, `label`, `day`, `templateKey`, `category`
-(`welcome|checkin|behaviour|convert`), `blurb` (what the touch is for), `defaultNote` (suggested
-note with `{name}`), `auto?` (welcome only).
+## The card (match the mockup)
+Header row: name + `ActivityButton` + `Day {trialDay} of 30`. Flag chips when set:
+🟢 **Hot lead** (`flags.hotLead`), 🟠 **No-show {daysSinceVisit}d** (`flags.noShow`),
+🔴 **Not been in yet** (`flags.neverAttended`).
 
-## Layout
-On mount: `const board = await getNurtureBoard();` (show a spinner; it never throws — empty arrays
-on error).
+Below a divider, the send area — **this is the important bit, build it exactly like the mockup:**
 
-**Section 1 — "Due today" (`board.dueNow`):** the working list, already sorted (overdue first, then
-hot leads, then oldest trial day). One card per trialist:
-- Name + `ActivityButton` (opens MemberActivityModal) + `Day {trialDay} of 30`.
-- Flag chips when set: 🔥 **Hot lead** (green), ⚠️ **No-show {daysSinceVisit}d** (amber),
-  **Not been in yet** (red) — from `t.flags`.
-- The due step: `t.nextStep.step.label` with a state badge — **OVERDUE** (red) if
-  `nextStep.state === "overdue"`, else **DUE** (blue). Show `nextStep.step.blurb` as sub-text.
-- An **editable note textarea** pre-filled with `renderNote(nextStep.step.defaultNote, t.name)`.
-  Keep per-card local state so edits don't bleed across cards.
-- A **Send** button → `await sendStep({ trialist: t, step: t.nextStep.step, note: <textarea>, by: staffName() })`.
-  While sending, disable + spinner. On `ok`, toast "Sent ✓", optimistically remove the card (or
-  re-call `getNurtureBoard()` to refresh). On `!ok`, toast the `error` and leave the card.
-- A small **"View sequence"** expander per card: list `t.steps` with their state (sent → show
-  `sentAt` date + `sentBy`; upcoming → grey "Day {day}"). Lets Carla see the whole journey.
+1. **State badge** — `DUE` (blue) or `OVERDUE` (red) from `t.nextStep.state`.
+2. **Template dropdown** — a `<select>` of all `NURTURE_STEPS` (`label` as text). Pre-select
+   `t.nextStep.step.key`; mark that option "· suggested". Changing it swaps which template shows
+   (lets Carla send a different step if she wants).
+3. **Template message** — read-only block showing the selected step's fixed copy via
+   `renderTemplate(step, t.name)`: render `before`, then a dashed highlighted chip **"+ coach note"**
+   marking where the note lands, then `after`. Label it "Template message · approved copy — fixed".
+   Also show the `step.templateKey` as a small mono tag.
+4. **Coach note** — an **editable, optional** textarea. Label it "Coach note · optional — the
+   personal bit you add". Pre-fill with `step.defaultNote` (currently empty). **Keep the note's
+   current text when the coach switches template** (don't reset it). An empty note is valid.
+5. **Sends as** — a live preview (green block) of `renderFullMessage(step, t.name, note)`; highlight
+   the note portion so it's clear what's template vs. personal. Updates on dropdown change + note
+   typing.
+6. **Actions** — **Send WhatsApp** button + a **"View sequence ▾"** expander.
 
-**Section 2 — "In the drip" (`board.upcoming`):** collapsed by default; trialists with nothing due
-yet. Each row: name, `Day {trialDay}`, flags, and the next upcoming step label + its day. No send
-button. Still clickable → MemberActivityModal.
+### Send
+`const r = await sendStep({ trialist: t, step: <selected step>, note: <textarea>, by: staffName() })`.
+Pass the **selected** step (the dropdown value), not necessarily `nextStep.step`. While sending:
+disable + spinner. On `r.ok`: toast "Sent ✓", remove the card (or re-call `getNurtureBoard()`).
+On `!r.ok`: toast `r.error`, leave the card.
 
-**Empty state:** if both lists empty → `EmptyState` "No trialists in the nurture sequence right now."
+### Sequence expander
+List `t.steps`: sent → tick + `sentAt` date + `sentBy` ("auto" for welcome); the due one → "due
+now"/"overdue"; upcoming → grey "Day {day}". (See mockup dots.)
 
-## Notes / gotchas
-- **Never show a Send button for the welcome step** — it's `auto` and fired server-side; it appears
-  in the sequence expander as already sent (sentBy "auto").
-- `sendStep` already (a) fires the GHL workflow via the staff-only proxy and (b) logs the send, so
-  after a successful send that step won't come back as due. Just refresh the board.
-- Don't compute trial day / attendance / which step is due yourself — it's all on `NurtureTrialist`.
-- Keep it fast and uncluttered: Carla works this list every morning. Due-today first, one obvious
-  action per card, flags that tell her who to *call* (hot leads, no-shows) vs just message.
+## Section 2 — "In the drip" (`board.upcoming`)
+Second tab or collapsed section: trialists with nothing due yet. Row = name + `ActivityButton` +
+flags + "Day {trialDay} · next: {label} (Day {day})". No send button. Still opens MemberActivityModal.
+
+**Empty state:** both lists empty → `EmptyState` "No trialists in the nurture sequence right now."
+
+## Gotchas
+- **Never show Send for the welcome step** — it's `step.auto`, fired server-side; appears in the
+  sequence expander as already sent (by "auto").
+- Don't compute trial day / attendance / due-state yourself — all on `NurtureTrialist`.
+- `sendStep` already fires GHL via the staff-only proxy **and** logs the send, so a sent step won't
+  return as due — just refresh the board after a successful send.
+- Until the GHL workflows + env are wired, `sendStep` will return `{ ok:false }` (proxy 500) — that's
+  expected; the screen + preview still work for layout review. Don't special-case it.
+- Keep it fast and uncluttered: Carla works this every morning, top to bottom.
