@@ -322,7 +322,6 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
    validity); ParqForm (7 Qs, any-yes GP notice, declaration name+agree, fail-soft skip); ParqGate wired in
    App.tsx both route blocks (staff exempt, no-user passthrough, /auth//reset-password//checkin//tv bypass,
    fail-soft); staff visibility on MemberActivityModal + StaffParqList in Admin. Applies to all (12mo expiry
-   catches existing members). heic-to kept this export. PENDING: run par_q.sql + push export 74.
+   catches existing members). heic-to kept this export. ✅ par_q.sql run + export 74 pushed.
    ⚠️ Export 74 REVERTED activity-card no-data guards again → RE-APPLIED MemberActivityModal.tsx (s
-   normalise) + CoachTrialReviewModal.tsx (prs guards). Catch-up: catch-up-activity-card-guards.md. Push
-   both + paste catch-up.
+   normalise) + CoachTrialReviewModal.tsx (prs guards). Catch-up: catch-up-activity-card-guards.md. ✅ Pushed + catch-up pasted.

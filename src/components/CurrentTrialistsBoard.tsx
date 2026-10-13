@@ -42,6 +42,7 @@ interface BoardMember {
   email?: string;
   full_name?: string;
   activated?: boolean | null;
+  onApp?: boolean | null;
   created_at?: string | null;
 }
 
@@ -278,7 +279,7 @@ export function CurrentTrialistsBoard({
     let invited = 0;
     for (const r of cohort) {
       const mb = appMemberByEmail[emailKey(r.email)];
-      if (mb?.activated) onApp++;
+      if (mb?.onApp ?? mb?.activated) onApp++;
       else if (mb) invited++;
     }
     return { onApp, invited, total: cohort.length };
@@ -356,7 +357,7 @@ export function CurrentTrialistsBoard({
             // "Not set up" = not invited OR invited-but-inactive (chase list).
             rows = rows.filter((r) => {
               const mb = appMemberByEmail[emailKey(r.email)];
-              return !mb || !mb.activated;
+              return !mb || !(mb.onApp ?? mb.activated);
             });
           }
           const isWin = key === "purchased";
@@ -393,8 +394,8 @@ export function CurrentTrialistsBoard({
                     const k = emailKey(r.email);
                     const mb = appMemberByEmail[k];
                     // Three states: activated (on app) / invited-but-inactive / not invited.
-                    const onApp = !!mb?.activated;
-                    const invitedNotSetup = !!mb && !mb.activated;
+                    const onApp = !!(mb?.onApp ?? mb?.activated);
+                    const invitedNotSetup = !!mb && !(mb.onApp ?? mb.activated);
                     const rb = reviewMap[k];
                     const hint =
                       key === "purchased"
