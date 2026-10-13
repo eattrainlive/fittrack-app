@@ -337,3 +337,17 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
    FitTrack cockpit (due-step engine from trial day + GymOS attendance) → GHL webhook (template_key +
    coach_note) → GHL workflow writes Coach Note field + sends approved WhatsApp template. Needs Netlify env
    GHL_TRIAL_NURTURE_WEBHOOK_URL + a GHL workflow. Then iterate on Carla's screen UX. → paste to builder.
+
+22. Outage resilience batch (after the Supabase incident):
+   - ✅ AppLayout green-ring lockout FIXED in source: 4s safety timeout on getSession (ring always clears)
+     + TV/checkin/auth render BEFORE the ring (never wait on auth). Catch-up: catch-up-applayout-outage.md.
+     Push AppLayout.tsx.
+   - ✅ ParqGate hardened (checks once, caches, 4s timeout → fail-open). catch-up-parqgate-resilient.md.
+   - BRIEF OUT: brief-outage-hardening.md — (1) check-in kiosk fail-soft + offline queue (localStorage
+     fittrack_checkin_queue, flush on online/interval/next scan; never error-wall members or lose visits),
+     (2) TV never-blank guard, (3) /schedule added to gate bypass + default URL cache, (4) TV "today" mode
+     /tv/<programId>/today (auto-selects today's dated workout, rolls over, cache-backed), (5) "Copy TV
+     link" button in TvDisplayTab. Confirmed PT workouts carry workout.date. No SQL. → paste to builder.
+   Facts: getPrograms()/getExercises() = pure localStorage cache (TV + Manage Programmes work offline if
+   device cache warm); app bundle served by Netlify (loads during Supabase outage); physical door = Paxton
+   (FitTrack check-in is greeting+logging, so fail-soft is safe).
