@@ -350,6 +350,11 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
    WEBHOOK_URL + Supabase TRIAL_STARTED_WEBHOOK_URL; build GHL workflows A+B + 9 templates + Coach Note
    field; redeploy gymos-webhook; push repo; paste brief-trial-nurture-cockpit.md to builder.
    THEN iterate on Carla's screen UX (make it effective + easy for daily use).
+   MERGE FIX (export 31): cockpit showed in builder preview but not live — repo had been pushed with
+   only the lib, not the UI. Manually merged TrialNurtureCockpit.tsx + the "Trial Nurture" tab into
+   StaffHubCallLists.tsx; KEPT repo trialNurture.ts (builder's copy logs to wrong table
+   trial_nurture_sends vs our trial_nurture_log). Relaxed sendStep arg type for the cockpit's
+   {email,name} call. All 3 files transpile clean. Catch-up: catch-up-trial-nurture-merge.md. → PUSH.
 
 22. Outage resilience batch (after the Supabase incident):
    - ✅ AppLayout green-ring lockout FIXED in source: 4s safety timeout on getSession (ring always clears)

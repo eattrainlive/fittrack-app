@@ -414,7 +414,11 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
 // ── Sending ──────────────────────────────────────────────────────────────────
 
 export interface SendStepArgs {
-  trialist: Pick<NurtureTrialist, "email" | "name" | "trialStart" | "trialEnd" | "trialDay">;
+  // email + name are required; the trial_* fields are optional context passed to
+  // GHL when available (the cockpit may pass just {email,name}). Keep them optional
+  // so the call site can hand over either a full trialist or the minimal pair.
+  trialist: Pick<NurtureTrialist, "email" | "name"> &
+    Partial<Pick<NurtureTrialist, "trialStart" | "trialEnd" | "trialDay">>;
   step: NurtureStep;
   note: string; // the (possibly edited) personal note
   by: string; // coach name
@@ -442,9 +446,9 @@ export async function sendStep(args: SendStepArgs): Promise<{ ok: boolean; error
         step_key: step.key,
         template_key: step.templateKey,
         coach_note: note,
-        trial_start: trialist.trialStart,
-        trial_end: trialist.trialEnd,
-        trial_day: trialist.trialDay,
+        trial_start: trialist.trialStart ?? null,
+        trial_end: trialist.trialEnd ?? null,
+        trial_day: trialist.trialDay ?? null,
         by,
       }),
     });

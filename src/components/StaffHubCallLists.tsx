@@ -17,6 +17,7 @@ import {
   type LapsedMember,
 } from "@/lib/staffHubMetrics";
 import { TrialistPipeline } from "@/components/TrialistPipeline";
+import { TrialNurtureCockpit } from "@/components/TrialNurtureCockpit";
 import { MemberActivityModal } from "@/components/MemberActivityModal";
 import {
   EmptyState,
@@ -40,7 +41,7 @@ import {
   type NextStep,
 } from "@/lib/contactProgress";
 
-type TabKey = "trialists" | "reachout" | "lapsed";
+type TabKey = "trialists" | "reachout" | "lapsed" | "nurture";
 
 const TERMINAL: Record<ListType, ContactStatus[]> = {
   reachout: ["done"],
@@ -69,6 +70,7 @@ export function StaffHubCallLists({
 
   const tabs: { key: TabKey; label: string; count: number | undefined }[] = [
     { key: "trialists", label: "Trialists", count: trialists?.length },
+    { key: "nurture", label: "Trial Nurture", count: undefined },
     { key: "reachout", label: "Reach out", count: reachout?.length },
     { key: "lapsed", label: "Win back", count: lapsed?.length },
   ];
@@ -121,6 +123,8 @@ export function StaffHubCallLists({
         />
       ) : tab === "reachout" ? (
         <ReachoutList list={reachout ?? []} staffSecret={staffSecret} />
+      ) : tab === "nurture" ? (
+        <TrialNurtureCockpit staffSecret={staffSecret} />
       ) : (
         <LapsedList list={lapsed ?? []} staffSecret={staffSecret} />
       )}
