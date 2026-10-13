@@ -8,17 +8,42 @@ import { supabase } from "@/lib/supabase";
 
 /** Routes that bypass the PAR-Q gate (not a member "using the app"). */
 const ALLOWED_PREFIXES = ["/auth", "/reset-password", "/checkin", "/tv/"];
-
 const isAllowedRoute = (pathname: string) =>
   ALLOWED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
 
+const CK = "etl_parq_ok_until"; // cached "valid until" ISO per uid, so we don't
+// re-query on every navigation / reload (that made the app feel slow).
+
+const readCache = (uid: string): boolean => {
+  try {
+    const raw = localStorage.getItem(`${CK}:${uid}`);
+    return !!raw && new Date(raw).getTime() > Date.now();
+  } catch {
+    return false;
+  }
+};
+const writeCache = (uid: string, expiresAt: string | null) => {
+  try {
+    if (expiresAt) localStorage.setItem(`${CK}:${uid}`, expiresAt);
+  } catch {
+    /* ignore */
+  }
+};
+
+const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
+  Promise.race([
+    p,
+    new Promise<T>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms)),
+  ]);
+
 /**
- * Hard gate: wraps the routed app. A member with no valid PAR-Q (missing or
- * >12 months old) sees the full-screen ParqForm instead of the app. Staff are
- * exempt, and a small set of routes (auth, kiosk, TV) bypass the gate.
+ * Hard gate: a member with no valid PAR-Q sees the full-screen ParqForm instead
+ * of the app. Staff are exempt; a few routes (auth, kiosk, TV) bypass it.
  *
- * On a status-check error (offline) it fails soft — shows the form but lets
- * the member skip so a network blip doesn't lock a paying member out.
+ * Resilient by design: the check runs ONCE (not per navigation), is cached until
+ * the PAR-Q expiry, and is wrapped in a short timeout. On any slowness/error it
+ * FAILS OPEN (renders the app) so a slow Supabase can never hang everyone behind
+ * a spinner.
  */
 export function ParqGate({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
@@ -27,42 +52,38 @@ export function ParqGate({ children }: { children: React.ReactNode }) {
   );
   const [reloadTick, setReloadTick] = useState(0);
 
-  const allowed = isAllowedRoute(pathname);
-
   useEffect(() => {
-    if (allowed) {
-      setState("valid");
-      return;
-    }
     let cancelled = false;
     (async () => {
-      setState("loading");
       try {
         const {
           data: { user },
-        } = await supabase.auth.getUser();
+        } = await withTimeout(supabase.auth.getUser(), 4000);
         if (!user) {
-          // No session — let the auth flow render.
+          if (!cancelled) setState("valid"); // no session → let auth render
+          return;
+        }
+        if (isStaff() || readCache(user.id)) {
           if (!cancelled) setState("valid");
           return;
         }
-        if (isStaff()) {
-          if (!cancelled) setState("valid");
-          return;
-        }
-        const st = await getMyParqStatus();
+        const st = await withTimeout(getMyParqStatus(), 4000);
+        if (st.valid) writeCache(user.id, st.expiresAt);
         if (!cancelled) setState(st.valid ? "valid" : "invalid");
       } catch {
-        // Network error — fail soft so we never hard-lock a paying member.
-        if (!cancelled) setState("invalid");
+        // Timeout / network error — fail OPEN so the app never hangs on a blip.
+        if (!cancelled) setState("valid");
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [pathname, allowed, reloadTick]);
+    // Re-check only on explicit reload (after submit), NOT on every navigation.
+  }, [reloadTick]);
 
-  if (allowed) return <>{children}</>;
+  // Allowed routes always render, regardless of gate state.
+  if (isAllowedRoute(pathname)) return <>{children}</>;
+
   if (state === "loading") {
     return (
       <div className="fixed inset-0 z-[100] bg-background flex items-center justify-center">
@@ -75,7 +96,6 @@ export function ParqGate({ children }: { children: React.ReactNode }) {
       <ParqForm
         softFail
         onDone={() => {
-          // Re-run the gate check after submit / skip.
           setState("loading");
           setReloadTick((t) => t + 1);
         }}
