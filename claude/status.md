@@ -325,3 +325,15 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
    catches existing members). heic-to kept this export. ✅ par_q.sql run + export 74 pushed.
    ⚠️ Export 74 REVERTED activity-card no-data guards again → RE-APPLIED MemberActivityModal.tsx (s
    normalise) + CoachTrialReviewModal.tsx (prs guards). Catch-up: catch-up-activity-card-guards.md. ✅ Pushed + catch-up pasted.
+
+19. Supabase Realtime latency incident (12–13 Oct) caused slow app load + empty members list + stuck
+   "checking for unlinked" — NOT our code. Resolved on Supabase side. ParqGate hardened + PUSHED (checks
+   once not per-nav, caches valid until expiry, 4s timeout → fail-open so it never hangs the app on a
+   blip). Catch-up: catch-up-parqgate-resilient.md.
+20. Trialists "not on app" — board fixed to read `onApp` (was `activated`; CurrentTrialistsBoard.tsx,
+   committed). Catch-up: catch-up-trialists-onapp.md. RE-TEST after Supabase recovery + members loading;
+   if still wrong, run members-grid-vs-trialists-tab diagnostic (match vs onboarded_at).
+21. Trialist nurture sequence — BRIEF OUT: brief-trial-nurture-sequence.md + trial_nurture.sql (run).
+   FitTrack cockpit (due-step engine from trial day + GymOS attendance) → GHL webhook (template_key +
+   coach_note) → GHL workflow writes Coach Note field + sends approved WhatsApp template. Needs Netlify env
+   GHL_TRIAL_NURTURE_WEBHOOK_URL + a GHL workflow. Then iterate on Carla's screen UX. → paste to builder.
