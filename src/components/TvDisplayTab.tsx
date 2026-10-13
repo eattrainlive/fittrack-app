@@ -28,7 +28,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, PlayCircle, Edit } from "lucide-react";
+import { Plus, Trash2, PlayCircle, Edit, Copy } from "lucide-react";
+import { toast } from "sonner";
 
 const DEFAULT_PRESET = {
   id: "default",
@@ -156,6 +157,26 @@ export const TvDisplayTab = ({ programs }: { programs: any[] }) => {
                 >
                   <PlayCircle className="h-4 w-4" /> Launch TV Display
                 </Button>
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  disabled={!selectedDisplayProgramId}
+                  onClick={() => {
+                    const tvUrl = `${window.location.origin}/tv/${selectedDisplayProgramId}/today?preset=${selectedPresetId}`;
+                    navigator.clipboard
+                      .writeText(tvUrl)
+                      .then(() =>
+                        toast.success("Link copied — bookmark this on the TV"),
+                      )
+                      .catch(() => toast.error("Couldn't copy"));
+                  }}
+                >
+                  <Copy className="h-4 w-4" /> Copy TV link (always today)
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Bookmark this on the screen — it always shows today's session
+                  and keeps working if the server has a wobble.
+                </p>
               </div>
 
               <div className="space-y-4 border-l border-border pl-6">

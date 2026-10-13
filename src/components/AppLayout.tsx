@@ -76,11 +76,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    // Safety net: never leave the app stuck on the loading ring if the auth
-    // call hangs (e.g. a Supabase outage). Clear the loading state after 4s so
-    // routes render regardless; the real session fills in if/when it resolves.
+    // Safety timeout — the ring always clears within 4s even if auth hangs.
     const authTimeout = setTimeout(() => setIsAuthLoading(false), 4000);
-
     supabase.auth.getSession().then(({ data: { session } }) => {
       clearTimeout(authTimeout);
       setUser(session?.user ?? null);
@@ -160,14 +157,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const isKiosk = location.pathname.startsWith("/checkin");
 
   useEffect(() => {
-    if (!isAuthLoading && !user && !isAuthPage && !isTVMode) {
+    if (!isAuthLoading && !user && !isAuthPage && !isTVMode && !isKiosk) {
       navigate("/auth");
     }
-  }, [user, isAuthLoading, isAuthPage, isTVMode, navigate]);
+  }, [user, isAuthLoading, isAuthPage, isTVMode, isKiosk, navigate]);
 
-  // Critical/public surfaces must render even if the session is still resolving
-  // or hung (e.g. a Supabase outage): the TV display, the check-in kiosk and the
-  // auth page never wait on auth. Checked BEFORE the loading ring on purpose.
+  // Critical/public routes render BEFORE the loading ring — TV, kiosk and auth
+  // must never wait on the session check.
   if (isAuthPage || isTVMode || isKiosk) {
     return (
       <div className="min-h-screen bg-background font-sans">{children}</div>

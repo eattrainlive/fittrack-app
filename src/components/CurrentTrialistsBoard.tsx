@@ -393,7 +393,7 @@ export function CurrentTrialistsBoard({
                   rows.map((r) => {
                     const k = emailKey(r.email);
                     const mb = appMemberByEmail[k];
-                    // Three states: activated (on app) / invited-but-inactive / not invited.
+                    // Three states: on app / invited-but-inactive / not invited.
                     const onApp = !!(mb?.onApp ?? mb?.activated);
                     const invitedNotSetup = !!mb && !(mb.onApp ?? mb.activated);
                     const rb = reviewMap[k];

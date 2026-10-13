@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabase";
 const DEFAULT_SCHEDULE_URL =
   "https://eattrainlive.fitnesshub.net/schedule/?hf=1";
 
+const SCHEDULE_URL_CACHE = "fittrack_schedule_url";
+
 const Schedule = () => {
   const [url, setUrl] = useState<string>(DEFAULT_SCHEDULE_URL);
   const [ready, setReady] = useState(false);
@@ -13,6 +15,13 @@ const Schedule = () => {
   useEffect(() => {
     let active = true;
     (async () => {
+      // Instant: try cached URL so an override survives a Supabase outage.
+      try {
+        const cached = localStorage.getItem(SCHEDULE_URL_CACHE);
+        if (cached && active) setUrl(cached);
+      } catch {
+        /* ignore */
+      }
       try {
         const { data } = await supabase
           .from("feature_settings")
@@ -20,9 +29,16 @@ const Schedule = () => {
           .eq("key", "schedule")
           .maybeSingle();
         const v = data?.value as any;
-        if (active && v?.url) setUrl(v.url);
+        if (active && v?.url) {
+          setUrl(v.url);
+          try {
+            localStorage.setItem(SCHEDULE_URL_CACHE, v.url);
+          } catch {
+            /* ignore */
+          }
+        }
       } catch {
-        /* fall back to default */
+        /* fall back to default / cached */
       } finally {
         if (active) setReady(true);
       }

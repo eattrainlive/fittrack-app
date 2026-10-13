@@ -8,6 +8,59 @@ import { QRCodeSVG } from "qrcode.react";
 
 const APP_URL = "https://etlfittrack.netlify.app";
 
+/** Compute the workout index for "today" mode from workout dates. */
+function computeTodayIndex(workouts: any[]): number {
+  const now = new Date();
+  const todayMs = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime();
+  // 1. Workout whose date is today.
+  for (let i = 0; i < workouts.length; i++) {
+    const d = workouts[i]?.date;
+    if (!d) continue;
+    const dt = new Date(d).getTime();
+    if (isNaN(dt)) continue;
+    const dayMs = new Date(
+      new Date(dt).getFullYear(),
+      new Date(dt).getMonth(),
+      new Date(dt).getDate(),
+    ).getTime();
+    if (dayMs === todayMs) return i;
+  }
+  // 2. Nearest upcoming dated workout.
+  let upIdx = -1;
+  let upDiff = Infinity;
+  for (let i = 0; i < workouts.length; i++) {
+    const d = workouts[i]?.date;
+    if (!d) continue;
+    const dt = new Date(d).getTime();
+    if (isNaN(dt)) continue;
+    if (dt > now.getTime() && dt - now.getTime() < upDiff) {
+      upDiff = dt - now.getTime();
+      upIdx = i;
+    }
+  }
+  if (upIdx >= 0) return upIdx;
+  // 3. Most recent past dated workout.
+  let pastIdx = -1;
+  let pastDiff = Infinity;
+  for (let i = 0; i < workouts.length; i++) {
+    const d = workouts[i]?.date;
+    if (!d) continue;
+    const dt = new Date(d).getTime();
+    if (isNaN(dt)) continue;
+    if (dt <= now.getTime() && now.getTime() - dt < pastDiff) {
+      pastDiff = now.getTime() - dt;
+      pastIdx = i;
+    }
+  }
+  if (pastIdx >= 0) return pastIdx;
+  // 4. Fallback to index 0.
+  return 0;
+}
+
 const TVDisplay = () => {
   const { programId, workoutIndex } = useParams();
   const navigate = useNavigate();
@@ -17,6 +70,7 @@ const TVDisplay = () => {
   const [workout, setWorkout] = useState<any>(null);
   const [exercises, setExercises] = useState<any[]>([]);
   const [preset, setPreset] = useState<any>(null);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     const allPrograms = getPrograms();
@@ -36,7 +90,12 @@ const TVDisplay = () => {
 
     const foundProgram = allPrograms.find((p: any) => p.id === programId);
     if (foundProgram && foundProgram.workouts) {
-      const wIndex = parseInt(workoutIndex || "0", 10);
+      let wIndex: number;
+      if (workoutIndex === "today") {
+        wIndex = computeTodayIndex(foundProgram.workouts);
+      } else {
+        wIndex = parseInt(workoutIndex || "0", 10);
+      }
       const foundWorkout = foundProgram.workouts[wIndex];
 
       if (foundWorkout) {
@@ -45,7 +104,24 @@ const TVDisplay = () => {
         setExercises(allExercises);
       }
     }
-  }, [programId, workoutIndex, location.search]);
+    // Guard: don't wipe program/workout on a transient empty re-read — only
+    // replace them when a valid workout is found (an always-on TV never blanks).
+  }, [programId, workoutIndex, location.search, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-evaluate "today" mode on an interval + on visibility change so it
+  // rolls over at midnight / when the device wakes — no manual relaunch.
+  useEffect(() => {
+    if (workoutIndex !== "today") return;
+    const interval = setInterval(() => setTick((t) => t + 1), 600000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") setTick((t) => t + 1);
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [workoutIndex]);
 
   if (!workout) {
     return (

@@ -243,9 +243,6 @@ export function MemberActivityModal({
       goals.habit_3 ||
       (Array.isArray(goals.focus_areas) && goals.focus_areas.length));
 
-  // Normalise the summary so a contact with little/no app data still renders
-  // (missing numeric fields default to 0, prs to []) — avoids .toLocaleString()
-  // / .length on undefined in ActivityWinsGrid and below.
   const s: any = summary
     ? {
         coachedUsed: 0,

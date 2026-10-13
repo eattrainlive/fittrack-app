@@ -351,3 +351,12 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
    Facts: getPrograms()/getExercises() = pure localStorage cache (TV + Manage Programmes work offline if
    device cache warm); app bundle served by Netlify (loads during Supabase outage); physical door = Paxton
    (FitTrack check-in is greeting+logging, so fail-soft is safe).
+
+23. ✅ Trialists "not on app" — TRUE ROOT FOUND & FIXED. "On app" = members.onboarded_at present, but
+   markOnboarded did a direct `update members set onboarded_at` which RLS BLOCKS (members = SELECT-only
+   policy) → silently wrote 0 rows → onboarded_at never set for new sign-ups (existing members were
+   backfilled once, hence only newer trialists wrong). FIX: mark_onboarded_fix.sql = SECURITY DEFINER
+   RPC mark_onboarded() + one-time backfill (stamps onboarded_at for everyone with last_sign_in_at →
+   flips current trialists to on-app immediately). onboarding.ts markOnboarded → supabase.rpc("mark_onboarded").
+   Catch-up: catch-up-mark-onboarded-rpc.md. (Board onApp read-fix from earlier also required + survived
+   export 30.) PENDING: run SQL + push onboarding.ts + export 30.

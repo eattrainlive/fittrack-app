@@ -17,15 +17,13 @@ export const markOnboarded = async (): Promise<void> => {
     } = await supabase.auth.getUser();
     if (error || !user) return;
 
-    // Only update if onboarded_at is null (idempotent self-heal).
-    const { error: updErr } = await supabase
-      .from("members")
-      .update({ onboarded_at: new Date().toISOString() })
-      .eq("id", user.id)
-      .is("onboarded_at", null);
-
-    if (updErr) {
-      console.warn("[onboarded] self-update failed:", updErr.message);
+    // Stamp onboarded_at via a SECURITY DEFINER RPC. A direct update is blocked
+    // by RLS (members have SELECT-only), so the old self-update silently wrote 0
+    // rows and nobody flipped to "On app". The RPC only sets onboarded_at (when
+    // null) for the caller's own row. Idempotent.
+    const { error: rpcErr } = await supabase.rpc("mark_onboarded");
+    if (rpcErr) {
+      console.warn("[onboarded] mark_onboarded rpc failed:", rpcErr.message);
     }
   } catch (e) {
     console.warn("[onboarded] error:", e);

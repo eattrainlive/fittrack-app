@@ -177,7 +177,25 @@ export function CoachTrialReviewModal({
     toast.info("Share card generator coming soon! Using review link for now.");
   };
 
-  const s = summary;
+  const s: any = summary
+    ? {
+        coachedUsed: 0,
+        coachedTotal: 0,
+        coachedUpcoming: 0,
+        classesCount: 0,
+        gymVisits: 0,
+        gymScansTotal: 0,
+        totalVolumeKg: 0,
+        loggedSessions: 0,
+        activitiesCount: 0,
+        bestStreak: 0,
+        totalCheckins: 0,
+        daysLogged: 0,
+        sessionsPerWeekActual: 0,
+        prs: [],
+        ...(summary as any),
+      }
+    : null;
 
   // Compute private engagement flags
   const flags: {
@@ -524,13 +542,13 @@ export function CoachTrialReviewModal({
             )}
 
             {/* Strength Wins */}
-            {(s.prs?.length ?? 0) > 0 && (
+            {s.prs.length > 0 && (
               <div className="space-y-2">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Strength Wins
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {(s.prs ?? []).map((pr) => (
+                  {s.prs.map((pr) => (
                     <div
                       key={pr.exercise}
                       className="p-2.5 rounded-lg bg-muted/30 border border-border text-xs flex items-center justify-between"

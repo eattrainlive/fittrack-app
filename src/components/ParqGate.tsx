@@ -7,43 +7,89 @@ import { isStaff } from "@/lib/communityWall";
 import { supabase } from "@/lib/supabase";
 
 /** Routes that bypass the PAR-Q gate (not a member "using the app"). */
-const ALLOWED_PREFIXES = ["/auth", "/reset-password", "/checkin", "/tv/"];
+const ALLOWED_PREFIXES = [
+  "/auth",
+  "/reset-password",
+  "/checkin",
+  "/tv/",
+  "/schedule",
+];
+
 const isAllowedRoute = (pathname: string) =>
   ALLOWED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
 
-const CK = "etl_parq_ok_until"; // cached "valid until" ISO per uid, so we don't
-// re-query on every navigation / reload (that made the app feel slow).
-
-const readCache = (uid: string): boolean => {
+/** Resolve the current user id with a 4s timeout (never hang the app). */
+async function getUserWithTimeout(): Promise<string | null> {
+  const timeout = new Promise<string>((resolve) =>
+    setTimeout(() => resolve("__timeout__"), 4000),
+  );
   try {
-    const raw = localStorage.getItem(`${CK}:${uid}`);
-    return !!raw && new Date(raw).getTime() > Date.now();
+    const res = (await Promise.race([supabase.auth.getUser(), timeout])) as any;
+    if (res === "__timeout__") return "__timeout__";
+    return res?.data?.user?.id ?? null;
+  } catch {
+    return "__timeout__";
+  }
+}
+
+/** Cache key for a valid PAR-Q so reloads skip the query. */
+const cacheKey = (uid: string) => `etl_parq_ok_until:${uid}`;
+
+function readCache(uid: string): boolean {
+  try {
+    const val = localStorage.getItem(cacheKey(uid));
+    if (!val) return false;
+    return Number(val) > Date.now();
   } catch {
     return false;
   }
-};
-const writeCache = (uid: string, expiresAt: string | null) => {
+}
+
+function writeCache(uid: string, expiresAt: string) {
   try {
-    if (expiresAt) localStorage.setItem(`${CK}:${uid}`, expiresAt);
+    localStorage.setItem(cacheKey(uid), String(new Date(expiresAt).getTime()));
   } catch {
     /* ignore */
   }
-};
+}
 
-const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
-  Promise.race([
-    p,
-    new Promise<T>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms)),
-  ]);
+function clearCache(uid: string) {
+  try {
+    localStorage.removeItem(cacheKey(uid));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Fetch PAR-Q status with a 4s timeout (never hang the app). */
+async function parqStatusWithTimeout(
+  uid: string,
+): Promise<"valid" | "invalid" | "timeout"> {
+  if (readCache(uid)) return "valid";
+  const timeout = new Promise<"timeout">((resolve) =>
+    setTimeout(() => resolve("timeout"), 4000),
+  );
+  try {
+    const st = (await Promise.race([getMyParqStatus(), timeout])) as any;
+    if (st === "timeout") return "timeout";
+    if (st?.valid && st?.expiresAt) {
+      writeCache(uid, st.expiresAt);
+      return "valid";
+    }
+    return "invalid";
+  } catch {
+    return "timeout";
+  }
+}
 
 /**
- * Hard gate: a member with no valid PAR-Q sees the full-screen ParqForm instead
- * of the app. Staff are exempt; a few routes (auth, kiosk, TV) bypass it.
+ * Hard gate: wraps the routed app. A member with no valid PAR-Q (missing or
+ * >12 months old) sees the full-screen ParqForm instead of the app. Staff are
+ * exempt, and a small set of routes (auth, kiosk, TV) bypass the gate.
  *
- * Resilient by design: the check runs ONCE (not per navigation), is cached until
- * the PAR-Q expiry, and is wrapped in a short timeout. On any slowness/error it
- * FAILS OPEN (renders the app) so a slow Supabase can never hang everyone behind
- * a spinner.
+ * Runs the check ONCE (not on every navigation) and caches a valid result in
+ * localStorage until expiry. On timeout or any error it fails OPEN — never
+ * leave the app stuck on the gate spinner.
  */
 export function ParqGate({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
@@ -52,38 +98,59 @@ export function ParqGate({ children }: { children: React.ReactNode }) {
   );
   const [reloadTick, setReloadTick] = useState(0);
 
+  const allowed = isAllowedRoute(pathname);
+
   useEffect(() => {
+    if (allowed) {
+      setState("valid");
+      return;
+    }
     let cancelled = false;
     (async () => {
+      setState("loading");
       try {
-        const {
-          data: { user },
-        } = await withTimeout(supabase.auth.getUser(), 4000);
-        if (!user) {
-          if (!cancelled) setState("valid"); // no session → let auth render
-          return;
-        }
-        if (isStaff() || readCache(user.id)) {
+        const uid = await getUserWithTimeout();
+        if (cancelled) return;
+        if (!uid) {
+          // No session — let the auth flow render.
           if (!cancelled) setState("valid");
           return;
         }
-        const st = await withTimeout(getMyParqStatus(), 4000);
-        if (st.valid) writeCache(user.id, st.expiresAt);
-        if (!cancelled) setState(st.valid ? "valid" : "invalid");
+        if (uid === "__timeout__") {
+          // Auth check timed out — fail open.
+          if (!cancelled) setState("valid");
+          return;
+        }
+        if (isStaff()) {
+          if (!cancelled) setState("valid");
+          return;
+        }
+        // Check cache first (instant on reload).
+        if (readCache(uid)) {
+          if (!cancelled) setState("valid");
+          return;
+        }
+        const result = await parqStatusWithTimeout(uid);
+        if (cancelled) return;
+        if (result === "timeout") {
+          // Network error / timeout — fail OPEN (never lock a member out).
+          setState("valid");
+          return;
+        }
+        if (result === "valid") setState("valid");
+        else setState("invalid");
       } catch {
-        // Timeout / network error — fail OPEN so the app never hangs on a blip.
+        // Any unexpected error — fail OPEN.
         if (!cancelled) setState("valid");
       }
     })();
     return () => {
       cancelled = true;
     };
-    // Re-check only on explicit reload (after submit), NOT on every navigation.
-  }, [reloadTick]);
+    // Check ONCE (or after a submit bump). NOT on every pathname change.
+  }, [reloadTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Allowed routes always render, regardless of gate state.
-  if (isAllowedRoute(pathname)) return <>{children}</>;
-
+  if (allowed) return <>{children}</>;
   if (state === "loading") {
     return (
       <div className="fixed inset-0 z-[100] bg-background flex items-center justify-center">
@@ -96,6 +163,14 @@ export function ParqGate({ children }: { children: React.ReactNode }) {
       <ParqForm
         softFail
         onDone={() => {
+          // Re-run the gate check after submit / skip.
+          // Clear any stale cache so it re-queries fresh.
+          try {
+            const u = localStorage.getItem("fittrack_current_uid");
+            if (u) clearCache(u);
+          } catch {
+            /* ignore */
+          }
           setState("loading");
           setReloadTick((t) => t + 1);
         }}

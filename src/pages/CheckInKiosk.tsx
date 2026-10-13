@@ -15,6 +15,7 @@ import {
   RecentCheckIns,
   type RecentCheckIn,
 } from "@/components/RecentCheckIns";
+import { enqueueScan, flushQueue } from "@/lib/checkinQueue";
 
 const STAFF_SECRET =
   import.meta.env.VITE_STAFF_SECRET ||
@@ -233,10 +234,23 @@ export default function CheckInKiosk() {
     if (isStaff) loadRecent();
   }, [isStaff, loadRecent]);
 
+  // Flush the offline check-in queue when connectivity returns + on interval.
+  useEffect(() => {
+    const onOnline = () => flushQueue().catch(() => {});
+    window.addEventListener("online", onOnline);
+    const interval = setInterval(() => flushQueue().catch(() => {}), 60000);
+    flushQueue().catch(() => {}); // best-effort on mount
+    return () => {
+      window.removeEventListener("online", onOnline);
+      clearInterval(interval);
+    };
+  }, []);
+
   const doCheckIn = async (payload: any) => {
     setProcessing(true);
+    const scanEntry = { ...payload, at: new Date().toISOString() };
     try {
-      const { data, error } = await supabase.functions.invoke("check-in", {
+      const invokeP = supabase.functions.invoke("check-in", {
         body: {
           staffSecret: STAFF_SECRET,
           ...payload,
@@ -244,7 +258,27 @@ export default function CheckInKiosk() {
           deviceId: "reception-tablet",
         },
       });
-      if (error) throw error;
+      const timeoutP = new Promise<{ error: any }>((resolve) =>
+        setTimeout(() => resolve({ error: new Error("timeout") }), 6000),
+      );
+      const { data, error } = (await Promise.race([invokeP, timeoutP])) as any;
+
+      if (error || !data?.result) {
+        // Infrastructure failure (timeout / network / 5xx) — fail soft + queue.
+        enqueueScan(scanEntry);
+        setResult({
+          result: "granted",
+          membership: "Connection issue — we'll sync it",
+        });
+        resultTimerRef.current = setTimeout(() => {
+          setResult(null);
+          setScanValue("");
+          setProcessing(false);
+        }, 3000);
+        return;
+      }
+
+      // Genuine result — show normally (even denied/unknown/no_membership).
       setResult(data);
       if (data?.name) {
         setRecent((prev) =>
@@ -269,11 +303,14 @@ export default function CheckInKiosk() {
         setScanValue("");
         setProcessing(false);
       }, 3000);
-    } catch (e: any) {
+      // Flush the offline queue on a successful check-in.
+      flushQueue().catch(() => {});
+    } catch {
+      // Infrastructure failure — fail soft + queue.
+      enqueueScan(scanEntry);
       setResult({
-        result: "unknown_code",
-        name: "Error",
-        membership: e.message || "Check-in failed",
+        result: "granted",
+        membership: "Connection issue — we'll sync it",
       });
       resultTimerRef.current = setTimeout(() => {
         setResult(null);
