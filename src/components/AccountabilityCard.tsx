@@ -8,8 +8,9 @@ import {
 import {
   getActiveCohort,
   getMyClientRecord,
-  currentWeekOf,
+  effectiveWeekOf,
   type AccCohort,
+  type AccClient,
 } from "@/lib/accountabilityProgramme";
 
 const formatDate = (iso: string) => {
@@ -27,6 +28,7 @@ export function AccountabilityCard() {
   const navigate = useNavigate();
   const [cfg, setCfg] = useState<AccountabilitySettings | null>(null);
   const [enrolled, setEnrolled] = useState(false);
+  const [client, setClient] = useState<AccClient | null>(null);
   const [cohort, setCohort] = useState<AccCohort | null>(null);
 
   useEffect(() => {
@@ -37,8 +39,9 @@ export function AccountabilityCard() {
       const activeCohort = await getActiveCohort();
       if (activeCohort) {
         setCohort(activeCohort);
-        const client = await getMyClientRecord(activeCohort.id);
-        setEnrolled(!!client);
+        const myClient = await getMyClientRecord(activeCohort.id);
+        setClient(myClient);
+        setEnrolled(!!myClient);
       }
     })();
   }, []);
@@ -49,7 +52,7 @@ export function AccountabilityCard() {
 
   let subtitle: string;
   if (enrolled && cohort) {
-    const wk = currentWeekOf(cohort.start_date, cohort.weeks);
+    const wk = effectiveWeekOf(cohort, client);
     if (wk === 0) {
       subtitle = `Starts ${formatDate(cohort.start_date)}`;
     } else if (wk > cohort.weeks) {

@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import {
   getActiveCohort,
   getMyClientRecord,
-  currentWeekOf,
+  effectiveWeekOf,
 } from "@/lib/accountabilityProgramme";
 import { ensureAccHabitsUnlocked } from "@/lib/accWeekHabits";
 import { HabitsPickerDialog } from "@/components/HabitsPickerDialog";
@@ -62,7 +62,7 @@ export default function TodayHabitsCard() {
         const client = await getMyClientRecord(cohort.id);
         setAccEnrolled(!!client);
         if (client) {
-          const week = currentWeekOf(cohort.start_date, cohort.weeks);
+          const week = effectiveWeekOf(cohort, client);
           if (week >= 1 && week <= cohort.weeks) {
             await ensureAccHabitsUnlocked(week);
           }

@@ -14,6 +14,7 @@ import {
 } from "@/lib/accountabilityCheckins";
 import {
   WEEK_THEMES,
+  effectiveWeekOf,
   type AccClient,
   type AccCohort,
 } from "@/lib/accountabilityProgramme";
@@ -24,17 +25,10 @@ import { AccCheckinCard } from "./AccCheckinCard";
 const themeFor = (week: number) =>
   WEEK_THEMES.find((t) => t.week === week) || null;
 
-const currentWeek = (cohort: AccCohort) =>
-  Math.min(
-    cohort.weeks,
-    Math.max(
-      1,
-      Math.floor(
-        (Date.now() - new Date(cohort.start_date + "T00:00:00").getTime()) /
-          604800000,
-      ) + 1,
-    ),
-  );
+// Member's effective week (real cohort week + their personal week_offset, so staff
+// testers set to +1 are always a stage ahead). Clamped to 1..weeks.
+const currentWeek = (cohort: AccCohort, client?: AccClient | null) =>
+  Math.min(cohort.weeks, Math.max(1, effectiveWeekOf(cohort, client)));
 
 export function AccountabilityClientConsole({
   client,
@@ -75,7 +69,7 @@ export function AccountabilityClientConsole({
     load();
   }, [load]);
 
-  const theme = themeFor(currentWeek(cohort));
+  const theme = themeFor(currentWeek(cohort, client));
   const openFollowups = followups.filter((f) => !f.closed_at);
 
   const handleCloseFu = async (id: string) => {
@@ -110,7 +104,7 @@ export function AccountabilityClientConsole({
             <h2 className="font-heading text-2xl tracking-wide">{name}</h2>
             {theme && (
               <Badge variant="secondary">
-                Week {currentWeek(cohort)} of {cohort.weeks} — {theme.title}
+                Week {currentWeek(cohort, client)} of {cohort.weeks} — {theme.title}
               </Badge>
             )}
           </div>

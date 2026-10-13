@@ -14,6 +14,9 @@ export interface AccClient {
   user_id: string;
   cohort_id: string;
   coach_user_id: string | null;
+  // Per-member week offset (acc_week_offset.sql). 0 = normal. Staff testers can be
+  // set to +1 so they're always a week ahead of real clients to verify each stage.
+  week_offset?: number | null;
   onboarding_done: boolean;
   nutrition_approach: string | null;
   created_at: string;
@@ -408,6 +411,25 @@ export const currentWeekOf = (startDate: string, weeks: number): number => {
   const week = Math.floor(diffDays / 7) + 1;
   if (week > weeks) return weeks + 1;
   return week;
+};
+
+/**
+ * A member's EFFECTIVE week — the real cohort week plus their personal week_offset
+ * (staff testers run +1 so they're a week ahead to verify each stage). Clamped to
+ * 1..weeks+1, but never advanced past start when the cohort hasn't begun (offset 0
+ * stays 0 = "not started"). Use this everywhere a member sees their current week.
+ */
+export const effectiveWeekOf = (
+  cohort: { start_date: string; weeks: number },
+  client?: { week_offset?: number | null } | null,
+): number => {
+  const base = currentWeekOf(cohort.start_date, cohort.weeks);
+  const off = Number(client?.week_offset ?? 0) || 0;
+  if (off === 0) return base;
+  const bumped = Math.max(base, 0) + off;
+  if (bumped < 1) return base; // a negative offset before start can't go below 0
+  if (bumped > cohort.weeks) return cohort.weeks + 1;
+  return bumped;
 };
 
 export interface OnboardingStatus {
