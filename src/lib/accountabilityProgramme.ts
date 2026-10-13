@@ -122,6 +122,80 @@ export const setCohortCall = async (
   return { error };
 };
 
+/**
+ * Fire the "welcome to the 6-Week Accountability Programme" WhatsApp (via GHL)
+ * when a client is enrolled. Best-effort: resolves the member's email/name and
+ * pings a staff-only proxy; never throws and never blocks enrolment.
+ */
+async function fireAccWelcome(userId: string, cohortId: string): Promise<void> {
+  try {
+    // App-account details (the email they signed up to FitTrack with).
+    const { data: m } = await supabase
+      .from("members")
+      .select("email, full_name")
+      .eq("id", userId)
+      .maybeSingle();
+    const appEmail = (m as any)?.email ?? null;
+    const fullName = (m as any)?.full_name ?? "";
+
+    // Fail-safe for a mismatched email: resolve the GYM-roster email (what GHL
+    // most likely holds — GymOS/Quoox is the source of their GHL contact). Prefer
+    // the explicit account link, fall back to gym_members.auth_uid.
+    let gymEmail: string | null = null;
+    try {
+      const { data: link } = await supabase
+        .from("member_links")
+        .select("member_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+      const memberId = (link as any)?.member_id;
+      if (memberId) {
+        const { data: gm } = await supabase
+          .from("gym_members")
+          .select("email")
+          .eq("id", memberId)
+          .maybeSingle();
+        gymEmail = (gm as any)?.email ?? null;
+      }
+      if (!gymEmail) {
+        const { data: gm2 } = await supabase
+          .from("gym_members")
+          .select("email")
+          .eq("auth_uid", userId)
+          .maybeSingle();
+        gymEmail = (gm2 as any)?.email ?? null;
+      }
+    } catch {
+      /* roster not readable — fall back to app email */
+    }
+
+    // Primary = the gym email GHL knows them by; app email rides along as a backup
+    // (so a GHL "find by email OR additional email" still lands if they differ).
+    const primaryEmail = gymEmail || appEmail;
+    if (!primaryEmail) return; // nothing to match on
+    const altEmail = appEmail && gymEmail && appEmail !== gymEmail ? appEmail : null;
+    const first = String(fullName).trim().split(/\s+/)[0] ?? "";
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token ?? "";
+    await fetch("/.netlify/functions/acc-welcome", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: primaryEmail,
+        alt_email: altEmail,
+        name: fullName,
+        first,
+        cohort: cohortId,
+      }),
+    });
+  } catch (e) {
+    console.warn("[accWelcome] send failed:", e);
+  }
+}
+
 /** Staff: enrol a member into a cohort. */
 export const enrolClient = async (
   cohortId: string,
@@ -130,6 +204,8 @@ export const enrolClient = async (
   const { error } = await supabase
     .from("acc_clients")
     .insert({ cohort_id: cohortId, user_id: userId });
+  // Only welcome on a clean insert (not on a duplicate/failed enrol).
+  if (!error) void fireAccWelcome(userId, cohortId);
   return { error };
 };
 

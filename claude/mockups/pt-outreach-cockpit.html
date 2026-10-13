@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PT Outreach — cockpit mockup</title>
+<style>
+  :root{
+    --bg:#f4f6f8; --card:#ffffff; --ink:#15202b; --muted:#6b7a88; --line:#e4e9ee;
+    --accent:#0e7c66; --accent-soft:#e3f3ee;
+    --due:#1d6fd6; --due-soft:#e5effb;
+    --overdue:#c23b2e; --overdue-soft:#fbe8e5;
+    --hot:#0e7c66; --hot-soft:#e3f3ee;
+    --warn:#b5711a; --warn-soft:#fbf0dd;
+    --red:#c23b2e; --red-soft:#fbe8e5;
+    --radius:14px; --shadow:0 1px 2px rgba(16,32,45,.06),0 4px 16px rgba(16,32,45,.05);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px}
+  h1{font-size:24px;margin:0;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .tabs{display:flex;gap:4px;background:#e9eef2;padding:4px;border-radius:12px;margin-bottom:22px;width:max-content}
+  .tab{font-size:13px;font-weight:600;color:var(--muted);padding:7px 14px;border-radius:9px;cursor:pointer;border:none;background:transparent}
+  .tab.active{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+  .section-h{display:flex;align-items:center;gap:10px;margin:26px 2px 12px}
+  .section-h h2{font-size:14px;margin:0;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .count{background:var(--ink);color:#fff;font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;margin-bottom:14px}
+  .card.gone{opacity:0;transform:translateY(-6px);transition:all .3s;height:0;padding:0;margin:0;border:0;overflow:hidden}
+  .crow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .who{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .name{font-size:17px;font-weight:700;letter-spacing:-.01em}
+  .act{font-size:12px;color:var(--accent);font-weight:600;text-decoration:none;border:1px solid var(--accent-soft);background:var(--accent-soft);padding:3px 9px;border-radius:7px;cursor:pointer}
+  .ctx{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .chip{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:5px}
+  .chip.hot{background:var(--hot-soft);color:var(--hot)}
+  .chip.warn{background:var(--warn-soft);color:var(--warn)}
+  .chip.red{background:var(--red-soft);color:var(--red)}
+  .chip.info{background:var(--due-soft);color:var(--due)}
+  .step{margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)}
+  .step-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:10px}
+  .badge{font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;letter-spacing:.03em}
+  .badge.due{background:var(--due-soft);color:var(--due)}
+  .badge.overdue{background:var(--overdue-soft);color:var(--overdue)}
+  .pick-l{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  select.tplpick{font:inherit;font-size:14px;font-weight:600;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:7px 30px 7px 11px;background:#fcfdfe url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M3 4.5L6 7.5L9 4.5' stroke='%236b7a88' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>") no-repeat right 10px center;appearance:none;cursor:pointer}
+  .tplcode{font-size:11px;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f0f3f6;padding:2px 7px;border-radius:6px}
+  .lbl{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px;display:flex;align-items:center;gap:7px}
+  .lock{font-size:10px;font-weight:600;color:#9aa7b2;background:#eef2f5;padding:1px 6px;border-radius:5px;text-transform:none;letter-spacing:0}
+  .tplbody{font-size:14px;line-height:1.6;color:#44535f;background:#f7f9fb;border:1px solid var(--line);border-radius:10px;padding:11px 13px;white-space:pre-wrap}
+  .slot{display:inline-block;background:var(--accent-soft);color:var(--accent);border:1px dashed var(--accent);border-radius:6px;padding:0 7px;font-size:12.5px;font-weight:700}
+  textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font:inherit;font-size:14px;line-height:1.5;color:var(--ink);resize:vertical;min-height:58px;background:#fff}
+  textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .preview{font-size:14px;line-height:1.6;color:var(--ink);background:#eafaf1;border:1px solid #c9ead9;border-radius:10px;padding:11px 13px;white-space:pre-wrap}
+  .preview .note{background:#d6f3e4;border-radius:4px;padding:0 3px}
+  .actions{display:flex;align-items:center;gap:12px;margin-top:14px}
+  .send{background:var(--accent);color:#fff;border:none;font-weight:700;font-size:14px;padding:10px 20px;border-radius:10px;cursor:pointer}
+  .send:active{transform:translateY(1px)}
+  .seq-toggle{font-size:12.5px;font-weight:600;color:var(--muted);background:none;border:none;cursor:pointer;margin-left:auto}
+  .seq{display:none;margin-top:12px;padding:12px;background:#f7f9fb;border-radius:10px}
+  .seq.open{display:block}
+  .seq-item{display:flex;align-items:center;gap:10px;font-size:13px;padding:5px 0}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--accent)}
+  .seq-item .s-label{font-weight:600}
+  .seq-item .s-meta{color:var(--muted);margin-left:auto;font-size:12px}
+  .drip-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
+  .drip-next{font-size:12.5px;color:var(--muted)}
+  #ontrack{display:none}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:11px 20px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;transition:all .25s;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .muted-note{font-size:12px;color:var(--muted);text-align:center;margin-top:30px;font-style:italic}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>PT Outreach</h1>
+      <div class="sub">Your premium support list. At-risk and reviews first, then wins and check-ins.</div>
+    </div>
+    <div class="ctx">Tue 13 Oct · Carla</div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="show('due',this)">Needs a touch</button>
+    <button class="tab" onclick="show('ontrack',this)">On track</button>
+  </div>
+
+  <div id="due">
+    <div class="section-h"><h2>Needs a touch</h2><span class="count">5</span></div>
+
+    <!-- At-risk -->
+    <div class="card" id="c1">
+      <div class="crow"><div class="who"><span class="name">Mark Thompson</span><span class="act">Activity ›</span></div><span class="ctx">PT client · 14 months</span></div>
+      <div class="chips"><span class="chip red">● At-risk · no visit 9 days</span><span class="chip warn">● PT 3/10 this cycle</span></div>
+      <div class="step" data-card="c1" data-state="overdue" data-tpl="at_risk" data-name="Mark"
+           data-note="Noticed you've dropped off this week — totally normal, let's get you back in."
+           data-seq="At-risk nudge|Carla · 12 Sep|;Monthly check-in|Carla · 28 Aug|;Review|Carla · 1 Aug|"></div>
+    </div>
+
+    <!-- Review due + block ended -->
+    <div class="card" id="c2">
+      <div class="crow"><div class="who"><span class="name">David Lang</span><span class="act">Activity ›</span></div><span class="ctx">PT client · 8 months</span></div>
+      <div class="chips"><span class="chip info">● Review due</span><span class="chip info">● Block finished</span></div>
+      <div class="step" data-card="c2" data-state="due" data-tpl="review" data-name="David"
+           data-note="You've smashed this block — strength is up across the board."
+           data-seq="Monthly check-in|Carla · 14 Sep|;Win celebration|Carla · 2 Sep|;Review|Carla · 12 Aug|"></div>
+    </div>
+
+    <!-- Win / PB -->
+    <div class="card" id="c3">
+      <div class="crow"><div class="who"><span class="name">Rebecca Hall</span><span class="act">Activity ›</span></div><span class="ctx">PT client · 2 years</span></div>
+      <div class="chips"><span class="chip hot">● New PB · Deadlift 100kg</span></div>
+      <div class="step" data-card="c3" data-state="due" data-tpl="win" data-name="Rebecca"
+           data-note="100kg pull — that's a milestone, so proud of you!"
+           data-seq="Monthly check-in|Carla · 20 Sep|;Win celebration|Carla · 30 Aug|"></div>
+    </div>
+
+    <!-- PT under-used -->
+    <div class="card" id="c4">
+      <div class="crow"><div class="who"><span class="name">Sophie Nguyen</span><span class="act">Activity ›</span></div><span class="ctx">PT client · 5 months</span></div>
+      <div class="chips"><span class="chip warn">● PT 2/10 · 6 days left in cycle</span></div>
+      <div class="step" data-card="c4" data-state="due" data-tpl="sessions_left" data-name="Sophie"
+           data-note="Been a mad month for you I know,"
+           data-seq="Monthly check-in|Carla · 18 Sep|;At-risk nudge|Carla · 5 Sep|"></div>
+    </div>
+
+    <!-- Monthly check-in -->
+    <div class="card" id="c5">
+      <div class="crow"><div class="who"><span class="name">James Reid</span><span class="act">Activity ›</span></div><span class="ctx">PT client · 11 months</span></div>
+      <div class="chips"><span class="chip info">● Monthly check-in due</span></div>
+      <div class="step" data-card="c5" data-state="due" data-tpl="monthly_checkin" data-name="James"
+           data-note="Consistent as ever this month — great to see."
+           data-seq="Monthly check-in|Carla · 12 Sep|;Win celebration|Carla · 24 Aug|;Monthly check-in|Carla · 12 Aug|"></div>
+    </div>
+  </div>
+
+  <div id="ontrack">
+    <div class="section-h"><h2>On track</h2><span class="count">3</span></div>
+    <div class="drip-row"><div class="who"><span class="name" style="font-size:15px">Aisha Khan</span><span class="act">Activity ›</span></div><div class="drip-next">Consistent · next: monthly check-in in 12 days</div></div>
+    <div class="drip-row"><div class="who"><span class="name" style="font-size:15px">Tom Beattie</span><span class="act">Activity ›</span></div><div class="drip-next">PT 6/10 · review in 9 days</div></div>
+    <div class="drip-row"><div class="who"><span class="name" style="font-size:15px">Priya Sharma</span><span class="act">Activity ›</span></div><div class="drip-next">Consistent · next: monthly check-in in 18 days</div></div>
+  </div>
+
+  <div class="muted-note">Mockup with sample PT clients — layout for design review. Template wording is placeholder, to be written with Carla.</div>
+</div>
+
+<div class="toast" id="toast">Sent ✓</div>
+
+<script>
+  // The outreach templates. `before` / `after` = fixed (approved) copy; the coach
+  // note slots between. {name} = client first name.
+  var TEMPLATES = {
+    monthly_checkin: {label:"Monthly check-in", code:"pt_monthly_checkin",
+      before:"Hey {name}, catching up with you as we head into a new month —",
+      after:"how's it all feeling? Anything you want to change up, tell me and we'll sort it."},
+    at_risk: {label:"Not seen you lately", code:"pt_at_risk",
+      before:"Hey {name}, not caught you in for a bit —",
+      after:"no stress at all, I know how it gets. When can we get your next session in?"},
+    win: {label:"Nice one (PB / win)", code:"pt_win",
+      before:"Get in, {name}!",
+      after:"That's exactly what all the graft's for. Made up for you — onto the next."},
+    review: {label:"Progress review", code:"pt_review",
+      before:"{name}, I reckon it's time we sat down and looked at everything properly —",
+      after:"where you're at, what's next, the lot. What day suits you this week?"},
+    welcome: {label:"Welcome to PT", code:"pt_welcome",
+      before:"Welcome aboard, {name}! Genuinely buzzing to be working with you.",
+      after:"Anything you need before we start, just shout — let's get you going."},
+    missed_session: {label:"Missed a session", code:"pt_missed_session",
+      before:"Hey {name}, missed you earlier —",
+      after:"everything alright? Give me a shout and we'll get it put back in."},
+    milestone: {label:"Milestone / anniversary", code:"pt_milestone",
+      before:"{name}, bit of a milestone this one —",
+      after:"seriously proud of the work you've put in. Here's to the next chapter."},
+    sessions_left: {label:"Sessions left this cycle", code:"pt_sessions_left",
+      before:"Quick heads up, {name} —",
+      after:"you've still got a couple of sessions left this month and they don't carry over. Let's grab them before they go."},
+    referral: {label:"Know anyone?", code:"pt_referral",
+      before:"Hey {name}, slightly cheeky one —",
+      after:"if you know anyone who'd get on well here, I'd love an intro. No pressure at all."},
+    resign: {label:"Block coming to an end", code:"pt_resign",
+      before:"{name}, your current block's nearly done —",
+      after:"you've built real momentum and I don't want to lose it. Shall we line up the next one?"}
+  };
+  var ORDER = ["monthly_checkin","at_risk","win","review","welcome","missed_session","milestone","sessions_left","referral","resign"];
+  var esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+  document.querySelectorAll(".step").forEach(function(el){
+    var name = el.dataset.name, suggested = el.dataset.tpl, note = el.dataset.note || "";
+    var state = el.dataset.state;
+    var opts = ORDER.map(k=>'<option value="'+k+'"'+(k===suggested?' selected':'')+'>'+
+      TEMPLATES[k].label + (k===suggested?' · suggested':'') +'</option>').join("");
+    var seq = (el.dataset.seq||"").split(";").filter(Boolean).map(function(s){
+      var p=s.split("|"); return '<div class="seq-item"><span class="dot"></span><span class="s-label">'+esc(p[0])+'</span><span class="s-meta">'+esc(p[1])+'</span></div>';
+    }).join("");
+    el.innerHTML =
+      '<div class="step-head"><span class="badge '+state+'">'+(state==='overdue'?'OVERDUE':'DUE')+'</span>'+
+        '<span class="pick-l">Outreach</span>'+
+        '<select class="tplpick">'+opts+'</select>'+
+        '<span class="tplcode"></span></div>'+
+      '<div class="lbl">Template message <span class="lock">approved copy — fixed</span></div>'+
+      '<div class="tplbody"></div>'+
+      '<div class="lbl">Coach note <span class="lock">optional — the personal bit you add</span></div>'+
+      '<textarea class="noteinput">'+esc(note)+'</textarea>'+
+      '<div class="lbl">Sends as</div>'+
+      '<div class="preview"></div>'+
+      '<div class="actions"><button class="send">Send WhatsApp</button>'+
+        '<button class="seq-toggle">Recent outreach ▾</button></div>'+
+      '<div class="seq">'+seq+'</div>';
+
+    var sel=el.querySelector(".tplpick"), ta=el.querySelector(".noteinput");
+    function render(){
+      var t=TEMPLATES[sel.value];
+      var before=t.before.replace(/\{name\}/g,name), after=t.after.replace(/\{name\}/g,name);
+      el.querySelector(".tplcode").textContent=t.code;
+      el.querySelector(".tplbody").innerHTML=esc(before)+'\n<span class="slot">+ coach note</span>\n'+esc(after);
+      var n=ta.value.trim();
+      el.querySelector(".preview").innerHTML=esc(before)+'\n'+(n?'<span class="note">'+esc(n)+'</span>\n':'')+esc(after);
+    }
+    sel.addEventListener("change",render);
+    ta.addEventListener("input",render);
+    el.querySelector(".send").addEventListener("click",()=>sendCard(el.dataset.card));
+    el.querySelector(".seq-toggle").addEventListener("click",function(){el.querySelector(".seq").classList.toggle("open");});
+    render();
+  });
+
+  function show(id,btn){
+    document.getElementById('due').style.display = id==='due'?'block':'none';
+    document.getElementById('ontrack').style.display = id==='ontrack'?'block':'none';
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  function sendCard(id){
+    var c=document.getElementById(id);
+    c.classList.add('gone');
+    var t=document.getElementById('toast'); t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'),1600);
+    setTimeout(()=>{ c.style.display='none';
+      var n=document.querySelector('#due .count'); if(n) n.textContent=Math.max(0,parseInt(n.textContent)-1);
+    },320);
+  }
+</script>
+</body>
+</html>

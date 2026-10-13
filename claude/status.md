@@ -366,9 +366,20 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
    memberMessages.ts (getMemberMessages, ghlConversationUrl deep-link, GHL_LOCATION_ID const to set).
    DOCS: brief-member-messages-thread.md (add Messages thread to MemberActivityModal); GHL_whatsapp_
    inbox_sync.md (2 GHL workflows inbound/outbound, env WA_SYNC_WEBHOOK_SECRET, set GHL_LOCATION_ID).
-   PENDING: run member_messages.sql; deploy wa-message-sync --no-verify-jwt + set WA_SYNC_WEBHOOK_
-   SECRET; build GHL workflows A+B; set GHL_LOCATION_ID in memberMessages.ts; push; paste thread brief.
-   (Option 2, in-app send box for the open 24h window, deferred — add later if wanted.)
+   LIVE + TESTED (2026-10-13): table ✅, edge fn deployed+alive ✅, GHL_LOCATION_ID=rY0ybTWzhrquwXgUIX62
+   set ✅. GHL workflows built+tested: Customer Replied→WhatsApp (channel=whatsapp), Customer Replied→
+   SMS (channel=sms), User Replied→out (channel=whatsapp, both channels multi-selected). All use Custom
+   Webhook (PREMIUM action — must be enabled) POST to wa-message-sync?key=... with raw JSON body; Allow
+   Re-Entry ON. Thread UI merged from export 75: MemberMessagesSection.tsx + mount in MemberActivityModal
+   (KEPT repo memberMessages.ts — builder's copy dropped location id + wrong deep-link; catch-up-member-
+   messages-merge.md). In-app thread shows both sides + WhatsApp/SMS badge + "Open conversation to reply"
+   deep-link to exact GHL thread. Confirmed working end-to-end.
+   GHL body gotchas learned: (1) no trailing chars after } (invalid JSON = step "Skipped"); (2) message
+   time field not exposed — occurred_at defaults to now() on arrival; (3) pick {{message.body}} from
+   Custom values picker. WA_SYNC_WEBHOOK_SECRET=wa_sync_B8c9PlF8JvIz0fLMW6g311HFx0laDS3o.
+   STILL TODO when nurture sends are built: automated template sends don't fire "User Replied", so add
+   a Custom Webhook mirror step (direction=out, template_key) after each send — baked into
+   GHL_trial_nurture_setup.md. (Option 2, in-app send box for the open 24h window, deferred.)
 
 22. Outage resilience batch (after the Supabase incident):
    - ✅ AppLayout green-ring lockout FIXED in source: 4s safety timeout on getSession (ring always clears)

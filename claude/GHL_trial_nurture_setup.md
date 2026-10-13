@@ -53,6 +53,26 @@ the contact timeline.
 
 Plus `trial_welcome` (sent by Workflow A).
 
+- **Mirror the send into the member thread (REQUIRED — don't skip):** after the "send WhatsApp
+  template" step, add a **Custom Webhook** step so the automated send shows in the in-app conversation
+  thread (the "User Replied" trigger does NOT fire for workflow-sent messages, so without this step
+  nurture templates won't appear in the thread). POST to the message-mirror endpoint:
+  `https://juvofqqtvakltlwqqhkn.supabase.co/functions/v1/wa-message-sync?key=wa_sync_B8c9PlF8JvIz0fLMW6g311HFx0laDS3o`
+  with RAW BODY:
+  ```json
+  {
+    "direction": "out",
+    "channel": "whatsapp",
+    "email": "{{contact.email}}",
+    "contact_id": "{{contact.id}}",
+    "template_key": "{{inboundWebhookRequest.template_key}}",
+    "body": "{{message.body}}"
+  }
+  ```
+  (`template_key` carries the value from the triggering webhook so the thread tags it as an automated
+  template, not a typed reply. Do the same on the welcome Workflow A and the reach-out/win-back send
+  workflows.)
+
 ## WhatsApp templates
 Nine approved templates, one per `template_key` above. Keep them short and personal; include a
 merge field for **Coach Note** (`{{contact.coach_note}}`) so Carla's edited line lands inside the
