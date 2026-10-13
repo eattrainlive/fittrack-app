@@ -355,6 +355,20 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
    StaffHubCallLists.tsx; KEPT repo trialNurture.ts (builder's copy logs to wrong table
    trial_nurture_sends vs our trial_nurture_log). Relaxed sendStep arg type for the cockpit's
    {email,name} call. All 3 files transpile clean. Catch-up: catch-up-trial-nurture-merge.md. → PUSH.
+   Coach-note textarea: Enter blocked + newlines stripped (single paragraph, can't break the send).
+
+23. WhatsApp conversation mirror (option 1 + 3 — keep the convo in-app, reply in GHL).
+   Read-only thread on the member profile + one-click "Reply in GoHighLevel" deep-link. GHL stays
+   system-of-record + send surface (free-text only within WhatsApp's 24h window, which GHL manages).
+   FILES (committed): supabase/sql/member_messages.sql (table + staff-read RLS + wa_message_id
+   idempotency); supabase/functions/wa-message-sync/index.ts (PUBLIC ?key= receiver for GHL inbound+
+   outbound message webhooks → upsert, tolerant field mapping, dedup on message_id); src/lib/
+   memberMessages.ts (getMemberMessages, ghlConversationUrl deep-link, GHL_LOCATION_ID const to set).
+   DOCS: brief-member-messages-thread.md (add Messages thread to MemberActivityModal); GHL_whatsapp_
+   inbox_sync.md (2 GHL workflows inbound/outbound, env WA_SYNC_WEBHOOK_SECRET, set GHL_LOCATION_ID).
+   PENDING: run member_messages.sql; deploy wa-message-sync --no-verify-jwt + set WA_SYNC_WEBHOOK_
+   SECRET; build GHL workflows A+B; set GHL_LOCATION_ID in memberMessages.ts; push; paste thread brief.
+   (Option 2, in-app send box for the open 24h window, deferred — add later if wanted.)
 
 22. Outage resilience batch (after the Supabase incident):
    - ✅ AppLayout green-ring lockout FIXED in source: 4s safety timeout on getSession (ring always clears)
