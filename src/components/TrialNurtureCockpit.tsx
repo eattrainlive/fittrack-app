@@ -312,7 +312,11 @@ function NurtureCard({
               </label>
               <Textarea
                 value={note}
-                onChange={(e) => setNote(e.target.value)}
+                onChange={(e) => setNote(e.target.value.replace(/[\r\n]+/g, " "))}
+                onKeyDown={(e) => {
+                  // No paragraphs in the coach note — a line break breaks the send.
+                  if (e.key === "Enter") e.preventDefault();
+                }}
                 placeholder={step.defaultNote || "Add a personal note…"}
                 rows={2}
               />
