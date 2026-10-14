@@ -27,6 +27,7 @@ import {
 import { ActivityWinsGrid } from "@/components/ActivityWinsGrid";
 import { CoachPastWorkouts } from "@/components/CoachPastWorkouts";
 import { MemberMessagesSection } from "@/components/MemberMessagesSection";
+import { getHabitAdherence, type HabitAdherence } from "@/lib/habitAdherence";
 import { supabase } from "@/lib/supabase";
 import { getExercises } from "@/lib/store";
 import { getMemberParqStatus, type ParqStatus } from "@/lib/parq";
@@ -136,15 +137,20 @@ export function MemberActivityModal({
   const [act, setAct] = useState<MemberActivity | null>(null);
   const [actLoading, setActLoading] = useState(false);
   const [parq, setParq] = useState<ParqStatus | null>(null);
+  const [habits, setHabits] = useState<HabitAdherence[] | null>(null);
   const [exercises] = useState<any[]>(getExercises());
 
   useEffect(() => {
     if (!open || !member) return;
     setParq(null);
+    setHabits(null);
     if (member.id) {
       getMemberParqStatus(member.id)
         .then(setParq)
         .catch(() => setParq(null));
+      getHabitAdherence(member.id)
+        .then(setHabits)
+        .catch(() => setHabits([]));
     }
 
     // Full progress summary in staff mode (goals, nutrition, PRs, streak).
@@ -667,6 +673,37 @@ export function MemberActivityModal({
             </p>
           )}
         </div>
+
+        {/* Habits — are they checking off their chosen habits? */}
+        {member.id && habits && habits.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Habits this week
+            </p>
+            <div className="space-y-1.5">
+              {habits.map((h) => {
+                const pct = Math.round((h.done / h.of) * 100);
+                const tone =
+                  pct >= 70
+                    ? "text-emerald-600"
+                    : pct >= 30
+                      ? "text-amber-600"
+                      : "text-red-600";
+                return (
+                  <div
+                    key={h.id}
+                    className="flex items-center justify-between gap-3 rounded-lg bg-muted/20 px-3 py-2"
+                  >
+                    <span className="truncate text-sm">{h.name}</span>
+                    <span className={`shrink-0 text-sm font-semibold tabular-nums ${tone}`}>
+                      {h.done}/{h.of} days
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Past workouts — editable via workout-admin */}
         <div className="space-y-2">
