@@ -179,13 +179,16 @@ export const replyToCheckin = async (
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  // Was this check-in already replied to? If so, this is an EDIT — don't re-nudge.
+  // Only nudge when a Loom VIDEO becomes available (the message says "watch your
+  // video"), and only once — fire if this save adds a loom the row didn't have.
   const { data: prev } = await supabase
     .from("acc_checkins")
-    .select("coach_replied_at")
+    .select("coach_reply_loom_url")
     .eq("id", payload.checkinId)
     .maybeSingle();
-  const firstReply = !((prev as any)?.coach_replied_at);
+  const hadLoom = !!(prev as any)?.coach_reply_loom_url;
+  const hasLoomNow = !!(payload.loomUrl && payload.loomUrl.trim());
+  const notifyLoom = hasLoomNow && !hadLoom;
   const { error } = await supabase
     .from("acc_checkins")
     .update({
@@ -197,8 +200,8 @@ export const replyToCheckin = async (
       coach_user_id: user?.id ?? null,
     })
     .eq("id", payload.checkinId);
-  // Nudge the client ONLY on the first reply (not on later edits), best-effort.
-  if (!error && firstReply) void fireCheckinReady(payload.checkinId);
+  // Nudge the client only when a Loom video is newly added (not on edits), best-effort.
+  if (!error && notifyLoom) void fireCheckinReady(payload.checkinId);
   return { error };
 };
 
