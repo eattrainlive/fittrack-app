@@ -57,6 +57,8 @@ const Accountability = () => {
   const [habits, setHabits] = useState<any[]>([]);
   const [checkins, setCheckins] = useState<any[]>([]);
   const [weight, setWeight] = useState("");
+  // Bumped after a weight save so the dashboard re-mounts and re-reads its stats.
+  const [dashKey, setDashKey] = useState(0);
   const [weekCheckins, setWeekCheckins] = useState<AccCheckin[]>([]);
   const [view, setView] = useState<
     "dashboard" | "onboarding" | "checkin" | "final"
@@ -338,6 +340,7 @@ const Accountability = () => {
       {/* Dashboard view during active programme */}
       {!isPreStart && !isComplete && view === "dashboard" && (
         <AccountabilityDashboard
+          key={dashKey}
           onOpenOnboarding={() => setView("onboarding")}
           onOpenCheckin={() => setView("checkin")}
           onOpenFinal={() => setView("final")}
@@ -459,40 +462,6 @@ const Accountability = () => {
         </div>
       )}
 
-      {/* Daily keystone habits */}
-      {!isPreStart && habits.length > 0 && (
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <CardTitle className="text-lg">Today's habits</CardTitle>
-            <CardDescription>
-              Check off your keystone habits each day.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {habits.map((h: any) => (
-              <button
-                key={h.id}
-                onClick={() => toggleHabit(h.id)}
-                className="w-full flex items-center gap-3 rounded-lg border border-border p-3 text-left active:scale-[0.99] transition"
-              >
-                <div
-                  className={`w-6 h-6 rounded-md border flex items-center justify-center shrink-0 ${
-                    isCheckedToday(h.id)
-                      ? "bg-primary border-primary"
-                      : "border-border"
-                  }`}
-                >
-                  {isCheckedToday(h.id) && (
-                    <Check className="w-4 h-4 text-primary-foreground" />
-                  )}
-                </div>
-                <span className="text-sm font-medium">{h.name}</span>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
       {/* Weight log */}
       {!isPreStart && (
         <Card className="bg-card border-border">
@@ -521,6 +490,7 @@ const Accountability = () => {
                 if (success) {
                   toast.success("Weight logged");
                   setWeight("");
+                  setDashKey((k) => k + 1); // refresh the dashboard weight stat
                 } else toast.error("Couldn't save weight");
               }}
             >
