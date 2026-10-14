@@ -273,10 +273,15 @@ function enrich(
   const trialDay = trialDayFor(c.trial_start);
   const startNum = dayNum(c.trial_start);
 
+  // "Been in" = a booking that has already happened and wasn't cancelled. GymOS
+  // leaves attended sessions as status "booked" (the gym doesn't mark attendance),
+  // so counting only status==="attended" wrongly reads as "never been in". Match the
+  // activity card: a PAST, non-cancelled booking counts as attendance.
+  const nowMs = Date.now();
   const attendedDates = bookings
-    .filter((b) => b.status === "attended" && b.session_at)
+    .filter((b) => b.status !== "cancelled" && b.session_at)
     .map((b) => new Date(b.session_at as string))
-    .filter((d) => !isNaN(d.getTime()))
+    .filter((d) => !isNaN(d.getTime()) && d.getTime() <= nowMs)
     .sort((a, b) => a.getTime() - b.getTime());
 
   const attended = attendedDates.length;
