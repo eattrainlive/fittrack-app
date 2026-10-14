@@ -44,8 +44,8 @@ import {
 type TabKey = "trialists" | "reachout" | "lapsed" | "nurture";
 
 const TERMINAL: Record<ListType, ContactStatus[]> = {
-  reachout: ["done"],
-  lapsed: ["joined", "not_interested"],
+  reachout: ["done", "dismissed"],
+  lapsed: ["joined", "not_interested", "dismissed"],
 };
 
 export function StaffHubCallLists({
@@ -241,7 +241,7 @@ function ContactCadenceList<M extends ContactMember>({
   emptyText: string;
   renderInfo: (m: M) => ReactNode;
 }) {
-  const { byBucket, buckets, loading, logContact } = useContactProgress(
+  const { byBucket, buckets, loading, logContact, removeFromList } = useContactProgress(
     list,
     listType,
     staffName(),
@@ -311,6 +311,12 @@ function ContactCadenceList<M extends ContactMember>({
               renderInfo={renderInfo}
               onLog={(kind) => setSheet({ card: c, kind })}
               onOpenActivity={() => openActivity(c)}
+              onRemove={async () => {
+                if (!confirm(`Remove ${c.name} from this list?`)) return;
+                const ok = await removeFromList(c);
+                if (ok) toast.success("Removed from list");
+                else toast.error("Couldn't remove — try again");
+              }}
             />
           ))}
         </div>
@@ -348,12 +354,14 @@ function ContactCadenceCard<M extends ContactMember>({
   renderInfo,
   onLog,
   onOpenActivity,
+  onRemove,
 }: {
   c: EnrichedContact<M>;
   listType: ListType;
   renderInfo: (m: M) => ReactNode;
   onLog: (kind: LogContactArgs["kind"]) => void;
   onOpenActivity: () => void;
+  onRemove: () => void;
 }) {
   const terminal = TERMINAL[listType].includes(c.status);
 
@@ -388,7 +396,16 @@ function ContactCadenceCard<M extends ContactMember>({
             <CheckCircle2 className="h-3.5 w-3.5" /> {STATUS_LABELS[c.status]}
           </span>
         ) : (
-          <ContactActions next={c.next} onLog={onLog} />
+          <div className="flex items-center justify-between gap-2">
+            <ContactActions next={c.next} onLog={onLog} />
+            <button
+              onClick={onRemove}
+              className="shrink-0 text-[11px] font-medium text-muted-foreground hover:text-red-600"
+              title="Remove from this list"
+            >
+              Remove
+            </button>
+          </div>
         )}
       </CardContent>
     </Card>

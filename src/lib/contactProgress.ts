@@ -16,7 +16,12 @@ import { logStaffActions } from "./staffHubMetrics";
  */
 export type ListType = "reachout" | "lapsed";
 export type ContactStatus =
-  "todo" | "in_progress" | "done" | "joined" | "not_interested";
+  | "todo"
+  | "in_progress"
+  | "done"
+  | "joined"
+  | "not_interested"
+  | "dismissed";
 
 export const STATUS_LABELS: Record<ContactStatus, string> = {
   todo: "To do",
@@ -24,11 +29,12 @@ export const STATUS_LABELS: Record<ContactStatus, string> = {
   done: "Done",
   joined: "Joined",
   not_interested: "Not interested",
+  dismissed: "Removed",
 };
 
 export const BUCKETS_BY_LIST: Record<ListType, ContactStatus[]> = {
-  reachout: ["todo", "in_progress", "done"],
-  lapsed: ["todo", "in_progress", "joined", "not_interested"],
+  reachout: ["todo", "in_progress", "done", "dismissed"],
+  lapsed: ["todo", "in_progress", "joined", "not_interested", "dismissed"],
 };
 
 /** The outcome chips shown when a call is answered (differ by list). */
@@ -91,6 +97,7 @@ interface ProgressRow {
   status: ContactStatus;
   last_note: string | null;
   last_outcome: string | null;
+  last_window?: string | null; // win-back window they were last actioned in
   updated_at: string | null;
 }
 
@@ -181,7 +188,7 @@ export function useContactProgress<M extends ContactMember>(
       const { data } = await supabase
         .from("staff_contact_progress")
         .select(
-          "email,list_type,attempts,whatsapp_sent,status,last_note,last_outcome,updated_at",
+          "email,list_type,attempts,whatsapp_sent,status,last_note,last_outcome,last_window,updated_at",
         )
         .eq("list_type", listType);
       const map: Record<string, ProgressRow> = {};
@@ -205,9 +212,24 @@ export function useContactProgress<M extends ContactMember>(
     return (members ?? []).map((m) => {
       const key = emailKey(m.email);
       const r = rows[key];
-      const attempts = r?.attempts ?? 0;
+      let attempts = r?.attempts ?? 0;
       const whatsappSent = r?.whatsapp_sent ?? false;
-      const status: ContactStatus = r?.status ?? "todo";
+      let status: ContactStatus = r?.status ?? "todo";
+      // Win-back re-loop: if someone we already closed off (not interested /
+      // removed) re-appears in a LATER window than the one we actioned them in
+      // (e.g. first tried at "2-3 months", now back in the annual "12 months"
+      // window), wake them up for a fresh attempt.
+      const srcWindow = (m as any).window as string | undefined;
+      const reloop =
+        listType === "lapsed" &&
+        (status === "not_interested" || status === "dismissed") &&
+        !!srcWindow &&
+        !!r?.last_window &&
+        srcWindow !== r.last_window;
+      if (reloop) {
+        status = "todo";
+        attempts = 0;
+      }
       return {
         member: m,
         key,
@@ -292,6 +314,7 @@ export function useContactProgress<M extends ContactMember>(
             status,
             last_note: newRow.last_note,
             last_outcome: outcomeLabel,
+            last_window: (c.member as any).window ?? null,
             owner: staffName || "Staff",
             updated_at: newRow.updated_at,
           },
@@ -323,12 +346,79 @@ export function useContactProgress<M extends ContactMember>(
     [rows, listType, staffName],
   );
 
+  /**
+   * Manually remove someone from the active list (duplicate, wrong number, not a
+   * real lead). Sets status "dismissed". For the win-back (lapsed) list it also
+   * stamps reopen_at = +12 months so they can cycle back for a fresh attempt once
+   * that passes (needs the win-back source to still surface them by then).
+   */
+  const removeFromList = useCallback(
+    async (c: EnrichedContact<M>, note?: string): Promise<boolean> => {
+      const cur = rows[c.key];
+      const reopenAt =
+        listType === "lapsed"
+          ? new Date(Date.now() + 365 * 86400000).toISOString()
+          : null;
+      const newRow: ProgressRow = {
+        email: c.member.email,
+        list_type: listType,
+        attempts: cur?.attempts ?? 0,
+        whatsapp_sent: cur?.whatsapp_sent ?? false,
+        status: "dismissed",
+        last_note: note?.trim() || cur?.last_note || null,
+        last_outcome: "Removed from list",
+        updated_at: new Date().toISOString(),
+      };
+      setRows((prev) => ({ ...prev, [c.key]: newRow })); // optimistic
+      try {
+        const { error } = await supabase.from("staff_contact_progress").upsert(
+          {
+            email: c.member.email,
+            list_type: listType,
+            attempts: newRow.attempts,
+            whatsapp_sent: newRow.whatsapp_sent,
+            status: "dismissed",
+            last_note: newRow.last_note,
+            last_outcome: "Removed from list",
+            last_window: (c.member as any).window ?? null,
+            owner: staffName || "Staff",
+            reopen_at: reopenAt,
+            updated_at: newRow.updated_at,
+          },
+          { onConflict: "email,list_type" },
+        );
+        if (error) throw error;
+        logStaffActions([
+          {
+            type: listType,
+            who: c.name,
+            email: c.member.email,
+            outcome: "Removed from list",
+            note: note?.trim() || undefined,
+            by: staffName || "Staff",
+          },
+        ]).catch(() => {});
+        return true;
+      } catch {
+        setRows((prev) => {
+          const next = { ...prev };
+          if (cur) next[c.key] = cur;
+          else delete next[c.key];
+          return next;
+        });
+        return false;
+      }
+    },
+    [rows, listType, staffName],
+  );
+
   return {
     enriched,
     byBucket,
     buckets: BUCKETS_BY_LIST[listType],
     loading,
     logContact,
+    removeFromList,
     reload: load,
   };
 }
