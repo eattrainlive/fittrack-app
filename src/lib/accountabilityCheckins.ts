@@ -1,4 +1,48 @@
 import { supabase } from "./supabase";
+import { resolveMemberContact } from "./accountabilityProgramme";
+
+/**
+ * Tell a client (via GHL WhatsApp) that their check-in has been reviewed, so they
+ * head to their 6-week profile to watch the coach video / read the notes.
+ * Best-effort: resolves the client's contact from the check-in and pings a
+ * staff-only proxy; never throws, never blocks the reply save.
+ */
+async function fireCheckinReady(checkinId: string): Promise<void> {
+  try {
+    const { data: ci } = await supabase
+      .from("acc_checkins")
+      .select("client_id")
+      .eq("id", checkinId)
+      .maybeSingle();
+    const clientId = (ci as any)?.client_id;
+    if (!clientId) return;
+    const { data: cl } = await supabase
+      .from("acc_clients")
+      .select("user_id")
+      .eq("id", clientId)
+      .maybeSingle();
+    const userId = (cl as any)?.user_id;
+    if (!userId) return;
+    const c = await resolveMemberContact(userId);
+    if (!c) return;
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token ?? "";
+    await fetch("/.netlify/functions/acc-checkin-reply", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: c.email,
+        alt_email: c.altEmail,
+        name: c.fullName,
+        first: c.first,
+      }),
+    });
+  } catch (e) {
+    console.warn("[checkinReady] send failed:", e);
+  }
+}
 
 export interface AccCheckin {
   id: string;
@@ -135,6 +179,13 @@ export const replyToCheckin = async (
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  // Was this check-in already replied to? If so, this is an EDIT — don't re-nudge.
+  const { data: prev } = await supabase
+    .from("acc_checkins")
+    .select("coach_replied_at")
+    .eq("id", payload.checkinId)
+    .maybeSingle();
+  const firstReply = !((prev as any)?.coach_replied_at);
   const { error } = await supabase
     .from("acc_checkins")
     .update({
@@ -146,6 +197,8 @@ export const replyToCheckin = async (
       coach_user_id: user?.id ?? null,
     })
     .eq("id", payload.checkinId);
+  // Nudge the client ONLY on the first reply (not on later edits), best-effort.
+  if (!error && firstReply) void fireCheckinReady(payload.checkinId);
   return { error };
 };
 

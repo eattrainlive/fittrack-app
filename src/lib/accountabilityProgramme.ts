@@ -130,55 +130,71 @@ export const setCohortCall = async (
  * when a client is enrolled. Best-effort: resolves the member's email/name and
  * pings a staff-only proxy; never throws and never blocks enrolment.
  */
+export interface MemberContact {
+  email: string; // primary match (gym-roster email where known)
+  altEmail: string | null; // app-signup email, when it differs (backup match)
+  fullName: string;
+  first: string;
+}
+
+/**
+ * Resolve a member's WhatsApp/GHL contact from their app user id. Prefers the
+ * GYM-roster email (what GHL most likely holds — GymOS/Quoox is the source of
+ * their GHL contact), resolved via the account link; falls back to the app
+ * signup email. Returns null if nothing to match on. Used by the accountability
+ * auto-WhatsApp hooks (enrol welcome, check-in ready).
+ */
+export async function resolveMemberContact(
+  userId: string,
+): Promise<MemberContact | null> {
+  const { data: m } = await supabase
+    .from("members")
+    .select("email, full_name")
+    .eq("id", userId)
+    .maybeSingle();
+  const appEmail = (m as any)?.email ?? null;
+  const fullName = (m as any)?.full_name ?? "";
+
+  let gymEmail: string | null = null;
+  try {
+    const { data: link } = await supabase
+      .from("member_links")
+      .select("member_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const memberId = (link as any)?.member_id;
+    if (memberId) {
+      const { data: gm } = await supabase
+        .from("gym_members")
+        .select("email")
+        .eq("id", memberId)
+        .maybeSingle();
+      gymEmail = (gm as any)?.email ?? null;
+    }
+    if (!gymEmail) {
+      const { data: gm2 } = await supabase
+        .from("gym_members")
+        .select("email")
+        .eq("auth_uid", userId)
+        .maybeSingle();
+      gymEmail = (gm2 as any)?.email ?? null;
+    }
+  } catch {
+    /* roster not readable — fall back to app email */
+  }
+
+  const email = gymEmail || appEmail;
+  if (!email) return null;
+  const altEmail =
+    appEmail && gymEmail && appEmail !== gymEmail ? appEmail : null;
+  const first = String(fullName).trim().split(/\s+/)[0] ?? "";
+  return { email, altEmail, fullName, first };
+}
+
 async function fireAccWelcome(userId: string, cohortId: string): Promise<void> {
   try {
-    // App-account details (the email they signed up to FitTrack with).
-    const { data: m } = await supabase
-      .from("members")
-      .select("email, full_name")
-      .eq("id", userId)
-      .maybeSingle();
-    const appEmail = (m as any)?.email ?? null;
-    const fullName = (m as any)?.full_name ?? "";
-
-    // Fail-safe for a mismatched email: resolve the GYM-roster email (what GHL
-    // most likely holds — GymOS/Quoox is the source of their GHL contact). Prefer
-    // the explicit account link, fall back to gym_members.auth_uid.
-    let gymEmail: string | null = null;
-    try {
-      const { data: link } = await supabase
-        .from("member_links")
-        .select("member_id")
-        .eq("user_id", userId)
-        .maybeSingle();
-      const memberId = (link as any)?.member_id;
-      if (memberId) {
-        const { data: gm } = await supabase
-          .from("gym_members")
-          .select("email")
-          .eq("id", memberId)
-          .maybeSingle();
-        gymEmail = (gm as any)?.email ?? null;
-      }
-      if (!gymEmail) {
-        const { data: gm2 } = await supabase
-          .from("gym_members")
-          .select("email")
-          .eq("auth_uid", userId)
-          .maybeSingle();
-        gymEmail = (gm2 as any)?.email ?? null;
-      }
-    } catch {
-      /* roster not readable — fall back to app email */
-    }
-
-    // Primary = the gym email GHL knows them by; app email rides along as a backup
-    // (so a GHL "find by email OR additional email" still lands if they differ).
-    const primaryEmail = gymEmail || appEmail;
-    if (!primaryEmail) return; // nothing to match on
-    const altEmail = appEmail && gymEmail && appEmail !== gymEmail ? appEmail : null;
-    const first = String(fullName).trim().split(/\s+/)[0] ?? "";
-
+    const c = await resolveMemberContact(userId);
+    if (!c) return; // no email on file — nothing to send to
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -187,10 +203,10 @@ async function fireAccWelcome(userId: string, cohortId: string): Promise<void> {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        email: primaryEmail,
-        alt_email: altEmail,
-        name: fullName,
-        first,
+        email: c.email,
+        alt_email: c.altEmail,
+        name: c.fullName,
+        first: c.first,
         cohort: cohortId,
       }),
     });
