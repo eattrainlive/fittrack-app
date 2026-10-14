@@ -173,7 +173,14 @@ export const flushRetryQueue = async () => {
             reps: parseInt(String(p.reps)) || 0,
           }));
           localStorage.setItem("fittrack_prs", JSON.stringify(clean)); // heal local copy
-          const rows = clean.map((p: any) => ({ ...p, user_id: user.id }));
+          const rows = clean.map((p: any) => ({
+            id: p.id,
+            user_id: user.id,
+            exercise: p.exercise ?? p.exerciseId,
+            weight: Number(p.weight) || 0,
+            reps: Number(p.reps) || 0,
+            date: p.date,
+          }));
           const { error: _pe } = await supabase
             .from("personal_records")
             .upsert(rows, { onConflict: "user_id, exercise" });
@@ -1060,7 +1067,14 @@ export const detectAndSavePBs = async (exercises: any[]) => {
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      const rows = newPBs.map((p: any) => ({ ...p, user_id: user.id }));
+      const rows = newPBs.map((p: any) => ({
+            id: p.id,
+            user_id: user.id,
+            exercise: p.exercise ?? p.exerciseId,
+            weight: Number(p.weight) || 0,
+            reps: Number(p.reps) || 0,
+            date: p.date,
+          }));
       const { error } = await supabase
         .from("personal_records")
         .upsert(rows, { onConflict: "user_id, exercise" });
@@ -1101,7 +1115,17 @@ export const savePersonalRecord = (exerciseId: string, weight: number) => {
         supabase
           .from("personal_records")
           .upsert(
-            { ...newPr, user_id: user.id },
+            // Only real table columns — `exerciseId` is a localStorage-only field
+            // (kept for Progress.tsx) and isn't a column, so spreading newPr caused
+            // PGRST204. Send the explicit DB shape.
+            {
+              id: newPr.id,
+              user_id: user.id,
+              exercise: newPr.exercise,
+              weight: newPr.weight,
+              reps: newPr.reps,
+              date: newPr.date,
+            },
             { onConflict: "user_id, exercise" },
           )
           .then(({ error }) => {
@@ -1632,7 +1656,16 @@ export const syncFromSupabase = async () => {
       const local = localStorage.getItem("fittrack_prs");
       if (local) {
         const prsData = JSON.parse(local);
-        const rows = prsData.map((p: any) => ({ ...p, user_id: user.id }));
+        // Map to real table columns only — drop localStorage-only `exerciseId`
+        // (not a column → PGRST204 on sync).
+        const rows = prsData.map((p: any) => ({
+          id: p.id,
+          user_id: user.id,
+          exercise: p.exercise ?? p.exerciseId,
+          weight: Number(p.weight) || 0,
+          reps: Number(p.reps) || 0,
+          date: p.date,
+        }));
         supabase
           .from("personal_records")
           .upsert(rows, { onConflict: "user_id, exercise" })
