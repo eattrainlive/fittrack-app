@@ -171,6 +171,9 @@ export interface NurtureTrialist {
   name: string;
   trialStart: string; // yyyy-mm-dd
   trialEnd: string | null;
+  trialProduct: string | null; // e.g. "30 Day Trial" — the type of trial they're on
+  converted: boolean; // true = they've signed up to a paid membership
+  convertedProduct: string | null; // the paid plan they joined on, if converted
   trialDay: number; // 1-based day of the trial today
   attended: number; // attended sessions in the trial window
   attendedWeek1: number; // attended in first 7 days
@@ -243,7 +246,9 @@ interface CohortRow {
   full_name: string | null;
   trial_start: string | null;
   trial_end: string | null;
+  trial_product: string | null;
   converted: boolean | null;
+  converted_product: string | null;
 }
 interface BookingRow {
   email: string;
@@ -304,11 +309,16 @@ function enrich(
       return { step, state: "upcoming" as StepState };
     });
 
+  const converted = !!c.converted;
   // The one to action now: earliest un-sent step that is overdue or due (coach
-  // never sends the auto welcome). Overdue outranks due via step order (ascending day).
-  const actionable = steps.filter(
-    (s) => !s.step.auto && (s.state === "overdue" || s.state === "due"),
-  );
+  // never sends the auto welcome). Overdue outranks due via step order (ascending
+  // day). A trialist who's already SIGNED UP gets no outreach — they move to the
+  // "Joined" list instead of being nurtured.
+  const actionable = converted
+    ? []
+    : steps.filter(
+        (s) => !s.step.auto && (s.state === "overdue" || s.state === "due"),
+      );
   const nextStep = actionable.length ? actionable[0] : null;
 
   return {
@@ -316,6 +326,9 @@ function enrich(
     name,
     trialStart: c.trial_start,
     trialEnd: c.trial_end,
+    trialProduct: c.trial_product ?? null,
+    converted,
+    convertedProduct: c.converted_product ?? null,
     trialDay,
     attended,
     attendedWeek1,
@@ -338,6 +351,7 @@ function enrich(
 export interface NurtureBoard {
   dueNow: NurtureTrialist[]; // has an overdue/due step to send today
   upcoming: NurtureTrialist[]; // in the drip, nothing to send yet
+  joined: NurtureTrialist[]; // signed up to a paid membership — the wins
 }
 
 /**
@@ -348,12 +362,13 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
   try {
     const { data: cohort } = await supabase
       .from("trial_cohort")
-      .select("email, full_name, trial_start, trial_end, converted")
-      .eq("converted", false)
+      .select(
+        "email, full_name, trial_start, trial_end, trial_product, converted, converted_product",
+      )
       .not("trial_start", "is", null);
 
     const rows = (cohort as CohortRow[]) ?? [];
-    if (!rows.length) return { dueNow: [], upcoming: [] };
+    if (!rows.length) return { dueNow: [], upcoming: [], joined: [] };
 
     const emails = rows.map((r) => r.email);
 
@@ -391,7 +406,13 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
       // drop trialists whose window is well past (no more drip to work)
       .filter((t) => t.trialDay <= 35);
 
-    const dueNow = enriched
+    // Signed-up trialists — the wins. Shown separately, no outreach.
+    const joined = enriched
+      .filter((t) => t.converted)
+      .sort((a, b) => b.trialDay - a.trialDay);
+    const active = enriched.filter((t) => !t.converted);
+
+    const dueNow = active
       .filter((t) => t.nextStep != null)
       .sort((a, b) => {
         // overdue before due, then hot leads, then by trial day (older first)
@@ -400,14 +421,14 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
         if (a.flags.hotLead !== b.flags.hotLead) return a.flags.hotLead ? -1 : 1;
         return b.trialDay - a.trialDay;
       });
-    const upcoming = enriched
+    const upcoming = active
       .filter((t) => t.nextStep == null)
       .sort((a, b) => b.trialDay - a.trialDay);
 
-    return { dueNow, upcoming };
+    return { dueNow, upcoming, joined };
   } catch (e) {
     console.warn("getNurtureBoard failed", e);
-    return { dueNow: [], upcoming: [] };
+    return { dueNow: [], upcoming: [], joined: [] };
   }
 }
 

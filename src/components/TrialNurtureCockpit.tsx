@@ -38,7 +38,9 @@ import {
 export function TrialNurtureCockpit({ staffSecret }: { staffSecret: string }) {
   const [board, setBoard] = useState<NurtureBoard | null>(null);
   const [loading, setLoading] = useState(true);
-  const [section, setSection] = useState<"dueNow" | "upcoming">("dueNow");
+  const [section, setSection] = useState<"dueNow" | "upcoming" | "joined">(
+    "dueNow",
+  );
 
   const load = async () => {
     setLoading(true);
@@ -47,7 +49,7 @@ export function TrialNurtureCockpit({ staffSecret }: { staffSecret: string }) {
       setBoard(b);
     } catch (e) {
       console.error("[trialNurture] getNurtureBoard failed", e);
-      setBoard({ dueNow: [], upcoming: [] });
+      setBoard({ dueNow: [], upcoming: [], joined: [] });
     } finally {
       setLoading(false);
     }
@@ -59,7 +61,9 @@ export function TrialNurtureCockpit({ staffSecret }: { staffSecret: string }) {
 
   const dueNow = board?.dueNow ?? [];
   const upcoming = board?.upcoming ?? [];
-  const bothEmpty = dueNow.length === 0 && upcoming.length === 0;
+  const joined = board?.joined ?? [];
+  const bothEmpty =
+    dueNow.length === 0 && upcoming.length === 0 && joined.length === 0;
 
   return (
     <div className="space-y-3">
@@ -94,6 +98,18 @@ export function TrialNurtureCockpit({ staffSecret }: { staffSecret: string }) {
             >
               In the drip {upcoming.length}
             </button>
+            {joined.length > 0 && (
+              <button
+                onClick={() => setSection("joined")}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                  section === "joined"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                }`}
+              >
+                Joined ✅ {joined.length}
+              </button>
+            )}
           </div>
 
           {section === "dueNow" ? (
@@ -111,12 +127,22 @@ export function TrialNurtureCockpit({ staffSecret }: { staffSecret: string }) {
                 ))}
               </div>
             )
-          ) : upcoming.length === 0 ? (
-            <EmptyState text="Nobody waiting in the drip." />
+          ) : section === "upcoming" ? (
+            upcoming.length === 0 ? (
+              <EmptyState text="Nobody waiting in the drip." />
+            ) : (
+              <div className="space-y-2">
+                {upcoming.map((t) => (
+                  <UpcomingRow key={t.email} t={t} staffSecret={staffSecret} />
+                ))}
+              </div>
+            )
+          ) : joined.length === 0 ? (
+            <EmptyState text="No sign-ups yet." />
           ) : (
             <div className="space-y-2">
-              {upcoming.map((t) => (
-                <UpcomingRow key={t.email} t={t} staffSecret={staffSecret} />
+              {joined.map((t) => (
+                <JoinedRow key={t.email} t={t} staffSecret={staffSecret} />
               ))}
             </div>
           )}
@@ -218,6 +244,11 @@ function NurtureCard({
                   Day {t.trialDay} of 30
                 </span>
               </div>
+              {t.trialProduct && (
+                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                  {t.trialProduct}
+                </p>
+              )}
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 {t.flags.hotLead && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
@@ -495,6 +526,11 @@ function UpcomingRow({
                 <span className="text-xs text-muted-foreground">
                   Day {t.trialDay}
                 </span>
+                {t.trialProduct && (
+                  <span className="text-xs text-muted-foreground">
+                    · {t.trialProduct}
+                  </span>
+                )}
                 {nextLabel && (
                   <span className="text-xs text-muted-foreground">
                     · next: {nextLabel}
@@ -516,6 +552,64 @@ function UpcomingRow({
                   </span>
                 )}
               </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <ActivityButton onClick={openActivity} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <MemberActivityModal
+        member={activityMember}
+        staffSecret={staffSecret}
+        open={activityOpen}
+        onOpenChange={setActivityOpen}
+      />
+    </>
+  );
+}
+
+// ── Joined row (signed up — the wins) ────────────────────────────────────────
+
+function JoinedRow({
+  t,
+  staffSecret,
+}: {
+  t: NurtureTrialist;
+  staffSecret: string;
+}) {
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [activityMember, setActivityMember] = useState<any | null>(null);
+
+  const openActivity = () => {
+    setActivityMember({
+      id: null,
+      email: t.email,
+      full_name: t.name,
+      membership: t.convertedProduct,
+      online_client: false,
+    });
+    setActivityOpen(true);
+  };
+
+  return (
+    <>
+      <Card className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20">
+        <CardContent className="space-y-1 p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <p className="truncate font-semibold">{t.name}</p>
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+                  ✅ Joined
+                </span>
+              </div>
+              <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                {t.convertedProduct
+                  ? `Signed up: ${t.convertedProduct}`
+                  : "Signed up"}
+                {t.trialProduct ? ` · from ${t.trialProduct}` : ""}
+              </p>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <ActivityButton onClick={openActivity} />
