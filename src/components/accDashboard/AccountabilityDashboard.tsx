@@ -7,7 +7,7 @@ import { toast } from "@/components/ui/sonner";
 import {
   getActiveCohort,
   getMyClientRecord,
-  currentWeekOf,
+  effectiveWeekOf,
   onboardingStatus,
   ONBOARDING_ITEM_LABELS,
   ONBOARDING_ITEM_SHORT_LABELS,
@@ -130,7 +130,7 @@ export function AccountabilityDashboard({
       setLoading(false);
       return;
     }
-    const week = currentWeekOf(c.start_date, c.weeks);
+    const week = effectiveWeekOf({ start_date: c.start_date, weeks: c.weeks }, me);
     const [cks, wc] = await Promise.all([
       getMyCheckins(me.id),
       getWeekContent(week),
@@ -284,7 +284,7 @@ export function AccountabilityDashboard({
   const week =
     isPreview && previewWeek != null
       ? previewWeek
-      : currentWeekOf(cohort.start_date, cohort.weeks);
+      : effectiveWeekOf(cohort, client);
   const today = new Date();
   const weekEnd = new Date(cohort.start_date + "T00:00:00");
   weekEnd.setDate(weekEnd.getDate() + week * 7);

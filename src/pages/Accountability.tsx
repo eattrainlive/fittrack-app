@@ -17,7 +17,7 @@ import { supabase } from "@/lib/supabase";
 import {
   getActiveCohort,
   getMyClientRecord,
-  currentWeekOf,
+  effectiveWeekOf,
   WEEK_THEMES,
   type AccCohort,
   type AccClient,
@@ -122,7 +122,7 @@ const Accountability = () => {
     );
   }
 
-  const week = currentWeekOf(cohort.start_date, cohort.weeks);
+  const week = effectiveWeekOf(cohort, client);
   const isPreStart = week === 0;
   const isComplete = week > cohort.weeks;
 
