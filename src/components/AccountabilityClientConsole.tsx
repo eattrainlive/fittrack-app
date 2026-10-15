@@ -21,6 +21,7 @@ import {
 import { TrackingTargetsCard } from "./TrackingTargetsCard";
 import { StepTargetCard } from "./StepTargetCard";
 import { AccCheckinCard } from "./AccCheckinCard";
+import { AccountabilityOnboarding } from "./AccountabilityOnboarding";
 
 const themeFor = (week: number) =>
   WEEK_THEMES.find((t) => t.week === week) || null;
@@ -144,6 +145,19 @@ export function AccountabilityClientConsole({
 
       {/* Tracking targets (tracking clients only) */}
       <TrackingTargetsCard client={client} onSaved={load} />
+
+      {/* Coach-side onboarding — do a client's onboarding for them */}
+      <div className="flex flex-wrap items-center gap-2">
+        <AccountabilityOnboarding
+          client={client}
+          coachMode
+          clientName={name}
+          onDone={load}
+        />
+        <span className="text-xs text-muted-foreground">
+          Fill in their onboarding + calories with them
+        </span>
+      </div>
 
       {/* Non-scale trends */}
       {checkins.length > 0 && (

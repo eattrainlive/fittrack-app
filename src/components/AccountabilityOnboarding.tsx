@@ -29,6 +29,7 @@ import {
   saveOnboardingProgress,
   onboardingStatus,
   markOnboardingComplete,
+  setTrackingTargets,
   ONBOARDING_ITEM_LABELS,
   ONBOARDING_ITEM_SHORT_LABELS,
   type AccClient,
@@ -128,9 +129,14 @@ function buildLiveClient(
 export function AccountabilityOnboarding({
   client,
   onDone,
+  coachMode = false,
+  clientName,
 }: {
   client: AccClient;
   onDone?: () => void;
+  /** Coach mode: coach-facing copy, photos optional, + calorie/protein targets. */
+  coachMode?: boolean;
+  clientName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [section, setSection] = useState(0);
@@ -140,6 +146,8 @@ export function AccountabilityOnboarding({
   const [photoBack, setPhotoBack] = useState<string | null>(null);
   const [f, setF] = useState<Record<string, any>>({});
   const [showMissing, setShowMissing] = useState(false);
+  const [calorieTarget, setCalorieTarget] = useState<string>("");
+  const [proteinTarget, setProteinTarget] = useState<string>("");
   const savingRef = useRef(false);
 
   const set = (k: string, v: any) => setF((prev) => ({ ...prev, [k]: v }));
@@ -160,7 +168,15 @@ export function AccountabilityOnboarding({
         setPhotoBack(b.photos.back ?? null);
       }
     }
-  }, [client]);
+    if (coachMode) {
+      setCalorieTarget(
+        client.calorie_target ? String(client.calorie_target) : "",
+      );
+      setProteinTarget(
+        client.protein_target ? String(client.protein_target) : "",
+      );
+    }
+  }, [client, coachMode]);
 
   const start = () => {
     setSection(0);
@@ -282,12 +298,32 @@ export function AccountabilityOnboarding({
         } catch (_) {}
       }
 
+      // Coach mode: save calorie + protein targets alongside the onboarding.
+      if (coachMode) {
+        const ct = calorieTarget ? Number(calorieTarget) : null;
+        const pt = proteinTarget ? Number(proteinTarget) : null;
+        if (ct || pt) {
+          await setTrackingTargets(client.id, {
+            calorie_target: ct,
+            protein_target: pt,
+          });
+        }
+      }
+
       // Check the 5 required items and stamp completion if all present.
+      // In coach mode, photos are optional — don't block completion on them.
       const live = buildLiveClient(client, f, photoFront, photoSide, photoBack);
       const status = onboardingStatus(live);
-      if (status.complete) {
+      const effectivelyComplete = coachMode
+        ? !status.missing.filter((m) => m !== "photos").length
+        : status.complete;
+      if (effectivelyComplete) {
         await markOnboardingComplete(client.id);
-        toast.success("Onboarding complete — let's do this 🎯");
+        toast.success(
+          coachMode
+            ? "Onboarding saved for this client ✓"
+            : "Onboarding complete — let's do this 🎯",
+        );
       } else {
         setShowMissing(true);
         toast.success("Progress saved — finish the 5 items before day 1");
@@ -319,7 +355,13 @@ export function AccountabilityOnboarding({
     <>
       <Button onClick={start} className="gap-2">
         <ClipboardCheck className="h-4 w-4" />
-        {client.onboarding_done ? "Review onboarding" : "Complete onboarding"}
+        {coachMode
+          ? client.onboarding_done
+            ? "Review onboarding"
+            : "Set up onboarding"
+          : client.onboarding_done
+            ? "Review onboarding"
+            : "Complete onboarding"}
       </Button>
 
       <Dialog
@@ -336,9 +378,15 @@ export function AccountabilityOnboarding({
                 {section + 1}/{SECTIONS.length}
               </span>
               <SecIcon className="w-4 h-4 text-primary" />
-              {sec.title}
+              {coachMode && clientName
+                ? `Onboarding — ${clientName}`
+                : sec.title}
             </DialogTitle>
-            <DialogDescription>{sec.desc}</DialogDescription>
+            <DialogDescription>
+              {coachMode
+                ? "Complete this with the client — their details, not yours."
+                : sec.desc}
+            </DialogDescription>
           </DialogHeader>
 
           {/* Needed to start checklist */}
@@ -402,6 +450,52 @@ export function AccountabilityOnboarding({
               busy={busy}
               handlePhoto={handlePhoto}
             />
+
+            {/* Coach mode: calorie + protein targets on the last section */}
+            {coachMode && isLast && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                  Nutrition targets
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground">
+                      Calorie target
+                    </label>
+                    <input
+                      type="number"
+                      value={calorieTarget}
+                      onChange={(e) => setCalorieTarget(e.target.value)}
+                      placeholder="e.g. 2000"
+                      className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">
+                      Protein target (g)
+                    </label>
+                    <input
+                      type="number"
+                      value={proteinTarget}
+                      onChange={(e) => setProteinTarget(e.target.value)}
+                      placeholder="e.g. 150"
+                      className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Saved to the client's record — their dashboard + console will
+                  show them.
+                </p>
+              </div>
+            )}
+
+            {coachMode && (
+              <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                Coach mode — photos are optional here. Fill in what you have
+                with the client; the rest can be added later.
+              </p>
+            )}
           </div>
 
           {/* Missing items warning on last section */}
