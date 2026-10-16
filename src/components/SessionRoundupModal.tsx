@@ -127,6 +127,9 @@ function SessionRoundupCard({
         {/* PBs */}
         {data.pbs.length > 0 && (
           <div className="w-full space-y-1.5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-foreground/70">
+              {data.pbs.length > 1 ? "New PBs" : "New PB"}
+            </p>
             {data.pbs.map((pb, i) => (
               <div
                 key={i}
