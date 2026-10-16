@@ -104,6 +104,36 @@ export function MemberProgressHub() {
     void load();
   }, [load]);
 
+  // A chosen habit (habit_1/2/3) with no member_habits row yet has a synthetic
+  // "chosen-i-name" id. Habit ids are bigint, so that string must NEVER reach the
+  // DB — resolve (or create) the real member_habits row and return its id.
+  const ensureMemberHabitId = async (
+    name: string,
+  ): Promise<number | null> => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data: existing } = await supabase
+        .from("member_habits")
+        .select("id")
+        .eq("member_id", user.id)
+        .eq("habit_name", name)
+        .eq("status", "active")
+        .maybeSingle();
+      if ((existing as any)?.id != null) return (existing as any).id as number;
+      const { data: created } = await supabase
+        .from("member_habits")
+        .insert({ member_id: user.id, habit_name: name, status: "active" })
+        .select("id")
+        .single();
+      return ((created as any)?.id as number) ?? null;
+    } catch {
+      return null;
+    }
+  };
+
   const handleToggleHabit = async (habitId: string) => {
     const t = today();
     const doneToday = habitCheckins.some(
@@ -128,13 +158,26 @@ export function MemberProgressHub() {
         { date: t, habit_id: null, member_habit_id: habitId },
       ]);
     }
-    const payload = { member_habit_id: habitId, date: t };
+    // Never send a synthetic "chosen-…" id to the DB — resolve it to a real
+    // member_habits row id first (creating one if needed).
+    let realId: string | number | null = habitId;
+    let wasSynthetic = false;
+    if (String(habitId).startsWith("chosen-")) {
+      wasSynthetic = true;
+      realId = await ensureMemberHabitId(
+        String(habitId).replace(/^chosen-\d+-/, ""),
+      );
+    }
+    if (realId == null) return; // couldn't resolve — keep local, skip the DB write
+    const payload = { member_habit_id: realId, date: t };
     const res = doneToday
       ? await deleteHabitCheckin(payload)
       : await saveHabitCheckin(payload);
     if (!res?.success) {
       toast.error("Couldn't update habit — try again");
       load();
+    } else if (wasSynthetic) {
+      load(); // re-sync so the ring now keys on the real member_habit id
     }
   };
 
