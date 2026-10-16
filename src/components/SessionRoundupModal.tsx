@@ -43,6 +43,21 @@ export interface SessionRoundupData {
   pbs: SessionPB[];
 }
 
+/** Turn a raw exercise key ("banded-face-pulls") into a label ("Banded Face Pulls"). */
+function prettyName(raw: string): string {
+  if (!raw) return "";
+  if (/[a-z][A-Z]/.test(raw) && !/[-_\s]/.test(raw)) {
+    raw = raw.replace(/([a-z])([A-Z])/g, "$1 $2");
+  }
+  return raw
+    .replace(/[-_]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
 /** Pick the best fun comparison for a given volume. */
 function pickComparison(volume: number) {
   if (volume <= 0) return null;
@@ -137,7 +152,7 @@ function SessionRoundupCard({
               >
                 <Trophy className="h-4 w-4 shrink-0" />
                 <span>
-                  {pb.exercise} — {pb.weight}kg × {pb.reps}
+                  {prettyName(pb.exercise)} — {pb.weight}kg × {pb.reps}
                 </span>
               </div>
             ))}
@@ -149,7 +164,7 @@ function SessionRoundupCard({
           <span>{data.exerciseCount} exercises</span>
           <span>·</span>
           <span>{data.totalSets} sets</span>
-          {data.duration ? (
+          {data.duration && Math.round(data.duration / 60) >= 1 ? (
             <>
               <span>·</span>
               <span>{Math.round(data.duration / 60)} min</span>

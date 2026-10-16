@@ -924,12 +924,13 @@ const Workouts = () => {
       workoutName: activeWorkoutMeta?.title || workoutName,
       pbs: [],
     });
+    // The Session Roundup now carries both the PBs and the volume/animal
+    // comparison, so we no longer open the separate PB or reward modals here —
+    // they stacked on top of the roundup and darkened it. Just fold the PBs
+    // into the roundup card.
     const newPBs = await detectAndSavePBs(savedExercises);
     if (newPBs.length > 0) {
-      setPbModal(newPBs);
       setRoundupData((prev) => prev ? { ...prev, pbs: newPBs.map((p) => ({ exercise: p.exercise, weight: p.weight, reps: p.reps })) } : prev);
-    } else if (earnedReward && totalVolume > 0) {
-      setRewardModal({ ...earnedReward, volume: totalVolume });
     }
 
     if (success && activeProgram) {
@@ -3818,7 +3819,7 @@ const Workouts = () => {
       <AdLibLogSheet
         open={adLibOpen}
         onOpenChange={setAdLibOpen}
-        onPBs={(pbs) => setPbModal(pbs)}
+        onPBs={() => {}}
         onRoundup={(data) => setRoundupData(data)}
       />
       <BlockLeaderboardDialog
