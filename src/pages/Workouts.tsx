@@ -26,6 +26,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { PbModal } from "@/components/PbModal";
+import { SessionRoundupModal, type SessionRoundupData } from "@/components/SessionRoundupModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -243,6 +244,7 @@ const Workouts = () => {
     displayName?: string;
   } | null>(null);
   const [pbModal, setPbModal] = useState<any[] | null>(null);
+  const [roundupData, setRoundupData] = useState<SessionRoundupData | null>(null);
   const [adLibOpen, setAdLibOpen] = useState(false);
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [quickOverviewWorkout, setQuickOverviewWorkout] = useState<any>(null);
@@ -908,9 +910,24 @@ const Workouts = () => {
       day: activeWorkoutMeta?.day,
     });
 
+    // Fire the session roundup (volume + PBs + stats).
+    const totalSetsCount = savedExercises.reduce(
+      (acc, ex) =>
+        acc + (Array.isArray(ex.setsData) ? ex.setsData.length : 0),
+      0,
+    );
+    setRoundupData({
+      totalVolume: totalVolume,
+      exerciseCount: savedExercises.filter((e) => !e.isSection).length,
+      totalSets: totalSetsCount,
+      duration: duration,
+      workoutName: activeWorkoutMeta?.title || workoutName,
+      pbs: [],
+    });
     const newPBs = await detectAndSavePBs(savedExercises);
     if (newPBs.length > 0) {
       setPbModal(newPBs);
+      setRoundupData((prev) => prev ? { ...prev, pbs: newPBs.map((p) => ({ exercise: p.exercise, weight: p.weight, reps: p.reps })) } : prev);
     } else if (earnedReward && totalVolume > 0) {
       setRewardModal({ ...earnedReward, volume: totalVolume });
     }
@@ -3349,6 +3366,11 @@ const Workouts = () => {
         </DialogContent>
       </Dialog>
 
+      <SessionRoundupModal
+        open={!!roundupData}
+        onOpenChange={(open) => !open && setRoundupData(null)}
+        data={roundupData}
+      />
       <PbModal
         pbModal={pbModal}
         onClose={() => setPbModal(null)}
@@ -3797,6 +3819,7 @@ const Workouts = () => {
         open={adLibOpen}
         onOpenChange={setAdLibOpen}
         onPBs={(pbs) => setPbModal(pbs)}
+        onRoundup={(data) => setRoundupData(data)}
       />
       <BlockLeaderboardDialog
         open={leaderboardOpen}

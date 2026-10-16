@@ -31,6 +31,7 @@ import {
   X,
   Loader2,
 } from "lucide-react";
+import type { SessionRoundupData } from "./SessionRoundupModal";
 import { toast } from "sonner";
 import {
   saveWorkoutToHistory,
@@ -107,12 +108,14 @@ interface AdLibLogSheetProps {
   onOpenChange: (open: boolean) => void;
   /** Called with the new PBs (if any) after a strength save, so the parent can show the PB modal. */
   onPBs?: (pbs: any[]) => void;
+  onRoundup?: (data: SessionRoundupData) => void;
 }
 
 export function AdLibLogSheet({
   open,
   onOpenChange,
   onPBs,
+  onRoundup,
 }: AdLibLogSheetProps) {
   const [mode, setMode] = useState<"choose" | "activity" | "workout">("choose");
   const [exerciseLibrary, setExerciseLibrary] = useState<any[]>([]);
@@ -351,6 +354,26 @@ export function AdLibLogSheet({
       setSaving(false);
       toast.success("Workout logged");
       if (pbs.length > 0 && onPBs) onPBs(pbs);
+      // Fire the session roundup (volume + PBs + stats).
+      if (onRoundup) {
+        const totalSets = realExercises.reduce(
+          (acc: number, ex: any) =>
+            acc + (Array.isArray(ex.setsData) ? ex.setsData.length : 0),
+          0,
+        );
+        onRoundup({
+          totalVolume: volume,
+          exerciseCount: realExercises.length,
+          totalSets,
+          duration: 0,
+          workoutName: wkName.trim() || "My workout",
+          pbs: pbs.map((p: any) => ({
+            exercise: p.exercise,
+            weight: p.weight,
+            reps: p.reps,
+          })),
+        });
+      }
       resetWorkout();
       onOpenChange(false);
     } else {
