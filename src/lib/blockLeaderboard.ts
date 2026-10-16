@@ -64,21 +64,41 @@ export const fetchBlockLeaderboard = async (
   }
 
   // Best-effort member-name join.
+  // Primary source is the `members` table, whose `id` IS the FitTrack auth uid
+  // (same table the WOW board + community feed use). The GymOS webhook never
+  // sets gym_members.user_id to the auth id, so joining gym_members by user_id
+  // returns nothing and everyone showed as "Member" — we only use it as a
+  // secondary fallback here.
   const uids = [...new Set(rows.map((r) => r.user_id).filter(Boolean))];
   const names: Record<string, string> = {};
   if (uids.length) {
     try {
       const { data: members } = await supabase
-        .from("gym_members")
-        .select("user_id, first_name, last_name, name")
-        .in("user_id", uids);
+        .from("members")
+        .select("id, full_name")
+        .in("id", uids);
       (members || []).forEach((m: any) => {
-        const nm =
-          m.name || [m.first_name, m.last_name].filter(Boolean).join(" ");
-        if (nm && m.user_id) names[m.user_id] = nm;
+        if (m.full_name && m.id) names[m.id] = m.full_name;
       });
     } catch {
-      // names stay empty — fall back to "Member"
+      // names stay empty — fall back below / to "Member"
+    }
+    // Secondary fallback: any still-unresolved uids via gym_members.
+    const missing = uids.filter((id) => !names[id]);
+    if (missing.length) {
+      try {
+        const { data: gm } = await supabase
+          .from("gym_members")
+          .select("user_id, first_name, last_name, name")
+          .in("user_id", missing);
+        (gm || []).forEach((m: any) => {
+          const nm =
+            m.name || [m.first_name, m.last_name].filter(Boolean).join(" ");
+          if (nm && m.user_id) names[m.user_id] = nm;
+        });
+      } catch {
+        // names stay empty — fall back to "Member"
+      }
     }
   }
 
