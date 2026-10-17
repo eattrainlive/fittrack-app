@@ -15,16 +15,22 @@ import {
 import { useNavigate } from "react-router-dom";
 import {
   ERG_MACHINES,
+  ERG_BOARDS,
   getErgSummary,
   ergSummaryMap,
   getMyErgLogs,
   deleteErgLog,
   logErgMetresForMember,
   getErgLeaderboard,
+  getErgLeaderboardPublic,
+  buildErgBoards,
+  myErgStanding,
   daysLeft,
   type ErgRow,
   type MyErgLog,
   type ErgLeaderRow,
+  type ErgLeaderCell,
+  type ErgBoardKey,
   type ErgMachine,
 } from "@/lib/ergChallenge";
 import { isStaff } from "@/lib/communityWall";
@@ -34,11 +40,21 @@ import ErgLogDialog from "@/components/ErgLogDialog";
 
 const MAX = 100000;
 
+/** Ordinal suffix only: 1 -> "st", 2 -> "nd", 15 -> "th". */
+const ordinal = (n: number): string => {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
+};
+
 export default function ErgChallengePage() {
   const navigate = useNavigate();
   const [rows, setRows] = useState<ErgRow[]>([]);
   const [logs, setLogs] = useState<MyErgLog[]>([]);
   const [leader, setLeader] = useState<ErgLeaderRow[]>([]);
+  const [boardCells, setBoardCells] = useState<ErgLeaderCell[]>([]);
+  const [board, setBoard] = useState<ErgBoardKey>("overall");
+  const [uid, setUid] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [delId, setDelId] = useState<string | null>(null);
@@ -57,9 +73,18 @@ export default function ErgChallengePage() {
   const staff = isStaff();
 
   const load = useCallback(async () => {
-    const [r, l] = await Promise.all([getErgSummary(), getMyErgLogs()]);
+    const [r, l, cells] = await Promise.all([
+      getErgSummary(),
+      getMyErgLogs(),
+      getErgLeaderboardPublic(),
+    ]);
     setRows(r);
     setLogs(l);
+    setBoardCells(cells);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    setUid(user?.id ?? "");
     if (staff) {
       const [lb, mem] = await Promise.all([
         getErgLeaderboard(),
@@ -82,6 +107,15 @@ export default function ErgChallengePage() {
   const left = daysLeft();
   const ended = left === 0;
   const map = ergSummaryMap(rows);
+
+  const boards = useMemo(() => buildErgBoards(boardCells), [boardCells]);
+  const activeBoard = boards[board] ?? [];
+  const activeTop10 = activeBoard.slice(0, 10);
+  const myStanding = useMemo(
+    () => (uid ? myErgStanding(activeBoard, uid) : null),
+    [activeBoard, uid],
+  );
+  const boardLabel = ERG_BOARDS.find((b) => b.key === board)?.label ?? "Overall";
 
   const filteredMembers = useMemo(() => {
     const q = memberQ.trim().toLowerCase();
@@ -217,6 +251,117 @@ export default function ErgChallengePage() {
           Log metres
         </Button>
       )}
+
+      {/* Member-facing leaderboard — everyone can see it. */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-primary" />
+            <CardTitle className="text-base font-heading tracking-wide">
+              Leaderboard
+            </CardTitle>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Top 10 across the gym — see where you stack up.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Category selector */}
+          <div className="grid grid-cols-4 gap-2">
+            {ERG_BOARDS.map((b) => (
+              <button
+                key={b.key}
+                type="button"
+                onClick={() => setBoard(b.key)}
+                className={
+                  "rounded-lg border px-2 py-2 text-xs font-semibold transition " +
+                  (board === b.key
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-muted/30 text-muted-foreground")
+                }
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+
+          {activeTop10.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No metres logged on the {boardLabel.toLowerCase()} board yet — be
+              the first!
+            </p>
+          ) : (
+            <div className="rounded-md border border-border divide-y divide-border overflow-hidden">
+              {activeTop10.map((row, i) => {
+                const isMe = row.member_id === uid;
+                return (
+                  <div
+                    key={row.member_id}
+                    className={
+                      "flex items-center justify-between px-3 py-2 text-sm " +
+                      (isMe ? "bg-primary/10" : "")
+                    }
+                  >
+                    <span className="flex items-center gap-2.5 min-w-0">
+                      <span
+                        className={
+                          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold " +
+                          (i === 0
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground")
+                        }
+                      >
+                        {i + 1}
+                      </span>
+                      <span className="truncate font-medium">
+                        {row.name}
+                        {isMe && " (You)"}
+                      </span>
+                    </span>
+                    <span className="tabular-nums font-semibold shrink-0">
+                      {row.metres.toLocaleString()} m
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Your standing if you're outside the top 10 — framed to keep it
+              motivating, not deflating. */}
+          {myStanding && !myStanding.inTop10 && (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2.5 min-w-0">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
+                    {myStanding.rank}
+                  </span>
+                  <span className="truncate font-medium">
+                    You · {myStanding.rank}
+                    {ordinal(myStanding.rank)} of {myStanding.total}
+                  </span>
+                </span>
+                <span className="tabular-nums font-semibold shrink-0">
+                  {myStanding.metres.toLocaleString()} m
+                </span>
+              </div>
+              <p className="mt-1.5 text-xs text-primary">
+                {myStanding.gapToTop10 > 0
+                  ? `Just ${myStanding.gapToTop10.toLocaleString()} m off the top 10 — keep going! 💪`
+                  : "You're on the edge of the top 10 — push on! 💪"}
+              </p>
+            </div>
+          )}
+
+          {myStanding && myStanding.inTop10 && (
+            <p className="text-center text-xs font-semibold text-primary">
+              You're {myStanding.rank}
+              {ordinal(myStanding.rank)} on the {boardLabel.toLowerCase()} board
+              — top 10! 🔥
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <div>
         <h2 className="font-heading text-xl tracking-wide mb-3">

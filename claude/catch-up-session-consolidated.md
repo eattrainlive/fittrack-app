@@ -59,6 +59,33 @@ Live site is fine — this is only about not losing these on the next build.
 - `supabase/functions/gymos-webhook/index.ts` — `maybeStartTrial` logs the auto-welcome to
   `trial_nurture_log` and sends step/template keys. (Builder doesn't touch edge functions, but noted.)
 
+### Post-workout Session Roundup (shareable card)
+- `src/components/SessionRoundupModal.tsx` (merged from export 77, then hand-edited) — the branded
+  card shown after a workout: total volume, `REWARD_ITEMS` animal comparison, PBs (with a **"New PB"**
+  header), stats line, member name. Shares to socials (toPng → navigator.share) and to community feed
+  (uploadWallImage + createPost). Hand-edits: `prettyName()` for PB exercise labels (slug/camelCase →
+  Title Case); duration chip hidden unless ≥1 min; "New PB(s)" header.
+- `src/components/AdLibLogSheet.tsx` — fires `onRoundup` after `saveWorkout()`.
+- `src/pages/Workouts.tsx` — mounts `SessionRoundupModal`, fires it on the planned-workout save path.
+  ⚠ The old PB modal + reward modal were **intentionally disabled** on both save paths (`onPBs`
+  no-op; `setPbModal`/`setRewardModal` removed from the save flow) — they stacked on top of the
+  roundup and darkened it. Don't let a builder export re-enable them.
+
+### Leaderboard name resolution (block boards)
+- `src/lib/blockLeaderboard.ts` — names now resolve from `members` (id = auth uid → full_name),
+  with `gym_members` only as a secondary fallback. Joining `gym_members.user_id` returned nothing
+  (GymOS never sets it to the auth id), so everyone showed as "Member".
+
+### Million Metre Challenge — member-facing leaderboard
+- `src/lib/ergChallenge.ts` — `getErgLeaderboardPublic()`, `buildErgBoards()`, `myErgStanding()`,
+  `ERG_BOARDS`, and types (`ErgLeaderCell`, `ErgBoardKey`, `ErgBoardRow`). The old staff-only
+  `getErgLeaderboard` stays.
+- `src/pages/ErgChallengePage.tsx` — leaderboard visible to **all members**: Overall/Bike/Rower/Ski
+  selector, top 10 per board, and a "you're Nth of N, X m off the top 10" row when below top 10
+  (plus a "top 10 🔥" line when in it). `ordinal()` helper added.
+- `supabase/sql/erg_leaderboard_public.sql` (NEW) — `erg_challenge_leaderboard_public()` SECURITY
+  DEFINER RPC, per-member per-machine totals, names only (no email), granted to authenticated.
+
 ---
 
 ## Part B — Paste-to-builder summary (optional, to sync its context)
@@ -69,11 +96,17 @@ trial-type on cards; a WhatsApp conversation thread on the member activity card 
 with GHL_LOCATION_ID set, `MemberMessagesSection.tsx`); a 'Habits this week' section on the activity
 card (`habitAdherence.ts`); a staff week-offset across the accountability screens (`effectiveWeekOf`);
 auto-WhatsApp hooks in `accountabilityProgramme.ts` / `accountabilityCheckins.ts`; and a
-personal_records sync fix in `store.ts`. If you touch any of these files, preserve the existing
-logic — especially `trialNurture.ts` and `memberMessages.ts`, which must not be regenerated."
+personal_records sync fix in `store.ts`; a post-workout **Session Roundup** card
+(`SessionRoundupModal.tsx`, wired in `AdLibLogSheet.tsx` + `Workouts.tsx` — and the old PB/reward
+modals are deliberately off on the save paths); a block-leaderboard name fix (`blockLeaderboard.ts`
+resolves via `members`, not `gym_members`); and a member-facing Million Metre leaderboard
+(`ergChallenge.ts` + `ErgChallengePage.tsx` + `erg_leaderboard_public.sql`). If you touch any of these
+files, preserve the existing logic — especially `trialNurture.ts` and `memberMessages.ts`, which must
+not be regenerated, and don't re-enable the old PB/reward modals in `Workouts.tsx`."
 
 ---
 
 ## SQL to have run (not builder-related, for reference)
 `member_messages.sql`, `acc_week_offset.sql`, `trial_nurture.sql`, `mark_onboarded_fix.sql`,
-`par_q.sql`, `erg_challenge.sql`. (Edge functions to deploy: wa-message-sync, gymos-webhook.)
+`par_q.sql`, `erg_challenge.sql`, `staff_contact_progress_remove.sql`, `erg_leaderboard_public.sql`.
+(Edge functions to deploy: wa-message-sync, gymos-webhook.)

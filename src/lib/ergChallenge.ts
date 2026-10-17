@@ -78,6 +78,112 @@ export const getErgLeaderboard = async (): Promise<ErgLeaderRow[]> => {
   return (data ?? []) as ErgLeaderRow[];
 };
 
+// ── Member-facing leaderboard (everyone can see it) ──────────────────────────
+
+export type ErgBoardKey = "overall" | ErgMachine;
+
+export const ERG_BOARDS: { key: ErgBoardKey; label: string }[] = [
+  { key: "overall", label: "Overall" },
+  { key: "bike", label: "Bike" },
+  { key: "rower", label: "Rower" },
+  { key: "ski", label: "Ski" },
+];
+
+/** One (member, machine) summed cell from the public RPC. */
+export interface ErgLeaderCell {
+  member_id: string;
+  name: string;
+  machine: ErgMachine;
+  metres: number;
+}
+
+export interface ErgBoardRow {
+  member_id: string;
+  name: string;
+  metres: number;
+}
+
+/** Public leaderboard: per-member per-machine totals, readable by all members. */
+export const getErgLeaderboardPublic = async (): Promise<ErgLeaderCell[]> => {
+  const { data, error } = await supabase.rpc("erg_challenge_leaderboard_public");
+  if (error) {
+    console.error("erg_challenge_leaderboard_public", error);
+    return [];
+  }
+  return (data ?? []).map((r: any) => ({
+    member_id: r.member_id,
+    name: r.name,
+    machine: r.machine as ErgMachine,
+    metres: Number(r.metres) || 0,
+  }));
+};
+
+/**
+ * Collapse the per-(member,machine) cells into four ranked boards — overall
+ * (all machines summed) plus one per machine — each sorted best-first.
+ */
+export const buildErgBoards = (
+  cells: ErgLeaderCell[],
+): Record<ErgBoardKey, ErgBoardRow[]> => {
+  const acc: Record<ErgBoardKey, Map<string, ErgBoardRow>> = {
+    overall: new Map(),
+    bike: new Map(),
+    rower: new Map(),
+    ski: new Map(),
+  };
+  const add = (key: ErgBoardKey, c: ErgLeaderCell) => {
+    const prev = acc[key].get(c.member_id);
+    acc[key].set(c.member_id, {
+      member_id: c.member_id,
+      name: c.name,
+      metres: (prev?.metres || 0) + c.metres,
+    });
+  };
+  for (const c of cells) {
+    if (c.metres <= 0) continue;
+    add("overall", c);
+    if (acc[c.machine]) add(c.machine, c);
+  }
+  const sorted = (m: Map<string, ErgBoardRow>) =>
+    [...m.values()].sort((a, b) => b.metres - a.metres);
+  return {
+    overall: sorted(acc.overall),
+    bike: sorted(acc.bike),
+    rower: sorted(acc.rower),
+    ski: sorted(acc.ski),
+  };
+};
+
+/**
+ * Where the current user sits on a sorted board, and how far off the top 10.
+ * Returns null if they have no metres on that board.
+ */
+export const myErgStanding = (
+  board: ErgBoardRow[],
+  uid: string,
+): {
+  rank: number;
+  total: number;
+  metres: number;
+  inTop10: boolean;
+  gapToTop10: number;
+} | null => {
+  const idx = board.findIndex((r) => r.member_id === uid);
+  if (idx < 0) return null;
+  const rank = idx + 1;
+  const inTop10 = rank <= 10;
+  // Gap to the 10th-place score (0 if fewer than 10 on the board, or already in).
+  const tenth = board[9]?.metres ?? 0;
+  const gapToTop10 = inTop10 ? 0 : Math.max(0, tenth - board[idx].metres);
+  return {
+    rank,
+    total: board.length,
+    metres: board[idx].metres,
+    inTop10,
+    gapToTop10,
+  };
+};
+
 export interface MyErgLog {
   id: string;
   machine: ErgMachine;
