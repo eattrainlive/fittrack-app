@@ -8,6 +8,7 @@ import {
   SETUP_WEEKS,
   autoSetupState,
   setSetupTracker,
+  getCohortClients,
   type AccClient,
   type AccCohort,
 } from "@/lib/accountabilityProgramme";
@@ -18,41 +19,54 @@ import {
 
 /**
  * Coach-side setup tracker — a per-client grid of onboarding/admin milestones,
- * styled like the "6 Week Nutrition Members" sheet. AUTO columns (onboarding
- * form, MFP, Week 1–6 check-ins) tick themselves from app data; MANUAL columns
- * (set up on FitTrack, sent onboarding, paid, initial call) are coach ticks.
+ * styled like the "6 Week Nutrition Members" sheet.
+ *
+ * Every cell is tappable and persists to acc_clients.setup_tracker. The AUTO
+ * columns (onboarding form, MFP, Week 1–6 check-ins) PRE-FILL from live app
+ * data when the coach hasn't set them, but the coach can still override any
+ * cell — so nothing is ever locked. The effective value for a cell is: the
+ * coach's manual tick if they've set one, otherwise the auto-derived value.
  */
 export function AccountabilitySetupTracker({
   cohort,
-  clients,
   staff = [],
-  reload,
 }: {
   cohort: AccCohort;
-  clients: AccClient[];
+  clients?: AccClient[];
   staff?: { user_id: string; name: string }[];
   reload?: () => void;
 }) {
+  const [rows, setRows] = useState<AccClient[]>([]);
   const [checkins, setCheckins] = useState<AccCheckin[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
   const [myUid, setMyUid] = useState<string | null>(null);
   const [scope, setScope] = useState<"mine" | "all">("mine");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
-  // Local optimistic copy of each client's manual ticks, keyed by client id.
-  const [trackers, setTrackers] = useState<Record<string, Record<string, boolean>>>(
-    {},
-  );
+  // Local copy of each client's manual ticks, keyed by client id. Only keys the
+  // coach has explicitly toggled live here; everything else falls back to auto.
+  const [trackers, setTrackers] = useState<
+    Record<string, Record<string, boolean>>
+  >({});
 
+  // Fetch our OWN fresh client list (not the parent prop) so saved ticks are
+  // always reflected, even after switching tabs.
   const load = useCallback(async () => {
     setLoading(true);
     const {
       data: { user },
     } = await supabase.auth.getUser();
     setMyUid(user?.id ?? null);
-    const cks = await getCohortCheckins(cohort.id);
+    const [cs, cks] = await Promise.all([
+      getCohortClients(cohort.id),
+      getCohortCheckins(cohort.id),
+    ]);
+    setRows(cs);
     setCheckins(cks);
-    const ids = clients.map((c) => c.user_id);
+    const seed: Record<string, Record<string, boolean>> = {};
+    for (const c of cs) seed[c.id] = { ...(c.setup_tracker || {}) };
+    setTrackers(seed);
+    const ids = cs.map((c) => c.user_id);
     if (ids.length) {
       const { data: memberRows } = await supabase
         .from("members")
@@ -65,18 +79,11 @@ export function AccountabilitySetupTracker({
       setNames(map);
     }
     setLoading(false);
-  }, [cohort.id, clients]);
+  }, [cohort.id]);
 
   useEffect(() => {
     load();
   }, [load]);
-
-  // Seed/refresh the local manual-tick copy whenever the client list changes.
-  useEffect(() => {
-    const seed: Record<string, Record<string, boolean>> = {};
-    for (const c of clients) seed[c.id] = { ...(c.setup_tracker || {}) };
-    setTrackers(seed);
-  }, [clients]);
 
   const coachName = useCallback(
     (uid: string | null) =>
@@ -87,9 +94,9 @@ export function AccountabilitySetupTracker({
   const scoped = useMemo(
     () =>
       scope === "mine" && myUid
-        ? clients.filter((c) => c.coach_user_id === myUid)
-        : clients,
-    [clients, scope, myUid],
+        ? rows.filter((c) => c.coach_user_id === myUid)
+        : rows,
+    [rows, scope, myUid],
   );
 
   const sortedClients = useMemo(
@@ -100,33 +107,59 @@ export function AccountabilitySetupTracker({
     [scoped, names],
   );
 
-  const toggleManual = async (client: AccClient, key: string) => {
+  // Effective value for a cell: manual override if the coach set one, else auto.
+  const cellOn = (
+    client: AccClient,
+    key: string,
+    auto: Record<string, boolean>,
+    isAuto: boolean,
+  ): boolean => {
+    const manual = trackers[client.id] || {};
+    if (key in manual) return !!manual[key];
+    return isAuto ? !!auto[key] : false;
+  };
+
+  const toggle = async (
+    client: AccClient,
+    key: string,
+    auto: Record<string, boolean>,
+    isAuto: boolean,
+  ) => {
     const current = trackers[client.id] || {};
-    const next = { ...current, [key]: !current[key] };
+    const now = cellOn(client, key, auto, isAuto);
+    const next = { ...current, [key]: !now };
     setTrackers((t) => ({ ...t, [client.id]: next })); // optimistic
+    // keep rows in sync too so a remount seeds from the saved value
+    setRows((rs) =>
+      rs.map((r) => (r.id === client.id ? { ...r, setup_tracker: next } : r)),
+    );
     setSaving(client.id + ":" + key);
     const { error } = await setSetupTracker(client.id, next);
     setSaving(null);
     if (error) {
       setTrackers((t) => ({ ...t, [client.id]: current })); // revert
+      setRows((rs) =>
+        rs.map((r) =>
+          r.id === client.id ? { ...r, setup_tracker: current } : r,
+        ),
+      );
       toast.error("Couldn't save — try again");
     }
   };
 
-  // A single cell. Manual cells are tappable; auto cells are read-only.
   const Cell = ({
     on,
-    mode,
+    isAuto,
     busy,
     onClick,
   }: {
     on: boolean;
-    mode: "manual" | "auto";
+    isAuto: boolean;
     busy?: boolean;
-    onClick?: () => void;
+    onClick: () => void;
   }) => {
     const base =
-      "flex h-7 w-7 items-center justify-center rounded-md border mx-auto transition";
+      "flex h-7 w-7 items-center justify-center rounded-md border mx-auto transition hover:border-primary active:scale-95";
     if (busy) {
       return (
         <span className={base + " border-border bg-muted/40"}>
@@ -134,25 +167,23 @@ export function AccountabilitySetupTracker({
         </span>
       );
     }
-    const filled = on
+    const style = on
       ? "border-primary bg-primary/15 text-primary"
       : "border-border bg-transparent text-muted-foreground/40";
-    if (mode === "auto") {
-      return (
-        <span
-          className={base + " " + filled + " cursor-default"}
-          title={on ? "Auto · done" : "Auto · not yet"}
-        >
-          {on ? <Check className="h-4 w-4" /> : <Minus className="h-3.5 w-3.5" />}
-        </span>
-      );
-    }
     return (
       <button
         type="button"
         onClick={onClick}
-        className={base + " " + filled + " hover:border-primary active:scale-95"}
-        title={on ? "Done — tap to undo" : "Tap to mark done"}
+        className={base + " " + style}
+        title={
+          isAuto
+            ? on
+              ? "Auto-filled — tap to override"
+              : "Tap to mark done"
+            : on
+              ? "Done — tap to undo"
+              : "Tap to mark done"
+        }
       >
         {on ? <Check className="h-4 w-4" /> : <Minus className="h-3.5 w-3.5" />}
       </button>
@@ -175,8 +206,8 @@ export function AccountabilitySetupTracker({
         <div>
           <h2 className="font-heading text-2xl tracking-wide">Setup tracker</h2>
           <p className="text-xs text-muted-foreground">
-            Onboarding &amp; admin at a glance. Grey ticks fill in automatically;
-            tap the others as you go.
+            Onboarding &amp; admin at a glance. Form, MFP and weekly check-ins
+            pre-fill from the app — tap any cell to set or override it.
           </p>
         </div>
         <div className="flex gap-1.5">
@@ -239,14 +270,12 @@ export function AccountabilitySetupTracker({
             <tbody>
               {sortedClients.map((c) => {
                 const auto = autoSetupState(c, checkins);
-                const manual = trackers[c.id] || {};
                 let done = 0;
                 SETUP_COLUMNS.forEach((col) => {
-                  if (col.mode === "auto" ? auto[col.key] : manual[col.key])
-                    done++;
+                  if (cellOn(c, col.key, auto, col.mode === "auto")) done++;
                 });
                 SETUP_WEEKS.forEach((w) => {
-                  if (auto["w" + w]) done++;
+                  if (cellOn(c, "w" + w, auto, true)) done++;
                 });
                 return (
                   <tr
@@ -268,29 +297,32 @@ export function AccountabilitySetupTracker({
                         {coachName(c.coach_user_id)}
                       </span>
                     </td>
-                    {SETUP_COLUMNS.map((col) => (
-                      <td key={col.key} className="px-2 py-2">
-                        <Cell
-                          mode={col.mode}
-                          on={
-                            col.mode === "auto"
-                              ? !!auto[col.key]
-                              : !!manual[col.key]
-                          }
-                          busy={saving === c.id + ":" + col.key}
-                          onClick={
-                            col.mode === "manual"
-                              ? () => toggleManual(c, col.key)
-                              : undefined
-                          }
-                        />
-                      </td>
-                    ))}
-                    {SETUP_WEEKS.map((w) => (
-                      <td key={w} className="px-2 py-2">
-                        <Cell mode="auto" on={!!auto["w" + w]} />
-                      </td>
-                    ))}
+                    {SETUP_COLUMNS.map((col) => {
+                      const isAuto = col.mode === "auto";
+                      return (
+                        <td key={col.key} className="px-2 py-2">
+                          <Cell
+                            isAuto={isAuto}
+                            on={cellOn(c, col.key, auto, isAuto)}
+                            busy={saving === c.id + ":" + col.key}
+                            onClick={() => toggle(c, col.key, auto, isAuto)}
+                          />
+                        </td>
+                      );
+                    })}
+                    {SETUP_WEEKS.map((w) => {
+                      const key = "w" + w;
+                      return (
+                        <td key={w} className="px-2 py-2">
+                          <Cell
+                            isAuto
+                            on={cellOn(c, key, auto, true)}
+                            busy={saving === c.id + ":" + key}
+                            onClick={() => toggle(c, key, auto, true)}
+                          />
+                        </td>
+                      );
+                    })}
                     <td className="px-3 py-2 text-center">
                       <span
                         className={
@@ -312,8 +344,8 @@ export function AccountabilitySetupTracker({
       )}
 
       <p className="text-[11px] text-muted-foreground">
-        Auto (grey, locked): onboarding form, MFP diary, Week 1–6 check-ins ·
-        Manual (tap): set up on FitTrack, sent onboarding, paid, initial call.
+        Every cell is tappable. Onboarding form, MFP and Week 1–6 pre-fill
+        automatically from the app; tap to override or set anything manually.
       </p>
     </div>
   );

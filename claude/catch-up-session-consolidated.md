@@ -90,9 +90,10 @@ Live site is fine — this is only about not losing these on the next build.
 - `src/components/AccountabilitySetupTracker.tsx` (NEW) — sheet-style grid on the coach panel:
   clients × milestones. Columns: Member (pinned) + Coach (from coach_user_id via `staff` prop) +
   (Set up on FitTrack, Sent onboarding, Onboarding form, MFP diary, Paid, Initial call booked,
-  Initial call done, Week 1–6), Done count, Mine/All scope toggle. AUTO cells
-  (onboarding form, MFP, weekly check-ins) derive live; MANUAL cells (setup_fittrack, sent_onboarding,
-  paid, initial_call_booked, initial_call) persist to `acc_clients.setup_tracker`.
+  Initial call done, Week 1–6), Done count, Mine/All scope toggle. EVERY cell is tappable and persists
+  to `acc_clients.setup_tracker`; effective value = manual override if set, else auto-derived (onboarding
+  form, MFP, weekly check-ins pre-fill). Component fetches its OWN clients via getCohortClients so ticks
+  don't revert on tab switch. Needs `acc_setup_tracker.sql` run or saves fail.
 - `src/lib/accountabilityProgramme.ts` — added `setup_tracker` field, `SETUP_COLUMNS`, `SETUP_WEEKS`,
   `autoSetupState()`, `setSetupTracker()`. (Already a protected file for week-offset / auto-WhatsApp.)
 - `src/components/AccountabilityCoachPanel.tsx` — new "Setup tracker" tab.
