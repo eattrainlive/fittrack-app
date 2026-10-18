@@ -112,11 +112,12 @@ export function AccRosterTab({
   };
 
   const enrolledIds = new Set(clients.map((c) => c.user_id));
-  const availableMembers = appMembers.filter(
-    (m) =>
-      !enrolledIds.has(m.id) &&
-      (m.email || "").toLowerCase().includes(search.toLowerCase()),
-  );
+  const availableMembers = appMembers.filter((m) => {
+    if (enrolledIds.has(m.id)) return false;
+    const q = search.toLowerCase().trim();
+    if (!q) return true;
+    return `${m.full_name || ""} ${m.email || ""}`.toLowerCase().includes(q);
+  });
 
   const handleEnrol = async (m: AppMember) => {
     setBusy(true);
@@ -225,7 +226,7 @@ export function AccRosterTab({
             <PopoverContent className="w-80 p-0" align="start">
               <Command shouldFilter={false}>
                 <CommandInput
-                  placeholder="Search members by email…"
+                  placeholder="Search by name or email…"
                   value={search}
                   onValueChange={setSearch}
                 />
