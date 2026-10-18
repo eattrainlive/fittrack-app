@@ -86,6 +86,17 @@ Live site is fine — this is only about not losing these on the next build.
 - `supabase/sql/erg_leaderboard_public.sql` (NEW) — `erg_challenge_leaderboard_public()` SECURITY
   DEFINER RPC, per-member per-machine totals, names only (no email), granted to authenticated.
 
+### Accountability — coach Setup tracker (spreadsheet-style grid)
+- `src/components/AccountabilitySetupTracker.tsx` (NEW) — sheet-style grid on the coach panel:
+  clients × milestones (Set up on FitTrack, Sent onboarding, Onboarding form, MFP diary, Paid,
+  Initial call, Week 1–6), Done count, Mine/All scope toggle. AUTO cells (onboarding form, MFP,
+  weekly check-ins) derive live; MANUAL cells (setup_fittrack, sent_onboarding, paid, initial_call)
+  persist to `acc_clients.setup_tracker`.
+- `src/lib/accountabilityProgramme.ts` — added `setup_tracker` field, `SETUP_COLUMNS`, `SETUP_WEEKS`,
+  `autoSetupState()`, `setSetupTracker()`. (Already a protected file for week-offset / auto-WhatsApp.)
+- `src/components/AccountabilityCoachPanel.tsx` — new "Setup tracker" tab.
+- `supabase/sql/acc_setup_tracker.sql` (NEW) — adds `acc_clients.setup_tracker` jsonb.
+
 ---
 
 ## Part B — Paste-to-builder summary (optional, to sync its context)

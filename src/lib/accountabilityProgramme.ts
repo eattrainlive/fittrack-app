@@ -37,6 +37,9 @@ export interface AccClient {
   mfp_username?: string | null;
   calorie_target?: number | null;
   protein_target?: number | null;
+  // Coach setup tracker — manual ticks (acc_setup_tracker.sql). Keys are the
+  // manual SETUP_COLUMNS keys below, e.g. { setup_fittrack: true, paid: true }.
+  setup_tracker?: Record<string, boolean> | null;
 }
 
 export interface OnboardingPayload {
@@ -522,6 +525,73 @@ export const onboardingStatus = (
 
   const done = REQUIRED_ONBOARDING_ITEMS.length - missing.length;
   return { complete: missing.length === 0, done, missing };
+};
+
+// ── Coach setup tracker (acc_setup_tracker.sql) ──────────────────────────────
+// Mirrors the "6 Week Nutrition Members" sheet. AUTO columns derive from app
+// data; MANUAL columns are coach ticks stored in acc_clients.setup_tracker.
+
+export type SetupCellMode = "manual" | "auto";
+
+export interface SetupColumn {
+  key: string;
+  label: string; // full header
+  short: string; // compact header for the grid
+  mode: SetupCellMode;
+}
+
+/** The admin/onboarding milestones, left→right (weeks handled separately). */
+export const SETUP_COLUMNS: SetupColumn[] = [
+  { key: "setup_fittrack", label: "Set up on FitTrack", short: "FitTrack", mode: "manual" },
+  { key: "sent_onboarding", label: "Sent onboarding", short: "Sent", mode: "manual" },
+  { key: "onboarding_form", label: "Onboarding form", short: "Form", mode: "auto" },
+  { key: "mfp", label: "MFP diary open", short: "MFP", mode: "auto" },
+  { key: "paid", label: "Paid", short: "Paid", mode: "manual" },
+  { key: "initial_call", label: "Initial call done", short: "Call", mode: "manual" },
+];
+
+export const SETUP_WEEKS = [1, 2, 3, 4, 5, 6];
+
+/** Minimal shape we need from a check-in row to derive weekly ticks. */
+export interface SetupCheckinLite {
+  client_id: string;
+  week_number: number;
+  submitted_at?: string | null;
+}
+
+/**
+ * Derive the AUTO cells for a client: onboarding form complete, MFP/tracking
+ * set up, and each week's check-in submitted. Returns a flat map of
+ * { onboarding_form, mfp, w1..w6 } booleans.
+ */
+export const autoSetupState = (
+  client: AccClient,
+  checkins: SetupCheckinLite[],
+): Record<string, boolean> => {
+  const st = onboardingStatus(client);
+  const onboarding_form = st.complete || !!client.onboarding_done;
+  const mfp =
+    (!!client.tracking_app && client.tracking_app !== "none") ||
+    !!(client.mfp_username && String(client.mfp_username).trim());
+  const out: Record<string, boolean> = { onboarding_form, mfp };
+  for (const w of SETUP_WEEKS) {
+    out["w" + w] = checkins.some(
+      (c) => c.client_id === client.id && c.week_number === w && !!c.submitted_at,
+    );
+  }
+  return out;
+};
+
+/** Persist the full manual-tick map for a client (coach action). */
+export const setSetupTracker = async (
+  clientId: string,
+  tracker: Record<string, boolean>,
+): Promise<{ error: any }> => {
+  const { error } = await supabase
+    .from("acc_clients")
+    .update({ setup_tracker: tracker })
+    .eq("id", clientId);
+  return { error };
 };
 
 /** Set onboarding_completed_at = now() only if it's currently null. */

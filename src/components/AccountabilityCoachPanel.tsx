@@ -3,7 +3,8 @@ import { WeekContentEditor } from "@/components/WeekContentEditor";
 import { AccountabilityCheckinInbox } from "@/components/AccountabilityCheckinInbox";
 import { AccountabilityPreview } from "@/components/AccountabilityPreview";
 import { AccRosterTab } from "@/components/AccRosterTab";
-import { BookOpen, Users, Inbox, Eye } from "lucide-react";
+import { AccountabilitySetupTracker } from "@/components/AccountabilitySetupTracker";
+import { BookOpen, Users, Inbox, Eye, ListChecks } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -354,9 +355,9 @@ export function AccountabilityCoachPanel() {
   const [coachFilter, setCoachFilter] = useState("all");
   const [incompleteOnly, setIncompleteOnly] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"roster" | "content" | "checkins" | "preview">(
-    "roster",
-  );
+  const [tab, setTab] = useState<
+    "roster" | "tracker" | "content" | "checkins" | "preview"
+  >("roster");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -530,6 +531,14 @@ export function AccountabilityCoachPanel() {
           <Users className="w-4 h-4" /> Roster
         </Button>
         <Button
+          variant={tab === "tracker" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setTab("tracker")}
+          className="gap-1.5"
+        >
+          <ListChecks className="w-4 h-4" /> Setup tracker
+        </Button>
+        <Button
           variant={tab === "checkins" ? "default" : "outline"}
           size="sm"
           onClick={() => setTab("checkins")}
@@ -556,6 +565,14 @@ export function AccountabilityCoachPanel() {
       </div>
 
       {tab === "content" && <WeekContentEditor />}
+
+      {tab === "tracker" && cohort && (
+        <AccountabilitySetupTracker
+          cohort={cohort}
+          clients={clients}
+          reload={load}
+        />
+      )}
 
       {tab === "checkins" && <AccountabilityCheckinInbox />}
 

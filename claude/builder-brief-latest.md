@@ -14,4 +14,12 @@ Since my last export, the following were edited directly in the repo. Keep them 
 - `src/pages/ErgChallengePage.tsx`: the leaderboard is now visible to ALL members (not just staff). It has a category selector (Overall / Bike / Rower / Ski), shows the top 10 per board, and when the current user is outside the top 10 it shows a "You · Nth of N — just X m off the top 10" row (and a "top 10 🔥" line when they're in it). An `ordinal()` helper was added.
 - Backed by a new Supabase RPC `erg_challenge_leaderboard_public()` (SECURITY DEFINER, per-member per-machine totals, names only). This is already deployed via SQL — do not remove the RPC call.
 
+4) ACCOUNTABILITY — COACH SETUP TRACKER (new)
+- New file `src/components/AccountabilitySetupTracker.tsx`: a spreadsheet-style grid on the coach accountability panel (mirrors the "6 Week Nutrition Members" Google Sheet). Rows = cohort clients, columns = Set up on FitTrack, Sent onboarding, Onboarding form, MFP diary open, Paid, Initial call done, and Week 1–6 check-ins, plus a Done count. Horizontally scrollable with a pinned name column, and a "My clients / All coaches" scope toggle (defaults to the coach's own clients).
+- AUTO cells (read-only, grey, tick themselves from app data): Onboarding form (onboardingStatus complete / onboarding_done), MFP diary (tracking_app set or mfp_username present), Week 1–6 (acc_checkins submitted for that week).
+- MANUAL cells (tappable, persisted): Set up on FitTrack, Sent onboarding, Paid, Initial call done — stored in acc_clients.setup_tracker (jsonb).
+- `src/lib/accountabilityProgramme.ts`: added the `setup_tracker` field on AccClient, plus SETUP_COLUMNS, SETUP_WEEKS, autoSetupState(client, checkins) and setSetupTracker(clientId, obj). Keep these.
+- `src/components/AccountabilityCoachPanel.tsx`: added a "Setup tracker" tab between Roster and Check-ins.
+- Backed by `acc_setup_tracker.sql` (adds the `setup_tracker` jsonb column) — already deployed. Do not drop the column or the setup_tracker reads/writes.
+
 Also keep everything already recorded in claude/catch-up-session-consolidated.md — especially src/lib/trialNurture.ts and src/lib/memberMessages.ts, which must NOT be regenerated.
