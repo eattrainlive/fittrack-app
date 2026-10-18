@@ -547,7 +547,8 @@ export const SETUP_COLUMNS: SetupColumn[] = [
   { key: "onboarding_form", label: "Onboarding form", short: "Form", mode: "auto" },
   { key: "mfp", label: "MFP diary open", short: "MFP", mode: "auto" },
   { key: "paid", label: "Paid", short: "Paid", mode: "manual" },
-  { key: "initial_call", label: "Initial call done", short: "Call", mode: "manual" },
+  { key: "initial_call_booked", label: "Initial call booked", short: "Call bkd", mode: "manual" },
+  { key: "initial_call", label: "Initial call done", short: "Call done", mode: "manual" },
 ];
 
 export const SETUP_WEEKS = [1, 2, 3, 4, 5, 6];

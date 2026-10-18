@@ -570,6 +570,7 @@ export function AccountabilityCoachPanel() {
         <AccountabilitySetupTracker
           cohort={cohort}
           clients={clients}
+          staff={staff}
           reload={load}
         />
       )}

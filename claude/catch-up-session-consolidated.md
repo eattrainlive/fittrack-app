@@ -88,10 +88,11 @@ Live site is fine — this is only about not losing these on the next build.
 
 ### Accountability — coach Setup tracker (spreadsheet-style grid)
 - `src/components/AccountabilitySetupTracker.tsx` (NEW) — sheet-style grid on the coach panel:
-  clients × milestones (Set up on FitTrack, Sent onboarding, Onboarding form, MFP diary, Paid,
-  Initial call, Week 1–6), Done count, Mine/All scope toggle. AUTO cells (onboarding form, MFP,
-  weekly check-ins) derive live; MANUAL cells (setup_fittrack, sent_onboarding, paid, initial_call)
-  persist to `acc_clients.setup_tracker`.
+  clients × milestones. Columns: Member (pinned) + Coach (from coach_user_id via `staff` prop) +
+  (Set up on FitTrack, Sent onboarding, Onboarding form, MFP diary, Paid, Initial call booked,
+  Initial call done, Week 1–6), Done count, Mine/All scope toggle. AUTO cells
+  (onboarding form, MFP, weekly check-ins) derive live; MANUAL cells (setup_fittrack, sent_onboarding,
+  paid, initial_call_booked, initial_call) persist to `acc_clients.setup_tracker`.
 - `src/lib/accountabilityProgramme.ts` — added `setup_tracker` field, `SETUP_COLUMNS`, `SETUP_WEEKS`,
   `autoSetupState()`, `setSetupTracker()`. (Already a protected file for week-offset / auto-WhatsApp.)
 - `src/components/AccountabilityCoachPanel.tsx` — new "Setup tracker" tab.

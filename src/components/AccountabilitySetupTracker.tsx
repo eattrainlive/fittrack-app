@@ -25,10 +25,12 @@ import {
 export function AccountabilitySetupTracker({
   cohort,
   clients,
+  staff = [],
   reload,
 }: {
   cohort: AccCohort;
   clients: AccClient[];
+  staff?: { user_id: string; name: string }[];
   reload?: () => void;
 }) {
   const [checkins, setCheckins] = useState<AccCheckin[]>([]);
@@ -75,6 +77,12 @@ export function AccountabilitySetupTracker({
     for (const c of clients) seed[c.id] = { ...(c.setup_tracker || {}) };
     setTrackers(seed);
   }, [clients]);
+
+  const coachName = useCallback(
+    (uid: string | null) =>
+      uid ? staff.find((s) => s.user_id === uid)?.name || "Coach" : "Unassigned",
+    [staff],
+  );
 
   const scoped = useMemo(
     () =>
@@ -204,6 +212,9 @@ export function AccountabilitySetupTracker({
                 <th className="sticky left-0 z-10 bg-muted/30 px-3 py-2 text-left font-semibold min-w-[140px]">
                   Member
                 </th>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap min-w-[90px]">
+                  Coach
+                </th>
                 {SETUP_COLUMNS.map((col) => (
                   <th
                     key={col.key}
@@ -244,6 +255,18 @@ export function AccountabilitySetupTracker({
                   >
                     <td className="sticky left-0 z-10 bg-card px-3 py-2 font-medium whitespace-nowrap">
                       {names[c.user_id] || "Client"}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span
+                        className={
+                          "text-xs " +
+                          (c.coach_user_id
+                            ? "text-muted-foreground"
+                            : "text-amber-600")
+                        }
+                      >
+                        {coachName(c.coach_user_id)}
+                      </span>
                     </td>
                     {SETUP_COLUMNS.map((col) => (
                       <td key={col.key} className="px-2 py-2">
