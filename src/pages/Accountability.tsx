@@ -11,7 +11,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ArrowLeft, Check, CalendarDays, User } from "lucide-react";
+import {
+  Loader2,
+  ArrowLeft,
+  Check,
+  CalendarDays,
+  User,
+  Target,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import {
@@ -34,6 +41,7 @@ import {
 } from "@/lib/store";
 import { getMyCheckins, type AccCheckin } from "@/lib/accountabilityCheckins";
 import { AccountabilityDashboard } from "@/components/accDashboard/AccountabilityDashboard";
+import { getFocusForWeek, type ClientFocus } from "@/lib/clientFocus";
 
 const formatDate = (iso: string) => {
   if (!iso) return "";
@@ -60,6 +68,7 @@ const Accountability = () => {
   // Bumped after a weight save so the dashboard re-mounts and re-reads its stats.
   const [dashKey, setDashKey] = useState(0);
   const [weekCheckins, setWeekCheckins] = useState<AccCheckin[]>([]);
+  const [focus, setFocus] = useState<ClientFocus | null>(null);
   const [view, setView] = useState<
     "dashboard" | "onboarding" | "checkin" | "final"
   >("dashboard");
@@ -85,7 +94,11 @@ const Accountability = () => {
       }
       setHabits(await getMemberHabits());
       setCheckins(await getHabitCheckins());
-      if (cl) setWeekCheckins(await getMyCheckins(cl.id));
+      if (cl) {
+        setWeekCheckins(await getMyCheckins(cl.id));
+        const wk = effectiveWeekOf(c, cl);
+        setFocus(wk >= 1 ? await getFocusForWeek(cl.id, wk) : null);
+      }
     }
     setLoading(false);
   };
@@ -338,6 +351,24 @@ const Accountability = () => {
       )}
 
       {/* Dashboard view during active programme */}
+      {!isPreStart && !isComplete && view === "dashboard" && focus && (
+        <Card className="bg-primary/5 border-primary/30 border-l-4 border-l-primary">
+          <CardContent className="py-4 space-y-1.5">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+              <Target className="h-3.5 w-3.5" /> Your focus this week
+            </p>
+            <p className="text-sm whitespace-pre-wrap leading-relaxed">
+              {focus.body}
+            </p>
+            {coachName && (
+              <p className="text-xs text-muted-foreground pt-0.5">
+                — {coachName}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {!isPreStart && !isComplete && view === "dashboard" && (
         <AccountabilityDashboard
           key={dashKey}

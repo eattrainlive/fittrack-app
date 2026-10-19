@@ -86,6 +86,14 @@ Live site is fine — this is only about not losing these on the next build.
 - `supabase/sql/erg_leaderboard_public.sql` (NEW) — `erg_challenge_leaderboard_public()` SECURITY
   DEFINER RPC, per-member per-machine totals, names only (no email), granted to authenticated.
 
+### Accountability — client-facing "This week's focus"
+- `src/components/ClientFocusCard.tsx` (NEW) + `src/lib/clientFocus.ts` (NEW) — per-week client-VISIBLE
+  focus note, coach-set on AccountabilityClientConsole (week selector, upsert per client+week).
+- `src/pages/Accountability.tsx` — member dashboard shows the current week's focus as a "Your focus
+  this week" card, signed off with the ASSIGNED coach's name (coach_user_id). Fetches via getFocusForWeek.
+- `src/components/AccountabilityClientConsole.tsx` — mounts `<ClientFocusCard>` above Coach notes.
+- `supabase/sql/acc_client_focus.sql` (NEW) — table; member reads own, staff write only.
+
 ### Accountability — coach notes on the client profile
 - `src/components/CoachNotesCard.tsx` (NEW) + `src/lib/coachNotes.ts` (NEW) — dated coach-notes
   timeline on AccountabilityClientConsole: round-ups for in-person onboarding / in-person check-ins /

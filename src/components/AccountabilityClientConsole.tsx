@@ -20,6 +20,7 @@ import {
 } from "@/lib/accountabilityProgramme";
 import { TrackingTargetsCard } from "./TrackingTargetsCard";
 import { CoachNotesCard } from "./CoachNotesCard";
+import { ClientFocusCard } from "./ClientFocusCard";
 import { StepTargetCard } from "./StepTargetCard";
 import { AccCheckinCard } from "./AccCheckinCard";
 import { AccountabilityOnboarding } from "./AccountabilityOnboarding";
@@ -143,6 +144,13 @@ export function AccountabilityClientConsole({
           )}
         </CardContent>
       </Card>
+
+      {/* Client-facing weekly focus (the client sees this on their dashboard) */}
+      <ClientFocusCard
+        client={client}
+        currentWeek={currentWeek(cohort, client)}
+        totalWeeks={cohort.weeks}
+      />
 
       {/* Coach notes — conversation round-ups (onboarding, in-person check-ins) */}
       <CoachNotesCard client={client} clientName={name} />

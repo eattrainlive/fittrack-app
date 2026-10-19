@@ -35,4 +35,12 @@ Since my last export, the following were edited directly in the repo. Keep them 
 - `src/components/AccountabilityClientConsole.tsx`: mounts <CoachNotesCard client={client} clientName={name} /> just after the header, before TrackingTargetsCard.
 - Backed by `acc_coach_notes.sql` (new staff-only table acc_coach_notes) — already deployed. Keep the table + reads/writes.
 
+7) ACCOUNTABILITY — CLIENT-FACING "THIS WEEK'S FOCUS" (new)
+- A per-week, client-VISIBLE note the coach sets: what you agreed to focus on for the week. Separate from the private acc_coach_notes.
+- New file `src/components/ClientFocusCard.tsx`: coach editor on AccountabilityClientConsole — week selector (defaults to the client's current week; dots mark weeks that already have a focus), textarea, Save (upsert per client+week). Clearly labelled "The client sees this on their dashboard".
+- New file `src/lib/clientFocus.ts`: ClientFocus type, getClientFocus / getFocusForWeek / upsertClientFocus / deleteClientFocus.
+- `src/components/AccountabilityClientConsole.tsx`: mounts <ClientFocusCard client currentWeek totalWeeks> above the Coach notes card.
+- `src/pages/Accountability.tsx` (member dashboard): fetches the current week's focus (getFocusForWeek) and shows it at the top of the dashboard as a highlighted "Your focus this week" card, signed off with the client's ASSIGNED coach name (from coach_user_id, not whoever saved it). Only renders when a focus exists for the current week.
+- Backed by `acc_client_focus.sql` (new table; member reads own via acc_clients.user_id, staff write only) — already deployed. Keep the member-read / staff-write RLS.
+
 Also keep everything already recorded in claude/catch-up-session-consolidated.md — especially src/lib/trialNurture.ts and src/lib/memberMessages.ts, which must NOT be regenerated.
