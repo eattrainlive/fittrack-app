@@ -101,6 +101,11 @@ import { LeaderboardsBanner } from "@/components/WorkoutsBrowseStrips";
 import { supabase } from "@/lib/supabase";
 import { ConditioningTimer } from "@/components/ConditioningTimer";
 import { AdLibLogSheet } from "@/components/AdLibLogSheet";
+import {
+  getCustomWorkouts,
+  deleteCustomWorkout,
+  type CustomWorkout,
+} from "@/lib/customWorkouts";
 import { PreviewExerciseRow } from "@/components/PreviewExerciseRow";
 import { FreestyleBlock } from "@/components/FreestyleBlock";
 import { BlockLeaderboardDialog } from "@/components/BlockLeaderboardDialog";
@@ -246,6 +251,11 @@ const Workouts = () => {
   const [pbModal, setPbModal] = useState<any[] | null>(null);
   const [roundupData, setRoundupData] = useState<SessionRoundupData | null>(null);
   const [adLibOpen, setAdLibOpen] = useState(false);
+  const [adLibPrefill, setAdLibPrefill] = useState<{
+    name: string;
+    exercises: any[];
+  } | null>(null);
+  const [customWorkouts, setCustomWorkouts] = useState<CustomWorkout[]>([]);
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [quickOverviewWorkout, setQuickOverviewWorkout] = useState<any>(null);
   const [templateForChooser, setTemplateForChooser] = useState<any>(null);
@@ -416,6 +426,7 @@ const Workouts = () => {
       setWorkoutTemplates(getPrograms());
       setActiveProgram(getActiveProgram());
       setPreferredDays(getPreferredDays());
+      getCustomWorkouts().then(setCustomWorkouts);
 
       const wowsData = await getWorkoutsOfWeek();
       setWows(wowsData);
@@ -689,6 +700,32 @@ const Workouts = () => {
       exercises.map((e) => (e.id === id ? { ...e, [field]: value } : e)),
     );
   };
+
+  // Start a saved custom workout or repeat a past self-logged session: open the
+  // ad-lib logger pre-loaded with its exercises (last weights/reps carried in).
+  const startCustomWorkout = (w: { name: string; exercises: any[] }) => {
+    setAdLibPrefill({ name: w.name, exercises: w.exercises || [] });
+    setAdLibOpen(true);
+  };
+
+  const removeCustomWorkout = async (id: string) => {
+    if (!confirm("Delete this saved workout?")) return;
+    const { error } = await deleteCustomWorkout(id);
+    if (error) toast.error("Couldn't delete");
+    else setCustomWorkouts((prev) => prev.filter((w) => w.id !== id));
+  };
+
+  // Recent self-logged (non-programme) strength sessions, for quick repeat.
+  const recentSelfLogged = getWorkoutHistory()
+    .filter(
+      (h: any) =>
+        h &&
+        !h.programId &&
+        (h.type === "strength" || (!h.type && Array.isArray(h.exercises))) &&
+        Array.isArray(h.exercises) &&
+        h.exercises.some((e: any) => e?.name),
+    )
+    .slice(0, 5);
 
   const openTemplateDetail = (template: any) => {
     if (template.workouts && !activeProgram) {
@@ -1008,6 +1045,72 @@ const Workouts = () => {
               Browse
             </h2>
           </div>
+
+          {/* My workouts — saved custom sessions + quick repeat of recent ones */}
+          {(customWorkouts.length > 0 || recentSelfLogged.length > 0) && (
+            <div className="space-y-2">
+              <h3 className="font-heading text-xl tracking-wider uppercase text-muted-foreground flex items-center gap-2">
+                <Repeat className="w-4 h-4 text-primary" /> My workouts
+              </h3>
+              {customWorkouts.map((w) => (
+                <div
+                  key={w.id}
+                  className="w-full flex items-center gap-3 bg-card border border-border rounded-xl p-3 shadow-sm"
+                >
+                  <button
+                    onClick={() => startCustomWorkout(w)}
+                    className="flex items-center gap-3 min-w-0 flex-1 text-left active:scale-[0.99] transition"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                      <Play className="w-5 h-5 text-primary fill-current" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium truncate">{w.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(w.exercises || []).filter((e: any) => e?.name).length}{" "}
+                        exercises · saved
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => removeCustomWorkout(w.id)}
+                    className="shrink-0 rounded-md p-2 text-muted-foreground hover:text-destructive"
+                    aria-label="Delete saved workout"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              {recentSelfLogged.map((h: any) => (
+                <button
+                  key={h.id}
+                  onClick={() =>
+                    startCustomWorkout({
+                      name: h.name || "My workout",
+                      exercises: h.exercises,
+                    })
+                  }
+                  className="w-full flex items-center gap-3 bg-card border border-border rounded-xl p-3 text-left shadow-sm active:scale-[0.99] transition"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                    <Repeat className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate">
+                      {h.name || "My workout"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(h.date).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                      })}{" "}
+                      · tap to repeat
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Compact strips at top: Resume + WOW */}
           <div className="space-y-3">
@@ -3818,7 +3921,14 @@ const Workouts = () => {
       </button>
       <AdLibLogSheet
         open={adLibOpen}
-        onOpenChange={setAdLibOpen}
+        onOpenChange={(o) => {
+          setAdLibOpen(o);
+          if (!o) {
+            setAdLibPrefill(null);
+            getCustomWorkouts().then(setCustomWorkouts);
+          }
+        }}
+        prefill={adLibPrefill}
         onPBs={() => {}}
         onRoundup={(data) => setRoundupData(data)}
       />

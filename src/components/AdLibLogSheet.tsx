@@ -40,6 +40,7 @@ import {
 } from "@/lib/store";
 import { trackingOf } from "@/lib/tracking";
 import { computeVolume } from "@/lib/workoutHistory";
+import { saveCustomWorkout } from "@/lib/customWorkouts";
 
 const ACTIVITY_TYPES = [
   { key: "Swim", icon: "🏊" },
@@ -109,6 +110,8 @@ interface AdLibLogSheetProps {
   /** Called with the new PBs (if any) after a strength save, so the parent can show the PB modal. */
   onPBs?: (pbs: any[]) => void;
   onRoundup?: (data: SessionRoundupData) => void;
+  /** When set, open straight into workout mode seeded with this session (repeat / saved workout). */
+  prefill?: { name: string; exercises: any[] } | null;
 }
 
 export function AdLibLogSheet({
@@ -116,6 +119,7 @@ export function AdLibLogSheet({
   onOpenChange,
   onPBs,
   onRoundup,
+  prefill,
 }: AdLibLogSheetProps) {
   const [mode, setMode] = useState<"choose" | "activity" | "workout">("choose");
   const [exerciseLibrary, setExerciseLibrary] = useState<any[]>([]);
@@ -144,10 +148,41 @@ export function AdLibLogSheet({
     }
   }, [open, exerciseLibrary.length]);
 
-  // reset to chooser when reopened
+  // reset to chooser when reopened — or jump straight into workout mode seeded
+  // from a prefill (repeating a past session / starting a saved workout).
   useEffect(() => {
-    if (open) setMode("choose");
-  }, [open]);
+    if (!open) return;
+    if (prefill && Array.isArray(prefill.exercises) && prefill.exercises.length) {
+      setMode("workout");
+      setWkName(prefill.name || "My workout");
+      setWkDate(todayISO());
+      // Deep-clone and re-key so last time's weights/reps come in as a starting
+      // point, with fresh ids and nothing marked completed.
+      setWkExercises(
+        prefill.exercises.map((e: any, exIdx: number) => ({
+          id: Date.now() + exIdx + Math.random(),
+          blockType: e.blockType ?? "Strength",
+          name: e.name,
+          trackingType: e.trackingType ?? "Weight & Reps",
+          rest: e.rest ?? 0,
+          linkedToNext: e.linkedToNext ?? false,
+          eachSide: e.eachSide ?? false,
+          setsData: (e.setsData || []).map((s: any, i: number) => ({
+            id: String(i + 1),
+            reps: Number(s?.reps) || 0,
+            weight: Number(s?.weight) || 0,
+            distance: Number(s?.distance) || 0,
+            timeMins: Number(s?.timeMins) || 0,
+            timeSecs: Number(s?.timeSecs) || 0,
+            calories: Number(s?.calories) || 0,
+            completed: false,
+          })),
+        })),
+      );
+    } else {
+      setMode("choose");
+    }
+  }, [open, prefill]);
 
   const filteredLibrary = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -329,6 +364,26 @@ export function AdLibLogSheet({
 
   const removeExercise = (exIdx: number) => {
     setWkExercises((prev) => prev.filter((_, i) => i !== exIdx));
+  };
+
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const saveAsMyWorkout = async () => {
+    const realExercises = wkExercises.filter((e) => e.name);
+    if (realExercises.length === 0) {
+      toast.error("Add at least one exercise");
+      return;
+    }
+    setSavingTemplate(true);
+    const { error } = await saveCustomWorkout({
+      name: wkName.trim() || "My workout",
+      exercises: realExercises,
+    });
+    setSavingTemplate(false);
+    if (error) {
+      toast.error("Couldn't save — try again");
+      return;
+    }
+    toast.success("Saved to My workouts");
   };
 
   const saveWorkout = async () => {
@@ -860,6 +915,18 @@ export function AdLibLogSheet({
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
                   "Save workout"
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={saveAsMyWorkout}
+                disabled={savingTemplate || wkExercises.length === 0}
+              >
+                {savingTemplate ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Save as My workout (reuse later)"
                 )}
               </Button>
             </div>
