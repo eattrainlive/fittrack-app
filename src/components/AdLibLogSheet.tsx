@@ -30,6 +30,7 @@ import {
   Activity as ActivityIcon,
   X,
   Loader2,
+  History,
 } from "lucide-react";
 import type { SessionRoundupData } from "./SessionRoundupModal";
 import { toast } from "sonner";
@@ -40,7 +41,10 @@ import {
 } from "@/lib/store";
 import { trackingOf } from "@/lib/tracking";
 import { computeVolume } from "@/lib/workoutHistory";
-import { saveCustomWorkout } from "@/lib/customWorkouts";
+import {
+  saveCustomWorkout,
+  updateCustomWorkout,
+} from "@/lib/customWorkouts";
 import { getExerciseHistory } from "@/lib/exerciseHistory";
 
 const ACTIVITY_TYPES = [
@@ -111,8 +115,9 @@ interface AdLibLogSheetProps {
   /** Called with the new PBs (if any) after a strength save, so the parent can show the PB modal. */
   onPBs?: (pbs: any[]) => void;
   onRoundup?: (data: SessionRoundupData) => void;
-  /** When set, open straight into workout mode seeded with this session (repeat / saved workout). */
-  prefill?: { name: string; exercises: any[] } | null;
+  /** When set, open straight into workout mode seeded with this session (repeat / saved workout).
+   *  `id` is the saved custom-workout id, so logging rolls that template forward. */
+  prefill?: { id?: string; name: string; exercises: any[] } | null;
 }
 
 export function AdLibLogSheet({
@@ -157,34 +162,29 @@ export function AdLibLogSheet({
       setMode("workout");
       setWkName(prefill.name || "My workout");
       setWkDate(todayISO());
-      // Seed with each exercise's MOST RECENT logged sets (so progress carries
-      // forward), falling back to the saved template's sets if there's no
-      // history yet. Fresh ids, nothing marked completed.
+      // Seed from the saved template's sets. The template is rolled forward to
+      // the latest weights/reps every time the member logs it (see saveWorkout),
+      // so this always reflects what they last did. Fresh ids, none completed.
       setWkExercises(
-        prefill.exercises.map((e: any, exIdx: number) => {
-          const latest = getExerciseHistory(e.name, 1)[0];
-          const sourceSets =
-            latest?.sets && latest.sets.length ? latest.sets : e.setsData || [];
-          return {
-            id: Date.now() + exIdx + Math.random(),
-            blockType: e.blockType ?? "Strength",
-            name: e.name,
-            trackingType: e.trackingType ?? latest?.trackingType ?? "Weight & Reps",
-            rest: e.rest ?? 0,
-            linkedToNext: e.linkedToNext ?? false,
-            eachSide: e.eachSide ?? false,
-            setsData: sourceSets.map((s: any, i: number) => ({
-              id: String(i + 1),
-              reps: Number(s?.reps) || 0,
-              weight: Number(s?.weight) || 0,
-              distance: Number(s?.distance) || 0,
-              timeMins: Number(s?.timeMins) || 0,
-              timeSecs: Number(s?.timeSecs) || 0,
-              calories: Number(s?.calories) || 0,
-              completed: false,
-            })),
-          };
-        }),
+        prefill.exercises.map((e: any, exIdx: number) => ({
+          id: Date.now() + exIdx + Math.random(),
+          blockType: e.blockType ?? "Strength",
+          name: e.name,
+          trackingType: e.trackingType ?? "Weight & Reps",
+          rest: e.rest ?? 0,
+          linkedToNext: e.linkedToNext ?? false,
+          eachSide: e.eachSide ?? false,
+          setsData: (e.setsData || []).map((s: any, i: number) => ({
+            id: String(i + 1),
+            reps: Number(s?.reps) || 0,
+            weight: Number(s?.weight) || 0,
+            distance: Number(s?.distance) || 0,
+            timeMins: Number(s?.timeMins) || 0,
+            timeSecs: Number(s?.timeSecs) || 0,
+            calories: Number(s?.calories) || 0,
+            completed: false,
+          })),
+        })),
       );
     } else {
       setMode("choose");
@@ -373,6 +373,10 @@ export function AdLibLogSheet({
     setWkExercises((prev) => prev.filter((_, i) => i !== exIdx));
   };
 
+  const [pastLifts, setPastLifts] = useState<{
+    key: string;
+    display: string;
+  } | null>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const saveAsMyWorkout = async () => {
     const realExercises = wkExercises.filter((e) => e.name);
@@ -411,6 +415,14 @@ export function AdLibLogSheet({
     };
     const res = await saveWorkoutToHistory(workout);
     if (res.success) {
+      // If this came from a saved workout, roll that template forward to the
+      // weights/reps just logged so repeating it starts from today's numbers.
+      if (prefill?.id) {
+        void updateCustomWorkout(prefill.id, {
+          name: wkName.trim() || "My workout",
+          exercises: realExercises,
+        });
+      }
       // run PB detection for ad-lib strength
       const pbs = await detectAndSavePBs(realExercises);
       setSaving(false);
@@ -713,8 +725,17 @@ export function AdLibLogSheet({
                         {exName}
                       </p>
                       <button
+                        onClick={() =>
+                          setPastLifts({ key: ex.name, display: exName })
+                        }
+                        className="flex items-center gap-1 text-[11px] font-medium text-primary hover:bg-primary/10 rounded px-1.5 py-1 shrink-0 ml-2"
+                        title="Past lifts"
+                      >
+                        <History className="h-3.5 w-3.5" /> Past lifts
+                      </button>
+                      <button
                         onClick={() => removeExercise(exIdx)}
-                        className="text-destructive hover:bg-destructive/10 rounded p-1 shrink-0 ml-2"
+                        className="text-destructive hover:bg-destructive/10 rounded p-1 shrink-0 ml-1"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -940,6 +961,77 @@ export function AdLibLogSheet({
           )}
         </div>
       </SheetContent>
+
+      <Dialog
+        open={!!pastLifts}
+        onOpenChange={(o) => !o && setPastLifts(null)}
+      >
+        <DialogContent className="w-[92vw] max-w-sm bg-card border-border overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-heading tracking-wider">
+              {pastLifts?.display}
+            </DialogTitle>
+          </DialogHeader>
+          {pastLifts &&
+            (() => {
+              const past = getExerciseHistory(pastLifts.key, 3);
+              if (past.length === 0) {
+                return (
+                  <p className="text-sm text-muted-foreground text-center py-6">
+                    No history yet for this exercise.
+                  </p>
+                );
+              }
+              return (
+                <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                  {past.map((sess, i) => (
+                    <div
+                      key={i}
+                      className="border-b border-border py-2 last:border-0"
+                    >
+                      <p className="text-xs font-bold text-muted-foreground">
+                        {new Date(sess.date).toLocaleDateString("en-GB", {
+                          weekday: "short",
+                          day: "2-digit",
+                          month: "short",
+                        })}
+                        {i === 0 && " · most recent"}
+                      </p>
+                      <div className="mt-1 space-y-0.5">
+                        {sess.sets.map((s: any, j: number) => {
+                          const parts: string[] = [];
+                          if ((s.weight || 0) > 0) parts.push(`${s.weight}kg`);
+                          if ((s.reps || 0) > 0) parts.push(`${s.reps} reps`);
+                          if ((s.distance || 0) > 0)
+                            parts.push(`${s.distance}m`);
+                          if ((s.timeMins || 0) > 0 || (s.timeSecs || 0) > 0)
+                            parts.push(
+                              `${s.timeMins || 0}:${String(s.timeSecs || 0).padStart(2, "0")}`,
+                            );
+                          if ((s.calories || 0) > 0)
+                            parts.push(`${s.calories} cal`);
+                          return (
+                            <div
+                              key={j}
+                              className="flex items-center gap-2 text-sm"
+                            >
+                              <span className="w-5 text-xs text-muted-foreground shrink-0">
+                                {j + 1}
+                              </span>
+                              <span className="font-medium">
+                                {parts.join(" · ") || "—"}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+        </DialogContent>
+      </Dialog>
     </Sheet>
   );
 }

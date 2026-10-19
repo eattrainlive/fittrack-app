@@ -252,6 +252,7 @@ const Workouts = () => {
   const [roundupData, setRoundupData] = useState<SessionRoundupData | null>(null);
   const [adLibOpen, setAdLibOpen] = useState(false);
   const [adLibPrefill, setAdLibPrefill] = useState<{
+    id?: string;
     name: string;
     exercises: any[];
   } | null>(null);
@@ -703,8 +704,12 @@ const Workouts = () => {
 
   // Start a saved custom workout or repeat a past self-logged session: open the
   // ad-lib logger pre-loaded with its exercises (last weights/reps carried in).
-  const startCustomWorkout = (w: { name: string; exercises: any[] }) => {
-    setAdLibPrefill({ name: w.name, exercises: w.exercises || [] });
+  const startCustomWorkout = (w: {
+    id?: string;
+    name: string;
+    exercises: any[];
+  }) => {
+    setAdLibPrefill({ id: w.id, name: w.name, exercises: w.exercises || [] });
     setAdLibOpen(true);
   };
 

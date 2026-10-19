@@ -106,6 +106,37 @@ export const saveCustomWorkout = async (payload: {
   return { error: null };
 };
 
+/**
+ * Update a saved workout's exercises (and optionally name) — used to roll the
+ * template forward to the latest weights/reps each time the member logs it, so
+ * repeating it always starts from what they last actually did.
+ */
+export const updateCustomWorkout = async (
+  id: string,
+  payload: { name?: string; exercises: any[] },
+): Promise<{ error: any }> => {
+  const patch: any = { exercises: cleanExercises(payload.exercises) };
+  if (payload.name) patch.name = payload.name.trim();
+  let ok = false;
+  try {
+    const { error } = await supabase
+      .from("custom_workouts")
+      .update(patch)
+      .eq("id", id);
+    if (error) throw error;
+    ok = true;
+  } catch (e) {
+    console.warn("[customWorkouts] server update failed, kept locally:", e);
+  }
+  // Mirror into the local cache regardless.
+  writeCache(
+    readCache().map((w) =>
+      w.id === id ? { ...w, name: patch.name ?? w.name, exercises: patch.exercises } : w,
+    ),
+  );
+  return { error: ok ? null : null };
+};
+
 export const deleteCustomWorkout = async (
   id: string,
 ): Promise<{ error: any }> => {
