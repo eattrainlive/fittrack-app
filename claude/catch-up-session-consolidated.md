@@ -86,6 +86,11 @@ Live site is fine — this is only about not losing these on the next build.
 - `supabase/sql/erg_leaderboard_public.sql` (NEW) — `erg_challenge_leaderboard_public()` SECURITY
   DEFINER RPC, per-member per-machine totals, names only (no email), granted to authenticated.
 
+### Accountability — enrol picker search by name or email
+- `src/components/AccRosterTab.tsx` — the enrol-a-client member picker filtered on email only, so a
+  name search returned nothing. Now matches `full_name` + `email`; placeholder "Search by name or
+  email…". Keep the name+email match.
+
 ### Accountability — coach Setup tracker (spreadsheet-style grid)
 - `src/components/AccountabilitySetupTracker.tsx` (NEW) — sheet-style grid on the coach panel:
   clients × milestones. Columns: Member (pinned) + Coach (from coach_user_id via `staff` prop) +

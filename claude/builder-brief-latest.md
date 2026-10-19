@@ -25,4 +25,7 @@ Since my last export, the following were edited directly in the repo. Keep them 
 - `src/components/AccountabilityCoachPanel.tsx`: added a "Setup tracker" tab between Roster and Check-ins.
 - Backed by `acc_setup_tracker.sql` (adds the `setup_tracker` jsonb column) — already deployed. Do not drop the column or the setup_tracker reads/writes.
 
+5) ACCOUNTABILITY ENROL PICKER — search by name OR email
+- `src/components/AccRosterTab.tsx`: the "enrol a client" member picker previously filtered `availableMembers` on email only, so searching a member's name found nothing. It now matches on `full_name` + `email` (`\`${full_name} ${email}\`.toLowerCase().includes(q)\`, empty query shows all), and the input placeholder is "Search by name or email…". Keep the name+email match.
+
 Also keep everything already recorded in claude/catch-up-session-consolidated.md — especially src/lib/trialNurture.ts and src/lib/memberMessages.ts, which must NOT be regenerated.
