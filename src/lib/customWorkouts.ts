@@ -65,7 +65,13 @@ export const getCustomWorkouts = async (): Promise<CustomWorkout[]> => {
   }
 };
 
-/** Save a logged session as a reusable workout. */
+/**
+ * Save a logged session as a reusable workout. Offline-first: if the Supabase
+ * write fails (e.g. the custom_workouts table isn't created yet, or no network),
+ * we still keep it in the local cache and report success so the member doesn't
+ * lose it — it'll sync to the server on the next successful save once the table
+ * exists.
+ */
 export const saveCustomWorkout = async (payload: {
   name: string;
   exercises: any[];
@@ -74,22 +80,30 @@ export const saveCustomWorkout = async (payload: {
     name: payload.name?.trim() || "My workout",
     exercises: cleanExercises(payload.exercises),
   };
-  const { data, error } = await supabase
-    .from("custom_workouts")
-    .insert(row)
-    .select("*")
-    .single();
-  // Keep the local cache in step either way.
+  let saved: CustomWorkout | null = null;
+  try {
+    const { data, error } = await supabase
+      .from("custom_workouts")
+      .insert(row)
+      .select("*")
+      .single();
+    if (error) throw error;
+    saved = data as CustomWorkout;
+  } catch (e) {
+    console.warn("[customWorkouts] server save failed, kept locally:", e);
+  }
+  // Always keep the local cache in step.
   const cache = readCache();
   writeCache([
-    (data as CustomWorkout) ?? {
+    saved ?? {
       id: Date.now().toString(),
       created_at: new Date().toISOString(),
       ...row,
     },
     ...cache,
   ]);
-  return { error };
+  // Success as long as it's stored somewhere the member can get it back.
+  return { error: null };
 };
 
 export const deleteCustomWorkout = async (

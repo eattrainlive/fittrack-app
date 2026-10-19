@@ -715,18 +715,6 @@ const Workouts = () => {
     else setCustomWorkouts((prev) => prev.filter((w) => w.id !== id));
   };
 
-  // Recent self-logged (non-programme) strength sessions, for quick repeat.
-  const recentSelfLogged = getWorkoutHistory()
-    .filter(
-      (h: any) =>
-        h &&
-        !h.programId &&
-        (h.type === "strength" || (!h.type && Array.isArray(h.exercises))) &&
-        Array.isArray(h.exercises) &&
-        h.exercises.some((e: any) => e?.name),
-    )
-    .slice(0, 5);
-
   const openTemplateDetail = (template: any) => {
     if (template.workouts && !activeProgram) {
       setTemplateForChooser(template);
@@ -1046,72 +1034,6 @@ const Workouts = () => {
             </h2>
           </div>
 
-          {/* My workouts — saved custom sessions + quick repeat of recent ones */}
-          {(customWorkouts.length > 0 || recentSelfLogged.length > 0) && (
-            <div className="space-y-2">
-              <h3 className="font-heading text-xl tracking-wider uppercase text-muted-foreground flex items-center gap-2">
-                <Repeat className="w-4 h-4 text-primary" /> My workouts
-              </h3>
-              {customWorkouts.map((w) => (
-                <div
-                  key={w.id}
-                  className="w-full flex items-center gap-3 bg-card border border-border rounded-xl p-3 shadow-sm"
-                >
-                  <button
-                    onClick={() => startCustomWorkout(w)}
-                    className="flex items-center gap-3 min-w-0 flex-1 text-left active:scale-[0.99] transition"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
-                      <Play className="w-5 h-5 text-primary fill-current" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium truncate">{w.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {(w.exercises || []).filter((e: any) => e?.name).length}{" "}
-                        exercises · saved
-                      </p>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => removeCustomWorkout(w.id)}
-                    className="shrink-0 rounded-md p-2 text-muted-foreground hover:text-destructive"
-                    aria-label="Delete saved workout"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-              {recentSelfLogged.map((h: any) => (
-                <button
-                  key={h.id}
-                  onClick={() =>
-                    startCustomWorkout({
-                      name: h.name || "My workout",
-                      exercises: h.exercises,
-                    })
-                  }
-                  className="w-full flex items-center gap-3 bg-card border border-border rounded-xl p-3 text-left shadow-sm active:scale-[0.99] transition"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                    <Repeat className="w-5 h-5 text-muted-foreground" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate">
-                      {h.name || "My workout"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(h.date).toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                      })}{" "}
-                      · tap to repeat
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-
           {/* Compact strips at top: Resume + WOW */}
           <div className="space-y-3">
             {activeProgram &&
@@ -1212,7 +1134,7 @@ const Workouts = () => {
           </div>
 
           <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
-            {["All", "Workouts", "Programs"].map((tab) => (
+            {["All", "Workouts", "Programs", "Mine"].map((tab) => (
               <Button
                 key={tab}
                 variant={activeTab === tab ? "default" : "outline"}
@@ -1238,6 +1160,50 @@ const Workouts = () => {
             />
           </div>
 
+          {activeTab === "Mine" && (
+            <div className="space-y-2">
+              {customWorkouts.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
+                  No saved workouts yet. Log your own session with the + button,
+                  then tap "Save as My workout".
+                </div>
+              ) : (
+                customWorkouts.map((w) => (
+                  <div
+                    key={w.id}
+                    className="w-full flex items-center gap-3 bg-card border border-border rounded-xl p-3 shadow-sm"
+                  >
+                    <button
+                      onClick={() => startCustomWorkout(w)}
+                      className="flex items-center gap-3 min-w-0 flex-1 text-left active:scale-[0.99] transition"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                        <Play className="w-5 h-5 text-primary fill-current" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{w.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {
+                            (w.exercises || []).filter((e: any) => e?.name)
+                              .length
+                          }{" "}
+                          exercises · tap to repeat
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => removeCustomWorkout(w.id)}
+                      className="shrink-0 rounded-md p-2 text-muted-foreground hover:text-destructive"
+                      aria-label="Delete saved workout"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
           <div className="space-y-4">
             {(() => {
               const filtered = workoutTemplates
@@ -1253,6 +1219,7 @@ const Workouts = () => {
                     (activeTab === "Programs" && t.workouts) ||
                     (activeTab === "Workouts" && !t.workouts),
                 )
+                .filter(() => activeTab !== "Mine")
                 .filter((t) =>
                   t.name.toLowerCase().includes(searchQuery.toLowerCase()),
                 );
