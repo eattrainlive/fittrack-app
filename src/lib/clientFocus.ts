@@ -60,6 +60,27 @@ export const upsertClientFocus = async (
   return { error };
 };
 
+// ── One-time "new note" flag (per focus id + updated_at, local to the device) ─
+// A fresh note or an edited one (new updated_at) re-flags. Cleared when the
+// member clicks the flag or opens their 6-week dashboard.
+const focusSeenKey = (f: ClientFocus) => `acc_focus_seen:${f.id}:${f.updated_at}`;
+
+export const isFocusSeen = (f: ClientFocus): boolean => {
+  try {
+    return localStorage.getItem(focusSeenKey(f)) === "1";
+  } catch {
+    return false;
+  }
+};
+
+export const markFocusSeen = (f: ClientFocus): void => {
+  try {
+    localStorage.setItem(focusSeenKey(f), "1");
+  } catch {
+    /* ignore */
+  }
+};
+
 export const deleteClientFocus = async (
   id: string,
 ): Promise<{ error: any }> => {

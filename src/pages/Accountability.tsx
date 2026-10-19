@@ -41,7 +41,11 @@ import {
 } from "@/lib/store";
 import { getMyCheckins, type AccCheckin } from "@/lib/accountabilityCheckins";
 import { AccountabilityDashboard } from "@/components/accDashboard/AccountabilityDashboard";
-import { getFocusForWeek, type ClientFocus } from "@/lib/clientFocus";
+import {
+  getFocusForWeek,
+  markFocusSeen,
+  type ClientFocus,
+} from "@/lib/clientFocus";
 
 const formatDate = (iso: string) => {
   if (!iso) return "";
@@ -97,7 +101,11 @@ const Accountability = () => {
       if (cl) {
         setWeekCheckins(await getMyCheckins(cl.id));
         const wk = effectiveWeekOf(c, cl);
-        setFocus(wk >= 1 ? await getFocusForWeek(cl.id, wk) : null);
+        const f = wk >= 1 ? await getFocusForWeek(cl.id, wk) : null;
+        setFocus(f);
+        // Opening the 6-week dashboard counts as seeing the note → clears the
+        // one-time home-screen flag.
+        if (f) markFocusSeen(f);
       }
     }
     setLoading(false);

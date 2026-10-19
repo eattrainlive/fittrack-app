@@ -13,6 +13,8 @@ import {
   Scale,
   ChevronRight,
   Sparkles,
+  Target,
+  X,
 } from "lucide-react";
 import {
   Area,
@@ -44,7 +46,14 @@ import ErgChallengeCard from "@/components/ErgChallengeCard";
 import {
   getActiveCohort,
   getMyClientRecord,
+  effectiveWeekOf,
 } from "@/lib/accountabilityProgramme";
+import {
+  getFocusForWeek,
+  isFocusSeen,
+  markFocusSeen,
+  type ClientFocus,
+} from "@/lib/clientFocus";
 import {
   isTrialProduct,
   daysSince,
@@ -70,6 +79,7 @@ const Index = () => {
   const [showTrialProgress, setShowTrialProgress] = useState(false);
   const [showMemberGoals, setShowMemberGoals] = useState(false);
   const [accEnrolled, setAccEnrolled] = useState(false);
+  const [focusFlag, setFocusFlag] = useState<ClientFocus | null>(null);
   const [needsGoalsSetup, setNeedsGoalsSetup] = useState(false);
   const navigate = useNavigate();
 
@@ -126,6 +136,13 @@ const Index = () => {
       if (accCohort) {
         const accClient = await getMyClientRecord(accCohort.id);
         setAccEnrolled(!!accClient);
+        // One-time flag: coach left this week's focus and the member hasn't
+        // seen it yet. Cleared on click or when they open the 6-week dashboard.
+        if (accClient) {
+          const wk = effectiveWeekOf(accCohort, accClient);
+          const f = wk >= 1 ? await getFocusForWeek(accClient.id, wk) : null;
+          setFocusFlag(f && !isFocusSeen(f) ? f : null);
+        }
       }
       // First-run goals setup: open the goals/targets editor once for
       // non-trial members with no goals row yet (unless they dismissed it).
@@ -261,6 +278,37 @@ const Index = () => {
         </div>
         <CheckInHeaderButton />
       </div>
+
+      {focusFlag && (
+        <div className="flex items-center gap-3 rounded-xl border border-primary/40 bg-primary/5 p-3 animate-in fade-in slide-in-from-top-2">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+            <Target className="h-5 w-5" />
+          </div>
+          <button
+            onClick={() => {
+              markFocusSeen(focusFlag);
+              setFocusFlag(null);
+              navigate("/accountability");
+            }}
+            className="min-w-0 flex-1 text-left"
+          >
+            <p className="text-sm font-semibold leading-tight">
+              Your coach left you a focus for this week
+            </p>
+            <p className="text-xs text-primary">Tap to read it ›</p>
+          </button>
+          <button
+            onClick={() => {
+              markFocusSeen(focusFlag);
+              setFocusFlag(null);
+            }}
+            className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <AccountabilityCard />
 
