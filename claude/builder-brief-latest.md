@@ -43,4 +43,12 @@ Since my last export, the following were edited directly in the repo. Keep them 
 - `src/pages/Accountability.tsx` (member dashboard): fetches the current week's focus (getFocusForWeek) and shows it at the top of the dashboard as a highlighted "Your focus this week" card, signed off with the client's ASSIGNED coach name (from coach_user_id, not whoever saved it). Only renders when a focus exists for the current week.
 - Backed by `acc_client_focus.sql` (new table; member reads own via acc_clients.user_id, staff write only) — already deployed. Keep the member-read / staff-write RLS.
 
+8) SELF-LOGGED WORKOUTS — repeat + "My workouts" (new)
+- Members logging their own (non-programme) session can now save it as a reusable workout and repeat past ones.
+- New file `src/lib/customWorkouts.ts`: getCustomWorkouts / saveCustomWorkout / deleteCustomWorkout (Supabase `custom_workouts` table + localStorage cache). cleanExercises() normalises the saved shape and resets `completed`.
+- `src/components/AdLibLogSheet.tsx`: new optional `prefill?: { name, exercises }` prop — when the sheet opens with a prefill it jumps straight into workout mode seeded with those exercises, carrying last time's weights/reps in as a starting point (fresh ids, nothing completed). Added a "Save as My workout (reuse later)" button beside "Save workout" that calls saveCustomWorkout.
+- `src/pages/Workouts.tsx`: a "My workouts" section at the top of Browse lists saved custom workouts (tap to start → prefilled logger; delete) and the last ~5 self-logged strength sessions (tap to Repeat). Wires `prefill={adLibPrefill}` into <AdLibLogSheet> and reloads the saved list when the sheet closes. Helpers: startCustomWorkout, removeCustomWorkout, recentSelfLogged.
+- Past Lifts already keys off exercise name, so repeated workouts show previous numbers automatically. Custom-typed exercises log + show history by name too (they're not added to the searchable library — that's fine).
+- Backed by `custom_workouts.sql` (own-row RLS) — already deployed. Keep the table + the prefill/save wiring.
+
 Also keep everything already recorded in claude/catch-up-session-consolidated.md — especially src/lib/trialNurture.ts and src/lib/memberMessages.ts, which must NOT be regenerated.

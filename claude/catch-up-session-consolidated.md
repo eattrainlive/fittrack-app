@@ -86,6 +86,14 @@ Live site is fine — this is only about not losing these on the next build.
 - `supabase/sql/erg_leaderboard_public.sql` (NEW) — `erg_challenge_leaderboard_public()` SECURITY
   DEFINER RPC, per-member per-machine totals, names only (no email), granted to authenticated.
 
+### Self-logged workouts — repeat + "My workouts"
+- `src/lib/customWorkouts.ts` (NEW) — saved custom workouts (Supabase `custom_workouts` + localStorage).
+- `src/components/AdLibLogSheet.tsx` — `prefill` prop seeds workout mode (carries last weights/reps);
+  "Save as My workout" button. (Also carries the Session Roundup changes — push latest.)
+- `src/pages/Workouts.tsx` — "My workouts" section (saved customs + repeat recent self-logged),
+  prefill wiring into AdLibLogSheet. (Also carries Session Roundup changes — push latest.)
+- `supabase/sql/custom_workouts.sql` (NEW) — own-row RLS table.
+
 ### Accountability — client-facing "This week's focus"
 - `src/components/ClientFocusCard.tsx` (NEW) + `src/lib/clientFocus.ts` (NEW) — per-week client-VISIBLE
   focus note, coach-set on AccountabilityClientConsole (week selector, upsert per client+week).
