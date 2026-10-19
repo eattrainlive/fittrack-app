@@ -41,6 +41,7 @@ import {
 import { trackingOf } from "@/lib/tracking";
 import { computeVolume } from "@/lib/workoutHistory";
 import { saveCustomWorkout } from "@/lib/customWorkouts";
+import { getExerciseHistory } from "@/lib/exerciseHistory";
 
 const ACTIVITY_TYPES = [
   { key: "Swim", icon: "🏊" },
@@ -156,28 +157,34 @@ export function AdLibLogSheet({
       setMode("workout");
       setWkName(prefill.name || "My workout");
       setWkDate(todayISO());
-      // Deep-clone and re-key so last time's weights/reps come in as a starting
-      // point, with fresh ids and nothing marked completed.
+      // Seed with each exercise's MOST RECENT logged sets (so progress carries
+      // forward), falling back to the saved template's sets if there's no
+      // history yet. Fresh ids, nothing marked completed.
       setWkExercises(
-        prefill.exercises.map((e: any, exIdx: number) => ({
-          id: Date.now() + exIdx + Math.random(),
-          blockType: e.blockType ?? "Strength",
-          name: e.name,
-          trackingType: e.trackingType ?? "Weight & Reps",
-          rest: e.rest ?? 0,
-          linkedToNext: e.linkedToNext ?? false,
-          eachSide: e.eachSide ?? false,
-          setsData: (e.setsData || []).map((s: any, i: number) => ({
-            id: String(i + 1),
-            reps: Number(s?.reps) || 0,
-            weight: Number(s?.weight) || 0,
-            distance: Number(s?.distance) || 0,
-            timeMins: Number(s?.timeMins) || 0,
-            timeSecs: Number(s?.timeSecs) || 0,
-            calories: Number(s?.calories) || 0,
-            completed: false,
-          })),
-        })),
+        prefill.exercises.map((e: any, exIdx: number) => {
+          const latest = getExerciseHistory(e.name, 1)[0];
+          const sourceSets =
+            latest?.sets && latest.sets.length ? latest.sets : e.setsData || [];
+          return {
+            id: Date.now() + exIdx + Math.random(),
+            blockType: e.blockType ?? "Strength",
+            name: e.name,
+            trackingType: e.trackingType ?? latest?.trackingType ?? "Weight & Reps",
+            rest: e.rest ?? 0,
+            linkedToNext: e.linkedToNext ?? false,
+            eachSide: e.eachSide ?? false,
+            setsData: sourceSets.map((s: any, i: number) => ({
+              id: String(i + 1),
+              reps: Number(s?.reps) || 0,
+              weight: Number(s?.weight) || 0,
+              distance: Number(s?.distance) || 0,
+              timeMins: Number(s?.timeMins) || 0,
+              timeSecs: Number(s?.timeSecs) || 0,
+              calories: Number(s?.calories) || 0,
+              completed: false,
+            })),
+          };
+        }),
       );
     } else {
       setMode("choose");
