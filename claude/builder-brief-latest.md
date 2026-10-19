@@ -28,4 +28,11 @@ Since my last export, the following were edited directly in the repo. Keep them 
 5) ACCOUNTABILITY ENROL PICKER — search by name OR email
 - `src/components/AccRosterTab.tsx`: the "enrol a client" member picker previously filtered `availableMembers` on email only, so searching a member's name found nothing. It now matches on `full_name` + `email` (`\`${full_name} ${email}\`.toLowerCase().includes(q)\`, empty query shows all), and the input placeholder is "Search by name or email…". Keep the name+email match.
 
+6) ACCOUNTABILITY — COACH NOTES on the client profile (new)
+- A dated coach-notes timeline on the accountability client console (AccountabilityClientConsole) for conversation round-ups: in-person onboarding sessions, in-person (non-Loom) check-ins, and ad-hoc notes. Separate from acc_checkins.coach_reply_note (that stays the reply on a specific weekly check-in).
+- New file `src/components/CoachNotesCard.tsx`: add-note form (kind pills Onboarding/Check-in/General; Check-in reveals an optional week number), textarea, Save; plus a newest-first timeline with per-note Copy + Delete, and a "Copy all for Claude" button that assembles the client's context (name, nutrition approach, why, baseline) + all notes oldest-first into one pastable block.
+- New file `src/lib/coachNotes.ts`: CoachNote type, COACH_NOTE_KINDS, getCoachNotes / addCoachNote / deleteCoachNote.
+- `src/components/AccountabilityClientConsole.tsx`: mounts <CoachNotesCard client={client} clientName={name} /> just after the header, before TrackingTargetsCard.
+- Backed by `acc_coach_notes.sql` (new staff-only table acc_coach_notes) — already deployed. Keep the table + reads/writes.
+
 Also keep everything already recorded in claude/catch-up-session-consolidated.md — especially src/lib/trialNurture.ts and src/lib/memberMessages.ts, which must NOT be regenerated.

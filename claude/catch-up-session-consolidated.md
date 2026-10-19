@@ -86,6 +86,13 @@ Live site is fine — this is only about not losing these on the next build.
 - `supabase/sql/erg_leaderboard_public.sql` (NEW) — `erg_challenge_leaderboard_public()` SECURITY
   DEFINER RPC, per-member per-machine totals, names only (no email), granted to authenticated.
 
+### Accountability — coach notes on the client profile
+- `src/components/CoachNotesCard.tsx` (NEW) + `src/lib/coachNotes.ts` (NEW) — dated coach-notes
+  timeline on AccountabilityClientConsole: round-ups for in-person onboarding / in-person check-ins /
+  general, per-note Copy + Delete, "Copy all for Claude" (client context + all notes, pastable).
+- `src/components/AccountabilityClientConsole.tsx` — mounts `<CoachNotesCard>` after the header.
+- `supabase/sql/acc_coach_notes.sql` (NEW) — staff-only `acc_coach_notes` table.
+
 ### Accountability — enrol picker search by name or email
 - `src/components/AccRosterTab.tsx` — the enrol-a-client member picker filtered on email only, so a
   name search returned nothing. Now matches `full_name` + `email`; placeholder "Search by name or

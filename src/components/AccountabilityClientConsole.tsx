@@ -19,6 +19,7 @@ import {
   type AccCohort,
 } from "@/lib/accountabilityProgramme";
 import { TrackingTargetsCard } from "./TrackingTargetsCard";
+import { CoachNotesCard } from "./CoachNotesCard";
 import { StepTargetCard } from "./StepTargetCard";
 import { AccCheckinCard } from "./AccCheckinCard";
 import { AccountabilityOnboarding } from "./AccountabilityOnboarding";
@@ -142,6 +143,9 @@ export function AccountabilityClientConsole({
           )}
         </CardContent>
       </Card>
+
+      {/* Coach notes — conversation round-ups (onboarding, in-person check-ins) */}
+      <CoachNotesCard client={client} clientName={name} />
 
       {/* Tracking targets (tracking clients only) */}
       <TrackingTargetsCard client={client} onSaved={load} />
