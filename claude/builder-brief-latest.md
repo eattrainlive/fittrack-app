@@ -53,4 +53,8 @@ Since my last export, the following were edited directly in the repo. Keep them 
 - Past Lifts already keys off exercise name, so repeated workouts show previous numbers automatically. Custom-typed exercises log + show history by name too (they're not added to the searchable library — that's fine).
 - Backed by `custom_workouts.sql` (own-row RLS) — already deployed. Keep the table + the prefill/save wiring.
 
+9) TRIAL NURTURE — message copy finalised with Carla (src/lib/trialNurture.ts)
+- The NURTURE_STEPS templateBefore/templateAfter copy was rewritten to Carla's approved wording. Keep this EXACTLY — do not regenerate or "improve" the copy. Notable points: Welcome, After-1st-session (trial_post_first) and Decision (trial_decision) have NO coach-note slot (templateAfter empty or sign-off only); Welcome + After-1st-session end with a "Carla / ETL" sign-off; Ending-soon (trial_ending_soon) includes the booking link https://api.leadconnectorhq.com/widget/bookings/trial-reviews. The step `key` and `templateKey` values must NEVER change (they match trial_nurture_log + the GHL workflow branches).
+- The actual WhatsApp send is GHL-side (approved templates keyed by template_key, with {{1}}=first name, {{2}}=coach note). The app copy is the cockpit preview only. The GHL templates live in claude/GHL_trial_templates_carla.md — not a code file.
+
 Also keep everything already recorded in claude/catch-up-session-consolidated.md — especially src/lib/trialNurture.ts and src/lib/memberMessages.ts, which must NOT be regenerated.
