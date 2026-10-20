@@ -879,7 +879,11 @@ const Workouts = () => {
   };
 
   const handleSaveWorkout = async () => {
-    if (!workoutName) {
+    // The session's name can live in activeWorkoutMeta.title (programme sessions)
+    // OR workoutName (ad-hoc) — the save below uses `activeWorkoutMeta?.title ||
+    // workoutName`, so validate the same effective name, not workoutName alone.
+    const effectiveName = activeWorkoutMeta?.title || workoutName;
+    if (!effectiveName || !effectiveName.trim()) {
       toast.error("Please enter a workout name");
       return;
     }
