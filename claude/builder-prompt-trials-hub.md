@@ -33,10 +33,18 @@ Metric cards + a funnel, computed from `trial_cohort` (which carries `converted`
   Attendance from the combined booking+scan signal; "review booked" from member_bookings
   session_type ~ "review"; "converted" from trial_cohort.converted.
 - Trend: conversion rate month-on-month; avg time-to-first-session.
-Add a `getTrialStats(periodDays)` helper to `src/lib/trialNurture.ts` (I can provide this) that
-returns these numbers so the UI just renders them. Pipeline stage counts + a ranked "do today" queue
-(by impact × urgency) come next; outcome capture (mark won/lost + reason) is a follow-up that needs a
-small `trial_outcomes` table.
+`getTrialStats(periodDays = 30)` is ALREADY implemented in `src/lib/trialNurture.ts` — just call it and
+render. It returns:
+  `{ periodDays, activeNow, activeByType{coached30,kickstart21},
+     overall{rate,converted,completed}, byType{coached30{...},kickstart21{...}},
+     prevRate, funnel{started,attended1st,attended3plus,reviewBooked,converted},
+     avgDaysToFirstSession }`
+`rate` and `prevRate` are 0..1 (format as %). Wire a 30/60/90-day toggle that re-calls it. Metric cards:
+conversion rate (with ▲/▼ vs prevRate), on-trial-now (+type split), avg days to first session; then the
+funnel as a labelled horizontal bar list from `funnel`. Do NOT re-implement the maths in the UI, and do
+NOT edit trialNurture.ts (protected).
+Pipeline stage counts + a ranked "do today" queue (by impact × urgency) come next; outcome capture
+(mark won/lost + reason) is a follow-up that needs a small `trial_outcomes` table.
 
 Keep each sub-component's own data loading; the shell is just tabs + layout. Match the existing
 Staff-Hub tab styling (same Button pill pattern as AccountabilityCoachPanel / StaffHubCallLists).
