@@ -210,18 +210,43 @@ async function processEvent(db: any, body: any) {
   // On a JOIN: if it's a 30-day coached trial, add/refresh their cohort row; if it's any OTHER
   // (paid) membership and they were a not-yet-converted trialist, mark them converted.
   const TRIAL_30 = ["30 day trial", "forever strong 30 day trial"];
+  // 21-day Kickstart trials ("21 Days For £21", "21 Day Kickstart", "21 Day Classes Trial").
+  // Same /21/ test the app's trialType() uses, so classification stays in lock-step.
+  const isKickstart21 = (p: string) => /21/.test(p) && !TRIAL_30.includes(p);
   if (isJoin && email) {
     const planName = String(membership.membershipType ?? membership.membershipPlan ?? "").trim().toLowerCase();
+    const productLabel = membership.membershipPlan ?? membership.membershipType ?? null;
     if (TRIAL_30.includes(planName)) {
       await db.from("trial_cohort").upsert({
         email,
         full_name: member.fullName ?? null,
-        trial_product: membership.membershipPlan ?? membership.membershipType ?? null,
+        trial_product: productLabel,
         // trial_start / trial_end are deliberately NOT set on join — the 30-day clock starts from
         // their FIRST booked session (see maybeStartTrial), so the drip + app day-count line up.
         // Omitting them here leaves an existing trial_start untouched and defaults a new row to null.
         updated_at: nowIso,
       }, { onConflict: "email" });   // note: does not touch `converted`, so a re-add won't un-convert
+    } else if (isKickstart21(planName)) {
+      // 21-day Kickstart is gym/classes-only — there's no coached "first session" to start the
+      // clock (maybeStartTrial never fires for them), so the 21-day window starts at the join/
+      // start date. Create/refresh the row (keeps trial_product + name current), then set the
+      // window ONCE via a guarded `is null` update so a re-add can't reset an in-flight clock.
+      const startSrc = membership.startDateUtc ? new Date(String(membership.startDateUtc)) : new Date(eventTs);
+      const start = isNaN(startSrc.getTime()) ? new Date() : startSrc;
+      const startDay = start.toISOString().slice(0, 10);
+      const endDay = new Date(start.getTime() + 21 * 86400000).toISOString().slice(0, 10);
+      await db.from("trial_cohort").upsert({
+        email,
+        full_name: member.fullName ?? null,
+        trial_product: productLabel,
+        updated_at: nowIso,
+      }, { onConflict: "email" });   // does not touch `converted`
+      await db.from("trial_cohort")
+        .update({ trial_start: startDay, trial_end: endDay, updated_at: nowIso })
+        .eq("email", email).is("trial_start", null);
+      // NB: no auto-welcome drip fired here on purpose — Kickstart copy is Carla-sent from the
+      // cockpit until the k21 templates are approved, so the engine surfaces them rather than
+      // auto-sending placeholder copy.
     } else if (planName) {
       // a paid membership joined — mark conversion for a former 30-day trialist
       await db.from("trial_cohort")
