@@ -22,9 +22,12 @@ Live site is fine — this is only about not losing these on the next build.
     (`afterFirstSession`, `firstSessionAt`); situational flags noSessionBooked / firstSessionDone /
     goneQuiet / frequencyDrop / reviewNotBooked; member_bookings select includes session_type.
   - Needs RPC `trial_workout_activity.sql` deployed (staff-only, reads trialists' workout dates).
-- `src/components/TrialNurtureCockpit.tsx` — builder-built, hand-edited: Joined tab; v2 adds
-  per-type step dropdown (stepsForType(t.trialType)), "Day X of {trialLength}", the 5 new flag chips,
-  activity breakdown line. KEEP — don't regenerate.
+- `src/components/TrialNurtureCockpit.tsx` — builder-built, hand-edited. REDESIGNED (export 78) as a
+  compact ranked list: grouped Overdue / Due today, sorted by conversion impact (impactScore) with
+  red/amber/grey left-borders; each row = name · D{day}/{trialLength} · nextStep label · top flag
+  chips · activity one-liner; tap a row to expand the message + coach note + Send (accordion).
+  Uses the repo's real `stepsForType(t.trialType)` (hand-fixed after merge — the builder's local copy
+  returned coached-only). KEEP — don't regenerate.
 - `supabase/sql/trial_workout_activity.sql` (NEW) — staff-only workout-dates RPC.
 - `getTrialStats(periodDays)` in trialNurture.ts — conversion dashboard data (rate by type, funnel,
   avg time-to-first-session). `src/lib/trialOutcomes.ts` (NEW) + `supabase/sql/trial_outcomes.sql`
