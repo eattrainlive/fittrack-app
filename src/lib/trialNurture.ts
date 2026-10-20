@@ -52,7 +52,7 @@ export const NURTURE_STEPS: NurtureStep[] = [
     category: "welcome",
     auto: true,
     blurb: "Auto-sent when their trial starts — warm welcome + nudge to book session 1.",
-    templateBefore: "Hi {name}, welcome to Eat Train Live. Firstly thank you so much for choosing us — we're really looking forward to getting you where you need to be.",
+    templateBefore: "Hi {name}, welcome to Eat Train Live. Firstly thank you so much for choosing us — we're really looking forward to getting you where you need to be.\n\nMake sure you check out the education area in the coaching section on the FitTrack app, as it has everything you need to know for getting started.",
     templateAfter: "Have you had chance to look over the classes yet? If I can help you choose your first class, just shout up.",
     defaultNote: "",
   },
