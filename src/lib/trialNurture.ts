@@ -148,6 +148,124 @@ export const NURTURE_STEPS: NurtureStep[] = [
   },
 ];
 
+// ── Trial types ──────────────────────────────────────────────────────────────
+// Two trials, detected from the membership plan name (trial_product):
+//   coached30  → "30 Day Trial", "Forever Strong 30 Day Trial"
+//   kickstart21 → "21 days for £21" (often gym-only)
+export type TrialType = "coached30" | "kickstart21";
+
+export function trialType(product: string | null | undefined): TrialType {
+  return /21/.test(String(product ?? "")) ? "kickstart21" : "coached30";
+}
+
+export function trialLengthDays(type: TrialType): number {
+  return type === "kickstart21" ? 21 : 30;
+}
+
+/**
+ * 21-day Kickstart schedule — tighter, gym-focused. PLACEHOLDER COPY: Carla to
+ * finalise the wording (same before/[note]/after layout as the 30-day set).
+ * Keys are k21_* so the log + GHL branches never clash with the 30-day keys.
+ */
+export const KICKSTART21_STEPS: NurtureStep[] = [
+  {
+    key: "k21_welcome",
+    label: "Welcome",
+    day: 1,
+    templateKey: "trial_k21_welcome",
+    category: "welcome",
+    auto: true,
+    blurb: "Auto-sent when the 21-day trial starts — how to scan in + where to start.",
+    templateBefore: "Hi {name}, welcome to your 21-day Kickstart at Eat Train Live! So glad to have you.",
+    templateAfter: "Pop in whenever suits — just scan in at the door. Check the education area in the app for how to get started, and give me a shout if you want pointing in the right direction.",
+    defaultNote: "",
+  },
+  {
+    key: "k21_post_first",
+    label: "After 1st visit",
+    day: 3,
+    templateKey: "trial_k21_post_first",
+    category: "checkin",
+    blurb: "Check in after their first visit/session — how did it feel.",
+    templateBefore: "Hey {name}, how did your first one go?",
+    templateAfter: "Any aches or questions, just shout — totally normal to feel it at first. You've made the hardest step by getting in.",
+    defaultNote: "",
+  },
+  {
+    key: "k21_week1_momentum",
+    label: "Momentum (active)",
+    day: 7,
+    templateKey: "trial_k21_momentum",
+    category: "behaviour",
+    branch: "attending",
+    blurb: "They're getting in — reinforce the habit.",
+    templateBefore: "Week one down, {name} — loving seeing you in!",
+    templateAfter: "Keep that momentum going. Want me to suggest what to hit next?",
+    defaultNote: "",
+  },
+  {
+    key: "k21_week1_reengage",
+    label: "Re-engage (quiet)",
+    day: 7,
+    templateKey: "trial_k21_reengage",
+    category: "behaviour",
+    branch: "not_attending",
+    blurb: "Not been in — gentle nudge to get started.",
+    templateBefore: "Hey {name}, not seen you in yet — everything ok?",
+    templateAfter: "Let's get you in for your first one. What day works and I'll make sure someone's there to look after you?",
+    defaultNote: "",
+  },
+  {
+    key: "k21_mid",
+    label: "Mid-trial check",
+    day: 11,
+    templateKey: "trial_k21_mid",
+    category: "convert",
+    blurb: "Over halfway — progress check + review offer.",
+    templateBefore: "Over halfway through your Kickstart, {name} — how's it feeling?",
+    templateAfter: "Fancy a quick review? I can pop you on the Evolt scanner and map out where to take it next.",
+    defaultNote: "",
+  },
+  {
+    key: "k21_review",
+    label: "Book review",
+    day: 16,
+    templateKey: "trial_k21_review",
+    category: "convert",
+    blurb: "Push the results-review booking.",
+    templateBefore: "You've put the work in, {name} — let's look at it properly.",
+    templateAfter: "Grab a review slot here and we'll go through your results and options:\nhttps://api.leadconnectorhq.com/widget/bookings/trial-reviews",
+    defaultNote: "",
+  },
+  {
+    key: "k21_ending",
+    label: "Ending soon",
+    day: 19,
+    templateKey: "trial_k21_ending_soon",
+    category: "convert",
+    blurb: "Heads-up the Kickstart is ending + options.",
+    templateBefore: "Heyyyy {name}, your 21 days are nearly up!",
+    templateAfter: "We'd love to keep you going — I can talk you through the membership options whenever suits.",
+    defaultNote: "",
+  },
+  {
+    key: "k21_decision",
+    label: "Decision / last chance",
+    day: 21,
+    templateKey: "trial_k21_decision",
+    category: "convert",
+    blurb: "Final nudge before the Kickstart ends.",
+    templateBefore: "Last day or two of your Kickstart, {name}.",
+    templateAfter: "Shall we get you set up so you don't lose the momentum? Is there a day/time that works for a quick chat?",
+    defaultNote: "",
+  },
+];
+
+/** The step schedule for a trialist's type. */
+export function stepsForType(type: TrialType): NurtureStep[] {
+  return type === "kickstart21" ? KICKSTART21_STEPS : NURTURE_STEPS;
+}
+
 /** Days a step stays "due" after its day before it's flagged OVERDUE. */
 const OVERDUE_GRACE = 2;
 /** No attended session in this many days (and ≥ day 3) → no-show flag. */
@@ -172,6 +290,8 @@ export interface NurtureTrialist {
   trialStart: string; // yyyy-mm-dd
   trialEnd: string | null;
   trialProduct: string | null; // e.g. "30 Day Trial" — the type of trial they're on
+  trialType: TrialType; // "coached30" | "kickstart21" — derived from trialProduct
+  trialLength: number; // 30 | 21
   converted: boolean; // true = they've signed up to a paid membership
   convertedProduct: string | null; // the paid plan they joined on, if converted
   trialDay: number; // 1-based day of the trial today
@@ -233,10 +353,13 @@ export function renderFullMessage(step: NurtureStep, name: string, note: string)
  * Which concrete step applies on the Day-10 behaviour branch for this trialist.
  * Returns the step key to KEEP; the other branch step is dropped from their list.
  */
-function activeBranchKey(attendedWeek1: number, daysSinceVisit: number | null): string {
+function activeBranchValue(
+  attendedWeek1: number,
+  daysSinceVisit: number | null,
+): "attending" | "not_attending" {
   const attending =
     attendedWeek1 >= 2 || (daysSinceVisit != null && daysSinceVisit <= 3);
-  return attending ? "day10_momentum" : "day10_reengage";
+  return attending ? "attending" : "not_attending";
 }
 
 // ── Board assembly ───────────────────────────────────────────────────────────
@@ -294,16 +417,29 @@ function enrich(
   const sentMap = new Map<string, LogRow>();
   for (const l of logs) if (!sentMap.has(l.step_key)) sentMap.set(l.step_key, l);
 
-  const keepBranch = activeBranchKey(attendedWeek1, daysSinceVisit);
-  // The day-10 behaviour slot is satisfied if EITHER branch variant was ever
-  // sent — a trialist can flip attending↔quiet after one went out, and we must
-  // never re-offer the slot's other variant as if nothing was sent.
-  const branchSent =
-    sentMap.get("day10_momentum") ?? sentMap.get("day10_reengage") ?? null;
+  // Pick the schedule for this trialist's trial type (21-day Kickstart vs 30-day
+  // coached), detected from their plan name.
+  const tType = trialType(c.trial_product);
+  const schedule = stepsForType(tType);
 
-  const steps: StepStatus[] = NURTURE_STEPS
+  const keepBranch = activeBranchValue(attendedWeek1, daysSinceVisit);
+  // The behaviour branch slot is satisfied if EITHER variant was ever sent — a
+  // trialist can flip attending↔quiet after one went out, and we must never
+  // re-offer the slot's other variant as if nothing was sent.
+  let branchSent: LogRow | null = null;
+  for (const s of schedule) {
+    if (s.branch) {
+      const l = sentMap.get(s.key);
+      if (l) {
+        branchSent = l;
+        break;
+      }
+    }
+  }
+
+  const steps: StepStatus[] = schedule
     // drop the branch step that doesn't apply to this trialist
-    .filter((s) => !s.branch || s.key === keepBranch)
+    .filter((s) => !s.branch || s.branch === keepBranch)
     .map((step) => {
       const sent = step.branch ? sentMap.get(step.key) ?? branchSent : sentMap.get(step.key);
       if (sent) {
@@ -332,6 +468,8 @@ function enrich(
     trialStart: c.trial_start,
     trialEnd: c.trial_end,
     trialProduct: c.trial_product ?? null,
+    trialType: tType,
+    trialLength: trialLengthDays(tType),
     converted,
     convertedProduct: c.converted_product ?? null,
     trialDay,
