@@ -297,8 +297,12 @@ export interface NurtureTrialist {
   trialDay: number; // 1-based day of the trial today
   attended: number; // attended sessions in the trial window
   attendedWeek1: number; // attended in first 7 days
-  daysSinceVisit: number | null; // null = never attended
-  lastVisit: string | null;
+  daysSinceVisit: number | null; // null = never attended (no booking OR scan)
+  lastVisit: string | null; // last gym activity (booking or scan)
+  lastWorkout: string | null; // last logged workout (display signal only)
+  // Activity breakdown for the card: class bookings + kiosk scans count as
+  // attendance; logged workouts are shown as a secondary signal.
+  activity: { classes: number; scans: number; workouts: number };
   flags: {
     noShow: boolean;
     hotLead: boolean;
@@ -390,29 +394,49 @@ function enrich(
   c: CohortRow,
   bookings: BookingRow[],
   logs: LogRow[],
+  scanAt: string[] = [],
+  workoutAt: string[] = [],
 ): NurtureTrialist | null {
   if (!c.trial_start) return null; // clock not started — not in the drip yet
   const name = c.full_name || c.email;
   const trialDay = trialDayFor(c.trial_start);
   const startNum = dayNum(c.trial_start);
 
-  // "Been in" = a booking that has already happened and wasn't cancelled. GymOS
-  // leaves attended sessions as status "booked" (the gym doesn't mark attendance),
-  // so counting only status==="attended" wrongly reads as "never been in". Match the
-  // activity card: a PAST, non-cancelled booking counts as attendance.
   const nowMs = Date.now();
-  const attendedDates = bookings
-    .filter((b) => b.status !== "cancelled" && b.session_at)
-    .map((b) => new Date(b.session_at as string))
-    .filter((d) => !isNaN(d.getTime()) && d.getTime() <= nowMs)
-    .sort((a, b) => a.getTime() - b.getTime());
+  const pastDates = (arr: (string | null | undefined)[]) =>
+    arr
+      .filter(Boolean)
+      .map((s) => new Date(s as string))
+      .filter((d) => !isNaN(d.getTime()) && d.getTime() <= nowMs);
 
-  const attended = attendedDates.length;
-  const attendedWeek1 = attendedDates.filter(
+  // Attendance = being in the gym: a PAST, non-cancelled class booking OR a
+  // kiosk scan (gym check-in). GymOS leaves attended sessions as "booked" (it
+  // doesn't mark attendance), and gym-only Kickstart members may never book a
+  // class — so scans matter. Both count.
+  const bookingDates = pastDates(
+    bookings.filter((b) => b.status !== "cancelled").map((b) => b.session_at),
+  );
+  const scanDates = pastDates(scanAt);
+  const activityDates = [...bookingDates, ...scanDates].sort(
+    (a, b) => a.getTime() - b.getTime(),
+  );
+
+  // Logged workouts — a secondary signal we SHOW but don't count as attendance.
+  const workoutDates = pastDates(workoutAt).sort(
+    (a, b) => a.getTime() - b.getTime(),
+  );
+
+  const attended = activityDates.length;
+  const attendedWeek1 = activityDates.filter(
     (d) => dateDayNum(d) - startNum < 7,
   ).length;
-  const last = attendedDates.length ? attendedDates[attendedDates.length - 1] : null;
+  const last = activityDates.length
+    ? activityDates[activityDates.length - 1]
+    : null;
   const daysSinceVisit = last ? todayDayNum() - dateDayNum(last) : null;
+  const lastWorkout = workoutDates.length
+    ? workoutDates[workoutDates.length - 1].toISOString()
+    : null;
 
   const sentMap = new Map<string, LogRow>();
   for (const l of logs) if (!sentMap.has(l.step_key)) sentMap.set(l.step_key, l);
@@ -477,6 +501,12 @@ function enrich(
     attendedWeek1,
     daysSinceVisit,
     lastVisit: last ? last.toISOString() : null,
+    lastWorkout,
+    activity: {
+      classes: bookingDates.length,
+      scans: scanDates.length,
+      workouts: workoutDates.length,
+    },
     flags: {
       neverAttended: attended === 0 && trialDay >= 3,
       noShow:
@@ -515,16 +545,56 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
 
     const emails = rows.map((r) => r.email);
 
-    const [{ data: bookings }, { data: logs }] = await Promise.all([
+    const [{ data: bookings }, { data: logs }, { data: gmRows }] =
+      await Promise.all([
+        supabase
+          .from("member_bookings")
+          .select("email, session_at, status")
+          .in("email", emails),
+        supabase
+          .from("trial_nurture_log")
+          .select("email, step_key, sent_at, sent_by")
+          .in("email", emails),
+        // gym_members gives us each trialist's member_ref so we can pull their
+        // kiosk scans (scan_events links by member_ref, not email).
+        supabase.from("gym_members").select("id, email").in("email", emails),
+      ]);
+
+    const refToEmail = new Map<string, string>();
+    const refs: string[] = [];
+    for (const m of (gmRows as any[]) ?? []) {
+      if (m?.id && m?.email) {
+        refToEmail.set(String(m.id), String(m.email).toLowerCase());
+        refs.push(String(m.id));
+      }
+    }
+
+    // Kiosk scans (staff-readable) + logged workouts (RLS-locked → RPC).
+    const [{ data: scans }, workoutRes] = await Promise.all([
+      refs.length
+        ? supabase
+            .from("scan_events")
+            .select("member_ref, ts")
+            .in("member_ref", refs)
+        : Promise.resolve({ data: [] as any[] }),
       supabase
-        .from("member_bookings")
-        .select("email, session_at, status")
-        .in("email", emails),
-      supabase
-        .from("trial_nurture_log")
-        .select("email, step_key, sent_at, sent_by")
-        .in("email", emails),
+        .rpc("trial_workout_activity", { p_emails: emails })
+        .then((r) => r)
+        .catch(() => ({ data: [] as any[] })),
     ]);
+
+    const scansBy = new Map<string, string[]>();
+    for (const s of (scans as any[]) ?? []) {
+      const em = refToEmail.get(String(s?.member_ref));
+      if (!em || !s?.ts) continue;
+      (scansBy.get(em) ?? scansBy.set(em, []).get(em)!).push(s.ts);
+    }
+    const workoutsBy = new Map<string, string[]>();
+    for (const w of ((workoutRes as any)?.data as any[]) ?? []) {
+      if (!w?.email || !w?.at) continue;
+      const em = String(w.email).toLowerCase();
+      (workoutsBy.get(em) ?? workoutsBy.set(em, []).get(em)!).push(w.at);
+    }
 
     const bookingsBy = new Map<string, BookingRow[]>();
     for (const b of (bookings as BookingRow[]) ?? []) {
@@ -538,13 +608,16 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
     }
 
     const enriched = rows
-      .map((c) =>
-        enrich(
+      .map((c) => {
+        const k = String(c.email).toLowerCase();
+        return enrich(
           c,
-          bookingsBy.get(String(c.email).toLowerCase()) ?? [],
-          logsBy.get(String(c.email).toLowerCase()) ?? [],
-        ),
-      )
+          bookingsBy.get(k) ?? [],
+          logsBy.get(k) ?? [],
+          scansBy.get(k) ?? [],
+          workoutsBy.get(k) ?? [],
+        );
+      })
       .filter((t): t is NurtureTrialist => t != null)
       // drop trialists whose window is well past (no more drip to work)
       .filter((t) => t.trialDay <= 35);
