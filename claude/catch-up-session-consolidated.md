@@ -11,15 +11,22 @@ Live site is fine — this is only about not losing these on the next build.
 
 ## Part A — Repo-owned files (do NOT let a builder export overwrite)
 
-### Trial Nurture
-- `src/lib/trialNurture.ts` — the whole engine (step catalogue w/ templateBefore/After, due/overdue,
-  attendance flags, sendStep, getNurtureBoard). Recent adds: `trialProduct` / `converted` /
-  `convertedProduct` fields; a **Joined** list on the board; attendance now counts **past,
-  non-cancelled bookings** (GymOS leaves them "booked", so `status==="attended"` only was wrong);
-  sendStep arg type accepts `{email,name}`. ⚠ The builder regenerated this once and used the wrong
-  log table — never take its copy.
-- `src/components/TrialNurtureCockpit.tsx` — builder-built, then hand-edited: trial type shown on
-  cards, **Joined ✅** tab + `JoinedRow`.
+### Trial Nurture  (v2 — situation-aware; Carla copy finalised)
+- `src/lib/trialNurture.ts` — the whole engine. ⚠ Never take the builder's copy (it once used the
+  wrong log table). Carries, cumulatively:
+  - Finalised Carla copy on the 30-day steps (Welcome/After-1st/Decision note-free; Ending-soon has
+    the booking link). WhatsApp send is GHL-side by template_key — app copy is the cockpit preview.
+  - v2: `trialType()` (kickstart21 vs coached30), `KICKSTART21_STEPS` (placeholder, k21_* keys),
+    `stepsForType()`; activity = bookings + kiosk scans, workouts as a shown signal
+    (`activity{classes,scans,workouts}`, `lastWorkout`); booked-session-aware "after first session"
+    (`afterFirstSession`, `firstSessionAt`); situational flags noSessionBooked / firstSessionDone /
+    goneQuiet / frequencyDrop / reviewNotBooked; member_bookings select includes session_type.
+  - Needs RPC `trial_workout_activity.sql` deployed (staff-only, reads trialists' workout dates).
+- `src/components/TrialNurtureCockpit.tsx` — builder-built, hand-edited: Joined tab; v2 adds
+  per-type step dropdown (stepsForType(t.trialType)), "Day X of {trialLength}", the 5 new flag chips,
+  activity breakdown line. KEEP — don't regenerate.
+- `supabase/sql/trial_workout_activity.sql` (NEW) — staff-only workout-dates RPC.
+- Consolidated Trials hub: builder brief `claude/builder-prompt-trials-hub.md` (not built yet).
 - `src/components/StaffHubCallLists.tsx` — the "Trial Nurture" tab wiring.
 - `netlify/functions/trial-nurture.js` — staff-only send proxy.
 
