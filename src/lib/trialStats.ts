@@ -111,12 +111,15 @@ export async function getTrialStats(periodDays = 30): Promise<TrialStats> {
         refToEmail.set(String(m.id), String(m.email).toLowerCase());
         refs.push(String(m.id));
       }
-    const { data: scans } = refs.length
-      ? await supabase
-          .from("scan_events")
-          .select("member_ref, ts")
-          .in("member_ref", refs)
-      : { data: [] as any[] };
+    const [{ data: scans }, { data: reviewRows }] = await Promise.all([
+      refs.length
+        ? supabase.from("scan_events").select("member_ref, ts").in("member_ref", refs)
+        : Promise.resolve({ data: [] as any[] }),
+      supabase
+        .from("review_bookings")
+        .select("email, status, appointment_at")
+        .in("email", emails),
+    ]);
 
     const now = Date.now();
     const actBy = new Map<string, number[]>(); // email → activity day-numbers
@@ -126,9 +129,17 @@ export async function getTrialStats(periodDays = 30): Promise<TrialStats> {
       const d = Math.floor(ms / MS_DAY);
       (actBy.get(em) ?? actBy.set(em, []).get(em)!).push(d);
     };
+    // Review bookings come from the synced review_bookings table (GHL calendar),
+    // not member_bookings.
+    for (const r of (reviewRows as any[]) ?? []) {
+      const st = String(r?.status ?? "").toLowerCase().trim();
+      const live =
+        (st === "booked" || st === "completed") &&
+        (!r?.appointment_at || new Date(r.appointment_at).getTime() >= now);
+      if (live && r?.email) reviewBy.add(String(r.email).toLowerCase());
+    }
     for (const b of (bookings as any[]) ?? []) {
       const em = String(b.email).toLowerCase();
-      if (/review/i.test(String(b.session_type ?? ""))) reviewBy.add(em);
       if (b.status !== "cancelled" && b.session_at)
         pushAct(em, new Date(b.session_at).getTime());
     }

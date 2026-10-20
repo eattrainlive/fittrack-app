@@ -411,6 +411,7 @@ function enrich(
   logs: LogRow[],
   scanAt: string[] = [],
   workoutAt: string[] = [],
+  hasReview = false, // a live review_bookings row (booked/completed, future)
 ): NurtureTrialist | null {
   if (!c.trial_start) return null; // clock not started — not in the drip yet
   const name = c.full_name || c.email;
@@ -514,10 +515,9 @@ function enrich(
 
   // ── Situational signals (the new Carla nudges) ──────────────────────────────
   const trialLen = trialLengthDays(tType);
-  const hasReviewBooked = bookings.some(
-    (b) =>
-      b.status !== "cancelled" && /review/i.test(String(b.session_type ?? "")),
-  );
+  // Review bookings come from the synced review_bookings table (GHL calendar),
+  // not member_bookings — same source the trialist pipeline uses.
+  const hasReviewBooked = hasReview;
   const last7Count = activityDates.filter(
     (d) => nowMs - d.getTime() <= 7 * MS_DAY,
   ).length;
@@ -628,6 +628,22 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
         supabase.from("gym_members").select("id, email").in("email", emails),
       ]);
 
+    // Live review bookings (GHL-calendar sync) — same source the pipeline uses.
+    const { data: reviewRows } = await supabase
+      .from("review_bookings")
+      .select("email, status, appointment_at")
+      .in("email", emails);
+    const nowReview = Date.now();
+    const reviewSet = new Set<string>();
+    for (const r of (reviewRows as any[]) ?? []) {
+      const st = String(r?.status ?? "").toLowerCase().trim();
+      const live =
+        (st === "booked" || st === "completed") &&
+        (!r?.appointment_at ||
+          new Date(r.appointment_at).getTime() >= nowReview);
+      if (live && r?.email) reviewSet.add(String(r.email).toLowerCase());
+    }
+
     const refToEmail = new Map<string, string>();
     const refs: string[] = [];
     for (const m of (gmRows as any[]) ?? []) {
@@ -684,6 +700,7 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
           logsBy.get(k) ?? [],
           scansBy.get(k) ?? [],
           workoutsBy.get(k) ?? [],
+          reviewSet.has(k),
         );
       })
       .filter((t): t is NurtureTrialist => t != null)
