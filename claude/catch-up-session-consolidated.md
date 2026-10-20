@@ -29,7 +29,16 @@ Live site is fine — this is only about not losing these on the next build.
 - `getTrialStats(periodDays)` in trialNurture.ts — conversion dashboard data (rate by type, funnel,
   avg time-to-first-session). `src/lib/trialOutcomes.ts` (NEW) + `supabase/sql/trial_outcomes.sql`
   (NEW, staff-only) — mark won/lost + loss reason.
-- Consolidated Trials hub: builder brief `claude/builder-prompt-trials-hub.md` (building).
+- Consolidated Trials hub — MERGED from builder export 32:
+  - `src/components/TrialsHub.tsx` (NEW) — shell with sub-tabs Dashboard / Nurture / Trialists /
+    Reviews / Settings; reuses existing components (TrialNurtureCockpit, TrialistPipeline,
+    TrialHubSettings, useTrialStages). ReviewsPanel shows needs-review vs booked-review windows.
+  - `src/components/TrialsDashboard.tsx` (NEW) — conversion dashboard; imports getTrialStats from…
+  - `src/lib/trialStats.ts` (NEW) — builder put its OWN self-contained getTrialStats here (option 2),
+    so the dashboard uses THIS, not trialNurture.ts. (trialNurture.ts still has a now-unused
+    getTrialStats — harmless dead code; leave it or remove on a later pass.)
+  - `src/components/StaffHubCallLists.tsx` — collapsed the "Trialists" + "Trial Nurture" tabs into a
+    single "Trials" tab → `<TrialsHub>`. Hand-applied onto the repo version (export was behind).
 - `src/components/StaffHubCallLists.tsx` — the "Trial Nurture" tab wiring.
 - `netlify/functions/trial-nurture.js` — staff-only send proxy.
 

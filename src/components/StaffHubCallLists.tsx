@@ -17,7 +17,7 @@ import {
   type LapsedMember,
 } from "@/lib/staffHubMetrics";
 import { TrialistPipeline } from "@/components/TrialistPipeline";
-import { TrialNurtureCockpit } from "@/components/TrialNurtureCockpit";
+import { TrialsHub } from "@/components/TrialsHub";
 import { MemberActivityModal } from "@/components/MemberActivityModal";
 import {
   EmptyState,
@@ -41,7 +41,7 @@ import {
   type NextStep,
 } from "@/lib/contactProgress";
 
-type TabKey = "trialists" | "reachout" | "lapsed" | "nurture";
+type TabKey = "trials" | "reachout" | "lapsed";
 
 const TERMINAL: Record<ListType, ContactStatus[]> = {
   reachout: ["done", "dismissed"],
@@ -59,7 +59,7 @@ export function StaffHubCallLists({
   error: string | null;
   staffSecret: string;
 }) {
-  const [tab, setTab] = useState<TabKey>("trialists");
+  const [tab, setTab] = useState<TabKey>("trials");
   const [logged, setLogged] = useState<Record<string, string>>({});
 
   const trialists = data?.trialists;
@@ -69,8 +69,7 @@ export function StaffHubCallLists({
     trialists === undefined && reachout === undefined && lapsed === undefined;
 
   const tabs: { key: TabKey; label: string; count: number | undefined }[] = [
-    { key: "trialists", label: "Trialists", count: trialists?.length },
-    { key: "nurture", label: "Trial Nurture", count: undefined },
+    { key: "trials", label: "Trials", count: trialists?.length },
     { key: "reachout", label: "Reach out", count: reachout?.length },
     { key: "lapsed", label: "Win back", count: lapsed?.length },
   ];
@@ -112,19 +111,10 @@ export function StaffHubCallLists({
             Reconnect to load the call lists.
           </CardContent>
         </Card>
-      ) : tab === "trialists" ? (
-        <TrialistPipeline
-          list={trialists ?? []}
-          logged={logged}
-          staffSecret={staffSecret}
-          onLogged={(email, outcome) =>
-            setLogged((s) => ({ ...s, [email]: outcome }))
-          }
-        />
+      ) : tab === "trials" ? (
+        <TrialsHub staffSecret={staffSecret} />
       ) : tab === "reachout" ? (
         <ReachoutList list={reachout ?? []} staffSecret={staffSecret} />
-      ) : tab === "nurture" ? (
-        <TrialNurtureCockpit staffSecret={staffSecret} />
       ) : (
         <LapsedList list={lapsed ?? []} staffSecret={staffSecret} />
       )}
