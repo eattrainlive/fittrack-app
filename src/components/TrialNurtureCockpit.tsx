@@ -29,7 +29,7 @@ import {
   sendStep,
   renderTemplate,
   renderFullMessage,
-  NURTURE_STEPS,
+  stepsForType,
   type NurtureTrialist,
   type NurtureStep,
   type NurtureBoard,
@@ -163,8 +163,10 @@ function NurtureCard({
   staffSecret: string;
   onSent: () => void;
 }) {
+  // Steps for THIS trialist's trial type (coached30 vs kickstart21).
+  const schedule = stepsForType(t.trialType);
   const [selKey, setSelKey] = useState<string>(
-    t.nextStep?.step?.key ?? NURTURE_STEPS[1].key,
+    t.nextStep?.step?.key ?? schedule[1]?.key ?? schedule[0].key,
   );
   const [note, setNote] = useState<string>("");
   const [sending, setSending] = useState(false);
@@ -177,9 +179,10 @@ function NurtureCard({
   // (selKey + note are independent state; note persists across template change)
 
   const step: NurtureStep =
-    NURTURE_STEPS.find((s) => s.key === selKey) ??
+    schedule.find((s) => s.key === selKey) ??
     t.nextStep?.step ??
-    NURTURE_STEPS[1];
+    schedule[1] ??
+    schedule[0];
   const tpl = useMemo(() => renderTemplate(step, t.name), [step, t.name]);
   const full = useMemo(
     () => renderFullMessage(step, t.name, note),
@@ -241,7 +244,7 @@ function NurtureCard({
               <div className="flex items-center gap-2">
                 <p className="truncate font-semibold">{t.name}</p>
                 <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                  Day {t.trialDay} of 30
+                  Day {t.trialDay} of {t.trialLength}
                 </span>
               </div>
               {t.trialProduct && (
@@ -266,7 +269,46 @@ function NurtureCard({
                     🔴 Not been in yet
                   </span>
                 )}
+                {t.flags.noSessionBooked && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-950 dark:text-red-400">
+                    📅 No session booked
+                  </span>
+                )}
+                {t.flags.firstSessionDone && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+                    ✅ 1st session done
+                  </span>
+                )}
+                {t.flags.goneQuiet && !t.flags.noShow && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                    🟠 Gone quiet
+                    {t.daysSinceVisit != null ? ` ${t.daysSinceVisit}d` : ""}
+                  </span>
+                )}
+                {t.flags.frequencyDrop && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                    📉 Under 2/wk
+                  </span>
+                )}
+                {t.flags.reviewNotBooked && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:bg-violet-950 dark:text-violet-400">
+                    📋 Review not booked
+                  </span>
+                )}
               </div>
+              {/* activity breakdown */}
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                🏋 {t.activity.classes} class
+                {t.activity.classes === 1 ? "" : "es"} · {t.activity.scans} scan
+                {t.activity.scans === 1 ? "" : "s"} · {t.activity.workouts}{" "}
+                workout{t.activity.workouts === 1 ? "" : "s"}
+                {t.firstSessionAt
+                  ? ` · 1st session ${new Date(t.firstSessionAt).toLocaleDateString(
+                      "en-GB",
+                      { day: "numeric", month: "short" },
+                    )}`
+                  : ""}
+              </p>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <ActivityButton onClick={openActivity} />
@@ -306,7 +348,7 @@ function NurtureCard({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {NURTURE_STEPS.map((s) => (
+                  {schedule.map((s) => (
                     <SelectItem key={s.key} value={s.key} disabled={s.auto}>
                       {s.label}
                       {s.auto ? " · auto" : ""}
