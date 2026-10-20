@@ -43,8 +43,15 @@ render. It returns:
 conversion rate (with ▲/▼ vs prevRate), on-trial-now (+type split), avg days to first session; then the
 funnel as a labelled horizontal bar list from `funnel`. Do NOT re-implement the maths in the UI, and do
 NOT edit trialNurture.ts (protected).
-Pipeline stage counts + a ranked "do today" queue (by impact × urgency) come next; outcome capture
-(mark won/lost + reason) is a follow-up that needs a small `trial_outcomes` table.
+Pipeline stage counts + a ranked "do today" queue (by impact × urgency) come next.
+
+## Outcome capture (ready to wire)
+`src/lib/trialOutcomes.ts` + table `trial_outcomes` (already built, staff-only) record the coach's
+explicit outcome + loss reason. Use it to:
+- Add a "mark won / mark lost" control on each trialist (cockpit card and/or hub) — `setTrialOutcome({email, outcome, reason?, note?, by})`. On "lost", show the `LOSS_REASONS` picker (price / timing / not for them / went elsewhere / other).
+- On the Dashboard, add a small "why we lost" breakdown from `getTrialOutcomes()` (count by reason) so Michael can see the top loss drivers.
+"Won" is still truthed by trial_cohort.converted; trial_outcomes mainly captures the LOST reasons +
+any manual override. Don't edit trialOutcomes.ts or trialNurture.ts (protected).
 
 Keep each sub-component's own data loading; the shell is just tabs + layout. Match the existing
 Staff-Hub tab styling (same Button pill pattern as AccountabilityCoachPanel / StaffHubCallLists).

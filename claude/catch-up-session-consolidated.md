@@ -26,7 +26,10 @@ Live site is fine — this is only about not losing these on the next build.
   per-type step dropdown (stepsForType(t.trialType)), "Day X of {trialLength}", the 5 new flag chips,
   activity breakdown line. KEEP — don't regenerate.
 - `supabase/sql/trial_workout_activity.sql` (NEW) — staff-only workout-dates RPC.
-- Consolidated Trials hub: builder brief `claude/builder-prompt-trials-hub.md` (not built yet).
+- `getTrialStats(periodDays)` in trialNurture.ts — conversion dashboard data (rate by type, funnel,
+  avg time-to-first-session). `src/lib/trialOutcomes.ts` (NEW) + `supabase/sql/trial_outcomes.sql`
+  (NEW, staff-only) — mark won/lost + loss reason.
+- Consolidated Trials hub: builder brief `claude/builder-prompt-trials-hub.md` (building).
 - `src/components/StaffHubCallLists.tsx` — the "Trial Nurture" tab wiring.
 - `netlify/functions/trial-nurture.js` — staff-only send proxy.
 
