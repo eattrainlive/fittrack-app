@@ -17,10 +17,26 @@ the existing pieces together under one tabbed shell and keep them wired to their
 
 ## The hub shell
 A single "Trials" surface (new component `TrialsHub.tsx`) with sub-tabs:
-1. **Nurture** → `<TrialNurtureCockpit />` (default tab).
-2. **Trialists** → `CurrentTrialistsBoard` / `TrialistPipeline` (the buckets).
-3. **Reviews** → the review-window list (reuse the members-section review-window logic / trialStages).
-4. **Settings** → `TrialHubSettings`.
+1. **Dashboard** → conversion stats (see below) — default tab.
+2. **Nurture** → `<TrialNurtureCockpit />`.
+3. **Trialists** → `CurrentTrialistsBoard` / `TrialistPipeline` (the buckets).
+4. **Reviews** → the review-window list (reuse the members-section review-window logic / trialStages).
+5. **Settings** → `TrialHubSettings`.
+
+## Dashboard tab (build first)
+Metric cards + a funnel, computed from `trial_cohort` (which carries `converted` / `converted_product`
+/ `trial_product` / `trial_start` / `trial_end`) plus the activity signal already in trialNurture.ts:
+- Headline: conversion rate over a period (e.g. 30/60/90d toggle), split by trial type
+  (coached30 vs kickstart21) and, if coach is assigned, by coach.
+- "On trial now" count + split by type (already derivable from getNurtureBoard).
+- Funnel (last period): started → attended 1st → attended 3+ in wk1 → review booked → converted.
+  Attendance from the combined booking+scan signal; "review booked" from member_bookings
+  session_type ~ "review"; "converted" from trial_cohort.converted.
+- Trend: conversion rate month-on-month; avg time-to-first-session.
+Add a `getTrialStats(periodDays)` helper to `src/lib/trialNurture.ts` (I can provide this) that
+returns these numbers so the UI just renders them. Pipeline stage counts + a ranked "do today" queue
+(by impact × urgency) come next; outcome capture (mark won/lost + reason) is a follow-up that needs a
+small `trial_outcomes` table.
 
 Keep each sub-component's own data loading; the shell is just tabs + layout. Match the existing
 Staff-Hub tab styling (same Button pill pattern as AccountabilityCoachPanel / StaffHubCallLists).

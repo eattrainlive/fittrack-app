@@ -143,6 +143,27 @@ the engine work below feeds it).
 - Review windows already exist as a members-section filter (trialStages/trialHub) — reuse that
   signal for `review_not_booked`.
 
+## 9. Conversion-lifting roadmap (hub improvements)
+
+Beyond consolidation, the hub should actively lift conversion. Priority order:
+
+1. **Conversion dashboard + funnel** (data-driven foundation). Headline conversion rate over a
+   period, split by trial type (21 vs 30) and by coach. Funnel: started → attended 1st → attended
+   3+ in wk1 → review booked → converted (shows where people drop). Trend month-on-month;
+   avg time-to-first-session. Uses data we already have (trial_cohort.converted + the activity signal).
+2. **Stage board + health score + ranked "do today" queue.** Trialists as cards across stages
+   (Not started → Settling → Active → At risk → Review due → Decision → Won/Lost). A per-trialist
+   health score (attendance frequency + recency + engagement) drives "at risk". The day's actions
+   ranked by conversion impact × urgency so Carla works top-down.
+3. **Outcome capture.** Mark won / lost with a reason (price / timing / not for them / went
+   elsewhere); log call outcomes; snooze. Needed for the dashboard to be honest + to learn.
+4. **Process levers the system enforces.** Loud speed-to-first-session flag (<48h); push the review
+   booking MID-trial (day ~11/14), not at the end; Evolt baseline at start + rescan at review;
+   surface social proof (testimonials / results / community wins) to the trialist in-app; clear
+   join-now offer visible to Carla at the decision point.
+5. **Learning loop.** Track touches that precede conversion + loss reasons; feed non-converters into
+   the existing win-back routes.
+
 ## Still open
 - Kickstart 21-day message copy (Carla) — separate from the 30-day set.
 - Confirm whether a booked **review** is detectable (a `member_bookings` session_type like
