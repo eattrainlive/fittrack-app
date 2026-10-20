@@ -53,7 +53,7 @@ export const NURTURE_STEPS: NurtureStep[] = [
     auto: true,
     blurb: "Auto-sent when their trial starts — warm welcome + nudge to book session 1.",
     templateBefore: "Hi {name}, welcome to Eat Train Live. Firstly thank you so much for choosing us — we're really looking forward to getting you where you need to be.\n\nMake sure you check out the education area in the coaching section on the FitTrack app, as it has everything you need to know for getting started.",
-    templateAfter: "Have you had chance to look over the classes yet? If I can help you choose your first class, just shout up.",
+    templateAfter: "Have you had chance to look over the classes yet? If I can help you choose your first class, just shout up.\n\nI'll be your point of contact over the next few weeks, so fire over any questions.\nCarla",
     defaultNote: "",
   },
   {
@@ -63,7 +63,7 @@ export const NURTURE_STEPS: NurtureStep[] = [
     templateKey: "trial_post_first",
     category: "checkin",
     blurb: "Check in after their first session — how did it feel, any questions.",
-    templateBefore: "Hey {name}, how did your first session go? Feeling a bit sore? It's very common to feel a few aches afterwards, so try not to be put off — it's totally normal. It can also feel a lot to take in at first and a little overwhelming. Just remember, all you need to do is rock up with your drink and leave the rest to us. You've done the hardest part by walking through those doors. Well done!",
+    templateBefore: "Hey {name}, how did your first session go? Feeling a bit sore? It's very common to feel a few aches afterwards, so try not to be put off — it's totally normal. It can also feel a lot to take in at first and a little overwhelming. Just remember, all you need to do is rock up with your drink and leave the rest to us. You've done the hardest part by walking through those doors. Well done!\n\nCarla\nETL",
     templateAfter: "",
     defaultNote: "",
   },
@@ -132,7 +132,7 @@ export const NURTURE_STEPS: NurtureStep[] = [
     category: "convert",
     blurb: "Heads-up the trial is ending + the membership options.",
     templateBefore: "Heyyyy {name}, so your trial is up in a few days.",
-    templateAfter: "We hope you've enjoyed your time with us! I can book you in for a review to go over some membership options — just open the link to book whatever day/time works for you.",
+    templateAfter: "We hope you've enjoyed your time with us! I can book you in for a review to go over some membership options — just open the link to book whatever day/time works for you.\n\nhttps://api.leadconnectorhq.com/widget/bookings/trial-reviews\n\nAny issues let me know.",
     defaultNote: "",
   },
   {
@@ -142,8 +142,8 @@ export const NURTURE_STEPS: NurtureStep[] = [
     templateKey: "trial_decision",
     category: "convert",
     blurb: "Final decision nudge before the trial ends.",
-    templateBefore: "Last few days of your trial, {name}.",
-    templateAfter: "Shall we get you set up before it ends so you don't lose your progress? I can book you in for a review — is there a day/time that works for you?",
+    templateBefore: "Hey {name}, we haven't had you in for your trial review yet.",
+    templateAfter: "Shall we get you set up before it ends so you don't lose your progress? I can book you in, is there a day/time that works for you?",
     defaultNote: "",
   },
 ];
