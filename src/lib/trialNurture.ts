@@ -31,6 +31,10 @@ export interface NurtureStep {
   category: NurtureCategory;
   auto?: boolean; // welcome only — fired server-side, shown as sent
   branch?: "attending" | "not_attending"; // Day-10 behaviour branch selector
+  // "After their first session" — becomes due AFTER the trialist's first booked
+  // session time (+ a buffer), since we can't see attendance. Falls back to the
+  // `day` offset if they have no booking yet.
+  afterFirstSession?: boolean;
   blurb: string; // what this touch is for (coach-facing)
   // The FIXED (Meta-approved) template copy, shown in the cockpit so the coach
   // sees exactly what will send. The optional coach note slots BETWEEN before and
@@ -60,6 +64,7 @@ export const NURTURE_STEPS: NurtureStep[] = [
     key: "post_first",
     label: "After 1st session",
     day: 3,
+    afterFirstSession: true,
     templateKey: "trial_post_first",
     category: "checkin",
     blurb: "Check in after their first session — how did it feel, any questions.",
@@ -184,6 +189,7 @@ export const KICKSTART21_STEPS: NurtureStep[] = [
     key: "k21_post_first",
     label: "After 1st visit",
     day: 3,
+    afterFirstSession: true,
     templateKey: "trial_k21_post_first",
     category: "checkin",
     blurb: "Check in after their first visit/session — how did it feel.",
@@ -268,6 +274,8 @@ export function stepsForType(type: TrialType): NurtureStep[] {
 
 /** Days a step stays "due" after its day before it's flagged OVERDUE. */
 const OVERDUE_GRACE = 2;
+/** Hours after a booked session before the "how did it go?" step becomes due. */
+const SESSION_FOLLOWUP_HOURS = 3;
 /** No attended session in this many days (and ≥ day 3) → no-show flag. */
 const NO_SHOW_DAYS = 5;
 /** Attended sessions in the first week ≥ this → hot-lead flag. */
@@ -300,6 +308,7 @@ export interface NurtureTrialist {
   daysSinceVisit: number | null; // null = never attended (no booking OR scan)
   lastVisit: string | null; // last gym activity (booking or scan)
   lastWorkout: string | null; // last logged workout (display signal only)
+  firstSessionAt: string | null; // their first booked session time (any), or null
   // Activity breakdown for the card: class bookings + kiosk scans count as
   // attendance; logged workouts are shown as a secondary signal.
   activity: { classes: number; scans: number; workouts: number };
@@ -426,6 +435,17 @@ function enrich(
     (a, b) => a.getTime() - b.getTime(),
   );
 
+  // Their FIRST booked session (any time — past OR future), used to time the
+  // "how did your first session go?" step off the actual session rather than a
+  // fixed trial day. null if they haven't booked anything yet.
+  const bookingMs = bookings
+    .filter((b) => b.status !== "cancelled" && b.session_at)
+    .map((b) => new Date(b.session_at as string).getTime())
+    .filter((t) => !isNaN(t));
+  const firstBookingMs = bookingMs.length ? Math.min(...bookingMs) : null;
+  const firstSessionAt =
+    firstBookingMs != null ? new Date(firstBookingMs).toISOString() : null;
+
   const attended = activityDates.length;
   const attendedWeek1 = activityDates.filter(
     (d) => dateDayNum(d) - startNum < 7,
@@ -469,6 +489,16 @@ function enrich(
       if (sent) {
         return { step, state: "sent" as StepState, sentAt: sent.sent_at, sentBy: sent.sent_by };
       }
+      // "After first session": time it off their first booked session (+buffer),
+      // not a fixed day — but only if they've actually booked one. No booking →
+      // fall through to the day-based default below.
+      if (step.afterFirstSession && firstBookingMs != null) {
+        const dueAtMs = firstBookingMs + SESSION_FOLLOWUP_HOURS * 3600000;
+        if (nowMs >= dueAtMs + OVERDUE_GRACE * MS_DAY)
+          return { step, state: "overdue" as StepState };
+        if (nowMs >= dueAtMs) return { step, state: "due" as StepState };
+        return { step, state: "upcoming" as StepState };
+      }
       if (trialDay >= step.day + OVERDUE_GRACE) return { step, state: "overdue" as StepState };
       if (trialDay >= step.day) return { step, state: "due" as StepState };
       return { step, state: "upcoming" as StepState };
@@ -502,6 +532,7 @@ function enrich(
     daysSinceVisit,
     lastVisit: last ? last.toISOString() : null,
     lastWorkout,
+    firstSessionAt,
     activity: {
       classes: bookingDates.length,
       scans: scanDates.length,
