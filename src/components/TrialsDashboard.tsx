@@ -6,6 +6,7 @@ import {
   type TrialStats,
   type TrialTypeStat,
 } from "@/lib/trialStats";
+import { getTrialOutcomes, LOSS_REASONS } from "@/lib/trialOutcomes";
 
 /**
  * TrialsDashboard — conversion stats + funnel for the consolidated Trials hub.
@@ -59,6 +60,8 @@ function pct(rate?: number): string {
 export function TrialsDashboard() {
   const [period, setPeriod] = useState(30);
   const [stats, setStats] = useState<TrialStats | null>(null);
+  const [lossByReason, setLossByReason] = useState<Record<string, number>>({});
+  const [lostTotal, setLostTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async (days: number) => {
@@ -66,6 +69,20 @@ export function TrialsDashboard() {
     try {
       const res: TrialStats = await getTrialStats(days);
       setStats(res ?? EMPTY);
+      // Loss reasons (period-aware via created_at) for the "why we lost" card.
+      const outcomes = await getTrialOutcomes();
+      const cutoff = Date.now() - days * 86400000;
+      const counts: Record<string, number> = {};
+      let total = 0;
+      outcomes.forEach((o) => {
+        if (o.outcome !== "lost") return;
+        if (o.created_at && new Date(o.created_at).getTime() < cutoff) return;
+        const key = o.reason ?? "other";
+        counts[key] = (counts[key] ?? 0) + 1;
+        total++;
+      });
+      setLossByReason(counts);
+      setLostTotal(total);
     } catch (e) {
       console.error("[trialsDashboard] getTrialStats failed", e);
       setStats(EMPTY);
@@ -242,6 +259,29 @@ export function TrialsDashboard() {
               />
             </CardContent>
           </Card>
+
+          {/* why we lost */}
+          {lostTotal > 0 && (
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Why we lost — last {period} days ({lostTotal})
+                </p>
+                {LOSS_REASONS.map((r) => {
+                  const c = lossByReason[r.key] ?? 0;
+                  if (c === 0) return null;
+                  return (
+                    <FunnelBar
+                      key={r.key}
+                      label={r.label}
+                      value={c}
+                      max={lostTotal}
+                    />
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
     </div>

@@ -691,6 +691,15 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
       (logsBy.get(k) ?? logsBy.set(k, []).get(k)!).push(l);
     }
 
+    // Manual outcomes (mark won/lost): 'lost' drops them from the board, a
+    // manual 'won' moves them to the Joined list even without a converted flag.
+    const { data: outcomeRows } = await supabase
+      .from("trial_outcomes")
+      .select("email, outcome");
+    const outcomeBy = new Map<string, string>();
+    for (const o of (outcomeRows as any[]) ?? [])
+      if (o?.email) outcomeBy.set(String(o.email).toLowerCase(), String(o.outcome));
+
     const enriched = rows
       .map((c) => {
         const k = String(c.email).toLowerCase();
@@ -705,13 +714,19 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
       })
       .filter((t): t is NurtureTrialist => t != null)
       // drop trialists whose window is well past (no more drip to work)
-      .filter((t) => t.trialDay <= 35);
+      .filter((t) => t.trialDay <= 35)
+      // drop anyone the coach marked 'lost' — no more outreach.
+      .filter((t) => outcomeBy.get(String(t.email).toLowerCase()) !== "lost");
 
-    // Signed-up trialists — the wins. Shown separately, no outreach.
+    const isWon = (t: NurtureTrialist) =>
+      t.converted ||
+      outcomeBy.get(String(t.email).toLowerCase()) === "won";
+
+    // Signed-up / won trialists — shown separately, no outreach.
     const joined = enriched
-      .filter((t) => t.converted)
+      .filter((t) => isWon(t))
       .sort((a, b) => b.trialDay - a.trialDay);
-    const active = enriched.filter((t) => !t.converted);
+    const active = enriched.filter((t) => !isWon(t));
 
     const dueNow = active
       .filter((t) => t.nextStep != null)

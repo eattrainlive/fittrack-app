@@ -13,6 +13,11 @@ import {
 } from "@/components/ui/select";
 import { MemberActivityModal } from "@/components/MemberActivityModal";
 import {
+  setTrialOutcome,
+  LOSS_REASONS,
+  type TrialLossReason,
+} from "@/lib/trialOutcomes";
+import {
   EmptyState,
   ActivityButton,
   staffName,
@@ -402,6 +407,29 @@ function SendArea({
   const [note, setNote] = useState<string>("");
   const [sending, setSending] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
+  const [lostOpen, setLostOpen] = useState(false);
+  const [lostReason, setLostReason] = useState<TrialLossReason>("price");
+  const [savingOutcome, setSavingOutcome] = useState(false);
+
+  const markOutcome = async (
+    outcome: "won" | "lost",
+    reason?: TrialLossReason,
+  ) => {
+    setSavingOutcome(true);
+    const { error } = await setTrialOutcome({
+      email: t.email,
+      outcome,
+      reason,
+      by: staffName(),
+    });
+    setSavingOutcome(false);
+    if (error) {
+      toast.error("Couldn't save — try again");
+      return;
+    }
+    toast.success(outcome === "won" ? "Marked as won 🎉" : "Marked as lost");
+    onSent();
+  };
 
   const step: NurtureStep =
     steps.find((s) => s.key === selKey) ?? t.nextStep?.step ?? steps[0];
@@ -527,6 +555,50 @@ function SendArea({
           }}
         />
       </div>
+
+      {/* Outcome — record won / lost (lost captures a reason) */}
+      <div className="flex items-center gap-2 pt-1 text-xs">
+        <span className="text-muted-foreground">Outcome:</span>
+        <button
+          onClick={() => markOutcome("won")}
+          disabled={savingOutcome}
+          className="rounded-full border border-emerald-300 px-2.5 py-1 font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950"
+        >
+          Won
+        </button>
+        <button
+          onClick={() => setLostOpen((v) => !v)}
+          disabled={savingOutcome}
+          className="rounded-full border border-red-300 px-2.5 py-1 font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
+        >
+          Lost
+        </button>
+      </div>
+      {lostOpen && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-2">
+          <span className="text-[11px] text-muted-foreground">Reason:</span>
+          <select
+            value={lostReason}
+            onChange={(e) => setLostReason(e.target.value as TrialLossReason)}
+            className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+          >
+            {LOSS_REASONS.map((r) => (
+              <option key={r.key} value={r.key}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+          <Button
+            size="sm"
+            variant="destructive"
+            className="h-7 text-xs"
+            disabled={savingOutcome}
+            onClick={() => markOutcome("lost", lostReason)}
+          >
+            Mark lost
+          </Button>
+        </div>
+      )}
 
       <MemberActivityModal
         member={activityMember}
