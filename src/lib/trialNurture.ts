@@ -316,6 +316,11 @@ export interface NurtureTrialist {
     noShow: boolean;
     hotLead: boolean;
     neverAttended: boolean;
+    noSessionBooked: boolean; // no booking at all + not been in → nudge to book
+    firstSessionDone: boolean; // first booked session has passed → check in
+    goneQuiet: boolean; // was active, now quiet (type-specific threshold)
+    frequencyDrop: boolean; // < 2 visits in last 7 days (after week 1)
+    reviewNotBooked: boolean; // near end + no review booked → push review booking
   };
   steps: StepStatus[]; // every step with its state
   nextStep: StepStatus | null; // the single step the coach should action now
@@ -390,6 +395,7 @@ interface BookingRow {
   email: string;
   session_at: string | null;
   status: string | null;
+  session_type?: string | null;
 }
 interface LogRow {
   email: string;
@@ -505,6 +511,22 @@ function enrich(
     });
 
   const converted = !!c.converted;
+
+  // ── Situational signals (the new Carla nudges) ──────────────────────────────
+  const trialLen = trialLengthDays(tType);
+  const hasReviewBooked = bookings.some(
+    (b) =>
+      b.status !== "cancelled" && /review/i.test(String(b.session_type ?? "")),
+  );
+  const last7Count = activityDates.filter(
+    (d) => nowMs - d.getTime() <= 7 * MS_DAY,
+  ).length;
+  // Kickstart is shorter, so "quiet" bites sooner.
+  const quietThreshold = tType === "kickstart21" ? 3 : 4;
+  const firstSessionDue =
+    firstBookingMs != null &&
+    nowMs >= firstBookingMs + SESSION_FOLLOWUP_HOURS * 3600000;
+
   // The one to action now: earliest un-sent step that is overdue or due (coach
   // never sends the auto welcome). Overdue outranks due via step order (ascending
   // day). A trialist who's already SIGNED UP gets no outreach — they move to the
@@ -546,6 +568,21 @@ function enrich(
         daysSinceVisit >= NO_SHOW_DAYS &&
         trialDay <= 32,
       hotLead: attendedWeek1 >= HOT_LEAD_FIRST_WEEK,
+      // No booking on file at all and not been in — nudge them to book their first.
+      noSessionBooked: firstBookingMs == null && attended === 0 && trialDay >= 2,
+      // Their first booked session time has passed — time to check in.
+      firstSessionDone: !converted && firstSessionDue,
+      // Was active but has gone quiet (sooner for the shorter Kickstart).
+      goneQuiet:
+        !converted &&
+        attended > 0 &&
+        daysSinceVisit != null &&
+        daysSinceVisit >= quietThreshold,
+      // Dropped below 2 visits in the last 7 days (only meaningful after week 1).
+      frequencyDrop: !converted && attended > 0 && trialDay >= 7 && last7Count < 2,
+      // Near trial end with no review booked — push the review booking.
+      reviewNotBooked:
+        !converted && trialDay >= trialLen - 7 && !hasReviewBooked,
     },
     steps,
     nextStep,
@@ -580,7 +617,7 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
       await Promise.all([
         supabase
           .from("member_bookings")
-          .select("email, session_at, status")
+          .select("email, session_at, status, session_type")
           .in("email", emails),
         supabase
           .from("trial_nurture_log")
