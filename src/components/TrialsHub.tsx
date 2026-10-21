@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarClock, CalendarCheck } from "lucide-react";
+import { CalendarClock, CalendarCheck, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { MemberActivityModal } from "@/components/MemberActivityModal";
 import { TrialsDashboard } from "@/components/TrialsDashboard";
@@ -148,7 +148,11 @@ function ReviewsPanel({ staffSecret }: { staffSecret: string }) {
   const needsReview = (byStage.to_contact ?? []).filter(
     (t) => daysIntoTrial(t) >= 21 && !t.converted,
   );
-  const reviewing = [...booked, ...needsReview];
+  // Anyone who's set up a membership while on trial (incl. £21 Kickstart) — a
+  // running "joined this month" view. `converted` here already includes an
+  // active non-trial membership (see trialStages), so it catches both.
+  const joined = byStage.joined ?? [];
+  const reviewing = [...booked, ...needsReview, ...joined];
 
   const openActivity = (t: EnrichedTrialist) => {
     setActivityMember({
@@ -175,7 +179,7 @@ function ReviewsPanel({ staffSecret }: { staffSecret: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <ReviewColumn
           title="Needs review"
           icon={
@@ -195,6 +199,20 @@ function ReviewsPanel({ staffSecret }: { staffSecret: string }) {
           rows={booked}
           hint={(t) =>
             t.reviewAt ? `Review ${fmtDateTime(t.reviewAt)}` : "review booked"
+          }
+          onOpen={openActivity}
+        />
+        <ReviewColumn
+          title="Joined"
+          icon={
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-500" />
+          }
+          empty="No one joined yet"
+          rows={joined}
+          hint={(t) =>
+            t.convertedProduct
+              ? `→ ${t.convertedProduct}`
+              : "membership set up"
           }
           onOpen={openActivity}
         />

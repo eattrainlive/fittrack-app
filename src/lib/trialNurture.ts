@@ -366,6 +366,7 @@ export interface NurtureTrialist {
     frequencyDrop: boolean; // < 2 visits in last 7 days (after week 1)
     reviewNotBooked: boolean; // near end + no review booked → push review booking
     noAppWorkout: boolean; // ~a week in + no app workout logged → nudge to try one
+    hasMembership: boolean; // active membership on file (Kickstart: keep nurturing)
   };
   steps: StepStatus[]; // every step with its state
   nextStep: StepStatus | null; // the single step the coach should action now
@@ -559,13 +560,15 @@ function enrich(
       return { step, state: "upcoming" as StepState };
     });
 
-  // Most Kickstart/trial members set up a membership in their induction. GymOS
-  // doesn't always fire a clean "join" event we can convert on, so as a backstop
-  // we also treat an active NON-trial membership on gym_members as "joined" —
-  // they drop out of outreach (incl. the review nudge) and move to the Joined
-  // list, so we never chase someone who's already signed up.
+  // Many trial members set up a membership during their trial. GymOS doesn't
+  // always fire a clean "join" event we can convert on, so an active NON-trial
+  // membership on gym_members is our backstop.
+  //   • Coached-30: an active membership = joined → out of nurture.
+  //   • Kickstart-21: they can still cancel within the 21 days, so we KEEP
+  //     nurturing them to protect the conversion — we only suppress the "review
+  //     needed" nudge (they don't need one). It's not a conversion yet.
   const hasMembership = !!membershipProduct;
-  const converted = !!c.converted || hasMembership;
+  const converted = !!c.converted || (hasMembership && tType === "coached30");
 
   // ── Situational signals (the new Carla nudges) ──────────────────────────────
   const trialLen = trialLengthDays(tType);
@@ -635,10 +638,16 @@ function enrich(
       // Dropped below 2 visits in the last 7 days (only meaningful after week 1).
       frequencyDrop: !converted && attended > 0 && trialDay >= 7 && last7Count < 2,
       // Near trial end with no review booked — push the review booking.
+      // Near the end with no review booked — but NOT if they've already set up a
+      // membership (they don't need a review either way).
       reviewNotBooked:
-        !converted && trialDay >= trialLen - 7 && !hasReviewBooked,
+        !converted &&
+        !hasMembership &&
+        trialDay >= trialLen - 7 &&
+        !hasReviewBooked,
       // Around a week in and still no app workout logged — prompt them to try one.
       noAppWorkout: !converted && trialDay >= 7 && workoutDates.length === 0,
+      hasMembership,
     },
     steps,
     nextStep,

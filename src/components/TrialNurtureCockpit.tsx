@@ -58,6 +58,7 @@ type AnyT = NurtureTrialist & {
     frequencyDrop?: boolean;
     reviewNotBooked?: boolean;
     noAppWorkout?: boolean;
+    hasMembership?: boolean;
   };
 };
 
@@ -152,6 +153,11 @@ function flagChips(t: NurtureTrialist): FlagChip[] {
     f.noAppWorkout,
     "No app workout",
     "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400",
+  );
+  push(
+    f.hasMembership,
+    "✅ Has membership",
+    "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400",
   );
   return chips;
 }
