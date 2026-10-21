@@ -13,6 +13,13 @@ const ALLOWED_PREFIXES = [
   "/checkin",
   "/tv/",
   "/schedule",
+  // Public exercise/machine demo pages reached by scanning the QR codes in the
+  // gym. These aren't a member "using the app to train" — they just play a demo
+  // video and handle signed-out state themselves — so they must never be gated
+  // behind the PAR-Q form (a signed-in member without a valid PAR-Q was getting
+  // the medical form instead of the demo).
+  "/x/",
+  "/machine/",
 ];
 
 const isAllowedRoute = (pathname: string) =>
