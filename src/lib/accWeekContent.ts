@@ -120,10 +120,26 @@ export const getEmbedUrl = (url: string): string | null => {
     // Already a player.vimeo.com embed URL — use as-is (preserves ?h= unlisted hash)
     if (/player\.vimeo\.com\/video\//.test(u)) return u;
 
-    // Vimeo — supports unlisted videos with a hash: vimeo.com/<id>/<hash>
-    m = u.match(/vimeo\.com\/(?:video\/)?(\d+)(?:\/(\w+))?/);
-    if (m)
-      return `https://player.vimeo.com/video/${m[1]}${m[2] ? `?h=${m[2]}` : ""}`;
+    // Vimeo — robustly pull the numeric id + the unlisted "hash" from any of the
+    // share formats Vimeo hands out:
+    //   vimeo.com/<id>            vimeo.com/<id>/<hash>
+    //   vimeo.com/<id>?h=<hash>   vimeo.com/video/<id>
+    //   vimeo.com/manage/videos/<id>   (+ any ?share=copy / &ts= junk)
+    // Missing the hash on an unlisted video makes the player go black, so we grab
+    // it from EITHER the path or the query.
+    if (/vimeo\.com\//.test(u)) {
+      const idM = u.match(/vimeo\.com\/(?:video\/|manage\/videos\/)?(\d{6,})/);
+      if (idM) {
+        const id = idM[1];
+        // hash from path (/id/hash) or query (?h=hash)
+        const pathHash = u.match(
+          new RegExp(`vimeo\\.com\\/(?:video\\/)?${id}\\/(\\w+)`),
+        );
+        const queryHash = u.match(/[?&]h=(\w+)/);
+        const hash = pathHash?.[1] || queryHash?.[1] || "";
+        return `https://player.vimeo.com/video/${id}${hash ? `?h=${hash}` : ""}`;
+      }
+    }
 
     // Fallback: only treat an absolute http(s) URL as embeddable. Placeholders
     // ("#"), relative paths and empty-ish values are NOT videos.
