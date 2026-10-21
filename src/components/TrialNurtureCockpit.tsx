@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, ChevronDown, ChevronRight, Send, Plus } from "lucide-react";
+import {
+  Loader2,
+  ChevronDown,
+  ChevronRight,
+  Send,
+  Plus,
+  BookOpen,
+  X,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -413,6 +421,7 @@ function SendArea({
   );
   const [note, setNote] = useState<string>("");
   const [sending, setSending] = useState(false);
+  const [browseOpen, setBrowseOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [lostOpen, setLostOpen] = useState(false);
   const [lostReason, setLostReason] = useState<TrialLossReason>("price");
@@ -477,9 +486,18 @@ function SendArea({
     <div className="space-y-3 border-t bg-muted/20 p-3">
       {/* template dropdown */}
       <div className="space-y-1">
-        <label className="text-[11px] font-medium text-muted-foreground">
-          Template
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="text-[11px] font-medium text-muted-foreground">
+            Template
+          </label>
+          <button
+            type="button"
+            onClick={() => setBrowseOpen(true)}
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+          >
+            <BookOpen className="h-3 w-3" /> Browse all
+          </button>
+        </div>
         <Select value={selKey} onValueChange={setSelKey}>
           <SelectTrigger className="w-full">
             <SelectValue />
@@ -613,6 +631,112 @@ function SendArea({
         open={activityOpen}
         onOpenChange={setActivityOpen}
       />
+
+      {browseOpen && (
+        <TemplateBrowser
+          steps={steps}
+          name={t.name}
+          suggestedKey={t.nextStep?.step?.key}
+          selectedKey={selKey}
+          onPick={(k) => {
+            setSelKey(k);
+            setBrowseOpen(false);
+          }}
+          onClose={() => setBrowseOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Browse-all-templates overlay ─────────────────────────────────────────────
+// A full-screen sheet listing every template's complete copy so the coach can
+// compare them side by side and pick the best fit, then "Use this" to load it
+// into the send box.
+function TemplateBrowser({
+  steps,
+  name,
+  suggestedKey,
+  selectedKey,
+  onPick,
+  onClose,
+}: {
+  steps: NurtureStep[];
+  name: string;
+  suggestedKey?: string;
+  selectedKey?: string;
+  onPick: (key: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[120] flex items-end justify-center bg-black/50 sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-t-2xl bg-background shadow-xl sm:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold">All templates</p>
+            <p className="text-[11px] text-muted-foreground">
+              Full copy — tap “Use this” to load one
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-1.5 text-muted-foreground hover:bg-muted"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3 overflow-y-auto p-4">
+          {steps.map((s) => {
+            const r = renderTemplate(s, name);
+            const isSel = s.key === selectedKey;
+            return (
+              <div
+                key={s.key}
+                className={`rounded-xl border p-3 ${
+                  isSel ? "border-primary bg-primary/5" : "border-border"
+                }`}
+              >
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold">
+                    {s.label}
+                    {s.key === suggestedKey && (
+                      <span className="ml-1.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+                        suggested
+                      </span>
+                    )}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant={isSel ? "secondary" : "outline"}
+                    className="h-7 shrink-0 px-2 text-xs"
+                    onClick={() => onPick(s.key)}
+                  >
+                    {isSel ? "Selected" : "Use this"}
+                  </Button>
+                </div>
+                <div className="rounded-lg bg-muted/40 p-2.5 text-[13px] leading-relaxed">
+                  <p>{r.before}</p>
+                  {r.before && (
+                    <p className="my-1.5 inline-flex items-center gap-1 rounded-md border border-dashed border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                      <Plus className="h-2.5 w-2.5" /> coach note
+                    </p>
+                  )}
+                  <p>{r.after}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
