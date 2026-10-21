@@ -78,7 +78,7 @@ const Accountability = () => {
   const [weekCheckins, setWeekCheckins] = useState<AccCheckin[]>([]);
   const [focus, setFocus] = useState<ClientFocus | null>(null);
   const [view, setView] = useState<
-    "dashboard" | "onboarding" | "checkin" | "final"
+    "dashboard" | "weeks" | "onboarding" | "checkin" | "final"
   >("dashboard");
 
   const load = async () => {
@@ -368,6 +368,32 @@ const Accountability = () => {
         </Card>
       )}
 
+      {/* This week / All weeks toggle (lets members revisit past weeks) */}
+      {!isPreStart && !isComplete && (view === "dashboard" || view === "weeks") && (
+        <div className="flex gap-1 rounded-lg bg-muted p-1">
+          <button
+            onClick={() => setView("dashboard")}
+            className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition ${
+              view === "dashboard"
+                ? "bg-background shadow-sm"
+                : "text-muted-foreground"
+            }`}
+          >
+            This week
+          </button>
+          <button
+            onClick={() => setView("weeks")}
+            className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition ${
+              view === "weeks"
+                ? "bg-background shadow-sm"
+                : "text-muted-foreground"
+            }`}
+          >
+            All weeks
+          </button>
+        </div>
+      )}
+
       {/* Dashboard view during active programme */}
       {!isPreStart && !isComplete && view === "dashboard" && focus && (
         <Card className="bg-primary/5 border-primary/30 border-l-4 border-l-primary">
@@ -396,8 +422,8 @@ const Accountability = () => {
         />
       )}
 
-      {/* 6-week timeline */}
-      {!isPreStart && view !== "dashboard" && (
+      {/* 6-week timeline — past + current weeks, each with its full content */}
+      {!isPreStart && view === "weeks" && (
         <div className="space-y-3">
           <h2 className="font-heading text-xl tracking-wider">Your 6 weeks</h2>
           {WEEK_THEMES.map((t) => {
