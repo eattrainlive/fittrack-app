@@ -6,22 +6,24 @@ import {
   getTrialHistory,
   type TrialHistoryMonth,
   type TrialHistoryRow,
-  type TrialOutcomeState,
 } from "@/lib/trialHistory";
 
 /**
- * Trial history — month-by-month archive of everyone who trialled, what trial
- * they did, and whether/what they converted onto. Sub-tabs = months.
+ * Trial history — month-by-month archive of everyone who trialled (from the KPI
+ * sheet), what trial they did, and whether/what they converted onto. Sub-tabs =
+ * months.
  */
 export function TrialHistory() {
   const [months, setMonths] = useState<TrialHistoryMonth[] | null>(null);
   const [active, setActive] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
+      setError(null);
       try {
         const data = await getTrialHistory();
         if (cancelled) return;
@@ -29,7 +31,10 @@ export function TrialHistory() {
         setActive(data[0]?.key ?? "");
       } catch (e) {
         console.error("[trialHistory] load failed", e);
-        if (!cancelled) setMonths([]);
+        if (!cancelled) {
+          setMonths([]);
+          setError("Couldn't load the KPI sheet. Check it's link-viewable.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -50,6 +55,9 @@ export function TrialHistory() {
         <Loader2 className="h-4 w-4 animate-spin" /> Loading trial history…
       </p>
     );
+  }
+  if (error) {
+    return <EmptyState text={error} />;
   }
   if (!months || months.length === 0) {
     return <EmptyState text="No trial history yet" />;
@@ -77,7 +85,7 @@ export function TrialHistory() {
       {month && (
         <>
           {/* summary */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <StatCard label="Trialled" value={String(month.total)} />
             <StatCard
               label="Converted"
@@ -87,24 +95,26 @@ export function TrialHistory() {
             <StatCard
               label="Conversion"
               value={`${Math.round(month.rate * 100)}%`}
-              sub={`${month.converted}/${month.total - month.stillOnTrial} decided`}
-            />
-            <StatCard
-              label="Still on trial"
-              value={String(month.stillOnTrial)}
+              sub={`${month.converted}/${month.total}`}
             />
           </div>
 
-          {/* per-type split */}
-          <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-            <span className="rounded-full bg-muted px-2 py-1">
-              Coached 30: {month.byType.coached30.converted}/
-              {month.byType.coached30.total} converted
-            </span>
-            <span className="rounded-full bg-muted px-2 py-1">
-              Kickstart 21: {month.byType.kickstart21.converted}/
-              {month.byType.kickstart21.total} converted
-            </span>
+          {/* by category + by source */}
+          <div className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
+            {Object.entries(month.byCategory).map(([cat, v]) => (
+              <span key={cat} className="rounded-full bg-muted px-2 py-1">
+                {cat}: {v.converted}/{v.total}
+              </span>
+            ))}
+            {Object.keys(month.bySource).length > 0 && (
+              <span className="rounded-full bg-muted/50 px-2 py-1">
+                Sources:{" "}
+                {Object.entries(month.bySource)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([s, n]) => `${s} ${n}`)
+                  .join(" · ")}
+              </span>
+            )}
           </div>
 
           {/* table */}
@@ -119,23 +129,34 @@ export function TrialHistory() {
                       <th className="px-3 py-2 font-medium">Started</th>
                       <th className="px-3 py-2 font-medium">Outcome</th>
                       <th className="px-3 py-2 font-medium">Joined onto</th>
+                      <th className="px-3 py-2 font-medium">Source</th>
                     </tr>
                   </thead>
                   <tbody>
                     {month.rows.map((r) => (
-                      <tr key={r.email} className="border-b last:border-0">
+                      <tr key={r.email || r.name} className="border-b last:border-0">
                         <td className="px-3 py-2 font-medium">{r.name}</td>
                         <td className="px-3 py-2 text-muted-foreground">
-                          {r.trialTypeLabel}
+                          {r.trialType}
+                          {r.trialCategory && r.trialCategory !== "—"
+                            ? ` · ${r.trialCategory}`
+                            : ""}
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground tabular-nums">
-                          {fmtDay(r.trialStart)}
+                        <td className="px-3 py-2 tabular-nums text-muted-foreground">
+                          {r.trialStart || "—"}
                         </td>
                         <td className="px-3 py-2">
                           <OutcomeBadge row={r} />
                         </td>
                         <td className="px-3 py-2 text-muted-foreground">
-                          {r.convertedProduct ?? "—"}
+                          {r.convertedOnto
+                            ? `${r.convertedOnto}${
+                                r.ontoCategory ? ` (${r.ontoCategory})` : ""
+                              }`
+                            : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-muted-foreground">
+                          {r.source ?? "—"}
                         </td>
                       </tr>
                     ))}
@@ -167,9 +188,7 @@ function StatCard({
         <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
         <p
           className={`text-xl font-bold tabular-nums ${
-            accent === "emerald"
-              ? "text-emerald-600 dark:text-emerald-500"
-              : ""
+            accent === "emerald" ? "text-emerald-600 dark:text-emerald-500" : ""
           }`}
         >
           {value}
@@ -180,47 +199,17 @@ function StatCard({
   );
 }
 
-const OUTCOME_META: Record<
-  TrialOutcomeState,
-  { label: string; cls: string }
-> = {
-  converted: {
-    label: "Converted",
-    cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
-  },
-  lost: {
-    label: "Lost",
-    cls: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400",
-  },
-  not_converted: {
-    label: "Not converted",
-    cls: "bg-muted text-muted-foreground",
-  },
-  on_trial: {
-    label: "On trial",
-    cls: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400",
-  },
-};
-
 function OutcomeBadge({ row }: { row: TrialHistoryRow }) {
-  const meta = OUTCOME_META[row.state];
+  const converted = row.state === "converted";
   return (
     <span
-      className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${meta.cls}`}
+      className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${
+        converted
+          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+          : "bg-muted text-muted-foreground"
+      }`}
     >
-      {meta.label}
-      {row.state === "lost" && row.lossReason ? ` · ${row.lossReason}` : ""}
+      {converted ? "Converted" : "Not converted"}
     </span>
   );
-}
-
-function fmtDay(s: string): string {
-  try {
-    return new Date(s + "T00:00:00").toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-    });
-  } catch {
-    return s;
-  }
 }

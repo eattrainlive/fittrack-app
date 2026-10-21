@@ -1,165 +1,145 @@
 import { supabase } from "@/lib/supabase";
-import { trialType, trialLengthDays, type TrialType } from "@/lib/trialNurture";
-import { LOSS_REASONS } from "@/lib/trialOutcomes";
 
 /**
- * Trial history — every trialist grouped by the MONTH their trial started, with
- * what trial they did and whether/what they converted onto. Powers the "History"
- * tab in the Trials hub (month-by-month archive + conversion summary).
+ * Trial history — reads the "Trial Conversions" tab of the 2026 KPIs Google
+ * Sheet (via the staff-only /.netlify/functions/trial-history proxy) and groups
+ * it by month. The sheet is the system of record for every trialist across the
+ * year — what trial they did, whether they converted and onto what — so this is
+ * a live mirror of it rather than the app's own partial trial_cohort.
  */
 
-export type TrialOutcomeState =
-  | "converted" // signed up to a paid membership
-  | "lost" // coach marked them lost
-  | "not_converted" // trial window ended, no conversion recorded
-  | "on_trial"; // still inside their trial window
+export type TrialOutcomeState = "converted" | "not_converted";
 
 export interface TrialHistoryRow {
   email: string;
   name: string;
-  trialType: TrialType;
-  trialTypeLabel: string; // "Coached 30" / "Kickstart 21"
-  trialProduct: string | null; // the raw plan name
-  trialStart: string; // YYYY-MM-DD
+  trialType: string; // e.g. "21 Day Kickstart", "£1 First Month- Gym", "30 Day Trial"
+  trialCategory: string; // "PT" | "Gym" | "Classes"
+  trialStart: string; // as written in the sheet (dd/mm/yyyy)
   state: TrialOutcomeState;
-  convertedProduct: string | null; // what they joined onto, if converted
-  convertedAt: string | null;
-  lossReason: string | null; // human label, if lost
+  convertedOnto: string | null; // the membership they joined onto
+  ontoCategory: string | null;
+  conversionDate: string | null;
+  source: string | null; // lead source — Meta / GoHighLevel / Walk-in / …
 }
 
 export interface TrialHistoryMonth {
-  key: string; // "2026-10"
-  label: string; // "October 2026"
+  key: string; // "2026-01" (sortable)
+  label: string; // "January 2026" (as in the sheet)
   rows: TrialHistoryRow[];
   total: number;
   converted: number;
-  lost: number;
-  stillOnTrial: number;
-  rate: number; // converted / decided (0..1); decided = not still on trial
-  byType: {
-    coached30: { total: number; converted: number };
-    kickstart21: { total: number; converted: number };
-  };
+  rate: number; // converted / total (0..1)
+  byCategory: Record<string, { total: number; converted: number }>;
+  bySource: Record<string, number>;
 }
 
-interface CohortRow {
+interface RawRow {
+  month: string;
+  firstName: string;
+  lastName: string;
   email: string;
-  full_name: string | null;
-  trial_start: string | null;
-  trial_end: string | null;
-  trial_product: string | null;
-  converted: boolean | null;
-  converted_product: string | null;
-  converted_at: string | null;
-}
-interface OutcomeRow {
-  email: string;
-  outcome: string | null;
-  reason: string | null;
+  trialStart: string;
+  trialType: string;
+  trialCategory: string;
+  converted: boolean;
+  convertedOnto: string;
+  ontoCategory: string;
+  conversionDate: string;
+  source: string;
 }
 
-const MONTH_FMT = new Intl.DateTimeFormat("en-GB", {
-  month: "long",
-  year: "numeric",
-});
+const MONTHS = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+];
 
-const lossLabel = (reason: string | null): string | null => {
-  if (!reason) return null;
-  return LOSS_REASONS.find((r) => r.key === reason)?.label ?? reason;
-};
+/** "January 2026" -> "2026-01" (sortable). Falls back to the raw label. */
+function monthKey(label: string): string {
+  const m = label.toLowerCase().match(/([a-z]+)\s+(\d{4})/);
+  if (!m) return label;
+  const idx = MONTHS.indexOf(m[1]);
+  if (idx < 0) return label;
+  return `${m[2]}-${String(idx + 1).padStart(2, "0")}`;
+}
 
-/** All trialists, grouped by the month their trial started (newest first). */
+/** Fetch + group the KPI-sheet trial history by month (newest first). */
 export async function getTrialHistory(): Promise<TrialHistoryMonth[]> {
-  const [{ data: cRows }, { data: oRows }] = await Promise.all([
-    supabase
-      .from("trial_cohort")
-      .select(
-        "email, full_name, trial_start, trial_end, trial_product, converted, converted_product, converted_at",
-      )
-      .not("trial_start", "is", null),
-    supabase.from("trial_outcomes").select("email, outcome, reason"),
-  ]);
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const token = session?.access_token ?? "";
 
-  const outcomeBy = new Map<string, OutcomeRow>();
-  for (const o of (oRows as OutcomeRow[]) ?? []) {
-    if (o?.email) outcomeBy.set(String(o.email).toLowerCase(), o);
+  const res = await fetch("/.netlify/functions/trial-history", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`trial-history ${res.status}`);
+  const data = await res.json();
+  if (!data?.ok || !Array.isArray(data.rows)) {
+    throw new Error(data?.error || "bad response");
   }
 
-  const todayNum = Date.now();
   const months = new Map<string, TrialHistoryMonth>();
-
-  for (const c of (cRows as CohortRow[]) ?? []) {
-    if (!c.trial_start) continue;
-    const start = new Date(c.trial_start + "T00:00:00");
-    if (isNaN(start.getTime())) continue;
-    const key = c.trial_start.slice(0, 7); // YYYY-MM
-
-    const tType = trialType(c.trial_product);
-    const outcome = outcomeBy.get(String(c.email).toLowerCase());
-    const manualWon = outcome?.outcome === "won";
-    const manualLost = outcome?.outcome === "lost";
-    const isConverted = !!c.converted || manualWon;
-
-    // trial window end (use stored end, else start + type length)
-    const endNum = c.trial_end
-      ? new Date(c.trial_end + "T00:00:00").getTime()
-      : start.getTime() + trialLengthDays(tType) * 86400000;
-
-    let state: TrialOutcomeState;
-    if (isConverted) state = "converted";
-    else if (manualLost) state = "lost";
-    else if (todayNum > endNum) state = "not_converted";
-    else state = "on_trial";
+  for (const r of data.rows as RawRow[]) {
+    const label = String(r.month || "").trim();
+    if (!label) continue;
+    const key = monthKey(label);
+    const converted = !!r.converted;
+    const name = `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() || r.email;
+    const cat = (r.trialCategory || "—").trim() || "—";
+    const source = (r.source || "").trim();
 
     const row: TrialHistoryRow = {
-      email: c.email,
-      name: c.full_name || c.email,
-      trialType: tType,
-      trialTypeLabel: tType === "kickstart21" ? "Kickstart 21" : "Coached 30",
-      trialProduct: c.trial_product ?? null,
-      trialStart: c.trial_start,
-      state,
-      convertedProduct: isConverted ? c.converted_product ?? null : null,
-      convertedAt: isConverted ? c.converted_at ?? null : null,
-      lossReason: manualLost ? lossLabel(outcome?.reason ?? null) : null,
+      email: r.email,
+      name,
+      trialType: r.trialType || "—",
+      trialCategory: cat,
+      trialStart: r.trialStart || "",
+      state: converted ? "converted" : "not_converted",
+      convertedOnto: converted ? r.convertedOnto || null : null,
+      ontoCategory: converted ? r.ontoCategory || null : null,
+      conversionDate: converted ? r.conversionDate || null : null,
+      source: source || null,
     };
 
     let m = months.get(key);
     if (!m) {
       m = {
         key,
-        label: MONTH_FMT.format(start),
+        label,
         rows: [],
         total: 0,
         converted: 0,
-        lost: 0,
-        stillOnTrial: 0,
         rate: 0,
-        byType: {
-          coached30: { total: 0, converted: 0 },
-          kickstart21: { total: 0, converted: 0 },
-        },
+        byCategory: {},
+        bySource: {},
       };
       months.set(key, m);
     }
     m.rows.push(row);
     m.total++;
-    m.byType[tType].total++;
-    if (state === "converted") {
-      m.converted++;
-      m.byType[tType].converted++;
-    } else if (state === "lost") m.lost++;
-    else if (state === "on_trial") m.stillOnTrial++;
+    if (converted) m.converted++;
+    if (!m.byCategory[cat]) m.byCategory[cat] = { total: 0, converted: 0 };
+    m.byCategory[cat].total++;
+    if (converted) m.byCategory[cat].converted++;
+    if (source) m.bySource[source] = (m.bySource[source] ?? 0) + 1;
   }
 
-  // finalise: sort rows (converted first, then by start desc) + conversion rate
   const list = Array.from(months.values());
   for (const m of list) {
-    const decided = m.total - m.stillOnTrial;
-    m.rate = decided > 0 ? m.converted / decided : 0;
-    m.rows.sort((a, b) => b.trialStart.localeCompare(a.trialStart));
+    m.rate = m.total > 0 ? m.converted / m.total : 0;
+    m.rows.sort((a, b) => a.name.localeCompare(b.name));
   }
-  // newest month first
-  list.sort((a, b) => b.key.localeCompare(a.key));
+  list.sort((a, b) => b.key.localeCompare(a.key)); // newest month first
   return list;
 }
