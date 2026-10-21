@@ -6,17 +6,25 @@ import { TrialsDashboard } from "@/components/TrialsDashboard";
 import { TrialNurtureCockpit } from "@/components/TrialNurtureCockpit";
 import { TrialistPipeline } from "@/components/TrialistPipeline";
 import { TrialHubSettings } from "@/components/TrialHubSettings";
+import { TrialHistory } from "@/components/TrialHistory";
 import { EmptyState, staffName } from "@/components/staffHubShared";
 import { useStaffHubData } from "@/lib/useStaffHubData";
 import { useTrialStages, type EnrichedTrialist } from "@/lib/trialStages";
 
-type Sub = "dashboard" | "nurture" | "trialists" | "reviews" | "settings";
+type Sub =
+  | "dashboard"
+  | "nurture"
+  | "trialists"
+  | "reviews"
+  | "history"
+  | "settings";
 
 const SUBS: { key: Sub; label: string }[] = [
   { key: "dashboard", label: "Dashboard" },
   { key: "nurture", label: "Nurture" },
   { key: "trialists", label: "Trialists" },
   { key: "reviews", label: "Reviews" },
+  { key: "history", label: "History" },
   { key: "settings", label: "Settings" },
 ];
 
@@ -55,6 +63,8 @@ export function TrialsHub({ staffSecret }: { staffSecret: string }) {
         <TrialNurtureCockpit staffSecret={staffSecret} />
       ) : sub === "settings" ? (
         <TrialHubSettings />
+      ) : sub === "history" ? (
+        <TrialHistory />
       ) : sub === "trialists" ? (
         <TrialistsPanel
           staffSecret={staffSecret}
