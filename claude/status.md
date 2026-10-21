@@ -403,3 +403,71 @@ member-engagement · progress-summary · usage-report · workout-admin  (+ impor
    flips current trialists to on-app immediately). onboarding.ts markOnboarded → supabase.rpc("mark_onboarded").
    Catch-up: catch-up-mark-onboarded-rpc.md. (Board onApp read-fix from earlier also required + survived
    export 30.) PENDING: run SQL + push onboarding.ts + export 30.
+
+---
+
+## Session 2026-10-20/21 — Trials hub v2 polish (planning + build, no builder export)
+
+All hand-edited in the repo + esbuild-checked. Independent of each other — push in any order unless noted.
+
+24. **Trial-type / Kickstart data fix** (the "trials don't match their type / Kickstart 21 = 0" bug).
+    ROOT: `trial_cohort` only got rows for the two 30-day plans; £21 gym-only Kickstart people never
+    booked a coached session so `maybeStartTrial` never fired → no row → classified as 0. Data gap,
+    not detection (trialType()'s `/21/` already classifies "21 Days For £21"/"21 Day Kickstart"/
+    "21 Day Classes Trial" correctly).
+    FIX (2 parts): (a) `supabase/functions/gymos-webhook/index.ts` — new join branch: any `/21/` plan
+    (not 30-day) creates a trial_cohort row with trial_product + starts the 21-day clock at join date
+    (startDateUtc/eventTs), guarded `is null` so a re-add can't reset it; NO auto-welcome (Carla-sent
+    until k21 copy approved). (b) `supabase/sql/backfill_kickstart21_cohort.sql` — one-off, seeds
+    existing Kickstart members from gym_members (joined_on) into trial_cohort; safe to re-run.
+    ✅ Backfill RUN by Michael — now Coached30 + Kickstart21 both populate (Kickstart 21 = 13 active).
+    PENDING: deploy gymos-webhook (dashboard) for new joins going forward.
+    Note: Kickstart conversion % reads low at first — conversions weren't tracked for Kickstart before,
+    so historical ones can't be recovered; fills in correctly going forward.
+
+25. **PAR-Q gate bypass for exercise-demo QR codes** (medical form popping up on demo scans / new
+    browsers). ROOT: QR codes point to `/x/:id` + `/machine/:slug` (ExerciseInfo/MachinePage, built to
+    work signed-out) but ParqGate wrapped them, so a signed-in member without a valid PAR-Q got the
+    form instead of the demo. FIX: added `/x/` + `/machine/` to ParqGate ALLOWED_PREFIXES
+    (`src/components/ParqGate.tsx`). Real training routes still gated. Standalone 1-file push.
+
+26. **Trialists tab: trial-type filter** (`src/components/TrialistPipeline.tsx`) — second pill row
+    under the stage pills: All · Coached 30 · Gym 21 (live counts, same `/21/` test), filters within
+    the current stage.
+
+27. **Active-membership gate** (keep nurturing £21 who sign up; drop them from "needs review").
+    `trialNurture.ts` + `trialStages.ts` now read `gym_members` product+status. Active NON-trial
+    membership (not `/21/`,`/30 day/`,`/forever strong/`,`/trial/`) =:
+    - Coached-30 → treated as joined/converted (out of nurture), as before.
+    - **Kickstart-21 → STAYS in full nurture** (can still cancel in 21 days) but the review flag is
+      suppressed + a violet "✅ Has membership" chip shows. Only the review-needed is removed.
+    Reviews panel (`TrialsHub.tsx`): membership people excluded from "Needs review"; NEW **Joined**
+    column (3-col grid) shows anyone who set up a membership while on trial incl. £21, with product.
+
+28. **Kickstart (21-day) message copy** — 11 steps now in `KICKSTART21_STEPS` (trialNurture.ts):
+    welcome(d1 auto) · post_first(after 1st visit) · try_class(d5) · momentum/reengage(d7 branch) ·
+    app_workout(d8, only if 0 app workouts logged — conditional drop + sky "No app workout" chip from
+    d7) · pt_taster(d9) · mid(d11) · review(d16) · ending_soon(d19) · decision(d21). GHL sheet:
+    `claude/GHL_trial_k21_templates_carla.md` (trial_k21_* keys, {{1}}=name {{2}}=Coach Note; welcome/
+    post_first/decision note-free). Carla to tweak wording → update BOTH the sheet + KICKSTART21_STEPS.
+
+29. **Template browser** in the cockpit SendArea (`TrialNurtureCockpit.tsx`) — "Browse all" button
+    opens a sheet listing every template's full copy (before + coach-note slot + after), trial-type
+    aware, with "Use this" to load one into the send box.
+
+30. **Trials → History tab** (new sub-tab in TrialsHub) — LIVE SYNC from the 2026 KPIs Google Sheet
+    "Trial Conversions" tab (clean uniform source: Month·Name·Email·Trial start·Trial type·Trial
+    category·Converted?·Converted onto·Onto category·Conversion date·Source). Month sub-tabs; summary
+    (Trialled·Converted·Conversion%); breakdown by category + lead source; table Name·Trial·Started·
+    Outcome·Joined onto·Source. (Replaces the earlier trial_cohort-based History, which only had
+    Aug-onward — app only started writing trial_cohort in Aug.)
+    FILES: `netlify/functions/trial-history.js` (staff-verified gviz-CSV proxy, env KPI_SHEET_ID/
+    KPI_TRIALS_TAB with fallbacks), `src/lib/trialHistory.ts`, `src/components/TrialHistory.tsx`.
+    DOC: `claude/trial_history_sheet_setup.md`. PENDING SETUP: set the KPI sheet sharing to
+    "Anyone with the link → Viewer" (or ask build-chat to switch the proxy to a Google service account
+    for a fully-private read). Env vars optional (fallbacks baked in).
+
+    FILES TO PUSH (session): gymos-webhook/index.ts, backfill_kickstart21_cohort.sql(run),
+    ParqGate.tsx, TrialistPipeline.tsx, trialNurture.ts, trialStages.ts, TrialsHub.tsx,
+    TrialNurtureCockpit.tsx, TrialHistory.tsx, trialHistory.ts, netlify/functions/trial-history.js,
+    + docs (GHL_trial_k21_templates_carla.md, trial_history_sheet_setup.md). All esbuild-clean.
