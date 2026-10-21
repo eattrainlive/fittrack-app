@@ -52,11 +52,36 @@ export function TrialistPipeline({
 }) {
   const { byStage, loading, setStage } = useTrialStages(list, staffName());
   const [stage, setStageView] = useState<TrialStage>("to_contact");
+  const [typeFilter, setTypeFilter] = useState<"all" | "coached" | "gym">(
+    "all",
+  );
   const sheet = useOutcomeSheet();
   const [activityMember, setActivityMember] = useState<any | null>(null);
   const [activityOpen, setActivityOpen] = useState(false);
 
-  const cards = byStage[stage] ?? [];
+  // Same /21/ test trialType() uses: a "21 …" product is the gym Kickstart,
+  // anything else is the coached 30-day trial.
+  const isGymTrial = (t: EnrichedTrialist) => /21/.test(String(t.trial ?? ""));
+
+  const stageCards = byStage[stage] ?? [];
+  const gymCount = stageCards.filter(isGymTrial).length;
+  const coachedCount = stageCards.length - gymCount;
+  const cards =
+    typeFilter === "all"
+      ? stageCards
+      : stageCards.filter((t) =>
+          typeFilter === "gym" ? isGymTrial(t) : !isGymTrial(t),
+        );
+
+  const TYPE_FILTERS: {
+    key: "all" | "coached" | "gym";
+    label: string;
+    count: number;
+  }[] = [
+    { key: "all", label: "All", count: stageCards.length },
+    { key: "coached", label: "Coached 30", count: coachedCount },
+    { key: "gym", label: "Gym 21", count: gymCount },
+  ];
 
   const openActivity = (t: EnrichedTrialist) => {
     setActivityMember({
@@ -93,6 +118,26 @@ export function TrialistPipeline({
               }`}
             >
               {TRIAL_STAGE_LABELS[s]} {count}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* trial-type filter (Coached 30 vs Gym 21) */}
+      <div className="flex flex-wrap gap-1.5">
+        {TYPE_FILTERS.map((f) => {
+          const active = typeFilter === f.key;
+          return (
+            <button
+              key={f.key}
+              onClick={() => setTypeFilter(f.key)}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+                active
+                  ? "bg-foreground text-background"
+                  : "bg-muted/60 text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {f.label} {f.count}
             </button>
           );
         })}
