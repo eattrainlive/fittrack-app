@@ -471,3 +471,17 @@ All hand-edited in the repo + esbuild-checked. Independent of each other — pus
     ParqGate.tsx, TrialistPipeline.tsx, trialNurture.ts, trialStages.ts, TrialsHub.tsx,
     TrialNurtureCockpit.tsx, TrialHistory.tsx, trialHistory.ts, netlify/functions/trial-history.js,
     + docs (GHL_trial_k21_templates_carla.md, trial_history_sheet_setup.md). All esbuild-clean.
+
+31. **Accountability week — call recording** (host each week's group-call recording on the member's
+    weekly page). SQL `acc_week_call_recording.sql` — adds `call_recording_url` to `acc_week_content`
+    (idempotent, run once). Staff: WeekContentEditor.tsx new "Call recording URL (Vimeo)" field per
+    week. Member: WeekContentView.tsx renders it as its own embed under "This week's call recording"
+    (reuses getEmbedUrl → Vimeo incl. unlisted vimeo.com/ID/hash; link fallback if not embeddable).
+    Separate from the existing teaching `video_url`. Lib: accWeekContent.ts interface + save patch.
+    HOME-SCREEN FLAG (mirrors the coach-focus "new note" flag): accWeekContent.ts isCallRecordingSeen/
+    markCallRecordingSeen (localStorage key `acc_call_seen:<week>:<url>` — new/changed url re-flags).
+    Index.tsx shows a one-time banner "This week's call recording is up · Tap to watch" (Video icon)
+    for enrolled members; cleared on tap (→ /accountability) or dismiss, and on opening the dashboard
+    (Accountability.tsx markCallRecordingSeen). FILES: acc_week_call_recording.sql(run), accWeekContent.ts,
+    WeekContentEditor.tsx, WeekContentView.tsx, Index.tsx, Accountability.tsx. esbuild-clean.
+    USAGE: upload call to Vimeo → paste link into that week's content → members get the flag + embed.

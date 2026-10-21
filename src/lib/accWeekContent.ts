@@ -61,6 +61,37 @@ export const updateWeekContent = async (
   return { error };
 };
 
+// ── One-time "new call recording" flag (per week + url, local to the device) ──
+// A freshly-uploaded or changed recording (new url) re-flags. Cleared when the
+// member taps the home-screen flag or opens their 6-week dashboard — mirrors the
+// coach-focus "new note" behaviour so they never miss the week's call.
+const callSeenKey = (weekNumber: number, url: string) =>
+  `acc_call_seen:${weekNumber}:${url}`;
+
+export const isCallRecordingSeen = (
+  weekNumber: number,
+  url?: string | null,
+): boolean => {
+  if (!url) return true; // nothing to flag
+  try {
+    return localStorage.getItem(callSeenKey(weekNumber, url)) === "1";
+  } catch {
+    return false;
+  }
+};
+
+export const markCallRecordingSeen = (
+  weekNumber: number,
+  url?: string | null,
+): void => {
+  if (!url) return;
+  try {
+    localStorage.setItem(callSeenKey(weekNumber, url), "1");
+  } catch {
+    /* ignore */
+  }
+};
+
 /**
  * Convert a Loom / YouTube / Vimeo URL into an embeddable iframe src.
  * Supports: youtube.com/watch?v=, youtu.be/, youtube shorts, loom.com/share/, vimeo.com/<id>/<hash>.

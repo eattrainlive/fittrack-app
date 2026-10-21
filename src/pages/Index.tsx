@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Sparkles,
   Target,
+  Video,
   X,
 } from "lucide-react";
 import {
@@ -55,6 +56,11 @@ import {
   type ClientFocus,
 } from "@/lib/clientFocus";
 import {
+  getWeekContent,
+  isCallRecordingSeen,
+  markCallRecordingSeen,
+} from "@/lib/accWeekContent";
+import {
   isTrialProduct,
   daysSince,
   getTrialBaselineCapturedAt,
@@ -80,6 +86,9 @@ const Index = () => {
   const [showMemberGoals, setShowMemberGoals] = useState(false);
   const [accEnrolled, setAccEnrolled] = useState(false);
   const [focusFlag, setFocusFlag] = useState<ClientFocus | null>(null);
+  const [callFlag, setCallFlag] = useState<{ week: number; url: string } | null>(
+    null,
+  );
   const [needsGoalsSetup, setNeedsGoalsSetup] = useState(false);
   const navigate = useNavigate();
 
@@ -142,6 +151,15 @@ const Index = () => {
           const wk = effectiveWeekOf(accCohort, accClient);
           const f = wk >= 1 ? await getFocusForWeek(accClient.id, wk) : null;
           setFocusFlag(f && !isFocusSeen(f) ? f : null);
+          // One-time flag: this week's call recording was uploaded and the
+          // member hasn't seen it. Cleared on tap or opening the dashboard.
+          const wc = wk >= 1 ? await getWeekContent(wk) : null;
+          const callUrl = wc?.call_recording_url ?? null;
+          setCallFlag(
+            callUrl && !isCallRecordingSeen(wk, callUrl)
+              ? { week: wk, url: callUrl }
+              : null,
+          );
         }
       }
       // First-run goals setup: open the goals/targets editor once for
@@ -301,6 +319,37 @@ const Index = () => {
             onClick={() => {
               markFocusSeen(focusFlag);
               setFocusFlag(null);
+            }}
+            className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {callFlag && (
+        <div className="flex items-center gap-3 rounded-xl border border-primary/40 bg-primary/5 p-3 animate-in fade-in slide-in-from-top-2">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+            <Video className="h-5 w-5" />
+          </div>
+          <button
+            onClick={() => {
+              markCallRecordingSeen(callFlag.week, callFlag.url);
+              setCallFlag(null);
+              navigate("/accountability");
+            }}
+            className="min-w-0 flex-1 text-left"
+          >
+            <p className="text-sm font-semibold leading-tight">
+              This week's call recording is up
+            </p>
+            <p className="text-xs text-primary">Tap to watch ›</p>
+          </button>
+          <button
+            onClick={() => {
+              markCallRecordingSeen(callFlag.week, callFlag.url);
+              setCallFlag(null);
             }}
             className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-foreground"
             aria-label="Dismiss"

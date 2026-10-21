@@ -33,7 +33,11 @@ import { AccountabilityOnboarding } from "@/components/AccountabilityOnboarding"
 import { WeeklyCheckin } from "@/components/WeeklyCheckin";
 import { FinalCheckin } from "@/components/FinalCheckin";
 import { WeekContentView } from "@/components/WeekContentView";
-import { getEmbedUrl } from "@/lib/accWeekContent";
+import {
+  getEmbedUrl,
+  getWeekContent,
+  markCallRecordingSeen,
+} from "@/lib/accWeekContent";
 import {
   getMemberHabits,
   saveHabitCheckin,
@@ -106,6 +110,12 @@ const Accountability = () => {
         // Opening the 6-week dashboard counts as seeing the note → clears the
         // one-time home-screen flag.
         if (f) markFocusSeen(f);
+        // Same for this week's call recording flag.
+        if (wk >= 1) {
+          const wc = await getWeekContent(wk);
+          if (wc?.call_recording_url)
+            markCallRecordingSeen(wk, wc.call_recording_url);
+        }
       }
     }
     setLoading(false);
