@@ -12,6 +12,7 @@ export interface AccWeekContent {
   habit: string;
   teaching: string;
   video_url: string;
+  call_recording_url?: string | null; // Vimeo/Loom recording of that week's group call
   resources: AccWeekResource[];
   checkin_addon?: string | null;
   updated_at?: string;

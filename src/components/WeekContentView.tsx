@@ -46,12 +46,16 @@ export function WeekContentView({ weekNumber }: { weekNumber: number }) {
     content &&
     (content.teaching ||
       content.video_url ||
+      content.call_recording_url ||
       (content.resources && content.resources.length > 0));
 
   if (!hasAnything) return null;
 
   const embed = content!.video_url ? getEmbedUrl(content!.video_url) : null;
   const mainWatched = !!content!.video_url && watched.has(content!.video_url);
+  const callEmbed = content!.call_recording_url
+    ? getEmbedUrl(content!.call_recording_url)
+    : null;
 
   return (
     <div className="mt-3 space-y-3">
@@ -97,6 +101,34 @@ export function WeekContentView({ weekNumber }: { weekNumber: number }) {
         >
           <PlayCircle className="w-4 h-4" /> Watch this week's video
         </a>
+      )}
+
+      {content!.call_recording_url && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            This week's call recording
+          </p>
+          {callEmbed ? (
+            <div className="rounded-lg overflow-hidden border border-border aspect-video bg-black">
+              <iframe
+                src={callEmbed}
+                title={`Week ${weekNumber} call recording`}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          ) : (
+            <a
+              href={content!.call_recording_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-sm text-primary font-medium"
+            >
+              <PlayCircle className="w-4 h-4" /> Watch this week's call
+            </a>
+          )}
+        </div>
       )}
 
       {content!.resources && content!.resources.length > 0 && (

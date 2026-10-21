@@ -55,6 +55,7 @@ export function WeekContentEditor() {
       habit: draft.habit,
       teaching: draft.teaching,
       video_url: draft.video_url,
+      call_recording_url: draft.call_recording_url ?? null,
       resources: draft.resources,
     });
     setBusy(false);
@@ -209,6 +210,22 @@ export function WeekContentEditor() {
                       setDraft({ ...draft, video_url: e.target.value })
                     }
                     placeholder="https://www.loom.com/share/…"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">
+                    Call recording URL (Vimeo) — this week's group call
+                  </Label>
+                  <Input
+                    value={draft.call_recording_url ?? ""}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        call_recording_url: e.target.value,
+                      })
+                    }
+                    placeholder="https://vimeo.com/…"
                   />
                 </div>
 
