@@ -82,12 +82,13 @@ export function useTrialStages(
   const [cohort, setCohort] = useState<Record<string, CohortRow>>({});
   const [reviews, setReviews] = useState<Record<string, ReviewRow>>({});
   const [overrides, setOverrides] = useState<Record<string, TrialStage>>({});
+  const [memberships, setMemberships] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   const loadSupabase = useCallback(async () => {
     setLoading(true);
     try {
-      const [{ data: cRows }, { data: rRows }, { data: sRows }] =
+      const [{ data: cRows }, { data: rRows }, { data: sRows }, { data: gRows }] =
         await Promise.all([
           supabase
             .from("trial_cohort")
@@ -96,6 +97,7 @@ export function useTrialStages(
             .from("review_bookings")
             .select("email,status,appointment_at"),
           supabase.from("staff_trial_stage").select("email,stage"),
+          supabase.from("gym_members").select("email,product,status"),
         ]);
       const cmap: Record<string, CohortRow> = {};
       for (const r of (cRows || []) as CohortRow[]) {
@@ -112,9 +114,30 @@ export function useTrialStages(
         const k = emailKey(r.email);
         if (k) omap[k] = r.stage;
       }
+      // An active NON-trial membership = they've signed up (usually in their
+      // induction). Treat it as "joined" so they drop out of "needs review".
+      const isTrialPlan = (p: string) =>
+        /21/.test(p) ||
+        /30\s*day/.test(p) ||
+        /forever\s*strong/.test(p) ||
+        /\btrial\b/.test(p);
+      const mmap: Record<string, string> = {};
+      for (const g of (gRows || []) as {
+        email: string;
+        product: string | null;
+        status: string | null;
+      }[]) {
+        const k = emailKey(g.email);
+        const prod = String(g.product ?? "").trim();
+        const st = String(g.status ?? "").toLowerCase().trim();
+        if (k && prod && st === "active" && !isTrialPlan(prod.toLowerCase())) {
+          mmap[k] = prod;
+        }
+      }
       setCohort(cmap);
       setReviews(rmap);
       setOverrides(omap);
+      setMemberships(mmap);
     } catch {
       // tables may be unreadable (non-staff / RLS) — soft-fail to auto "to_contact"
     } finally {
@@ -131,7 +154,9 @@ export function useTrialStages(
     return (trialists ?? []).map((t) => {
       const key = emailKey(t.email);
       const c = cohort[key];
-      const converted = c?.converted === true;
+      const membershipProduct = memberships[key] ?? null;
+      // Confirmed paid membership OR an active non-trial membership on file.
+      const converted = c?.converted === true || !!membershipProduct;
       const r = reviews[key];
       const status = String(r?.status || "")
         .toLowerCase()
@@ -154,12 +179,12 @@ export function useTrialStages(
         manualStage,
         effectiveStage,
         converted,
-        convertedProduct: c?.converted_product ?? null,
+        convertedProduct: c?.converted_product ?? membershipProduct ?? null,
         reviewAt: r?.appointment_at ?? null,
         stageLocked: converted,
       };
     });
-  }, [trialists, cohort, reviews, overrides]);
+  }, [trialists, cohort, reviews, overrides, memberships]);
 
   const byStage = useMemo(() => {
     const groups: Record<TrialStage, EnrichedTrialist[]> = {

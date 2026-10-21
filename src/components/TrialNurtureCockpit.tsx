@@ -49,6 +49,7 @@ type AnyT = NurtureTrialist & {
     goneQuiet?: boolean;
     frequencyDrop?: boolean;
     reviewNotBooked?: boolean;
+    noAppWorkout?: boolean;
   };
 };
 
@@ -69,7 +70,7 @@ function impactScore(t: NurtureTrialist): number {
   let s = 0;
   if (/decision/.test(key)) s += 100;
   if (
-    /(ending_soon|k21_ending|results_nudge|k21_review|halfway|k21_mid|k21_pt_offer)/.test(
+    /(ending_soon|k21_ending|results_nudge|k21_review|halfway|k21_mid|k21_pt_offer|k21_pt_taster)/.test(
       key,
     )
   )
@@ -78,6 +79,7 @@ function impactScore(t: NurtureTrialist): number {
   if (f.reviewNotBooked) s += 50;
   if (f.noSessionBooked || f.neverAttended) s += 40;
   if (f.goneQuiet || f.noShow || f.frequencyDrop) s += 30;
+  if (f.noAppWorkout) s += 20;
   return s;
 }
 
@@ -137,6 +139,11 @@ function flagChips(t: NurtureTrialist): FlagChip[] {
     f.firstSessionDone,
     "1st session done",
     "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
+  );
+  push(
+    f.noAppWorkout,
+    "No app workout",
+    "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400",
   );
   return chips;
 }

@@ -35,6 +35,9 @@ export interface NurtureStep {
   // session time (+ a buffer), since we can't see attendance. Falls back to the
   // `day` offset if they have no booking yet.
   afterFirstSession?: boolean;
+  // Only surfaces for a trialist who has logged ZERO app workouts (dropped from
+  // their step list once they've logged one). Used by the "try a workout" nudge.
+  requiresNoAppWorkout?: boolean;
   blurb: string; // what this touch is for (coach-facing)
   // The FIXED (Meta-approved) template copy, shown in the cockpit so the coach
   // sees exactly what will send. The optional coach note slots BETWEEN before and
@@ -198,6 +201,19 @@ export const KICKSTART21_STEPS: NurtureStep[] = [
     defaultNote: "",
   },
   {
+    key: "k21_try_class",
+    label: "Try a class",
+    day: 5,
+    templateKey: "trial_k21_try_class",
+    category: "behaviour",
+    blurb: "Nudge a gym-only Kickstarter to try one of the classes.",
+    templateBefore:
+      "Hey {name}, are there any classes you fancy trying while you're with us?",
+    templateAfter:
+      "They're a great way to mix it up and meet people — I can get you booked onto one, just let me know what takes your fancy and when suits.",
+    defaultNote: "",
+  },
+  {
     key: "k21_week1_momentum",
     label: "Momentum (active)",
     day: 7,
@@ -219,6 +235,34 @@ export const KICKSTART21_STEPS: NurtureStep[] = [
     blurb: "Not been in — gentle nudge to get started.",
     templateBefore: "Hey {name}, not seen you in yet — everything ok?",
     templateAfter: "Let's get you in for your first one. What day works and I'll make sure someone's there to look after you?",
+    defaultNote: "",
+  },
+  {
+    key: "k21_app_workout",
+    label: "Try an app workout",
+    day: 8,
+    requiresNoAppWorkout: true,
+    templateKey: "trial_k21_app_workout",
+    category: "behaviour",
+    blurb:
+      "Flags ~a week in if they've logged no app workouts — nudge them to try one.",
+    templateBefore:
+      "Hey {name}, noticed you've not tried any of our workouts in the app yet.",
+    templateAfter:
+      "There's loads in there you can follow along with in the gym — a great way to know exactly what to do. Want me to point you to a good one to start with?",
+    defaultNote: "",
+  },
+  {
+    key: "k21_pt_taster",
+    label: "PT taster credit",
+    day: 9,
+    templateKey: "trial_k21_pt_taster",
+    category: "convert",
+    blurb: "Offer to add a PT taster credit so they can try a 1:1 session.",
+    templateBefore:
+      "Hey {name}, fancy trying a 1:1 session while you're with us?",
+    templateAfter:
+      "I can pop a PT taster credit on your account so you can give it a go with one of the team — no cost, just a chance to see what it's like. Want me to set it up?",
     defaultNote: "",
   },
   {
@@ -321,6 +365,7 @@ export interface NurtureTrialist {
     goneQuiet: boolean; // was active, now quiet (type-specific threshold)
     frequencyDrop: boolean; // < 2 visits in last 7 days (after week 1)
     reviewNotBooked: boolean; // near end + no review booked → push review booking
+    noAppWorkout: boolean; // ~a week in + no app workout logged → nudge to try one
   };
   steps: StepStatus[]; // every step with its state
   nextStep: StepStatus | null; // the single step the coach should action now
@@ -412,6 +457,7 @@ function enrich(
   scanAt: string[] = [],
   workoutAt: string[] = [],
   hasReview = false, // a live review_bookings row (booked/completed, future)
+  membershipProduct: string | null = null, // active NON-trial membership, if any
 ): NurtureTrialist | null {
   if (!c.trial_start) return null; // clock not started — not in the drip yet
   const name = c.full_name || c.email;
@@ -491,6 +537,8 @@ function enrich(
   const steps: StepStatus[] = schedule
     // drop the branch step that doesn't apply to this trialist
     .filter((s) => !s.branch || s.branch === keepBranch)
+    // drop the "try an app workout" nudge once they've logged one
+    .filter((s) => !s.requiresNoAppWorkout || workoutDates.length === 0)
     .map((step) => {
       const sent = step.branch ? sentMap.get(step.key) ?? branchSent : sentMap.get(step.key);
       if (sent) {
@@ -511,7 +559,13 @@ function enrich(
       return { step, state: "upcoming" as StepState };
     });
 
-  const converted = !!c.converted;
+  // Most Kickstart/trial members set up a membership in their induction. GymOS
+  // doesn't always fire a clean "join" event we can convert on, so as a backstop
+  // we also treat an active NON-trial membership on gym_members as "joined" —
+  // they drop out of outreach (incl. the review nudge) and move to the Joined
+  // list, so we never chase someone who's already signed up.
+  const hasMembership = !!membershipProduct;
+  const converted = !!c.converted || hasMembership;
 
   // ── Situational signals (the new Carla nudges) ──────────────────────────────
   const trialLen = trialLengthDays(tType);
@@ -547,7 +601,7 @@ function enrich(
     trialType: tType,
     trialLength: trialLengthDays(tType),
     converted,
-    convertedProduct: c.converted_product ?? null,
+    convertedProduct: c.converted_product ?? membershipProduct ?? null,
     trialDay,
     attended,
     attendedWeek1,
@@ -583,6 +637,8 @@ function enrich(
       // Near trial end with no review booked — push the review booking.
       reviewNotBooked:
         !converted && trialDay >= trialLen - 7 && !hasReviewBooked,
+      // Around a week in and still no app workout logged — prompt them to try one.
+      noAppWorkout: !converted && trialDay >= 7 && workoutDates.length === 0,
     },
     steps,
     nextStep,
@@ -623,10 +679,33 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
           .from("trial_nurture_log")
           .select("email, step_key, sent_at, sent_by")
           .in("email", emails),
-        // gym_members gives us each trialist's member_ref so we can pull their
-        // kiosk scans (scan_events links by member_ref, not email).
-        supabase.from("gym_members").select("id, email").in("email", emails),
+        // gym_members gives us each trialist's member_ref (for kiosk scans,
+        // which link by member_ref not email) AND their current product/status,
+        // so we can spot anyone already on an active paid membership.
+        supabase
+          .from("gym_members")
+          .select("id, email, product, status")
+          .in("email", emails),
       ]);
+
+    // An active NON-trial membership on gym_members = they've signed up (often
+    // in their induction). Same /21/ + 30-day test as trialType, so the trial
+    // plans themselves never count as "a membership".
+    const isTrialPlan = (p: string) =>
+      /21/.test(p) ||
+      /30\s*day/.test(p) ||
+      /forever\s*strong/.test(p) ||
+      /\btrial\b/.test(p);
+    const membershipByEmail = new Map<string, string>();
+    for (const m of (gmRows as any[]) ?? []) {
+      const em = String(m?.email ?? "").toLowerCase();
+      const prod = String(m?.product ?? "").trim();
+      const st = String(m?.status ?? "").toLowerCase().trim();
+      if (!em || !prod) continue;
+      if (st === "active" && !isTrialPlan(prod.toLowerCase())) {
+        membershipByEmail.set(em, prod);
+      }
+    }
 
     // Live review bookings (GHL-calendar sync) — same source the pipeline uses.
     const { data: reviewRows } = await supabase
@@ -710,6 +789,7 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
           scansBy.get(k) ?? [],
           workoutsBy.get(k) ?? [],
           reviewSet.has(k),
+          membershipByEmail.get(k) ?? null,
         );
       })
       .filter((t): t is NurtureTrialist => t != null)
