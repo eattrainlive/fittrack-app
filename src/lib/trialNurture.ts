@@ -38,6 +38,10 @@ export interface NurtureStep {
   // Only surfaces for a trialist who has logged ZERO app workouts (dropped from
   // their step list once they've logged one). Used by the "try a workout" nudge.
   requiresNoAppWorkout?: boolean;
+  // No coach-note slot ({{2}}) — one flowing message. The app hides the note box
+  // and sends an empty note, and the GHL template must have NO {{2}} variable (an
+  // empty {{2}} makes WhatsApp reject the send).
+  noNote?: boolean;
   blurb: string; // what this touch is for (coach-facing)
   // The FIXED (Meta-approved) template copy, shown in the cockpit so the coach
   // sees exactly what will send. The optional coach note slots BETWEEN before and
@@ -56,6 +60,7 @@ export const NURTURE_STEPS: NurtureStep[] = [
     label: "Welcome",
     day: 1,
     templateKey: "trial_welcome",
+    noNote: true,
     category: "welcome",
     auto: true,
     blurb: "Auto-sent when their trial starts — warm welcome + nudge to book session 1.",
@@ -69,6 +74,7 @@ export const NURTURE_STEPS: NurtureStep[] = [
     day: 3,
     afterFirstSession: true,
     templateKey: "trial_post_first",
+    noNote: true,
     category: "checkin",
     blurb: "Check in after their first session — how did it feel, any questions.",
     templateBefore: "Hey {name}, how did your first session go? Feeling a bit sore? It's very common to feel a few aches afterwards, so try not to be put off — it's totally normal. It can also feel a lot to take in at first and a little overwhelming. Just remember, all you need to do is rock up with your drink and leave the rest to us. You've done the hardest part by walking through those doors. Well done!\n\nCarla\nETL",
@@ -148,6 +154,7 @@ export const NURTURE_STEPS: NurtureStep[] = [
     label: "Decision / last chance",
     day: 28,
     templateKey: "trial_decision",
+    noNote: true,
     category: "convert",
     blurb: "Final decision nudge before the trial ends.",
     templateBefore: "Hey {name}, we haven't had you in for your trial review yet.",
@@ -181,11 +188,12 @@ export const KICKSTART21_STEPS: NurtureStep[] = [
     label: "Welcome",
     day: 1,
     templateKey: "trial_k21_welcome",
+    noNote: true,
     category: "welcome",
     auto: true,
     blurb: "Auto-sent when the 21-day trial starts — how to scan in + where to start.",
     templateBefore: "Hi {name}, welcome to your 21-day Kickstart at Eat Train Live! So glad to have you.",
-    templateAfter: "Pop in whenever suits — just scan in at the door. Check the education area in the app for how to get started, and give me a shout if you want pointing in the right direction.",
+    templateAfter: "Pop in whenever suits — just scan in at the door. Check the education area in the app for how to get started, and give me a shout if you want pointing in the right direction.\nCarla\nETL",
     defaultNote: "",
   },
   {
@@ -194,6 +202,7 @@ export const KICKSTART21_STEPS: NurtureStep[] = [
     day: 3,
     afterFirstSession: true,
     templateKey: "trial_k21_post_first",
+    noNote: true,
     category: "checkin",
     blurb: "Check in after their first visit/session — how did it feel.",
     templateBefore: "Hey {name}, how did your first one go?",
@@ -221,8 +230,8 @@ export const KICKSTART21_STEPS: NurtureStep[] = [
     category: "behaviour",
     branch: "attending",
     blurb: "They're getting in — reinforce the habit.",
-    templateBefore: "Week one down, {name} — loving seeing you in!",
-    templateAfter: "Keep that momentum going. Want me to suggest what to hit next?",
+    templateBefore: "Week one down, {name} — loving seeing you getting stuck in!",
+    templateAfter: "Is there anything in particular you need any help with?",
     defaultNote: "",
   },
   {
@@ -233,8 +242,8 @@ export const KICKSTART21_STEPS: NurtureStep[] = [
     category: "behaviour",
     branch: "not_attending",
     blurb: "Not been in — gentle nudge to get started.",
-    templateBefore: "Hey {name}, not seen you in yet — everything ok?",
-    templateAfter: "Let's get you in for your first one. What day works and I'll make sure someone's there to look after you?",
+    templateBefore: "Hey {name}, not seen you in much — everything ok?",
+    templateAfter: "What day works and I'll make sure someone's there to help you out?",
     defaultNote: "",
   },
   {
@@ -243,13 +252,14 @@ export const KICKSTART21_STEPS: NurtureStep[] = [
     day: 8,
     requiresNoAppWorkout: true,
     templateKey: "trial_k21_app_workout",
+    noNote: true,
     category: "behaviour",
     blurb:
       "Flags ~a week in if they've logged no app workouts — nudge them to try one.",
     templateBefore:
       "Hey {name}, noticed you've not tried any of our workouts in the app yet.",
     templateAfter:
-      "There's loads in there you can follow along with in the gym — a great way to know exactly what to do. Want me to point you to a good one to start with?",
+      "There's loads in there you can follow along with in the gym, they are a great way to know exactly what to do. Want me to point you to a good one to start with?",
     defaultNote: "",
   },
   {
@@ -257,12 +267,13 @@ export const KICKSTART21_STEPS: NurtureStep[] = [
     label: "PT taster credit",
     day: 9,
     templateKey: "trial_k21_pt_taster",
+    noNote: true,
     category: "convert",
-    blurb: "Offer to add a PT taster credit so they can try a 1:1 session.",
+    blurb: "Offer to add a group PT taster credit so they can try a group PT session.",
     templateBefore:
-      "Hey {name}, fancy trying a 1:1 session while you're with us?",
+      "Hey {name}, fancy trying a group PT session while you're with us?",
     templateAfter:
-      "I can pop a PT taster credit on your account so you can give it a go with one of the team — no cost, just a chance to see what it's like. Want me to set it up?",
+      "I can pop a group PT taster credit on your account so you can give it a go with the team... no cost, just a chance to see what it's like. Want me to set it up?",
     defaultNote: "",
   },
   {
@@ -272,19 +283,8 @@ export const KICKSTART21_STEPS: NurtureStep[] = [
     templateKey: "trial_k21_mid",
     category: "convert",
     blurb: "Over halfway — progress check + review offer.",
-    templateBefore: "Over halfway through your Kickstart, {name} — how's it feeling?",
-    templateAfter: "Fancy a quick review? I can pop you on the Evolt scanner and map out where to take it next.",
-    defaultNote: "",
-  },
-  {
-    key: "k21_review",
-    label: "Book review",
-    day: 16,
-    templateKey: "trial_k21_review",
-    category: "convert",
-    blurb: "Push the results-review booking.",
-    templateBefore: "You've put the work in, {name} — let's look at it properly.",
-    templateAfter: "Grab a review slot here and we'll go through your results and options:\nhttps://api.leadconnectorhq.com/widget/bookings/trial-reviews",
+    templateBefore: "Over halfway through your Kickstart, {name}",
+    templateAfter: "Just shout up if I can help at all",
     defaultNote: "",
   },
   {
@@ -303,10 +303,12 @@ export const KICKSTART21_STEPS: NurtureStep[] = [
     label: "Decision / last chance",
     day: 21,
     templateKey: "trial_k21_decision",
+    noNote: true,
     category: "convert",
-    blurb: "Final nudge before the Kickstart ends.",
-    templateBefore: "Last day or two of your Kickstart, {name}.",
-    templateAfter: "Shall we get you set up so you don't lose the momentum? Is there a day/time that works for a quick chat?",
+    blurb: "Final nudge before the Kickstart ends — no membership set up yet.",
+    templateBefore:
+      "We haven't got your membership set up yet {name}. Shall we get you set up so you don't lose the momentum? Is there a day/time that works for a quick chat? Or you can book a slot here\nhttps://api.leadconnectorhq.com/widget/bookings/trial-reviews",
+    templateAfter: "",
     defaultNote: "",
   },
 ];

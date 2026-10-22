@@ -378,7 +378,7 @@ function TemplateSheet({
     const r = await sendStep({
       trialist: { email, name },
       step,
-      note,
+      note: step.noNote ? "" : note,
       by: staffName(),
     });
     setSendingKey(null);
@@ -457,7 +457,7 @@ function TemplateSheet({
                     </div>
                     <div className="rounded-lg bg-muted/40 p-2.5 text-[13px] leading-relaxed">
                       <p>{r.before}</p>
-                      {r.before && (
+                      {!s.noNote && r.before && (
                         <p className="my-1.5 inline-flex items-center gap-1 rounded-md border border-dashed border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
                           <Plus className="h-2.5 w-2.5" /> coach note
                         </p>

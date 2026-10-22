@@ -456,7 +456,7 @@ function SendArea({
   const step: NurtureStep =
     steps.find((s) => s.key === selKey) ?? t.nextStep?.step ?? steps[0];
   const tpl = useMemo(() => renderTemplate(step, t.name), [step, t.name]);
-  const noteSnippet = note.trim();
+  const noteSnippet = step.noNote ? "" : note.trim();
 
   const handleSend = async () => {
     setSending(true);
@@ -464,7 +464,7 @@ function SendArea({
       const r = await sendStep({
         trialist: { email: t.email, name: t.name },
         step,
-        note,
+        note: step.noNote ? "" : note,
         by: staffName(),
       });
       if (r.ok) {
@@ -531,25 +531,29 @@ function SendArea({
         </div>
         <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm leading-relaxed">
           <p>{tpl.before}</p>
-          <p className="my-2 inline-flex items-center gap-1 rounded-md border border-dashed border-primary/50 bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary">
-            <Plus className="h-3 w-3" /> coach note
-          </p>
+          {!step.noNote && (
+            <p className="my-2 inline-flex items-center gap-1 rounded-md border border-dashed border-primary/50 bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary">
+              <Plus className="h-3 w-3" /> coach note
+            </p>
+          )}
           <p>{tpl.after}</p>
         </div>
       </div>
 
-      {/* coach note */}
-      <div className="space-y-1">
-        <label className="text-[11px] font-medium text-muted-foreground">
-          Coach note · optional — the personal bit you add
-        </label>
-        <Textarea
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder={step.defaultNote || "Add a personal note…"}
-          rows={2}
-        />
-      </div>
+      {/* coach note — hidden for templates with no {{2}} slot */}
+      {!step.noNote && (
+        <div className="space-y-1">
+          <label className="text-[11px] font-medium text-muted-foreground">
+            Coach note · optional — the personal bit you add
+          </label>
+          <Textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={step.defaultNote || "Add a personal note…"}
+            rows={2}
+          />
+        </div>
+      )}
 
       {/* sends as (live preview) */}
       <div className="space-y-1">

@@ -527,3 +527,9 @@ All hand-edited in the repo + esbuild-checked. Independent of each other — pus
       App.tsx (route /messages ×2 blocks), AppLayout.tsx (header icon), wa-message-sync/index.ts,
       member_chat_threads.sql(run). Docs: GHL_in_app_reply_setup.md, GHL_whatsapp_delivery_status.md.
       All esbuild-clean. Project ref juvofqqtvakltlwqqhkn; WA_SYNC secret unchanged.
+
+⚠️ PENDING — Michael action (messaging): once the new k21 templates are added, **turn OFF / retire
+the OLD day-based trial drip automations in GHL for BOTH trials** (30-day coached AND 21-day
+Kickstart) so trialists don't get the old auto-messages on top of the new engine/Carla sends. The new
+system = welcome auto-fires via gymos-webhook + everything else Carla-sent from the cockpit/chat. The
+old time-based workflows must be disabled to avoid double-messaging. (Reminder requested by Michael.)

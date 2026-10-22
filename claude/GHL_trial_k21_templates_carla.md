@@ -27,6 +27,7 @@ Hi {{1}}, welcome to your 21-day Kickstart at Eat Train Live! So glad to have yo
 Pop in whenever suits — just scan in at the door. Check the education area in the app for how to get started, and give me a shout if you want pointing in the right direction.
 
 Carla
+ETL
 
 ---
 
@@ -53,67 +54,55 @@ They're a great way to mix it up and meet people — I can get you booked onto o
 
 ## 4. `trial_k21_momentum` — Day 7 (if getting in / active)
 
-Week one down, {{1}} — loving seeing you in!
+Week one down, {{1}} — loving seeing you getting stuck in!
 
 {{2}}
 
-Keep that momentum going. Want me to suggest what to hit next?
+Is there anything in particular you need any help with?
 
 ---
 
 ## 5. `trial_k21_reengage` — Day 7 (if not been in / gone quiet)
 
-Hey {{1}}, not seen you in yet — everything ok?
+Hey {{1}}, not seen you in much — everything ok?
 
 {{2}}
 
-Let's get you in for your first one. What day works and I'll make sure someone's there to look after you?
+What day works and I'll make sure someone's there to help you out?
 
 ---
 
 ## 6. `trial_k21_app_workout` — Day 8 (only if no app workout logged)
 
+NOTE: no coach note on this one — only `{{1}}`.
+
 Hey {{1}}, noticed you've not tried any of our workouts in the app yet.
 
-{{2}}
-
-There's loads in there you can follow along with in the gym — a great way to know exactly what to do. Want me to point you to a good one to start with?
+There's loads in there you can follow along with in the gym, they are a great way to know exactly what to do. Want me to point you to a good one to start with?
 
 ---
 
 ## 7. `trial_k21_pt_taster` — Day 9 (PT taster credit offer)
 
-Hey {{1}}, fancy trying a 1:1 session while you're with us?
+NOTE: no coach note on this one — only `{{1}}`.
 
-{{2}}
+Hey {{1}}, fancy trying a group PT session while you're with us?
 
-I can pop a PT taster credit on your account so you can give it a go with one of the team — no cost, just a chance to see what it's like. Want me to set it up?
+I can pop a group PT taster credit on your account so you can give it a go with the team... no cost, just a chance to see what it's like. Want me to set it up?
 
 ---
 
 ## 8. `trial_k21_mid` — Day 11 (mid-trial check)
 
-Over halfway through your Kickstart, {{1}} — how's it feeling?
+Over halfway through your Kickstart, {{1}}
 
 {{2}}
 
-Fancy a quick review? I can pop you on the Evolt scanner and map out where to take it next.
+Just shout up if I can help at all
 
 ---
 
-## 9. `trial_k21_review` — Day 16 (book results review)
-
-You've put the work in, {{1}} — let's look at it properly.
-
-{{2}}
-
-Grab a review slot here and we'll go through your results and options:
-
-https://api.leadconnectorhq.com/widget/bookings/trial-reviews
-
----
-
-## 10. `trial_k21_ending_soon` — Day 19 (Kickstart ending soon)
+## 9. `trial_k21_ending_soon` — Day 19 (Kickstart ending soon)
 
 Heyyyy {{1}}, your 21 days are nearly up!
 
@@ -123,19 +112,21 @@ We'd love to keep you going — I can talk you through the membership options wh
 
 ---
 
-## 11. `trial_k21_decision` — Day 21 (decision / last chance)
+## 10. `trial_k21_decision` — Day 21 (decision / last chance)
 
 NOTE: no coach note on this one — only `{{1}}`.
 
-Last day or two of your Kickstart, {{1}}.
+We haven't got your membership set up yet {{1}}. Shall we get you set up so you don't lose the momentum? Is there a day/time that works for a quick chat? Or you can book a slot here
 
-Shall we get you set up so you don't lose the momentum? Is there a day/time that works for a quick chat?
+https://api.leadconnectorhq.com/widget/bookings/trial-reviews
 
 ---
 
 ## Notes
 - Variable map for every template: `{{1}}` → contact first name, `{{2}}` → Coach Note (`coach_note`).
-- Templates 1, 2 and 11 have **no** coach note (only `{{1}}`) — welcome auto-fires, post-first is one
+- Templates 1, 2, 6, 7 and 10 have **no** coach note (only `{{1}}`) — build them in GHL with NO `{{2}}`
+  variable (an empty `{{2}}` makes WhatsApp reject the send). The rest use `{{2}}` = Coach Note.
+- (Legacy note) welcome auto-fires, post-first is one
   flowing message, decision is a short direct ask.
 - `trial_k21_momentum` (4) and `trial_k21_reengage` (5) are the Day-7 behaviour pair — only one fires
   per person (active vs quiet), same as the 30-day momentum/reengage branch.
