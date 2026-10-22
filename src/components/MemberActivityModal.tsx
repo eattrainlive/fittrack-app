@@ -718,7 +718,10 @@ export function MemberActivityModal({
         </div>
 
         {/* Messages — read-only WhatsApp/SMS thread; reply via the GHL deep-link */}
-        <MemberMessagesSection email={member.email} />
+        <MemberMessagesSection
+          email={member.email}
+          name={member.full_name}
+        />
       </DialogContent>
     </Dialog>
   );

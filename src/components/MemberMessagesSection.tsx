@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, MessageCircle, Send, Clock, AlertTriangle } from "lucide-react";
+import {
+  Loader2,
+  MessageCircle,
+  Send,
+  Clock,
+  AlertTriangle,
+  BookOpen,
+  X,
+  Plus,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -11,6 +20,13 @@ import {
   sendWhatsAppReply,
   type MemberMessage,
 } from "@/lib/memberMessages";
+import {
+  stepsForType,
+  renderTemplate,
+  sendStep,
+  type NurtureStep,
+} from "@/lib/trialNurture";
+import { staffName } from "@/components/staffHubShared";
 
 const fmtMsgTime = (iso: string) => {
   try {
@@ -64,13 +80,21 @@ function MessageBubble({ m }: { m: MemberMessage }) {
 
 /** WhatsApp/SMS thread for the staff activity modal. Reply free-text in-app when
  *  inside WhatsApp's 24h window; outside it, send an approved template in GHL. */
-export function MemberMessagesSection({ email }: { email: string }) {
+export function MemberMessagesSection({
+  email,
+  name,
+}: {
+  email: string;
+  name?: string;
+}) {
   const [msgs, setMsgs] = useState<MemberMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [resending, setResending] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const displayName = name || email;
 
   const refresh = useCallback(async () => {
     if (!email) {
@@ -241,19 +265,28 @@ export function MemberMessagesSection({ email }: { email: string }) {
                       ? "Window closes within the hour"
                       : `~${Math.floor(win.hoursLeft ?? 0)}h left to reply freely`}
                 </span>
-                <Button
-                  size="sm"
-                  onClick={handleSend}
-                  disabled={sending || !reply.trim()}
-                >
-                  {sending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Send className="mr-1 h-3.5 w-3.5" /> Send
-                    </>
-                  )}
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setTemplatesOpen(true)}
+                  >
+                    <BookOpen className="mr-1 h-3.5 w-3.5" /> Templates
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSend}
+                    disabled={sending || !reply.trim()}
+                  >
+                    {sending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="mr-1 h-3.5 w-3.5" /> Send
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           ) : (
@@ -269,14 +302,23 @@ export function MemberMessagesSection({ email }: { email: string }) {
                   ? "They need to message first so we can reply in-app."
                   : "Free replies are paused until they message again. Send an approved template from GoHighLevel to re-open the chat."}
               </p>
-              <a
-                href={replyHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-2 hover:underline"
-              >
-                Open conversation in GoHighLevel ↗
-              </a>
+              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setTemplatesOpen(true)}
+                >
+                  <BookOpen className="mr-1 h-3.5 w-3.5" /> Send a template
+                </Button>
+                <a
+                  href={replyHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-2 hover:underline"
+                >
+                  Open in GoHighLevel ↗
+                </a>
+              </div>
             </div>
           )}
 
@@ -293,6 +335,142 @@ export function MemberMessagesSection({ email }: { email: string }) {
           )}
         </div>
       )}
+
+      {templatesOpen && (
+        <TemplateSheet
+          name={displayName}
+          email={email}
+          onClose={() => setTemplatesOpen(false)}
+          onSent={() => {
+            setTemplatesOpen(false);
+            refresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Template browser + sender ────────────────────────────────────────────────
+// Lets a coach send an approved WhatsApp template from the chat (the only way to
+// message outside the 24h window) and read every template's full copy first.
+function TemplateSheet({
+  name,
+  email,
+  onClose,
+  onSent,
+}: {
+  name: string;
+  email: string;
+  onClose: () => void;
+  onSent: () => void;
+}) {
+  const [note, setNote] = useState("");
+  const [sendingKey, setSendingKey] = useState<string | null>(null);
+
+  const groups: { label: string; steps: NurtureStep[] }[] = [
+    { label: "30-day trial", steps: stepsForType("coached30") },
+    { label: "21-day Kickstart", steps: stepsForType("kickstart21") },
+  ];
+
+  const send = async (step: NurtureStep) => {
+    setSendingKey(step.key);
+    const r = await sendStep({
+      trialist: { email, name },
+      step,
+      note,
+      by: staffName(),
+    });
+    setSendingKey(null);
+    if (r.ok) {
+      toast.success("Template sent ✓");
+      onSent();
+    } else {
+      toast.error(r.error || "Couldn't send — try again");
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[120] flex items-end justify-center bg-black/50 sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-t-2xl bg-background shadow-xl sm:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold">Templates</p>
+            <p className="text-[11px] text-muted-foreground">
+              Approved WhatsApp templates — tap Send on the right one
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-1.5 text-muted-foreground hover:bg-muted"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="border-b p-3">
+          <label className="text-[11px] font-medium text-muted-foreground">
+            Coach note · optional — slots into templates that have one
+          </label>
+          <Textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Add a personal line…"
+            rows={2}
+          />
+        </div>
+
+        <div className="space-y-4 overflow-y-auto p-4">
+          {groups.map((g) => (
+            <div key={g.label} className="space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                {g.label}
+              </p>
+              {g.steps.map((s) => {
+                const r = renderTemplate(s, name);
+                return (
+                  <div key={s.key} className="rounded-xl border border-border p-3">
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold">{s.label}</p>
+                      <Button
+                        size="sm"
+                        className="h-7 shrink-0 px-2 text-xs"
+                        onClick={() => send(s)}
+                        disabled={sendingKey != null}
+                      >
+                        {sendingKey === s.key ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Send className="mr-1 h-3 w-3" /> Send
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <div className="rounded-lg bg-muted/40 p-2.5 text-[13px] leading-relaxed">
+                      <p>{r.before}</p>
+                      {r.before && (
+                        <p className="my-1.5 inline-flex items-center gap-1 rounded-md border border-dashed border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                          <Plus className="h-2.5 w-2.5" /> coach note
+                        </p>
+                      )}
+                      <p>{r.after}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

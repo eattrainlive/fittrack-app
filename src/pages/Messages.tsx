@@ -153,7 +153,7 @@ export default function Messages() {
                   </p>
                 </div>
               </div>
-              <MemberMessagesSection email={active.email} />
+              <MemberMessagesSection email={active.email} name={active.name} />
             </div>
           ) : (
             <div className="hidden h-full min-h-[300px] items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground md:flex">

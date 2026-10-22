@@ -485,3 +485,45 @@ All hand-edited in the repo + esbuild-checked. Independent of each other — pus
     (Accountability.tsx markCallRecordingSeen). FILES: acc_week_call_recording.sql(run), accWeekContent.ts,
     WeekContentEditor.tsx, WeekContentView.tsx, Index.tsx, Accountability.tsx. esbuild-clean.
     USAGE: upload call to Vimeo → paste link into that week's content → members get the flag + embed.
+    FOLLOW-UPS: (a) "All weeks" toggle on the accountability dashboard (Accountability.tsx) — the
+    full 6-week timeline (past+current content, check-ins, coach replies, call recording) was built
+    but gated behind an unreachable `view` condition; added a This week / All weeks segmented toggle
+    (view "weeks") so members can revisit past weeks. (b) Vimeo embed fix: getEmbedUrl hardened to
+    pull id + unlisted hash from every share format (vimeo.com/ID, /ID/hash, ?h=hash, ?share=copy,
+    manage/videos/ID) — a `?h=` link was dropped → black screen. ✅ Michael confirmed fixed.
+
+32. **In-app WhatsApp/SMS messaging** — reply + chat hub, so Carla rarely opens GHL (deep-link was
+    slow/landed wrong profile). ALL LIVE + PUSHED (2026-10-22).
+    - IN-APP REPLY (MemberMessagesSection.tsx): free-text reply box inside the member thread. Lib
+      memberMessages.ts `waWindowStatus()` (24h window from last inbound) + `sendWhatsAppReply()`.
+      Proxy `netlify/functions/ghl-send.js` (staff-verified) → GHL Conversations API POST
+      /conversations/messages {type, contactId, message}; mirrors the sent msg into member_messages
+      keyed on returned id (sync webhook de-dupes). GHL 24h window shown: inside = reply box + "~Xh
+      left"; outside/no-contact = amber notice + GHL deep-link (templates stay in GHL).
+      SETUP (done): GHL Private Integration token (scopes conversations/message.write + convos r/w +
+      contacts.readonly) → Netlify env `GHL_API_TOKEN` (+ optional GHL_API_VERSION, default 2021-04-15).
+      Doc: GHL_in_app_reply_setup.md.
+    - CHANNEL-AWARE: inbound SMS already syncs + shows (SMS badge). Reply sends on the channel the
+      member last used (SMS has no 24h gate). ghl-send type SMS|WhatsApp from body.channel.
+    - SEND-TIME FALLBACK: if a WhatsApp send is REJECTED synchronously (window lapsed / not on WA),
+      ghl-send auto-retries as SMS, mirrors under the sent channel, returns {channel, fellBack};
+      UI toasts "WhatsApp unavailable — sent by SMS instead". Both-fail → error toast, nothing marked
+      sent.
+    - LATE DELIVERY FAILURE: wa-message-sync now handles `event:"status"` (patches member_messages
+      .status by wa_message_id, no new row). Thread shows a red "failed" chip + "WhatsApp didn't
+      deliver — Resend as SMS?" one-tap resend (only for a failed last-outbound WhATSAPP; auto-clears
+      once a newer msg exists). GHL has NO WhatsApp delivery-failure trigger (only "Messaging error -
+      SMS") — so wired the SMS-error trigger → Custom Webhook to wa-message-sync?key=… body
+      {event:status, message_id:{{message.id}}, status:failed}. WhatsApp late-failures rely on the
+      send-time fallback; if they ever prove to be a real issue, add GHL API status-polling.
+      Doc: GHL_whatsapp_delivery_status.md. Redeploy wa-message-sync (--no-verify-jwt) — DONE.
+    - CHAT HUB (own staff page /messages, header message-icon in AppLayout, staff-only): GHL-style
+      inbox of everyone who's messaged. SQL `member_chat_threads.sql` (SECURITY DEFINER, is_staff()
+      guard, latest msg per email + name + last_inbound_at). Lib chatInbox.ts. Page Messages.tsx:
+      All / Needs-reply filters (needsReply = last msg inbound), search, per-thread chips (Needs
+      reply / Window open / Template only); tap → thread + reply box (two-pane desktop, full-screen
+      mobile). RUN SQL member_chat_threads.sql.
+      FILES: ghl-send.js, memberMessages.ts, MemberMessagesSection.tsx, chatInbox.ts, Messages.tsx,
+      App.tsx (route /messages ×2 blocks), AppLayout.tsx (header icon), wa-message-sync/index.ts,
+      member_chat_threads.sql(run). Docs: GHL_in_app_reply_setup.md, GHL_whatsapp_delivery_status.md.
+      All esbuild-clean. Project ref juvofqqtvakltlwqqhkn; WA_SYNC secret unchanged.
