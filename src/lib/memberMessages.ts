@@ -66,6 +66,73 @@ export function ghlConversationUrl(opts: {
   return `${base}/${GHL_LOCATION_ID}/conversations/conversations`;
 }
 
+/**
+ * WhatsApp's 24-hour customer-care window. Free-text replies are only allowed
+ * within 24h of the member's LAST INBOUND message; outside it, WhatsApp only
+ * permits an approved template (so Carla needs GHL for those). Mirrors how GHL
+ * shows the window state on the conversation.
+ */
+export interface WaWindow {
+  open: boolean;
+  lastInboundAt: string | null;
+  hoursLeft: number | null; // hours remaining in the window, when open
+}
+
+export function waWindowStatus(msgs: MemberMessage[]): WaWindow {
+  let lastInbound: number | null = null;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].direction === "in" && msgs[i].occurred_at) {
+      const t = new Date(msgs[i].occurred_at).getTime();
+      if (!isNaN(t)) {
+        lastInbound = t;
+        break;
+      }
+    }
+  }
+  if (lastInbound == null)
+    return { open: false, lastInboundAt: null, hoursLeft: null };
+  const elapsedH = (Date.now() - lastInbound) / 3600000;
+  const open = elapsedH < 24;
+  return {
+    open,
+    lastInboundAt: new Date(lastInbound).toISOString(),
+    hoursLeft: open ? Math.max(0, 24 - elapsedH) : null,
+  };
+}
+
+/**
+ * Send a free-text WhatsApp reply through GoHighLevel's API (staff-only proxy).
+ * Only valid inside the 24h window — outside it, GHL/WhatsApp will reject a
+ * free-text send, so the UI gates this on waWindowStatus().open.
+ */
+export async function sendWhatsAppReply(opts: {
+  email: string;
+  contactId: string;
+  message: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token ?? "";
+    const res = await fetch("/.netlify/functions/ghl-send", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(opts),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.ok) {
+      return { ok: false, error: data?.error || `send failed (${res.status})` };
+    }
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message ?? e) };
+  }
+}
+
 /** The contact/conversation ids to deep-link with, taken from the latest message. */
 export function latestThreadIds(msgs: MemberMessage[]): {
   contactId: string | null;
