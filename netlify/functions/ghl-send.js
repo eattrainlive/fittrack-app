@@ -63,6 +63,11 @@ export const handler = async (event) => {
   const contactId = String(body.contactId || "").trim();
   const message = String(body.message || "").trim();
   const email = String(body.email || "").trim().toLowerCase();
+  // Reply on the same channel the member used (WhatsApp default; SMS supported).
+  const channel = String(body.channel || "whatsapp").toLowerCase() === "sms"
+    ? "sms"
+    : "whatsapp";
+  const ghlType = channel === "sms" ? "SMS" : "WhatsApp";
   if (!contactId) return reply(400, { ok: false, error: "no contactId" });
   if (!message) return reply(400, { ok: false, error: "empty message" });
 
@@ -75,7 +80,7 @@ export const handler = async (event) => {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify({ type: "WhatsApp", contactId, message }),
+      body: JSON.stringify({ type: ghlType, contactId, message }),
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {
@@ -102,7 +107,7 @@ export const handler = async (event) => {
             email,
             direction: "out",
             body: message,
-            channel: "whatsapp",
+            channel,
             status: "sent",
             ghl_contact_id: contactId,
             wa_message_id: messageId,

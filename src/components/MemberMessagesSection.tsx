@@ -108,13 +108,22 @@ export function MemberMessagesSection({ email }: { email: string }) {
   const { contactId } = latestThreadIds(msgs);
   const win = waWindowStatus(msgs);
   const replyHref = ghlConversationUrl(latestThreadIds(msgs));
-  const canSendInApp = win.open && !!contactId;
+  // Reply on the channel the member last used. SMS has no 24-hour window, so a
+  // free-text reply is always allowed there; WhatsApp is gated on the window.
+  const lastChannel = msgs.length ? msgs[msgs.length - 1].channel : "whatsapp";
+  const isSms = String(lastChannel).toLowerCase() === "sms";
+  const canSendInApp = !!contactId && (isSms || win.open);
 
   const handleSend = async () => {
     const body = reply.trim();
     if (!body || !contactId) return;
     setSending(true);
-    const r = await sendWhatsAppReply({ email, contactId, message: body });
+    const r = await sendWhatsAppReply({
+      email,
+      contactId,
+      message: body,
+      channel: isSms ? "sms" : "whatsapp",
+    });
     setSending(false);
     if (r.ok) {
       setReply("");
@@ -155,16 +164,18 @@ export function MemberMessagesSection({ email }: { email: string }) {
               <Textarea
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
-                placeholder="Reply on WhatsApp…"
+                placeholder={isSms ? "Reply by SMS…" : "Reply on WhatsApp…"}
                 rows={2}
                 disabled={sending}
               />
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-500">
                   <Clock className="h-3 w-3" />
-                  {win.hoursLeft != null && win.hoursLeft < 1
-                    ? "Window closes within the hour"
-                    : `~${Math.floor(win.hoursLeft ?? 0)}h left to reply freely`}
+                  {isSms
+                    ? "SMS — no time limit"
+                    : win.hoursLeft != null && win.hoursLeft < 1
+                      ? "Window closes within the hour"
+                      : `~${Math.floor(win.hoursLeft ?? 0)}h left to reply freely`}
                 </span>
                 <Button
                   size="sm"

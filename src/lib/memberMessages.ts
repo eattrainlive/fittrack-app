@@ -109,6 +109,7 @@ export async function sendWhatsAppReply(opts: {
   email: string;
   contactId: string;
   message: string;
+  channel?: "whatsapp" | "sms";
 }): Promise<{ ok: boolean; error?: string }> {
   try {
     const {
@@ -121,7 +122,7 @@ export async function sendWhatsAppReply(opts: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(opts),
+      body: JSON.stringify({ ...opts, channel: opts.channel ?? "whatsapp" }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data?.ok) {
