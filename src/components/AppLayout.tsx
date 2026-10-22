@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Lock,
   Calendar,
+  MessageCircle,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -266,6 +267,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
+          {isStaff && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate("/messages")}
+              aria-label="Messages"
+              title="Messages"
+            >
+              <MessageCircle className="h-5 w-5" />
+            </Button>
+          )}
           {isStaff && (
             <Button
               variant="outline"
