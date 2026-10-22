@@ -49,6 +49,38 @@ serve(async (req) => {
     return new Response("bad body", { status: 400 });
   }
 
+  const db0 = admin();
+
+  // ── Delivery-status update (not a new message) ──────────────────────────────
+  // A GHL "message status changed" workflow sends { event:"status", message_id,
+  // status } to flag delivered / read / failed. We just patch the existing row's
+  // status by its provider id — no new message, so email/direction aren't needed.
+  const evt = pick(body, "event", "type").toLowerCase();
+  const statusRaw = pick(body, "status", "messageStatus", "deliveryStatus").toLowerCase();
+  const statusId = pick(body, "wa_message_id", "message_id", "messageId", "id");
+  const isStatusEvent =
+    evt === "status" ||
+    evt === "message_status" ||
+    evt === "delivery" ||
+    (!pick(body, "body", "message", "text", "messageBody") &&
+      !!statusRaw &&
+      !!statusId);
+  if (isStatusEvent && statusId) {
+    try {
+      await db0
+        .from("member_messages")
+        .update({ status: statusRaw || "failed" })
+        .eq("wa_message_id", statusId);
+      return new Response(JSON.stringify({ ok: true, updated: statusId }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    } catch (e) {
+      console.error("wa-message-sync status:", (e as Error).message);
+      return new Response(JSON.stringify({ ok: false, error: "status update failed" }), { status: 500 });
+    }
+  }
+
   const email = normEmail(pick(body, "email", "contact_email", "contactEmail"));
   const dirRaw = pick(body, "direction", "dir").toLowerCase();
   const direction = dirRaw === "out" || dirRaw === "outbound" ? "out"

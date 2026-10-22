@@ -50,6 +50,11 @@ function MessageBubble({ m }: { m: MemberMessage }) {
               template
             </span>
           )}
+          {out && String(m.status || "").toLowerCase() === "failed" && (
+            <span className="rounded-full bg-red-500/90 px-1.5 py-0.5 font-medium text-white">
+              failed
+            </span>
+          )}
           <span>{fmtMsgTime(m.occurred_at)}</span>
         </div>
       </div>
@@ -64,6 +69,7 @@ export function MemberMessagesSection({ email }: { email: string }) {
   const [loading, setLoading] = useState(true);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  const [resending, setResending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
@@ -114,6 +120,34 @@ export function MemberMessagesSection({ email }: { email: string }) {
   const isSms = String(lastChannel).toLowerCase() === "sms";
   const canSendInApp = !!contactId && (isSms || win.open);
 
+  // A WhatsApp reply that GHL later reported as failed to deliver. We only prompt
+  // when it's the LAST outbound message (so once we resend, the prompt clears).
+  const lastOut = [...msgs].reverse().find((m) => m.direction === "out");
+  const failedWa =
+    lastOut &&
+    String(lastOut.status || "").toLowerCase() === "failed" &&
+    String(lastOut.channel || "").toLowerCase() !== "sms"
+      ? lastOut
+      : null;
+
+  const resendAsSms = async () => {
+    if (!failedWa?.body || !contactId) return;
+    setResending(true);
+    const r = await sendWhatsAppReply({
+      email,
+      contactId,
+      message: failedWa.body,
+      channel: "sms",
+    });
+    setResending(false);
+    if (r.ok) {
+      toast.success("Resent by SMS ✓");
+      refresh();
+    } else {
+      toast.error(r.error || "Couldn't resend — try again");
+    }
+  };
+
   const handleSend = async () => {
     const body = reply.trim();
     if (!body || !contactId) return;
@@ -157,6 +191,34 @@ export function MemberMessagesSection({ email }: { email: string }) {
                 <MessageBubble key={m.id || i} m={m} />
               ))}
               <div ref={endRef} />
+            </div>
+          )}
+
+          {/* WhatsApp delivery failed → offer a one-tap SMS resend */}
+          {failedWa && (
+            <div className="space-y-1.5 rounded-lg border border-red-300/60 bg-red-50 p-2.5 dark:border-red-900/50 dark:bg-red-950/30">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-red-700 dark:text-red-400">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                WhatsApp didn't deliver
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Your last message didn't reach them on WhatsApp. Resend it as an
+                SMS?
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={resendAsSms}
+                disabled={resending || !contactId}
+              >
+                {resending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Send className="mr-1 h-3.5 w-3.5" /> Resend as SMS
+                  </>
+                )}
+              </Button>
             </div>
           )}
 
