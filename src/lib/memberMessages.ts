@@ -110,7 +110,12 @@ export async function sendWhatsAppReply(opts: {
   contactId: string;
   message: string;
   channel?: "whatsapp" | "sms";
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{
+  ok: boolean;
+  error?: string;
+  sentChannel?: "whatsapp" | "sms";
+  fellBack?: boolean;
+}> {
   try {
     const {
       data: { session },
@@ -128,7 +133,7 @@ export async function sendWhatsAppReply(opts: {
     if (!res.ok || !data?.ok) {
       return { ok: false, error: data?.error || `send failed (${res.status})` };
     }
-    return { ok: true };
+    return { ok: true, sentChannel: data?.channel, fellBack: !!data?.fellBack };
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e) };
   }

@@ -64,14 +64,17 @@ export const handler = async (event) => {
   const message = String(body.message || "").trim();
   const email = String(body.email || "").trim().toLowerCase();
   // Reply on the same channel the member used (WhatsApp default; SMS supported).
-  const channel = String(body.channel || "whatsapp").toLowerCase() === "sms"
+  let channel = String(body.channel || "whatsapp").toLowerCase() === "sms"
     ? "sms"
     : "whatsapp";
   const ghlType = channel === "sms" ? "SMS" : "WhatsApp";
   if (!contactId) return reply(400, { ok: false, error: "no contactId" });
   if (!message) return reply(400, { ok: false, error: "empty message" });
 
-  try {
+  // Allow the client to opt out of the SMS fallback (defaults on).
+  const allowFallback = body.fallbackSms !== false;
+
+  async function send(type) {
     const r = await fetch("https://services.leadconnectorhq.com/conversations/messages", {
       method: "POST",
       headers: {
@@ -80,15 +83,43 @@ export const handler = async (event) => {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify({ type: ghlType, contactId, message }),
+      body: JSON.stringify({ type, contactId, message }),
     });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      // GHL/WhatsApp rejected it (often: outside the 24h window).
+    return { ok: r.ok, status: r.status, data };
+  }
+
+  try {
+    let sentChannel = channel;
+    let fellBack = false;
+    let res = await send(ghlType);
+
+    // If WhatsApp was rejected (e.g. window lapsed / not on WhatsApp), fall back
+    // to SMS so the reply still gets through — and report that it switched.
+    if (!res.ok && channel === "whatsapp" && allowFallback) {
+      const retry = await send("SMS");
+      if (retry.ok) {
+        res = retry;
+        sentChannel = "sms";
+        fellBack = true;
+      } else {
+        // both failed — surface the ORIGINAL WhatsApp error
+        const msg =
+          res.data?.message || res.data?.error || `GHL send failed (${res.status})`;
+        return reply(res.status === 422 ? 409 : 502, {
+          ok: false,
+          error: msg,
+          smsAlsoFailed: true,
+        });
+      }
+    } else if (!res.ok) {
       const msg =
-        data?.message || data?.error || `GHL send failed (${r.status})`;
-      return reply(r.status === 422 ? 409 : 502, { ok: false, error: msg });
+        res.data?.message || res.data?.error || `GHL send failed (${res.status})`;
+      return reply(res.status === 422 ? 409 : 502, { ok: false, error: msg });
     }
+
+    const data = res.data;
+    channel = sentChannel; // mirror under the channel that actually sent
 
     // Mirror into member_messages so it shows instantly; key on the returned id
     // so the inbound webhook mirror de-dupes.
@@ -119,7 +150,7 @@ export const handler = async (event) => {
       }
     }
 
-    return reply(200, { ok: true, messageId });
+    return reply(200, { ok: true, messageId, channel: sentChannel, fellBack });
   } catch (e) {
     return reply(500, { ok: false, error: String(e && e.message ? e.message : e) });
   }

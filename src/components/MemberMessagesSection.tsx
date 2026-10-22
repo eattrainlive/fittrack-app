@@ -127,7 +127,9 @@ export function MemberMessagesSection({ email }: { email: string }) {
     setSending(false);
     if (r.ok) {
       setReply("");
-      toast.success("Sent ✓");
+      if (r.fellBack)
+        toast.success("WhatsApp unavailable — sent by SMS instead");
+      else toast.success("Sent ✓");
       refresh();
     } else {
       toast.error(r.error || "Couldn't send — try again");
