@@ -40,24 +40,9 @@ async function maybeStartTrial(db: any, email: string | null, name: string | nul
   const { data: upd } = await db.from("trial_cohort")
     .update({ trial_start: startDay, trial_end: endDay, updated_at: new Date().toISOString() })
     .eq("email", email).is("trial_start", null).select("email");
-  if (!upd || upd.length === 0) return;   // someone else set it first — don't fire twice
-  if (TRIAL_STARTED_WEBHOOK) {
-    try {
-      await fetch(TRIAL_STARTED_WEBHOOK, {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name: name ?? tc.full_name ?? "", email, phone: phone ?? "",
-          trial_start: startDay, trial_end: endDay,
-          step_key: "welcome", template_key: "trial_welcome",
-        }),
-      });
-      // Log the auto-welcome so the Trial Nurture cockpit shows it as sent and
-      // never re-offers it. Best-effort; service role bypasses RLS.
-      await db.from("trial_nurture_log").insert({
-        email, step_key: "welcome", template_key: "trial_welcome", sent_by: "auto",
-      });
-    } catch (_) { /* welcome drip + log are best-effort */ }
-  }
+  // NB: the WELCOME is NOT fired here — it goes out on JOIN (see the TRIAL_30 branch below).
+  // This function only STARTS THE CLOCK (trial_start) on the first booked session, so the 30-day
+  // drip day-counts align with when they actually start training.
 }
 
 // ── Access-by-membership (must match manage-members) ──────────────────────────
@@ -218,15 +203,36 @@ async function processEvent(db: any, body: any) {
     const planName = String(membership.membershipType ?? membership.membershipPlan ?? "").trim().toLowerCase();
     const productLabel = membership.membershipPlan ?? membership.membershipType ?? null;
     if (TRIAL_30.includes(planName)) {
+      // 30-day: the WELCOME fires now (on join) so it lands when they sign up, but the CLOCK
+      // (trial_start) is deliberately left null — it starts from their FIRST booked session (see
+      // maybeStartTrial) so the drip day-counts line up with when they actually start training.
       await db.from("trial_cohort").upsert({
         email,
         full_name: member.fullName ?? null,
         trial_product: productLabel,
-        // trial_start / trial_end are deliberately NOT set on join — the 30-day clock starts from
-        // their FIRST booked session (see maybeStartTrial), so the drip + app day-count line up.
-        // Omitting them here leaves an existing trial_start untouched and defaults a new row to null.
         updated_at: nowIso,
       }, { onConflict: "email" });   // note: does not touch `converted`, so a re-add won't un-convert
+      // Fire the welcome ONCE — guard on whether one's already been logged, so a renewal / re-add
+      // membership event can't send a second welcome.
+      if (TRIAL_STARTED_WEBHOOK) {
+        const { data: prevWelcome } = await db.from("trial_nurture_log")
+          .select("id").eq("email", email).eq("step_key", "welcome").limit(1);
+        if (!prevWelcome || prevWelcome.length === 0) {
+          try {
+            await fetch(TRIAL_STARTED_WEBHOOK, {
+              method: "POST", headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                name: member.fullName ?? "", email,
+                phone: member.mobile ?? member.phone ?? "",
+                step_key: "welcome", template_key: "trial_welcome",
+              }),
+            });
+            await db.from("trial_nurture_log").insert({
+              email, step_key: "welcome", template_key: "trial_welcome", sent_by: "auto",
+            });
+          } catch (_) { /* welcome + log are best-effort */ }
+        }
+      }
     } else if (isKickstart21(planName)) {
       // 21-day Kickstart is gym/classes-only — there's no coached "first session" to start the
       // clock (maybeStartTrial never fires for them), so the 21-day window starts at the join/
