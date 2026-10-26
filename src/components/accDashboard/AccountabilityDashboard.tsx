@@ -49,7 +49,7 @@ import { toDisplayableImage } from "@/lib/imageUpload";
 
 export interface DashboardProps {
   onOpenOnboarding?: () => void;
-  onOpenCheckin?: () => void;
+  onOpenCheckin?: (week?: number) => void;
   onOpenFinal?: () => void;
   /** Preview mode: inject all data instead of loading from the current user. */
   previewData?: PreviewData;
@@ -341,6 +341,11 @@ export function AccountabilityDashboard({
   const weeklyDone = (w: number) =>
     checkins.some((c) => c.week_number === w && c.submitted_at);
   const checkinDue = !weeklyDone(week) && week >= 1 && week <= 6;
+  // Last week's check-in is still open if they moved into a new week without
+  // completing it — keep it accessible so they can catch up.
+  const prevWeek = week - 1;
+  const prevCheckinOpen =
+    prevWeek >= 1 && prevWeek <= 6 && !weeklyDone(prevWeek);
 
   const latestReply = [...checkins]
     .filter((c) => c.coach_replied_at)
@@ -465,7 +470,7 @@ export function AccountabilityDashboard({
   const onStartCheckin = () => {
     if (readOnly) return;
     if (week === 6) onOpenFinal?.();
-    else onOpenCheckin?.();
+    else onOpenCheckin?.(week);
   };
 
   const obStatus = onboardingStatus(client);
@@ -544,6 +549,27 @@ export function AccountabilityDashboard({
         readOnly={readOnly}
       />
 
+      {/* Catch-up: last week's check-in is still open */}
+      {!readOnly && prevCheckinOpen && (
+        <button
+          type="button"
+          onClick={() => onOpenCheckin?.(prevWeek)}
+          className="flex w-full items-center justify-between gap-3 rounded-xl border border-amber-300/60 bg-amber-50 p-4 text-left dark:border-amber-900/50 dark:bg-amber-950/30"
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+              You still have last week's check-in to do
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Week {prevWeek} check-in isn't finished — tap to complete it.
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full bg-amber-500 px-3 py-1.5 text-xs font-bold text-white">
+            Open Week {prevWeek}
+          </span>
+        </button>
+      )}
+
       <LiveCallCard
         callUrl={cohort.call_url}
         callLabel={cohort.call_label}
@@ -555,6 +581,7 @@ export function AccountabilityDashboard({
         clientCreated={client.created_at}
         weeklyDone={weeklyDone}
         week={week}
+        onOpenWeek={readOnly ? undefined : (w) => onOpenCheckin?.(w)}
       />
 
       <HabitsCard

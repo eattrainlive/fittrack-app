@@ -8,11 +8,14 @@ export function FormsStatusCard({
   clientCreated,
   weeklyDone,
   week,
+  onOpenWeek,
 }: {
   onboardingDone: boolean;
   clientCreated?: string;
   weeklyDone: (w: number) => boolean;
   week: number;
+  /** Open a given week's check-in form (current + last week only). */
+  onOpenWeek?: (w: number) => void;
 }) {
   return (
     <Card className="bg-card border-border">
@@ -29,6 +32,11 @@ export function FormsStatusCard({
           const done = weeklyDone(t.week);
           const isCurrent = week === t.week;
           const isFuture = week < t.week;
+          // Openable: the current week, or last week if not yet done (catch-up).
+          const openable =
+            !!onOpenWeek &&
+            !done &&
+            (isCurrent || t.week === week - 1);
           return (
             <FormStatusRow
               key={t.week}
@@ -40,10 +48,13 @@ export function FormsStatusCard({
                     ? "Due now"
                     : isFuture
                       ? "Upcoming"
-                      : "Due"
+                      : t.week === week - 1
+                        ? "Still open"
+                        : "Due"
               }
               done={done}
               locked={isFuture}
+              onClick={openable ? () => onOpenWeek!(t.week) : undefined}
             />
           );
         })}

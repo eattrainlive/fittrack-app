@@ -40,14 +40,16 @@ export function FormStatusRow({
   status,
   done,
   locked,
+  onClick,
 }: {
   label: string;
   status: string;
   done?: boolean;
   locked?: boolean;
+  onClick?: () => void;
 }) {
-  return (
-    <div className="flex items-center justify-between gap-2 text-sm">
+  const inner = (
+    <>
       <span className="flex items-center gap-2">
         {done ? (
           <Check className="w-3.5 h-3.5 text-primary" />
@@ -59,16 +61,34 @@ export function FormStatusRow({
         {label}
       </span>
       <span
-        className={`text-xs ${
+        className={`text-xs font-medium ${
           done
             ? "text-primary"
             : locked
               ? "text-muted-foreground/50"
-              : "text-muted-foreground"
+              : onClick
+                ? "text-primary"
+                : "text-muted-foreground"
         }`}
       >
-        {status}
+        {onClick ? `${status} ›` : status}
       </span>
+    </>
+  );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-2 text-sm text-left transition hover:bg-primary/10"
+      >
+        {inner}
+      </button>
+    );
+  }
+  return (
+    <div className="flex items-center justify-between gap-2 px-2.5 py-1 text-sm">
+      {inner}
     </div>
   );
 }

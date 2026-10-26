@@ -533,3 +533,38 @@ the OLD day-based trial drip automations in GHL for BOTH trials** (30-day coache
 Kickstart) so trialists don't get the old auto-messages on top of the new engine/Carla sends. The new
 system = welcome auto-fires via gymos-webhook + everything else Carla-sent from the cockpit/chat. The
 old time-based workflows must be disabled to avoid double-messaging. (Reminder requested by Michael.)
+
+33. **Trial nurture GO-LIVE (2026-10-26)** — both funnels now sending end-to-end via a single GHL
+    workflow; Zapier removed from the loop. Confirmed working on a real GymOS join.
+    - GHL "Trial nurture — send" workflow (one workflow, both funnels): Inbound Webhook → **Create/
+      Update Contact** (Email + Full name + **Phone**) → **Update Coach Note** = {{inboundWebhookRequest
+      .coach_note}} → **Condition branch on template_key → Send WhatsApp** (19 branches: 9 `trial_*`
+      + 10 `trial_k21_*`), each with Delivered / Undelivered→**SMS** fallback (SMS body uses
+      {{contact.first_name}} + {{contact.coach_note}} merge fields). GHL caps a Condition at ~10
+      branches → chained a SECOND Condition on the first's None path for the k21 keys. WhatsApp
+      template `{{2}}` maps to `{{contact.coach_note}}`. Note-free templates built with NO `{{2}}`
+      (empty var = WhatsApp rejects). Webhook URL = …/webhook-trigger/e67d20ca-… ; set as BOTH Netlify
+      `GHL_TRIAL_NURTURE_WEBHOOK_URL` (coach sends) and Supabase secret `TRIAL_STARTED_WEBHOOK_URL`
+      (auto-welcome). Doc: GHL_nurture_send_workflow.md. ✅ tested — contact+phone, coach-note merge,
+      both Conditions, a real k21 join (benjbernadas, k21_welcome auto) + a 30-day welcome all landed.
+    - ZAPIER DROPPED: GymOS payload includes `subject.member.mobile` in +44 E.164, so the webhook now
+      forwards `phone` to GHL — no Zapier needed to carry the number. (Old Zapier `u0g0sni` fed the old
+      21-day funnel.)
+    - gymos-webhook (REDEPLOY on each change): now passes `phone` (member.mobile) on both welcome
+      fires. WELCOME TIMING (final design): 30-day welcome fires **on JOIN** (so it lands at signup)
+      but `trial_start`/CLOCK still starts on their **first booked session** (maybeStartTrial; welcome
+      removed from there). Guarded so a renewal/re-add can't re-send the welcome (checks
+      trial_nurture_log for an existing 'welcome'). 21-day: welcome + clock both on join.
+    - SENT-TEMPLATE MIRROR: coach cockpit/chat sends now show in the in-app thread immediately —
+      sendStep passes `message_body` (renderFullMessage), trial-nurture.js inserts it into
+      member_messages (direction out, service role). (Auto-welcome still not mirrored — fires from the
+      webhook, not the proxy; shows after member replies. Could add later if wanted.)
+    - OLD FUNNELS (DECISION): keep the two old GHL funnels (21-day via webhook `9f6356d8`, 30-day via
+      `76366a09`) but **TRIM them to setup-only** — keep Create contact / Add Tag / Create-Update
+      Opportunity / **Welcome EMAIL**; DELETE the WhatsApp Welcome + Delivered/Undelivered SMS + all
+      Wait-X-days drip steps (end the funnel at the Welcome Email). New system owns ALL WhatsApp
+      (welcome + steps). Zapier stays (still feeds the trimmed old funnels for tag/opportunity/email).
+      ⚠️ STILL TO DO: Michael to trim both old funnels + confirm no double-welcome.
+    FILES this session: gymos-webhook/index.ts(redeploy), netlify/functions/trial-nurture.js,
+    trialNurture.ts, GHL_nurture_send_workflow.md, GHL_trial_k21_templates_carla.md (all 10 k21
+    templates finalised + note-free flags). esbuild-clean + live-tested.

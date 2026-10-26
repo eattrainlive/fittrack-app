@@ -80,6 +80,9 @@ const Accountability = () => {
   const [view, setView] = useState<
     "dashboard" | "weeks" | "onboarding" | "checkin" | "final"
   >("dashboard");
+  // Which week's check-in form to open (null = the current week). Lets a member
+  // open the current week's OR last week's (missed) check-in.
+  const [checkinWeek, setCheckinWeek] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -197,9 +200,10 @@ const Accountability = () => {
         <WeeklyCheckin
           client={client}
           cohort={cohort}
-          week={week}
+          week={checkinWeek ?? week}
           onDone={() => {
             reload();
+            setCheckinWeek(null);
             setView("dashboard");
           }}
         />
@@ -417,7 +421,10 @@ const Accountability = () => {
         <AccountabilityDashboard
           key={dashKey}
           onOpenOnboarding={() => setView("onboarding")}
-          onOpenCheckin={() => setView("checkin")}
+          onOpenCheckin={(w?: number) => {
+            setCheckinWeek(w ?? null);
+            setView("checkin");
+          }}
           onOpenFinal={() => setView("final")}
         />
       )}
