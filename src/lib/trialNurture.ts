@@ -874,6 +874,8 @@ export async function sendStep(args: SendStepArgs): Promise<{ ok: boolean; error
         step_key: step.key,
         template_key: step.templateKey,
         coach_note: note,
+        // Rendered message text so the proxy can mirror it into the in-app thread.
+        message_body: renderFullMessage(step, trialist.name, note),
         trial_start: trialist.trialStart ?? null,
         trial_end: trialist.trialEnd ?? null,
         trial_day: trialist.trialDay ?? null,

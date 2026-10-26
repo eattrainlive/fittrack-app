@@ -91,6 +91,34 @@ export const handler = async (event) => {
       redirect: "follow",
     });
     if (!r.ok) return reply(502, { ok: false, error: `ghl ${r.status}` });
+
+    // Mirror the sent template into the member's in-app thread so the coach has an
+    // immediate snapshot of what went out (GHL template sends don't trigger the
+    // inbound sync). Best-effort; service role bypasses RLS.
+    const messageBody = String(body.message_body || "").trim();
+    if (messageBody && SB_URL && SB_SERVICE) {
+      try {
+        await fetch(`${SB_URL}/rest/v1/member_messages`, {
+          method: "POST",
+          headers: {
+            apikey: SB_SERVICE,
+            Authorization: `Bearer ${SB_SERVICE}`,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify({
+            email: email.toLowerCase(),
+            direction: "out",
+            body: messageBody,
+            channel: "whatsapp",
+            template_key: templateKey,
+            status: "sent",
+            occurred_at: new Date().toISOString(),
+          }),
+        });
+      } catch (_) { /* mirror is best-effort */ }
+    }
+
     return reply(200, { ok: true });
   } catch (e) {
     return reply(502, { ok: false, error: String(e) });
