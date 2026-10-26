@@ -26,7 +26,7 @@ const admin = () => createClient(SUPABASE_URL, SERVICE_ROLE);
 
 // Start a trialist's 30-day clock from their FIRST booked session (not their join date).
 // Sets trial_start/trial_end once, then pings GHL to kick off the 30-day follow-up drip.
-async function maybeStartTrial(db: any, email: string | null, name: string | null, sessionAt: any) {
+async function maybeStartTrial(db: any, email: string | null, name: string | null, sessionAt: any, phone: string | null = null) {
   if (!email || !sessionAt) return;
   const { data: tc } = await db.from("trial_cohort")
     .select("email, full_name, trial_start").eq("email", email).maybeSingle();
@@ -46,7 +46,8 @@ async function maybeStartTrial(db: any, email: string | null, name: string | nul
       await fetch(TRIAL_STARTED_WEBHOOK, {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          name: name ?? tc.full_name ?? "", email, trial_start: startDay, trial_end: endDay,
+          name: name ?? tc.full_name ?? "", email, phone: phone ?? "",
+          trial_start: startDay, trial_end: endDay,
           step_key: "welcome", template_key: "trial_welcome",
         }),
       });
@@ -241,12 +242,27 @@ async function processEvent(db: any, body: any) {
         trial_product: productLabel,
         updated_at: nowIso,
       }, { onConflict: "email" });   // does not touch `converted`
-      await db.from("trial_cohort")
+      // Guarded (is null) so a re-add can't reset the clock OR re-fire the welcome.
+      const { data: k21Upd } = await db.from("trial_cohort")
         .update({ trial_start: startDay, trial_end: endDay, updated_at: nowIso })
-        .eq("email", email).is("trial_start", null);
-      // NB: no auto-welcome drip fired here on purpose — Kickstart copy is Carla-sent from the
-      // cockpit until the k21 templates are approved, so the engine surfaces them rather than
-      // auto-sending placeholder copy.
+        .eq("email", email).is("trial_start", null).select("email");
+      // Auto-fire the Kickstart welcome ONCE, the first time the clock starts.
+      if (k21Upd && k21Upd.length > 0 && TRIAL_STARTED_WEBHOOK) {
+        try {
+          await fetch(TRIAL_STARTED_WEBHOOK, {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: member.fullName ?? "", email,
+              phone: member.mobile ?? member.phone ?? "",
+              trial_start: startDay, trial_end: endDay,
+              step_key: "k21_welcome", template_key: "trial_k21_welcome",
+            }),
+          });
+          await db.from("trial_nurture_log").insert({
+            email, step_key: "k21_welcome", template_key: "trial_k21_welcome", sent_by: "auto",
+          });
+        } catch (_) { /* welcome + log are best-effort */ }
+      }
     } else if (planName) {
       // a paid membership joined — mark conversion for a former 30-day trialist
       await db.from("trial_cohort")
@@ -300,7 +316,7 @@ async function syncBooking(db: any, body: any) {
 
   // A trialist's FIRST booked session starts their 30-day clock (skip cancellations).
   if (status !== "cancelled") {
-    try { await maybeStartTrial(db, email, member.fullName ?? null, sessionAt); }
+    try { await maybeStartTrial(db, email, member.fullName ?? null, sessionAt, member.mobile ?? member.phone ?? null); }
     catch (e) { console.error("maybeStartTrial:", (e as Error).message); }
   }
 }
