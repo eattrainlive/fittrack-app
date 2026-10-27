@@ -61,7 +61,7 @@ const Auth = () => {
       // Self-heal: a successful password sign-in means the member has truly
       // completed setup — stamp onboarded_at so the Staff Hub shows "On app".
       markOnboarded();
-      toast({ title: "Success", description: "Logged in successfully!" });
+      // No "logged in" toast — it overlapped the scan-in button on the home screen.
       navigate(searchParams.get("redirect") || "/");
     }
     setLoading(false);
