@@ -3,6 +3,7 @@ import { Plus, Trash2, Dumbbell, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Stepper, TimeStepper, columnsFor } from "@/lib/workoutHelpers";
 import { resolveTrackingType } from "@/lib/tracking";
+import { SwapExerciseButton } from "@/components/SwapExerciseButton";
 
 interface AmrapLogSetProps {
   /** The block's exercises (already loaded into the session). */
@@ -16,6 +17,10 @@ interface AmrapLogSetProps {
   onRoundsChange?: (rounds: number) => void;
   /** Open the tutorial video for an exercise (same modal the strength rows use). */
   onOpenVideo?: (url: string, title: string) => void;
+  /** Enrichment table (alternatives) — enables the Swap button. */
+  enrichment?: Record<string, any>;
+  /** Whether the active programme is Foundations (restricts swaps to easier/safe). */
+  isFoundations?: boolean;
 }
 
 /**
@@ -38,6 +43,8 @@ export function AmrapLogSet({
   onUpdateExercise,
   onRoundsChange,
   onOpenVideo,
+  enrichment = {},
+  isFoundations = false,
 }: AmrapLogSetProps) {
   // Live input values per exercise for the NEXT round to be logged.
   const [liveValues, setLiveValues] = useState<Record<number, any>>({});
@@ -199,6 +206,16 @@ export function AmrapLogSet({
                   <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
                     Each Side
                   </span>
+                )}
+                {libEx && (
+                  <SwapExerciseButton
+                    libraryExercise={libEx}
+                    exerciseLibrary={exerciseLibrary}
+                    enrichment={enrichment}
+                    isFoundations={isFoundations}
+                    compact
+                    onSwap={(newId) => onUpdateExercise(ex.id, "name", newId)}
+                  />
                 )}
               </div>
               <div

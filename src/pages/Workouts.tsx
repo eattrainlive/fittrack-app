@@ -2567,6 +2567,10 @@ const Workouts = () => {
                                   exercises={currentBlock.exercises}
                                   exerciseLibrary={exerciseLibrary}
                                   sectionType={st2}
+                                  enrichment={enrichment}
+                                  isFoundations={
+                                    activeProgram?.stream === "Foundations"
+                                  }
                                   onUpdateExercise={updateExercise}
                                   onOpenVideo={(url, title) => {
                                     setVideoTutorial(url);

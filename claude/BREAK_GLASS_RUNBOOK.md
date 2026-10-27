@@ -11,18 +11,18 @@ the repo.
 
 ## 0. Who to contact first
 - **Owner / main contact:** Michael Quirk — ☎ __________  ✉ michael@eattrainlivesmart.co.uk
-- **Break-glass person (backup):** __________  ☎ __________  ✉ __________
+- **Break-glass person (backup):** JJ — ☎ 07414 657217  ✉ jjkey1995@gmail.com
 - **Build/dev help (if needed):** __________
 
 ## 1. Where everything lives (the whole system)
 | Thing | What it does | Where / URL | Who has access |
 | --- | --- | --- | --- |
-| **GitHub repo** | The app's source code (the source of truth) | github.com/__________ | __________ |
-| **Netlify** | Hosts the live app + auto-deploys from GitHub | app.netlify.com → site "__________" | __________ |
-| **Supabase** | Database + edge functions (webhooks) | supabase.com → project `juvofqqtvakltlwqqhkn` | __________ |
-| **GoHighLevel (GHL)** | WhatsApp/SMS + trial nurture workflows | app.gohighlevel.com (ETL sub-account) | __________ |
-| **GymOS** | Membership + bookings (feeds the webhook) | __________ | __________ |
-| **Password manager** | All the logins above, shared safely | 1Password / Bitwarden vault "__________" | __________ |
+| **GitHub repo** | The app's source code (the source of truth) | github.com/eattrainlive/fittrack-app | Michael, JJ |
+| **Netlify** | Hosts the live app + auto-deploys from GitHub | app.netlify.com → site "etlfittrack" | Michael, JJ |
+| **Supabase** | Database + edge functions (webhooks) | supabase.com → project `juvofqqtvakltlwqqhkn` | Michael, JJ |
+| **GoHighLevel (GHL)** | WhatsApp/SMS + trial nurture workflows | app.gohighlevel.com (ETL sub-account) | Michael, JJ |
+| **GymOS** | Membership + bookings (feeds the webhook) | my.gymos.com | Michael, JJ |
+| **Password manager** | All the logins above, shared safely | 1Password / Bitwarden vault "ETL FitTrack — Break Glass" | Michael, JJ |
 
 The **live app** is at: https://etlfittrack.netlify.app
 
@@ -69,12 +69,33 @@ The break-glass person doesn't need Michael's chat — they need **their own Cla
 > The repo's `status.md` + catch-up docs ARE the backup brain. Keeping them current is what makes
 > any new Claude session (or any developer) able to help. Update them after every change.
 
-## 7. Prevention checklist (do these once)
-- [ ] Add the break-glass person to GitHub, Netlify, Supabase, GHL, GymOS.
-- [ ] Put every login in a **shared password-manager vault** (never plain text / email).
+## 7. Setting JJ up as break-glass person (do these once)
+
+**Approach:** JJ gets his own login where it's free (GitHub, Netlify). Where a service charges
+for extra seats (Supabase team is £500+/mo — not worth it for a backup), JJ uses the shared
+**password-manager vault** login instead. Every login lives in the vault either way, as backup.
+
+**Status:** ✅ GitHub + Netlify — JJ has his own login (these cover the main fix, the rollback).
+Supabase / GHL / GymOS — vault login only.
+
+### 7a. Create the shared vault
+- [ ] Create a shared vault in **1Password or Bitwarden** (e.g. vault name "ETL FitTrack — Break Glass").
+- [ ] Invite JJ to it.
+- [ ] Add every login below to it as they're set up.
+
+### 7b. Invite JJ to each service
+- [x] **Netlify** (most important — this is the rollback) → JJ has his own login. ✅
+- [x] **GitHub** → JJ added as a collaborator (Write). ✅
+- [ ] **Supabase** → team seats cost £500+/mo, so NOT a separate seat. Put the Supabase login in
+      the shared vault; JJ signs in with that when needed. Project `juvofqqtvakltlwqqhkn`.
+- [ ] **GoHighLevel** → add JJ as a user if free (Settings → My Staff); otherwise vault login.
+- [ ] **GymOS** → add JJ as a staff user if free (my.gymos.com); otherwise vault login.
+
+### 7c. Safety net
 - [ ] Confirm nothing critical lives only on Michael's laptop (all code pushed to GitHub, all secrets
       in Netlify/Supabase).
 - [ ] Set up an **uptime monitor** (e.g. UptimeRobot / Better Stack) pinging etlfittrack.netlify.app
-      that emails/texts the break-glass person if it goes down.
+      that emails/texts JJ if it goes down.
 - [ ] Print this runbook; store a copy in the gym office + shared drive.
-- [ ] Do a 10-minute walkthrough with the break-glass person: show them the Netlify rollback.
+- [ ] Do a 10-minute walkthrough with JJ: show him the **Netlify rollback** (§3) — that alone covers
+      most emergencies.
