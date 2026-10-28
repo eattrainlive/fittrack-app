@@ -128,10 +128,17 @@ export function RecipeCards({
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
 
   const loadRecipes = useCallback(async () => {
-    const all = await getRecipes();
-    setRecipes(all);
-    const mine = await getMyRecipes();
-    setMyRecipes(mine as Recipe[]);
+    // Shared recipes drive the page — load these first and let the page render.
+    try {
+      const all = await getRecipes();
+      setRecipes(all);
+    } catch (e) {
+      console.error("getRecipes failed", e);
+    }
+    // Personal recipes are a bonus — never let them block/hang the page.
+    getMyRecipes()
+      .then((mine) => setMyRecipes(mine as Recipe[]))
+      .catch((e) => console.error("getMyRecipes failed", e));
   }, []);
 
   const loadDiary = useCallback(async (date: string) => {
@@ -144,8 +151,11 @@ export function RecipeCards({
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await loadRecipes();
-      setLoading(false);
+      try {
+        await loadRecipes();
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [loadRecipes]);
 
