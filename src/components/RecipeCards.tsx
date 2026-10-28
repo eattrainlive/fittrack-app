@@ -1030,6 +1030,8 @@ interface FoodResult {
   name: string;
   per100: { cal: number; protein: number; carbs: number; fats: number };
   serving: string | null;
+  /** Serving weight in grams, if the product provides one (e.g. 1 slice = 40g). */
+  servingG: number | null;
   image: string | null;
 }
 
@@ -1243,7 +1245,12 @@ function QuickAddDialog({
                   {results.map((r, i) => (
                     <button
                       key={i}
-                      onClick={() => setPicked(r)}
+                      onClick={() => {
+                        setPicked(r);
+                        // Default to the product's own serving (e.g. 1 slice =
+                        // 40g) if it has one, otherwise 100g.
+                        setGrams(r.servingG ? String(r.servingG) : "100");
+                      }}
                       className="w-full flex items-center gap-3 border border-border rounded-lg p-2.5 text-left hover:border-primary/40 transition-colors active:scale-[0.99]"
                     >
                       {r.image ? (
@@ -1316,16 +1323,56 @@ function QuickAddDialog({
 
                 <div className="space-y-1.5">
                   <Label className="text-xs">Portion (grams)</Label>
+                  {/* Quick portion buttons */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {picked.servingG && (
+                      <button
+                        type="button"
+                        onClick={() => setGrams(String(picked.servingG))}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all ${
+                          Number(grams) === picked.servingG
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "border-border text-muted-foreground"
+                        }`}
+                      >
+                        1 serving ({picked.servingG}g)
+                      </button>
+                    )}
+                    {picked.servingG && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setGrams(String((picked.servingG || 0) * 2))
+                        }
+                        className="text-[11px] font-bold px-2.5 py-1 rounded-full border border-border text-muted-foreground"
+                      >
+                        2 servings
+                      </button>
+                    )}
+                    {[50, 100, 150].map((g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setGrams(String(g))}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all ${
+                          Number(grams) === g
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "border-border text-muted-foreground"
+                        }`}
+                      >
+                        {g}g
+                      </button>
+                    ))}
+                  </div>
                   <Input
                     type="number"
                     value={grams}
                     onChange={(e) => setGrams(e.target.value)}
                     placeholder="100"
-                    autoFocus
                   />
                   {picked.serving && (
                     <p className="text-[10px] text-muted-foreground">
-                      Serving size: {picked.serving}
+                      Pack serving size: {picked.serving}
                     </p>
                   )}
                 </div>

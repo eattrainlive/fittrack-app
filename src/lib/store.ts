@@ -2404,6 +2404,17 @@ const mapOffProducts = (products: any[]) =>
         fats: Math.round(p.nutriments["fat_100g"] || 0),
       },
       serving: p.serving_size || null,
+      servingG:
+        p.serving_quantity != null && !isNaN(Number(p.serving_quantity))
+          ? Number(p.serving_quantity)
+          : (() => {
+              // Fall back to parsing grams out of the serving_size string
+              // (e.g. "40 g", "2 slices (80g)"). Ignore ml/cl (liquids).
+              const m = String(p.serving_size || "").match(
+                /(\d+(?:\.\d+)?)\s*g\b/i,
+              );
+              return m ? Number(m[1]) : null;
+            })(),
       image: p.image_small_url || null,
     }));
 
@@ -2419,7 +2430,8 @@ const fetchJson = async (url: string, timeoutMs = 8000) => {
   }
 };
 
-const FIELDS = "product_name,brands,nutriments,serving_size,image_small_url";
+const FIELDS =
+  "product_name,brands,nutriments,serving_size,serving_quantity,image_small_url";
 
 export const searchFoods = async (q: string) => {
   if (!q || q.trim().length < 2) return [];
@@ -2434,12 +2446,13 @@ export const searchFoods = async (q: string) => {
   } catch (e) {
     console.warn("off-search proxy failed, trying OFF directly", e);
   }
-  // Fallback: hit Open Food Facts directly (works in some browsers/networks).
-  const v2 =
-    `https://world.openfoodfacts.org/api/v2/search?search_terms=${term}` +
-    `&fields=${FIELDS}&page_size=20`;
+  // Fallback: hit Open Food Facts directly (legacy cgi — it ranks by the query,
+  // unlike the v2 API). Works in some browsers/networks when the proxy can't.
+  const cgi =
+    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${term}` +
+    `&search_simple=1&json=1&page_size=20&sort_by=popularity_key&fields=${FIELDS}`;
   try {
-    const data = await fetchJson(v2);
+    const data = await fetchJson(cgi);
     return mapOffProducts(data.products);
   } catch (e) {
     console.warn("searchFoods failed", e);

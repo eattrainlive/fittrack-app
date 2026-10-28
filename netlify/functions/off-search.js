@@ -7,7 +7,8 @@
 // Usage: GET /.netlify/functions/off-search?q=hovis
 // Returns: { products: [...] } with the fields the client needs.
 
-const FIELDS = "product_name,brands,nutriments,serving_size,image_small_url";
+const FIELDS =
+  "product_name,brands,nutriments,serving_size,serving_quantity,image_small_url";
 const UA = "ETL-FitTrack/1.0 (michael@eattrainlivesmart.co.uk)";
 
 const H = {
@@ -40,18 +41,33 @@ export const handler = async (event) => {
   if (q.length < 2) return reply(200, { products: [] });
   const term = encodeURIComponent(q);
 
-  const v2 = `https://world.openfoodfacts.org/api/v2/search?search_terms=${term}&fields=${FIELDS}&page_size=20`;
-  const cgi = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${term}&search_simple=1&json=1&page_size=20&fields=${FIELDS}`;
+  // Legacy cgi search does proper full-text relevance ranking (the v2 API does
+  // not rank by the query, which was returning random products). Sort by
+  // popularity and bias toward UK products so British brands surface first.
+  const cgiUK =
+    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${term}` +
+    `&search_simple=1&json=1&page_size=20&sort_by=popularity_key&fields=${FIELDS}` +
+    `&tagtype_0=countries&tag_contains_0=contains&tag_0=united-kingdom`;
+  const cgi =
+    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${term}` +
+    `&search_simple=1&json=1&page_size=20&sort_by=popularity_key&fields=${FIELDS}`;
+
+  const tryUrl = async (url) => {
+    const d = await offFetch(url);
+    return d?.products?.length ? d.products : null;
+  };
 
   try {
-    const data = await offFetch(v2);
-    if (data?.products?.length) return reply(200, { products: data.products });
-    const data2 = await offFetch(cgi);
-    return reply(200, { products: data2?.products || [] });
+    // 1) UK-biased relevance search.
+    const uk = await tryUrl(cgiUK);
+    if (uk) return reply(200, { products: uk });
+    // 2) Global relevance search (no country filter).
+    const all = await tryUrl(cgi);
+    return reply(200, { products: all || [] });
   } catch (e) {
     try {
-      const data2 = await offFetch(cgi);
-      return reply(200, { products: data2?.products || [] });
+      const all = await tryUrl(cgi);
+      return reply(200, { products: all || [] });
     } catch (e2) {
       return reply(200, { products: [], error: String(e2) });
     }
