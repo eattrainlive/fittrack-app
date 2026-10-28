@@ -25,7 +25,8 @@ import {
   loadMealPlan,
   type SavedMealPlan,
 } from "@/lib/mealPlans";
-import { exportMealPlanPdf } from "@/lib/mealPlanPdf";
+import { exportMealPlanPdf, type RecipeDetail } from "@/lib/mealPlanPdf";
+import { getRecipes } from "@/lib/store";
 
 const isStaff = () =>
   typeof window !== "undefined" &&
@@ -132,6 +133,23 @@ export function MealPlanControls({
       toast.error("Nothing to export yet.");
       return;
     }
+    // Pull ingredients + method for any recipe items so the PDF carries the
+    // full recipes, not just names.
+    const recipeDetails: Record<string, RecipeDetail> = {};
+    const wantIds = new Set(
+      items.filter((i) => i.recipe_id).map((i) => String(i.recipe_id)),
+    );
+    if (wantIds.size) {
+      const all = await getRecipes();
+      for (const r of all as any[]) {
+        if (wantIds.has(String(r.id))) {
+          recipeDetails[String(r.id)] = {
+            ingredients: r.ingredients,
+            method: r.method,
+          };
+        }
+      }
+    }
     const title =
       pdfScope === "day"
         ? `Meal plan — ${new Date(selectedDate).toLocaleDateString("en-GB", {
@@ -143,7 +161,13 @@ export function MealPlanControls({
             "en-GB",
             { day: "numeric", month: "short" },
           )}`;
-    exportMealPlanPdf({ title, scope: pdfScope, items, targetCalories });
+    exportMealPlanPdf({
+      title,
+      scope: pdfScope,
+      items,
+      targetCalories,
+      recipeDetails,
+    });
     setPdfOpen(false);
   };
 
