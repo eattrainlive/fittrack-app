@@ -39,6 +39,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { MealPlanControls } from "@/components/MealPlanControls";
 import {
   getRecipes,
   getDiary,
@@ -542,6 +543,14 @@ export function RecipeCards({
           </p>
         )}
       </div>
+
+      {/* ── Save / load / PDF a day or week plan ──────────────────────── */}
+      <MealPlanControls
+        selectedDate={selectedDate}
+        weekStartDate={fmtDate(weekStart)}
+        targetCalories={targetCalories}
+        onLoaded={() => loadDiary(selectedDate)}
+      />
 
       {/* ── Meal type selector ────────────────────────────────────────── */}
       <div className="flex gap-2 overflow-x-auto pb-1">

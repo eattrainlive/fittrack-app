@@ -2285,6 +2285,24 @@ export const addDiaryItem = async (item: {
   return { success: !error, error };
 };
 
+/** Delete every diary item for a given date (used when a saved plan is loaded
+ *  with "replace"). */
+export const clearDiary = async (
+  date: string,
+): Promise<{ success: boolean; error?: any }> => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "not signed in" };
+  const { error } = await supabase
+    .from("food_diary")
+    .delete()
+    .eq("member_id", user.id)
+    .eq("date", date);
+  if (error) logError("clearDiary", "food_diary", error);
+  return { success: !error, error };
+};
+
 export const removeDiaryItem = async (
   id: string,
 ): Promise<{ success: boolean; error?: any }> => {

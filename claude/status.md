@@ -595,3 +595,17 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
 - Break-glass: JJ set up as backup (own GitHub+Netlify logins; Supabase/GHL/GymOS
   via shared vault). Docs: BREAK_GLASS_RUNBOOK.md, JJ_TRAINING_WALKTHROUGH.md,
   JJ_CHEAT_SHEET.md.
+
+## 35 — Quick Add food search fixed (2026-10-28)
+- Open Food Facts search returned nothing in-app (OFF blocks/rate-limits anon
+  browser traffic). Routed through new public Netlify fn netlify/functions/
+  off-search.js (sends descriptive User-Agent server-side). searchFoods() in
+  store.ts calls the proxy first, direct OFF as fallback.
+- Relevance: switched off the v2 API (doesn't rank by query — returned random
+  products) to legacy cgi full-text search, sort_by=popularity_key, biased to
+  United Kingdom products so UK brands surface first.
+- Portions: now carry serving_quantity/serving_size through to FoodResult
+  (servingG). Add screen defaults to the product's own serving and shows quick
+  buttons (1 serving (Xg), 2 servings, 50/100/150g) instead of forcing 100g.
+- Michael happy with it. Note: Build Your Own still staff-gated but he's OK to
+  open to members — flip the isStaff gate in MealPlansPage.tsx when ready.
