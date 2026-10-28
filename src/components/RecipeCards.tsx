@@ -1220,7 +1220,6 @@ function QuickAddDialog({
                       onChange={(e) => setQuery(e.target.value)}
                       placeholder="e.g. Hovis wholemeal"
                       className="pl-9"
-                      autoFocus
                     />
                   </div>
                 </div>

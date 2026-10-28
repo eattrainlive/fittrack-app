@@ -568,3 +568,30 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
     FILES this session: gymos-webhook/index.ts(redeploy), netlify/functions/trial-nurture.js,
     trialNurture.ts, GHL_nurture_send_workflow.md, GHL_trial_k21_templates_carla.md (all 10 k21
     templates finalised + note-free flags). esbuild-clean + live-tested.
+
+## 34 — Meal-plan Build Your Own live + recipe-load fixes (2026-10-28)
+- Wired Nutrition → Meal Plans → "Build Your Own" to render the real RecipeCards
+  day-planner (was a dead "coming soon"). Gated to STAFF only (localStorage
+  fittrack_is_staff==="true"); members still see "Soon". File: MealPlansPage.tsx.
+  Also fixed the Meal Plans route in Nutrition.tsx (was hardcoded <ComingSoon/>).
+- ROOT CAUSE of "recipes won't load / spinning wheel / 0 of 0": getRecipes in
+  store.ts wrote the full 452-recipe payload to localStorage BEFORE returning it.
+  Safari/WebKit (and the iOS PWA) has a much smaller quota than Chrome, so the
+  setItem threw QuotaExceededError and killed the load — worked in Chrome only.
+  FIX: wrapped the cache write in try/catch so a quota error no longer blocks the
+  return. (store.ts getRecipes.)
+- Also hardened RecipeCards: loadRecipes shows shared recipes first + never blocks
+  on getMyRecipes; load wrapped in try/finally so the spinner always clears; and
+  calorie-band accordions now OPEN by default (were collapsed → looked empty).
+- RLS: recipes table had only authenticated-scoped policies; added recipes_read
+  for `public` so the shared library reads even as anon / before auth hydrates.
+  SQL: recipes_read_policy_FIX.sql + recipes_read_policy_FIX2.sql (both run).
+- Recipe batch 1: 25 original high-protein low-cal recipes (macros computed),
+  import SQL at supabase/sql/recipes_batch1_import.sql + on-brand image tiles.
+  NOT yet imported — Michael reviewing CSV first.
+- Also: removed login-success toast (Auth.tsx) that covered the scan-in button;
+  burn/AMRAP blocks now have the same Swap button as strength rows
+  (SwapExerciseButton.tsx shared component).
+- Break-glass: JJ set up as backup (own GitHub+Netlify logins; Supabase/GHL/GymOS
+  via shared vault). Docs: BREAK_GLASS_RUNBOOK.md, JJ_TRAINING_WALKTHROUGH.md,
+  JJ_CHEAT_SHEET.md.
