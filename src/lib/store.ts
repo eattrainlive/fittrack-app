@@ -2188,7 +2188,14 @@ export const getRecipes = async (meal?: string) => {
   if (meal) query = query.eq("meal", meal);
   const { data } = await query;
   if (data) {
-    localStorage.setItem("fittrack_recipes", JSON.stringify(data));
+    // Cache for offline use, but NEVER let a storage-quota error (Safari/WebKit
+    // has a much smaller localStorage limit than Chrome) stop us returning the
+    // recipes. This was why recipes loaded in Chrome but not Safari / the app.
+    try {
+      localStorage.setItem("fittrack_recipes", JSON.stringify(data));
+    } catch (e) {
+      console.warn("recipes cache skipped (storage full)", e);
+    }
     return data;
   }
   const local = localStorage.getItem("fittrack_recipes");
