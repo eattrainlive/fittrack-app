@@ -163,11 +163,18 @@ export function RecipeCards({
     loadDiary(selectedDate);
   }, [selectedDate, loadDiary]);
 
-  // Reset pagination + open bands when filters or meal tab change
+  // Reset pagination and OPEN all bands by default when filters/tab/recipes change,
+  // so recipes are visible straight away (otherwise every band accordion starts
+  // collapsed and the page looks empty).
   useEffect(() => {
     setLimit(20);
-    setOpenBands(new Set());
-  }, [searchQuery, activeChips, fitsMyDay, activeMeal]);
+    const mealKey =
+      activeMeal === "Lunch" || activeMeal === "Dinner" ? "Main" : activeMeal;
+    const bands = new Set(
+      recipes.filter((r) => r.meal === mealKey).map((r) => r.band),
+    );
+    setOpenBands(bands);
+  }, [searchQuery, activeChips, fitsMyDay, activeMeal, recipes]);
 
   // Lunch and Dinner share the "Main" recipe set; Breakfast and Snack map 1:1
   const mealQuery = (tab: string) =>
