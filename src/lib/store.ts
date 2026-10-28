@@ -2424,29 +2424,25 @@ const FIELDS = "product_name,brands,nutriments,serving_size,image_small_url";
 export const searchFoods = async (q: string) => {
   if (!q || q.trim().length < 2) return [];
   const term = encodeURIComponent(q.trim());
-  // Primary: the faster/more reliable v2 search API.
+  // Primary: our Netlify proxy (sends a descriptive User-Agent server-side —
+  // Open Food Facts blocks/rate-limits anonymous browser requests, which is why
+  // direct calls returned nothing).
+  try {
+    const data = await fetchJson(`/.netlify/functions/off-search?q=${term}`);
+    const mapped = mapOffProducts(data.products);
+    if (mapped.length) return mapped;
+  } catch (e) {
+    console.warn("off-search proxy failed, trying OFF directly", e);
+  }
+  // Fallback: hit Open Food Facts directly (works in some browsers/networks).
   const v2 =
     `https://world.openfoodfacts.org/api/v2/search?search_terms=${term}` +
     `&fields=${FIELDS}&page_size=20`;
-  // Fallback: the legacy cgi search (slower, but catches gaps in v2).
-  const cgi =
-    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${term}` +
-    `&search_simple=1&json=1&page_size=20&fields=${FIELDS}`;
   try {
     const data = await fetchJson(v2);
-    const mapped = mapOffProducts(data.products);
-    if (mapped.length) return mapped;
-    // v2 returned nothing usable — try the legacy endpoint.
-    const data2 = await fetchJson(cgi);
-    return mapOffProducts(data2.products);
+    return mapOffProducts(data.products);
   } catch (e) {
     console.warn("searchFoods failed", e);
-    try {
-      const data2 = await fetchJson(cgi);
-      return mapOffProducts(data2.products);
-    } catch (e2) {
-      console.warn("searchFoods fallback failed", e2);
-      return [];
-    }
+    return [];
   }
 };
