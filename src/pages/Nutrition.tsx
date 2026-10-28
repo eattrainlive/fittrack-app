@@ -68,6 +68,7 @@ import {
 } from "@/components/ui/dialog";
 import { getEmbedUrl } from "@/lib/utils";
 import { ResourcesSection } from "@/components/ResourcesSection";
+import { MealPlansPage } from "@/components/MealPlansPage";
 import { StaffGuides } from "@/components/StaffGuides";
 import { StaffGuidesTile } from "@/components/StaffGuidesTile";
 import { AccountabilityCard } from "@/components/AccountabilityCard";
@@ -1010,7 +1011,7 @@ export default function Nutrition() {
           blurb="Recipe books and ideas from your coach."
         />
       ) : nutSection === "meal_plans" ? (
-        <ComingSoon title="Meal Plans" />
+        <MealPlansPage />
       ) : nutSection === "education" ? (
         <ResourcesSection
           page="nutrition_education"
