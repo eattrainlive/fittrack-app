@@ -2388,34 +2388,65 @@ export const updateRecipe = async (
 
 // ── Open Food Facts search (free, no API key, CORS-enabled) ──────────────────
 
+const mapOffProducts = (products: any[]) =>
+  (products || [])
+    .filter(
+      (p: any) => p.product_name && p.nutriments?.["energy-kcal_100g"] != null,
+    )
+    .map((p: any) => ({
+      name:
+        p.product_name +
+        (p.brands ? ` · ${String(p.brands).split(",")[0].trim()}` : ""),
+      per100: {
+        cal: Math.round(p.nutriments["energy-kcal_100g"] || 0),
+        protein: Math.round(p.nutriments["proteins_100g"] || 0),
+        carbs: Math.round(p.nutriments["carbohydrates_100g"] || 0),
+        fats: Math.round(p.nutriments["fat_100g"] || 0),
+      },
+      serving: p.serving_size || null,
+      image: p.image_small_url || null,
+    }));
+
+const fetchJson = async (url: string, timeoutMs = 8000) => {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error(`OFF HTTP ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(t);
+  }
+};
+
+const FIELDS = "product_name,brands,nutriments,serving_size,image_small_url";
+
 export const searchFoods = async (q: string) => {
   if (!q || q.trim().length < 2) return [];
-  const url =
-    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}` +
-    `&search_simple=1&json=1&page_size=20` +
-    `&fields=product_name,brands,nutriments,serving_size,image_small_url`;
+  const term = encodeURIComponent(q.trim());
+  // Primary: the faster/more reliable v2 search API.
+  const v2 =
+    `https://world.openfoodfacts.org/api/v2/search?search_terms=${term}` +
+    `&fields=${FIELDS}&page_size=20`;
+  // Fallback: the legacy cgi search (slower, but catches gaps in v2).
+  const cgi =
+    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${term}` +
+    `&search_simple=1&json=1&page_size=20&fields=${FIELDS}`;
   try {
-    const res = await fetch(url);
-    const data = await res.json();
-    return (data.products || [])
-      .filter(
-        (p: any) =>
-          p.product_name && p.nutriments?.["energy-kcal_100g"] != null,
-      )
-      .map((p: any) => ({
-        name:
-          p.product_name +
-          (p.brands ? ` · ${p.brands.split(",")[0].trim()}` : ""),
-        per100: {
-          cal: Math.round(p.nutriments["energy-kcal_100g"] || 0),
-          protein: Math.round(p.nutriments["proteins_100g"] || 0),
-          carbs: Math.round(p.nutriments["carbohydrates_100g"] || 0),
-          fats: Math.round(p.nutriments["fat_100g"] || 0),
-        },
-        serving: p.serving_size || null,
-        image: p.image_small_url || null,
-      }));
-  } catch {
-    return [];
+    const data = await fetchJson(v2);
+    const mapped = mapOffProducts(data.products);
+    if (mapped.length) return mapped;
+    // v2 returned nothing usable — try the legacy endpoint.
+    const data2 = await fetchJson(cgi);
+    return mapOffProducts(data2.products);
+  } catch (e) {
+    console.warn("searchFoods failed", e);
+    try {
+      const data2 = await fetchJson(cgi);
+      return mapOffProducts(data2.products);
+    } catch (e2) {
+      console.warn("searchFoods fallback failed", e2);
+      return [];
+    }
   }
 };
