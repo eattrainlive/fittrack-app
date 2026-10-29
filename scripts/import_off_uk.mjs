@@ -27,11 +27,34 @@
  *     OFF_MINKCAL skip products below this kcal/100g        (default 1)
  */
 
+import { readFileSync, writeFileSync } from "node:fs";
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const PAGES = Number(process.env.OFF_PAGES || 50);
 const MIN_KCAL = Number(process.env.OFF_MINKCAL || 1);
 const PAGE_SIZE = 100;
+
+// Cursor: remember which page to start from next run, so repeated runs sweep
+// THROUGH the catalogue instead of re-fetching page 1 every time (OFF returns
+// the same order each run, so without this we'd only ever see the early pages).
+// PAGE_START env overrides. RESET=1 restarts the sweep from page 1.
+const CURSOR_FILE = new URL("./.off_cursor", import.meta.url);
+const readCursor = () => {
+  try {
+    const n = parseInt(readFileSync(CURSOR_FILE, "utf8").trim(), 10);
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  } catch {
+    return 1;
+  }
+};
+const writeCursor = (n) => {
+  try {
+    writeFileSync(CURSOR_FILE, String(n));
+  } catch {
+    /* ignore */
+  }
+};
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
   console.error(
@@ -156,11 +179,19 @@ async function sb(path, init) {
 }
 
 async function main() {
-  console.log(`Fetching up to ${PAGES} pages (~${PAGES * PAGE_SIZE}) of UK products…`);
+  const START = process.env.RESET === "1" ? 1 : Number(process.env.PAGE_START || readCursor());
+  const END = START + PAGES - 1;
+  console.log(`Fetching up to ${PAGES} pages (pages ${START}–${END}) of UK products…`);
+
   const rows = [];
   const seen = new Set();
   let consecutiveFails = 0;
-  for (let page = 1; page <= PAGES; page++) {
+  let lastAttempted = START - 1;
+  let lastSuccess = START - 1; // highest page that actually returned data
+  let anySuccess = false;
+  let reachedEnd = false;
+  for (let page = START; page <= END; page++) {
+    lastAttempted = page;
     let products;
     try {
       products = await fetchPage(page);
@@ -175,8 +206,11 @@ async function main() {
       continue;
     }
     consecutiveFails = 0;
+    anySuccess = true;
+    lastSuccess = page;
     if (!products.length) {
-      console.log(`  page ${page}: no more results — reached the end.`);
+      console.log(`  page ${page}: no more results — reached the end of the catalogue.`);
+      reachedEnd = true;
       break;
     }
     let kept = 0;
@@ -193,8 +227,24 @@ async function main() {
     await sleep(800); // be polite to OFF
   }
 
+  // Advance the cursor only as far as we actually got data, so OFF outages
+  // don't make us skip pages we never managed to read:
+  //   • reached the true end  → wrap back to page 1
+  //   • got some pages        → continue just past the last one that worked
+  //   • total wipeout (all 503) → stay put and retry this window next time
+  let nextCursor;
+  if (reachedEnd) nextCursor = 1;
+  else if (anySuccess) nextCursor = lastSuccess + 1;
+  else nextCursor = START;
+  writeCursor(nextCursor);
+  console.log(
+    anySuccess || reachedEnd
+      ? `Next run will start at page ${nextCursor}.`
+      : `OFF was unreachable this run — next run will retry from page ${nextCursor}.`,
+  );
+
   if (!rows.length) {
-    console.error("No usable rows this run — nothing to add.");
+    console.error("No usable rows this run — nothing added. Try again (ideally when OFF is less busy).");
     process.exit(1);
   }
 
