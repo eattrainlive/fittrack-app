@@ -26,6 +26,7 @@ import {
   type SavedMealPlan,
 } from "@/lib/mealPlans";
 import { exportMealPlanPdf, type RecipeDetail } from "@/lib/mealPlanPdf";
+import { exportMealPlanImage } from "@/lib/mealPlanImage";
 import { getRecipes } from "@/lib/store";
 
 const isStaff = () =>
@@ -127,6 +128,34 @@ export function MealPlanControls({
     }
   };
 
+  const titleFor = (s: "day" | "week") =>
+    s === "day"
+      ? `Meal plan — ${new Date(selectedDate).toLocaleDateString("en-GB", {
+          weekday: "long",
+          day: "numeric",
+          month: "short",
+        })}`
+      : `Meal plan — week of ${new Date(weekStartDate).toLocaleDateString(
+          "en-GB",
+          { day: "numeric", month: "short" },
+        )}`;
+
+  const doImage = async (imgScope: "day" | "week") => {
+    const items = await buildPlanItems(imgScope, selectedDate, weekStartDate);
+    if (!items.length) {
+      toast.error("Nothing to export yet.");
+      return;
+    }
+    setPdfOpen(false);
+    const ok = await exportMealPlanImage({
+      title: titleFor(imgScope),
+      scope: imgScope,
+      items,
+      targetCalories,
+    });
+    if (!ok) toast.error("Couldn't make the image — try again.");
+  };
+
   const doPdf = async (pdfScope: "day" | "week") => {
     const items = await buildPlanItems(pdfScope, selectedDate, weekStartDate);
     if (!items.length) {
@@ -150,19 +179,8 @@ export function MealPlanControls({
         }
       }
     }
-    const title =
-      pdfScope === "day"
-        ? `Meal plan — ${new Date(selectedDate).toLocaleDateString("en-GB", {
-            weekday: "long",
-            day: "numeric",
-            month: "short",
-          })}`
-        : `Meal plan — week of ${new Date(weekStartDate).toLocaleDateString(
-            "en-GB",
-            { day: "numeric", month: "short" },
-          )}`;
     exportMealPlanPdf({
-      title,
+      title: titleFor(pdfScope),
       scope: pdfScope,
       items,
       targetCalories,
@@ -235,7 +253,7 @@ export function MealPlanControls({
           className="flex-1 gap-1.5 h-9"
           onClick={() => setPdfOpen(true)}
         >
-          <FileDown className="h-3.5 w-3.5" /> PDF
+          <FileDown className="h-3.5 w-3.5" /> Export
         </Button>
       </div>
 
@@ -382,28 +400,59 @@ export function MealPlanControls({
         </DialogContent>
       </Dialog>
 
-      {/* PDF scope choice */}
+      {/* Export choice: image (easy to save/share) or PDF (full recipes) */}
       <Dialog open={pdfOpen} onOpenChange={setPdfOpen}>
         <DialogContent className="w-[92vw] max-w-sm bg-card border-border">
           <DialogHeader>
             <DialogTitle className="font-heading tracking-wider">
-              Save as PDF
+              Export plan
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Export a printable plan you can save or share.
-          </p>
-          <div className="flex gap-2 pt-2">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => doPdf("day")}
-            >
-              This day
-            </Button>
-            <Button className="flex-1" onClick={() => doPdf("week")}>
-              This week
-            </Button>
+
+          <div className="space-y-1.5">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Save as image
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              Easiest to save to your photos & share. Plan summary only.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => doImage("day")}
+              >
+                This day
+              </Button>
+              <Button className="flex-1" onClick={() => doImage("week")}>
+                This week
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-1.5 pt-3 border-t border-border">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Save as PDF
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              Printable, with full recipes & ingredients.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => doPdf("day")}
+              >
+                This day
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => doPdf("week")}
+              >
+                This week
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

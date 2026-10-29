@@ -214,20 +214,56 @@ export function exportMealPlanPdf(opts: {
   ${body}
   ${recipesSection(items, recipeDetails)}
   <footer>Generated ${new Date().toLocaleDateString("en-GB")} · FitTrack</footer>
-  <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 300); };</script>
 </body></html>`;
 
-  const w = window.open("", "_blank");
-  if (w) {
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-    return true;
+  // Print via a hidden iframe so the user NEVER leaves the app. (The old
+  // approach opened a new window / navigated the current tab to a blob URL,
+  // which trapped people on the plan with no way back on mobile.)
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  document.body.appendChild(iframe);
+
+  const cleanup = () => {
+    setTimeout(() => {
+      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    }, 1000);
+  };
+
+  iframe.onload = () => {
+    try {
+      const win = iframe.contentWindow;
+      if (!win) throw new Error("no iframe window");
+      setTimeout(() => {
+        win.focus();
+        win.print();
+        cleanup();
+      }, 300);
+    } catch {
+      // Last-resort fallback: open in a NEW tab (never navigate the app itself).
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      cleanup();
+    }
+  };
+
+  const doc = iframe.contentWindow?.document;
+  if (doc) {
+    doc.open();
+    doc.write(html);
+    doc.close();
   }
-  // Popup blocked (common in iOS standalone PWA) — fall back to a Blob link in
-  // the same tab so the user can still view/save it.
-  const blob = new Blob([html], { type: "text/html" });
-  const url = URL.createObjectURL(blob);
-  window.location.href = url;
-  return false;
+  return true;
 }

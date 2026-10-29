@@ -609,3 +609,40 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   buttons (1 serving (Xg), 2 servings, 50/100/150g) instead of forcing 100g.
 - Michael happy with it. Note: Build Your Own still staff-gated but he's OK to
   open to members — flip the isStaff gate in MealPlansPage.tsx when ready.
+
+## 36 — Save/reload meal plans + PDF export (2026-10-29)
+- Build Your Own now has a Save / My Plans / PDF toolbar (MealPlanControls.tsx)
+  under the day summary in RecipeCards.tsx.
+- Save: name a plan, choose This day or This week; staff can tick "Share to
+  member library" (visibility=shared). Builds items from the diary.
+- My Plans: lists own + shared plans. Load prompts Add-on-top or Replace each
+  time, then writes into food_diary (day plans → selected date; week plans →
+  current week by dayIndex). Delete own only.
+- PDF (This day / This week): printable ETL-branded page via window.print()
+  (Save to PDF/Files; iOS popup-blocked fallback = Blob in same tab). Layout =
+  the plan laid out per meal with macros + totals, THEN a separate "Recipes"
+  section (page-break-before) listing each recipe's ingredients + method once
+  (deduped; custom foods have none). Verified render via screenshot.
+- New files: supabase/sql/saved_meal_plans.sql (RUN — table+RLS, read shared-or-
+  own), src/lib/mealPlans.ts, src/lib/mealPlanPdf.ts, src/components/
+  MealPlanControls.tsx. Edited: store.ts (added clearDiary), RecipeCards.tsx.
+- TO PUSH: all the above files. TO RUN: saved_meal_plans.sql.
+- Possible follow-on: make PDF method optional (ingredients-only toggle) if week
+  PDFs get too long.
+
+## 37 — Meal plan: image export + PDF trap fix (2026-10-29)
+- Added "Save as image" (overview only) alongside PDF. New src/lib/mealPlanImage.ts
+  renders the plan summary as an SVG (ETL dark card, per-meal items + macros, lime
+  totals bar; week = 7 day blocks) and rasterises to PNG on a canvas — NO library.
+  Delivers via navigator.share({files}) → native share sheet (Save Image / WhatsApp
+  in one tap), falls back to <a download>. Image = summary only; recipes stay in PDF.
+- Export button now opens a menu: Save as image (day/week, headline) + Save as PDF
+  (day/week, full recipes). MealPlanControls.tsx.
+- FIXED PDF trap: old exportMealPlanPdf opened a new window and, when popups were
+  blocked (iOS standalone PWA), did window.location.href=blobURL which navigated the
+  APP itself to the file — user stuck on the plan, no back. Now prints via a hidden
+  iframe (stays in app); last-resort fallback opens a NEW tab via <a target=_blank>,
+  never navigates the app. mealPlanPdf.ts.
+- Verified image SVG + PDF HTML render via screenshots.
+- TO PUSH: src/lib/mealPlanImage.ts (new), src/lib/mealPlanPdf.ts, src/components/
+  MealPlanControls.tsx.
