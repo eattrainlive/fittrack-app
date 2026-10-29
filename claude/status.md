@@ -646,3 +646,24 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
 - Verified image SVG + PDF HTML render via screenshots.
 - TO PUSH: src/lib/mealPlanImage.ts (new), src/lib/mealPlanPdf.ts, src/components/
   MealPlanControls.tsx.
+
+## 38 — Build Your Own live to members + recipe cookbook imports (2026-10-29)
+- Removed the staff gate on Build Your Own (MealPlansPage.tsx): the meal planner
+  (RecipeCards) now shows for ALL members, "Soon" badge gone. "Share to member
+  library" on Save stays staff-only (members save private plans). PUSH this file.
+- Recipe extraction pipeline (pdftohtml -xml positions → parse → import SQL +
+  images). Scripts live in outputs/etl_recipes, etl_book2, etl_book3.
+  - Book 1 "Aussie/ETL Recipes 1": 40 recipes, supabase/sql/recipes_book1_import.sql,
+    etl-book1-images (CMYK → inverted to RGB; serves=int, per-unit basis in `time`).
+  - Book 2 "High Protein Classics": 20 recipes, recipes_book2_import.sql (prep/cook
+    in `time`, no fibre).
+  - Book 3 "Stealth Health Meal Prep": 85 recipes, recipes_book3_import.sql
+    (US book — oz/lb converted to grams AT SOURCE; 5 "Counter-" mix-match entries
+    flagged). All images RGB.
+  - Each import SQL is re-runnable (clears its own etl-bookN- tag/name list first),
+    visibility=shared. Upload the matching images zip to the recipe-images bucket first.
+- Unit conversion: supabase/sql/convert_oz_lb_to_grams.sql — PL/pgSQL to_grams()
+  rewrites oz/lb → grams in ingredients+method across all recipes (macros untouched,
+  leaves fl oz, re-runnable). Existing UK library was already metric; Book 3 baked in.
+- Recipe image note: Supabase CDN caches by filename — when replacing an image, add
+  ?v=N to that recipe's image_url to bust cache (see hash-browns fix).

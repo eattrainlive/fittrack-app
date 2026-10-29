@@ -41,6 +41,11 @@ import {
 import { toast } from "sonner";
 import { MealPlanControls } from "@/components/MealPlanControls";
 import {
+  getFrequentFoods,
+  refreshFrequentFoods,
+  type FrequentFood,
+} from "@/lib/frequentFoods";
+import {
   getRecipes,
   getDiary,
   addDiaryItem,
@@ -197,6 +202,7 @@ export function RecipeCards({
       servings: 1,
     });
     if (res.success) {
+      refreshFrequentFoods();
       await loadDiary(selectedDate);
       toast.success(`${recipe.name} added to your day`);
     } else {
@@ -1075,6 +1081,10 @@ function QuickAddDialog({
   const [mCarbs, setMCarbs] = useState("");
   const [mFats, setMFats] = useState("");
 
+  // "Your usuals" — the member's most-logged foods for this meal.
+  const [usuals, setUsuals] = useState<FrequentFood[]>([]);
+  const [addingUsual, setAddingUsual] = useState<string | null>(null);
+
   useEffect(() => {
     if (open) {
       setMode("search");
@@ -1090,6 +1100,44 @@ function QuickAddDialog({
       setMFats("");
     }
   }, [open, defaultMeal]);
+
+  // Load the member's usuals for the selected meal.
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    getFrequentFoods(meal).then((f) => {
+      if (alive) setUsuals(f);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [open, meal]);
+
+  // Add a usual straight to the day (same macros as last time, one tap).
+  const handleAddUsual = async (f: FrequentFood) => {
+    setAddingUsual(f.name);
+    const res = await addDiaryItem({
+      date: selectedDate,
+      meal,
+      source: f.source,
+      recipe_id: f.recipe_id,
+      name: f.name,
+      calories: f.calories,
+      protein: f.protein,
+      carbs: f.carbs,
+      fats: f.fats,
+      servings: f.servings,
+    });
+    setAddingUsual(null);
+    if (res.success) {
+      refreshFrequentFoods();
+      toast.success(`${f.name} added`);
+      onSaved();
+      onClose();
+    } else {
+      toast.error("Couldn't add — try again");
+    }
+  };
 
   // Debounced search
   useEffect(() => {
@@ -1125,6 +1173,7 @@ function QuickAddDialog({
     });
     setSaving(false);
     if (res.success) {
+      refreshFrequentFoods();
       toast.success("Added to your day");
       onSaved();
       onClose();
@@ -1152,6 +1201,7 @@ function QuickAddDialog({
     });
     setSaving(false);
     if (res.success) {
+      refreshFrequentFoods();
       toast.success("Added to your day");
       onSaved();
       onClose();
@@ -1235,6 +1285,47 @@ function QuickAddDialog({
                   </div>
                 </div>
 
+                {/* Your usuals — instant, from the member's own history */}
+                {(() => {
+                  const q = query.trim().toLowerCase();
+                  const matches = usuals.filter(
+                    (f) => !q || f.name.toLowerCase().includes(q),
+                  );
+                  if (!matches.length) return null;
+                  return (
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                        {q ? "Your usuals" : `Your usuals for ${meal.toLowerCase()}`}
+                      </p>
+                      {matches.slice(0, q ? 4 : 8).map((f, i) => (
+                        <button
+                          key={i}
+                          onClick={() => handleAddUsual(f)}
+                          disabled={addingUsual === f.name}
+                          className="w-full flex items-center gap-3 border border-primary/30 bg-primary/5 rounded-lg p-2.5 text-left hover:bg-primary/10 transition-colors active:scale-[0.99]"
+                        >
+                          <div className="w-9 h-9 rounded-md bg-primary/15 flex items-center justify-center shrink-0">
+                            {addingUsual === f.name ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                            ) : (
+                              <Plus className="h-4 w-4 text-primary" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-bold truncate">
+                              {f.name}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {f.calories} kcal · P{f.protein} C{f.carbs} F
+                              {f.fats}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+
                 {searching && (
                   <div className="flex justify-center py-4">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -1243,7 +1334,10 @@ function QuickAddDialog({
 
                 {!searching &&
                   query.trim().length >= 2 &&
-                  results.length === 0 && (
+                  results.length === 0 &&
+                  usuals.filter((f) =>
+                    f.name.toLowerCase().includes(query.trim().toLowerCase()),
+                  ).length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-4">
                       No results found. Try a different term or use manual
                       entry.
