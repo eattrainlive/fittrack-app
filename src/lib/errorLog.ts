@@ -29,3 +29,26 @@ export const logError = async (
     /* never let logging break the app */
   }
 };
+
+// ── Auth event logging ───────────────────────────────────────────────────────
+// Records sign-outs and token-refresh failures into error_log so we can see
+// WHY people get logged out (e.g. "Invalid Refresh Token: Already Used") instead
+// of guessing. Visible in the Staff Hub "Sync Errors" panel. Fire-and-forget.
+export const logAuthEvent = async (
+  event: string,
+  detail: { email?: string | null; message?: string; [k: string]: any } = {},
+) => {
+  try {
+    await supabase.from("error_log").insert({
+      user_email: detail.email ?? null,
+      action: `auth:${event}`,
+      table_name: "auth",
+      message: (detail.message ?? event).slice(0, 500),
+      url: typeof window !== "undefined" ? window.location.href : null,
+      user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+      raw: detail,
+    });
+  } catch (_) {
+    /* never let logging break the app */
+  }
+};

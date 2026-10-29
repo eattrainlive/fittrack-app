@@ -18,6 +18,7 @@ import {
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { logAuthEvent } from "@/lib/errorLog";
 import {
   getNotifications,
   markNotificationRead,
@@ -99,6 +100,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       if (!session && hasStoredSession()) {
         const r = await supabase.auth.refreshSession();
         session = r.data.session ?? null;
+        // A stored token that can't be refreshed is the actual logout cause —
+        // log exactly why (e.g. "Invalid Refresh Token: Already Used").
+        if (!session && r.error) {
+          logAuthEvent("refresh_failed", {
+            email: localStorage.getItem("fittrack_last_email"),
+            message: r.error.message,
+            code: (r.error as any).code ?? (r.error as any).status ?? null,
+          });
+        }
       }
       clearTimeout(authTimeout);
       setUser(session?.user ?? null);

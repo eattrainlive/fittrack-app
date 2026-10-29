@@ -38,6 +38,7 @@ import { ParqGate } from "./components/ParqGate";
 import { useEffect, useState } from "react";
 import { syncFromSupabase, syncProfile } from "./lib/store";
 import { supabase } from "./lib/supabase";
+import { logAuthEvent } from "./lib/errorLog";
 import { onUserSignIn, onUserSignOut } from "./lib/userCache";
 import { initErgSync } from "./lib/ergSyncInit";
 import { markOnboarded } from "./lib/onboarding";
@@ -220,8 +221,12 @@ const AppRoutes = () => {
 const AppContent = () => {
   useEffect(() => {
     installChunkErrorHandler();
+    // Remember who was last signed in so a SIGNED_OUT can record who it hit.
+    let lastEmail: string | null = localStorage.getItem("fittrack_last_email");
     supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
+        lastEmail = session.user.email ?? lastEmail;
+        if (lastEmail) localStorage.setItem("fittrack_last_email", lastEmail);
         const storedUid = localStorage.getItem("fittrack_current_uid");
         if (storedUid && storedUid !== session.user.id) {
           // User switched accounts on the same device — clear the previous
@@ -244,6 +249,15 @@ const AppContent = () => {
         // challenge (best-effort; no double count via source_ref upsert).
         initErgSync();
       } else if (event === "SIGNED_OUT") {
+        // Log WHY the session ended so we can see the real cause in Staff Hub.
+        logAuthEvent("signed_out", {
+          email: lastEmail,
+          message: `signed out${lastEmail ? ": " + lastEmail : ""}`,
+          standalone:
+            typeof window !== "undefined" &&
+            (window.matchMedia?.("(display-mode: standalone)")?.matches ||
+              (navigator as any).standalone === true),
+        });
         onUserSignOut();
         localStorage.removeItem("fittrack_current_uid");
       }
