@@ -1139,18 +1139,26 @@ function QuickAddDialog({
     }
   };
 
-  // Debounced search
+  // Debounced search — ignores stale/out-of-order responses so a slow earlier
+  // query can't overwrite the results of the one the user actually typed.
+  const searchSeqRef = useRef(0);
   useEffect(() => {
     if (mode !== "search" || !query.trim() || query.trim().length < 2) {
       setResults([]);
+      setSearching(false);
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setSearching(true);
+    const q = query;
     debounceRef.current = setTimeout(async () => {
-      const r = await searchFoods(query);
-      setResults(r);
-      setSearching(false);
+      const seq = ++searchSeqRef.current;
+      const r = await searchFoods(q);
+      // Only apply if this is still the most recent search.
+      if (seq === searchSeqRef.current) {
+        setResults(r);
+        setSearching(false);
+      }
     }, 350);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
