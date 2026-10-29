@@ -679,3 +679,53 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   Food Facts results. Cache refreshed on every add (search/manual/recipe/usual).
 - Builds from logging history, so empty for new members, smarter over time.
 - PUSH: src/lib/frequentFoods.ts (new), src/components/RecipeCards.tsx.
+
+## 40 — Curated branded foods: supermarket own-brands (2026-10-29)
+- Hand-verified rows from official grocer labels (Tesco/Morrisons/Ocado), per 100g
+  (per 100ml for drinks), all verified=true. Re-runnable SQL (delete-by-brand+category).
+- supabase/sql/foods_supermarket_batch1.sql — 5 protein yoghurts (Tesco High Protein
+  Natural/Vanilla, Morrisons Protein Fat Free Natural/Strawberry, Arla Strawberry pouch),
+  category 'Dairy & eggs'.
+- supabase/sql/foods_supermarket_puddings.sql — 9 protein puddings/desserts (Lindahls
+  Choc/Choc Brownie, Arla Choc, Müller×MyProtein Pudding Choc/Vanilla + Mousse Salted
+  Caramel/Choc, Müllerlight Choc Orange, Müller Rice Protein Choc), category 'Dessert'.
+- supabase/sql/foods_supermarket_drinks.sql — 5 RTD shakes PER 100ml (UFIT White Choc
+  330ml + Pro50 Strawberry 500ml, Arla Choc 482ml, Barebells Choc 330ml, Grenade Carb
+  Killa Fudge Brownie 330ml), category 'Drinks'.
+- Earlier curated (already logged/created): foods_generic_seed.sql (162 UK staples),
+  foods_brands_applied_per4m.sql (15 Per4m/Applied), foods_gsn.sql (26 GSN Pot O Gold).
+- TO RUN: the three supermarket SQL files above (order doesn't matter; re-runnable).
+
+## 41 — Food DB at scale: bulk OFF importer + member contributions (2026-10-29)
+- Decision (Michael): bulk-import Open Food Facts UK subset for breadth; curated
+  verified rows stay the trusted core and rank first (search orders verified desc).
+- supabase/sql/foods_add_source.sql — adds `source` column (+ index) so bulk rows are
+  separable from curated (curated = NULL). RUN ONCE before importing. DONE by Michael.
+- scripts/import_off_uk.mjs — Node 18+ importer, runs on MICHAEL'S MAC (OFF is blocked
+  from Claude's sandbox). Pulls UK products via OFF main API (api/v2/search, NO sort —
+  popularity sort 503s), keeps only rows with all 4 macros + sane values, loads as
+  verified=false, source='off_uk'. Needs env SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
+  - ACCUMULATE mode (default): skips already-stored (name|brand), adds only new. RESET=1
+    wipes off_uk first for a full refresh.
+  - CURSOR (scripts/.off_cursor, gitignored): remembers next page so repeated runs sweep
+    THROUGH the catalogue (OFF returns same order each run). Advances only past pages that
+    actually returned data — on a full OFF outage it holds position (no skipped pages);
+    wraps to page 1 at the true end.
+  - Retries w/ backoff on 5xx/429; skips a page after 5 tries; stops a run after 12
+    consecutive fails (cursor logic still safe).
+  - Run: `cd ~/Documents/GitHub/fittrack-app && SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/import_off_uk.mjs`
+    (ONE line — multi-line paste drops the backslashes). Node installed on Michael's Mac.
+  - STATUS: ~917 off_uk rows loaded so far (OFF heavily 503-ing 2026-10-29 daytime;
+    much faster off-peak/evening UK). Michael re-runs manually (chose manual over
+    scheduled). Grows each run.
+- Member contributions: supabase/sql/foods_member_contribute.sql — SECURITY DEFINER
+  add_member_food() lets members (not direct table write) insert a food when they log an
+  OFF result not already in the library. Dedupes, sanity-checks macros, verified=false,
+  source='member', category 'Member added'. RUN this SQL.
+  - src/lib/foodsDb.ts: contributeFood() calls the RPC (fire-and-forget).
+  - src/components/RecipeCards.tsx: FoodResult gained fromLibrary; handleSaveSearch fires
+    contributeFood only for OFF picks (not library, not manual entries).
+  - PUSH: src/lib/foodsDb.ts, src/components/RecipeCards.tsx.
+- SECURITY: Michael pasted the Supabase service_role key into chat → advised to roll it
+  (Settings → API → JWT Settings → Generate new JWT secret), which also rotates anon key
+  (needs swapping in app code). NOT yet confirmed done.

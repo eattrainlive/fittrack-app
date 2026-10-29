@@ -292,10 +292,17 @@ export function RecipeCards({
   const filteredBands = Array.from(
     new Set(filteredRecipes.map((r) => r.band)),
   ).sort((a: any, b: any) => parseInt(a) - parseInt(b));
-  const openBandRecipes = filteredBands
-    .filter((b) => openBands.has(b) || anyFilterActive)
-    .flatMap((b) => filteredRecipes.filter((r) => r.band === b));
-  const hasMore = openBandRecipes.length > limit;
+  // Pagination is PER BAND: each open band shows up to `limit` of its OWN
+  // recipes (a single global cap let the first band eat the whole budget, so
+  // lower bands rendered empty). "remaining" = recipes hidden across open bands.
+  const openFilteredBands = filteredBands.filter(
+    (b) => openBands.has(b) || anyFilterActive,
+  );
+  const hiddenCount = openFilteredBands.reduce((sum, b) => {
+    const n = filteredRecipes.filter((r) => r.band === b).length;
+    return sum + Math.max(0, n - limit);
+  }, 0);
+  const hasMore = hiddenCount > 0;
 
   const toggleBand = (band: string) => {
     setOpenBands((prev) => {
@@ -767,9 +774,7 @@ export function RecipeCards({
           {filteredBands.map((band) => {
             const bandItems = filteredRecipes.filter((r) => r.band === band);
             const isOpen = openBands.has(band) || anyFilterActive;
-            const visibleInBand = openBandRecipes
-              .slice(0, limit)
-              .filter((r) => r.band === band);
+            const visibleInBand = bandItems.slice(0, limit);
             return (
               <div
                 key={band}
@@ -843,7 +848,7 @@ export function RecipeCards({
               onClick={() => setLimit((l) => l + 20)}
               className="w-full text-center text-sm font-bold text-primary py-3 border border-border rounded-xl"
             >
-              Load more ({openBandRecipes.length - limit} remaining)
+              Load more ({hiddenCount} remaining)
             </button>
           )}
         </div>
