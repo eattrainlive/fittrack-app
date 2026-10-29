@@ -170,17 +170,12 @@ export function RecipeCards({
     loadDiary(selectedDate);
   }, [selectedDate, loadDiary]);
 
-  // Reset pagination and OPEN all bands by default when filters/tab/recipes change,
-  // so recipes are visible straight away (otherwise every band accordion starts
-  // collapsed and the page looks empty).
+  // Reset pagination and collapse all bands by default when filters/tab/recipes
+  // change, so each calorie band is a closed dropdown the member taps to open.
+  // (When a search/filter is active, bands still render open via anyFilterActive.)
   useEffect(() => {
     setLimit(20);
-    const mealKey =
-      activeMeal === "Lunch" || activeMeal === "Dinner" ? "Main" : activeMeal;
-    const bands = new Set(
-      recipes.filter((r) => r.meal === mealKey).map((r) => r.band),
-    );
-    setOpenBands(bands);
+    setOpenBands(new Set());
   }, [searchQuery, activeChips, fitsMyDay, activeMeal, recipes]);
 
   // Lunch and Dinner share the "Main" recipe set; Breakfast and Snack map 1:1
