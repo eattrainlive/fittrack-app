@@ -70,6 +70,40 @@ export const searchFoodsDb = async (q: string): Promise<FoodResult[]> => {
     .map(toResult);
 };
 
+/**
+ * Member contribution: when a member logs a food that came from the Open Food
+ * Facts fallback (NOT already in our library), save it into `foods` so it's
+ * there for everyone next time. Goes in as verified=false, source='member' via
+ * a SECURITY DEFINER function (members can't write the table directly). The
+ * function dedupes + sanity-checks, so this is safe to fire-and-forget.
+ * See supabase/sql/foods_member_contribute.sql.
+ */
+export const contributeFood = async (r: {
+  name: string;
+  per100: { cal: number; protein: number; carbs: number; fats: number };
+  serving?: string | null;
+  servingG?: number | null;
+}): Promise<void> => {
+  try {
+    // Library results render as "Name · Brand"; strip that just in case.
+    const name = r.name.split(" · ")[0].trim();
+    await supabase.rpc("add_member_food", {
+      p_name: name,
+      p_brand: null,
+      p_calories: r.per100.cal,
+      p_protein: r.per100.protein,
+      p_carbs: r.per100.carbs,
+      p_fats: r.per100.fats,
+      p_fibre: null,
+      p_serving_desc: r.serving ?? null,
+      p_serving_g: r.servingG ?? null,
+      p_category: null,
+    });
+  } catch {
+    /* best effort — never block the member's log */
+  }
+};
+
 // ── Admin CRUD (staff) ───────────────────────────────────────────────────────
 
 export const listFoods = async (search = ""): Promise<FoodRow[]> => {

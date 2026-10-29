@@ -45,7 +45,7 @@ import {
   refreshFrequentFoods,
   type FrequentFood,
 } from "@/lib/frequentFoods";
-import { searchFoodsDb } from "@/lib/foodsDb";
+import { searchFoodsDb, contributeFood } from "@/lib/foodsDb";
 import {
   getRecipes,
   getDiary,
@@ -1049,6 +1049,8 @@ interface FoodResult {
   /** Serving weight in grams, if the product provides one (e.g. 1 slice = 40g). */
   servingG: number | null;
   image: string | null;
+  /** True when this result came from our own food library (vs Open Food Facts). */
+  fromLibrary?: boolean;
 }
 
 function QuickAddDialog({
@@ -1190,6 +1192,16 @@ function QuickAddDialog({
     });
     setSaving(false);
     if (res.success) {
+      // Grow the library: if this came from Open Food Facts (not already ours),
+      // save it so it's in our instant library for everyone next time.
+      if (!picked.fromLibrary) {
+        void contributeFood({
+          name: picked.name,
+          per100: picked.per100,
+          serving: picked.serving,
+          servingG: picked.servingG,
+        });
+      }
       refreshFrequentFoods();
       toast.success("Added to your day");
       onSaved();
