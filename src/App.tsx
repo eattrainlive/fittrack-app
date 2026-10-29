@@ -16,6 +16,7 @@ import Progress from "./pages/Progress";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
+import FoodsAdmin from "./pages/FoodsAdmin";
 import Messages from "./pages/Messages";
 import Education from "./pages/Education";
 import Nutrition from "./pages/Nutrition";
@@ -164,6 +165,7 @@ const AppRoutes = () => {
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/admin" element={<Admin />} />
+                  <Route path="/admin/foods" element={<FoodsAdmin />} />
                   <Route path="/messages" element={<Messages />} />
                   <Route path="/auth/callback" element={<Index />} />
                   <Route path="/auth/confirm" element={<Index />} />
@@ -201,6 +203,7 @@ const AppRoutes = () => {
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/admin" element={<Admin />} />
+                <Route path="/admin/foods" element={<FoodsAdmin />} />
                 <Route path="/messages" element={<Messages />} />
                 <Route path="/auth/callback" element={<Index />} />
                 <Route path="/auth/confirm" element={<Index />} />

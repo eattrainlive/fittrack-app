@@ -45,6 +45,7 @@ import {
   refreshFrequentFoods,
   type FrequentFood,
 } from "@/lib/frequentFoods";
+import { searchFoodsDb } from "@/lib/foodsDb";
 import {
   getRecipes,
   getDiary,
@@ -1153,13 +1154,21 @@ function QuickAddDialog({
     const q = query;
     debounceRef.current = setTimeout(async () => {
       const seq = ++searchSeqRef.current;
-      const r = await searchFoods(q);
-      // Only apply if this is still the most recent search.
+      // 1) Our own food library first — instant + reliable.
+      const lib = await searchFoodsDb(q).catch(() => []);
+      if (seq === searchSeqRef.current && lib.length) setResults(lib as any);
+      // 2) Then Open Food Facts for anything not in the library.
+      const off = await searchFoods(q);
       if (seq === searchSeqRef.current) {
-        setResults(r);
+        const seen = new Set(lib.map((x) => x.name.toLowerCase()));
+        const merged = [
+          ...lib,
+          ...off.filter((o) => !seen.has(o.name.toLowerCase())),
+        ];
+        setResults(merged as any);
         setSearching(false);
       }
-    }, 350);
+    }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
