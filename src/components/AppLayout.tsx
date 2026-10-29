@@ -77,10 +77,46 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Is there a saved login in storage? If so, a momentarily-null session is a
+    // transient blip (cold start, bad signal, phone waking) — NOT a real logout,
+    // so we keep the user signed in and refresh rather than bouncing to login.
+    const hasStoredSession = () => {
+      try {
+        return !!localStorage.getItem("fittrack-auth");
+      } catch {
+        return false;
+      }
+    };
+
     // Safety timeout — the ring always clears within 4s even if auth hangs.
     const authTimeout = setTimeout(() => setIsAuthLoading(false), 4000);
-    supabase.auth.getSession().then(({ data: { session } }) => {
+
+    (async () => {
+      let { data } = await supabase.auth.getSession();
+      let session = data.session;
+      // If no session but a token is stored, try one explicit refresh before
+      // giving up — handles the race on cold start / resume.
+      if (!session && hasStoredSession()) {
+        const r = await supabase.auth.refreshSession();
+        session = r.data.session ?? null;
+      }
       clearTimeout(authTimeout);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        loadNotifications();
+        checkMembership();
+      } else {
+        setMembershipAllowed(null);
+      }
+      setIsAuthLoading(false);
+    })();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Don't drop the user to the login screen on a transient null while a
+      // stored token still exists — keep them in and let auto-refresh recover.
+      if (!session && hasStoredSession()) return;
       setUser(session?.user ?? null);
       if (session?.user) {
         loadNotifications();
@@ -91,18 +127,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       setIsAuthLoading(false);
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadNotifications();
-        checkMembership();
-      } else {
-        setMembershipAllowed(null);
-      }
-      setIsAuthLoading(false);
-    });
+    // When the app comes back to the foreground or regains connectivity, make
+    // sure the session is live (mobile pauses the refresh timer in the
+    // background, so the token can be stale on resume — this re-establishes it
+    // before the member taps anything, preventing a surprise logout).
+    const revalidate = () => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) setUser(session.user);
+      });
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") revalidate();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", revalidate);
+    window.addEventListener("focus", revalidate);
 
     const handleStorage = () =>
       setIsStaff(localStorage.getItem("fittrack_is_staff") === "true");
@@ -116,6 +155,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
     return () => {
       window.removeEventListener("storage", handleStorage);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", revalidate);
+      window.removeEventListener("focus", revalidate);
       subscription.unsubscribe();
       unsubSync();
     };
