@@ -667,3 +667,15 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   leaves fl oz, re-runnable). Existing UK library was already metric; Book 3 baked in.
 - Recipe image note: Supabase CDN caches by filename — when replacing an image, add
   ?v=N to that recipe's image_url to bust cache (see hash-browns fix).
+
+## 39 — "Your usuals" frequent-food suggestions in Quick Add (2026-10-29)
+- New src/lib/frequentFoods.ts: getFrequentFoods(meal) reads the member's own
+  food_diary (last ~600 rows, 2-min in-memory cache), groups by name within the
+  meal, ranks by frequency + recency (last 7d ×3, 30d ×2, older ×1), returns top
+  foods with their last-logged macros/servings. refreshFrequentFoods() clears cache.
+- Quick Add (RecipeCards QuickAddDialog): shows "Your usuals for <meal>" above
+  search — one-tap re-add with same macros (handleAddUsual). When searching, the
+  member's matching foods show INSTANTLY at the top (no OFF lookup) before Open
+  Food Facts results. Cache refreshed on every add (search/manual/recipe/usual).
+- Builds from logging history, so empty for new members, smarter over time.
+- PUSH: src/lib/frequentFoods.ts (new), src/components/RecipeCards.tsx.

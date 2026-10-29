@@ -1,25 +1,22 @@
 // Netlify Function: off-search  (ESM — project uses "type":"module")
 // Proxies food searches to Open Food Facts from the server so we can send a
-// descriptive User-Agent (OFF rate-limits / blocks anonymous browser traffic,
-// which is why the in-app Quick Add search returned nothing). Also sidesteps any
-// CORS flakiness. Public endpoint — the food DB is not sensitive.
+// descriptive User-Agent (OFF rate-limits / blocks anonymous browser traffic).
 //
-// Usage: GET /.netlify/functions/off-search?q=hovis
-// Returns: { products: [...] } with the fields the client needs.
+// Open Food Facts' simple text search only matches the product NAME, so a
+// brand-only term (e.g. "per4m") finds nothing while "per4m whey" works. To fix
+// that we run the name search AND a brand search in parallel and merge the two —
+// so brand-only, product-only and "brand + product" queries all return results.
+//
+// Usage: GET /.netlify/functions/off-search?q=per4m
+// Returns: { products: [...] }
 
 const FIELDS =
-  "product_name,brands,nutriments,serving_size,serving_quantity,image_small_url";
+  "code,product_name,brands,nutriments,serving_size,serving_quantity,image_small_url";
 const UA = "ETL-FitTrack/1.0 (michael@eattrainlivesmart.co.uk)";
+const BASE = "https://world.openfoodfacts.org/cgi/search.pl";
 
-const H = {
-  "Content-Type": "application/json",
-  "Cache-Control": "public, max-age=300",
-};
-const reply = (code, obj) => ({
-  statusCode: code,
-  headers: H,
-  body: JSON.stringify(obj),
-});
+const H = { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" };
+const reply = (code, obj) => ({ statusCode: code, headers: H, body: JSON.stringify(obj) });
 
 async function offFetch(url) {
   const ctrl = new AbortController();
@@ -30,7 +27,10 @@ async function offFetch(url) {
       headers: { "User-Agent": UA, Accept: "application/json" },
     });
     if (!res.ok) throw new Error(`OFF HTTP ${res.status}`);
-    return await res.json();
+    const d = await res.json();
+    return d?.products || [];
+  } catch (e) {
+    return [];
   } finally {
     clearTimeout(t);
   }
@@ -40,36 +40,37 @@ export const handler = async (event) => {
   const q = String(event.queryStringParameters?.q || "").trim();
   if (q.length < 2) return reply(200, { products: [] });
   const term = encodeURIComponent(q);
+  const common = `search_simple=1&json=1&page_size=20&sort_by=popularity_key&fields=${FIELDS}`;
 
-  // Legacy cgi search does proper full-text relevance ranking (the v2 API does
-  // not rank by the query, which was returning random products). Sort by
-  // popularity and bias toward UK products so British brands surface first.
-  const cgiUK =
-    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${term}` +
-    `&search_simple=1&json=1&page_size=20&sort_by=popularity_key&fields=${FIELDS}` +
-    `&tagtype_0=countries&tag_contains_0=contains&tag_0=united-kingdom`;
-  const cgi =
-    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${term}` +
-    `&search_simple=1&json=1&page_size=20&sort_by=popularity_key&fields=${FIELDS}`;
+  // (a) Name search, biased to UK products.
+  const nameUK = `${BASE}?search_terms=${term}&${common}&tagtype_0=countries&tag_contains_0=contains&tag_0=united-kingdom`;
+  // (b) Name search, global.
+  const nameAll = `${BASE}?search_terms=${term}&${common}`;
+  // (c) Brand search (matches products whose BRAND contains the term).
+  const brand = `${BASE}?${common}&tagtype_0=brands&tag_contains_0=contains&tag_0=${term}`;
 
-  const tryUrl = async (url) => {
-    const d = await offFetch(url);
-    return d?.products?.length ? d.products : null;
-  };
-
-  try {
-    // 1) UK-biased relevance search.
-    const uk = await tryUrl(cgiUK);
-    if (uk) return reply(200, { products: uk });
-    // 2) Global relevance search (no country filter).
-    const all = await tryUrl(cgi);
-    return reply(200, { products: all || [] });
-  } catch (e) {
-    try {
-      const all = await tryUrl(cgi);
-      return reply(200, { products: all || [] });
-    } catch (e2) {
-      return reply(200, { products: [], error: String(e2) });
-    }
+  // Run name(UK) + brand together first (covers most queries).
+  let [a, c] = await Promise.all([offFetch(nameUK), offFetch(brand)]);
+  let merged = dedupe([...a, ...c]);
+  // If thin, broaden with the global name search.
+  if (merged.length < 5) {
+    const b = await offFetch(nameAll);
+    merged = dedupe([...merged, ...b]);
   }
+  return reply(200, { products: merged.slice(0, 20) });
 };
+
+function dedupe(products) {
+  const seen = new Set();
+  const out = [];
+  for (const p of products) {
+    if (!p || !p.product_name) continue;
+    const key =
+      p.code ||
+      `${String(p.product_name).toLowerCase()}|${String(p.brands || "").toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out;
+}
