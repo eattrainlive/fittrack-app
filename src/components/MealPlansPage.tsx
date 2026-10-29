@@ -3,25 +3,9 @@ import { getMemberMacros } from "@/lib/store";
 import { ResourcesSection } from "@/components/ResourcesSection";
 import { RecipeCards } from "@/components/RecipeCards";
 
-function ComingSoon({ title }: { title: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-12 text-center">
-      <p className="text-lg font-heading uppercase tracking-wide text-muted-foreground">
-        {title}
-      </p>
-      <p className="text-sm text-muted-foreground mt-1">Check back soon.</p>
-    </div>
-  );
-}
-
 export function MealPlansPage() {
   const [tab, setTab] = useState<"plans" | "build">("plans");
   const [target, setTarget] = useState<number | null>(null);
-
-  // Build Your Own is live for staff only (in testing); members still see "Soon".
-  const isStaff =
-    typeof window !== "undefined" &&
-    localStorage.getItem("fittrack_is_staff") === "true";
 
   useEffect(() => {
     const m = getMemberMacros();
@@ -39,14 +23,9 @@ export function MealPlansPage() {
         </button>
         <button
           onClick={() => setTab("build")}
-          className={`flex-1 text-sm font-bold py-2 rounded-md transition-all flex items-center justify-center gap-2 ${tab === "build" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+          className={`flex-1 text-sm font-bold py-2 rounded-md transition-all ${tab === "build" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
         >
           Build Your Own
-          {!isStaff && (
-            <span className="text-[10px] font-bold uppercase tracking-wide bg-primary text-primary-foreground rounded-full px-2 py-0.5">
-              Soon
-            </span>
-          )}
         </button>
       </div>
 
@@ -56,10 +35,8 @@ export function MealPlansPage() {
           heading="Ready-Made Plans"
           blurb="Full plans you can follow as-is."
         />
-      ) : isStaff ? (
-        <RecipeCards targetCalories={target} />
       ) : (
-        <ComingSoon title="Build Your Own — Coming Soon" />
+        <RecipeCards targetCalories={target} />
       )}
     </div>
   );
