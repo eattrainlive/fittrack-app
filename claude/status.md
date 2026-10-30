@@ -772,3 +772,18 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   (window.print → Save to Files/PDF) + hint "Close this tab to go back". .bar hidden
   @media print. New tab = always escapable, no trap. Verified render via screenshot.
 - PUSH src/lib/mealPlanPdf.ts.
+
+## 45 — Staff view of member food diaries (view-only) (2026-10-30)
+- Before: food_diary was member-only (RLS food_diary_own); staff had NO access.
+- Decisions: lives in Member Activity modal; VIEW-ONLY; week avg = per logged day (+ days-logged).
+- supabase/sql/food_diary_staff_read.sql (RUN) — adds select-only policy
+  food_diary_staff_read using public.is_staff(). No staff write policy = read-only by design.
+- src/lib/memberNutrition.ts (new) — fetchMemberDiary(memberId,from,to) + entryTotals/sumTotals
+  (servings-aware: macro×servings, matches member app's dayTotals exactly).
+- src/components/CoachNutritionLog.tsx (new) — Day/Week toggle, date nav (±1 day / ±7 days),
+  can't page into future. Day = log grouped by meal (item ×servings + kcal/P/C/F) + day total.
+  Week = 7-day totals table + "Avg / logged day" (kcal+macros, averaged over logged days only)
+  + "Logged X of 7 days". Fetches rolling 7-day window ending on anchor date.
+- src/components/MemberActivityModal.tsx (edited) — renders <CoachNutritionLog memberUserId=
+  {member.id}/> after Past workouts, before Messages. Imported component.
+- PUSH the 3 code files. RUN the SQL. Verified via esbuild compile (all 3 OK).

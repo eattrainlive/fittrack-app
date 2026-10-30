@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { ActivityWinsGrid } from "@/components/ActivityWinsGrid";
 import { CoachPastWorkouts } from "@/components/CoachPastWorkouts";
+import { CoachNutritionLog } from "@/components/CoachNutritionLog";
 import { MemberMessagesSection } from "@/components/MemberMessagesSection";
 import { getHabitAdherence, type HabitAdherence } from "@/lib/habitAdherence";
 import { supabase } from "@/lib/supabase";
@@ -716,6 +717,13 @@ export function MemberActivityModal({
             exercises={exercises}
           />
         </div>
+
+        {/* Nutrition — view-only food diary (day log + weekly averages) */}
+        {member.id && (
+          <div className="space-y-2">
+            <CoachNutritionLog memberUserId={member.id} />
+          </div>
+        )}
 
         {/* Messages — read-only WhatsApp/SMS thread; reply via the GHL deep-link */}
         <MemberMessagesSection
