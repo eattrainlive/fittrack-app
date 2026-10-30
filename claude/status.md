@@ -729,3 +729,24 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
 - SECURITY: Michael pasted the Supabase service_role key into chat → advised to roll it
   (Settings → API → JWT Settings → Generate new JWT secret), which also rotates anon key
   (needs swapping in app code). NOT yet confirmed done.
+
+## 42 — OFF dump importer (supersedes API page-scrape) + recipe band fix (2026-10-30)
+- OFF live API kept 503-ing (page-by-page import maxed ~900 rows). Switched to the
+  OFF full DUMP: Michael downloads en.openfoodfacts.org.products.csv.gz (~1GB, CDN,
+  reliable) and runs scripts/import_off_dump.mjs <path>. Streams gunzip→readline,
+  TSV header-indexed (robust to column order), keeps UK (countries_tags/_en contains
+  united-kingdom) with all 4 macros + sane values, dedupes name|brand, wipes
+  source='off_uk' then bulk-inserts (batches 500) via service role.
+  - RESULT: 4.88M rows scanned → 136,789 UK products loaded in ONE pass. DONE.
+  - Re-run after a fresh download to refresh. scripts/import_off_uk.mjs (API version)
+    now redundant but left in place.
+- Recipe browser (RecipeCards) calorie-band bug fixed: pagination was a single GLOBAL
+  limit(20) across all open bands flattened → first band ate the budget, lower bands
+  rendered empty ("don't load"); Load-more remaining count jumped around. Now PER BAND:
+  visibleInBand = bandItems.slice(0,limit); hiddenCount = sum over open bands of
+  max(0,count-limit). Also bands now DEFAULT COLLAPSED (openBands=empty set) so each is
+  a tap-to-open dropdown (was auto-opening all). PUSH src/components/RecipeCards.tsx.
+- Paid-DB research (if ever needed): FatSecret = only good UK branded, quote-based/
+  enterprise; Edamam cheap(~$9) but weak branded; Nutritionix US-centric ~$499/mo.
+  Free UK generics = CoFID (gov.uk McCance & Widdowson, ~3000 foods, no branded) — not
+  imported (OFF dump covers needs).
