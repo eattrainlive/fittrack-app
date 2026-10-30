@@ -203,9 +203,19 @@ export function exportMealPlanPdf(opts: {
   .meth ol { margin: 2px 0 0; padding-left: 16px; }
   .meth li { font-size: 11px; line-height: 1.4; color: #374151; }
   footer { margin-top: 24px; color: #9ca3af; font-size: 10px; border-top: 1px solid #eee; padding-top: 8px; }
-  @media print { body { margin: 14mm; } }
+  .bar { position: sticky; top: 0; z-index: 10; background: #14170f; color: #fff;
+         margin: -32px -32px 18px; padding: 12px 16px; display: flex; gap: 12px;
+         align-items: center; flex-wrap: wrap; }
+  .bar button { background: #BFFF3C; color: #14170f; border: 0; font-weight: 700;
+                padding: 9px 16px; border-radius: 8px; font-size: 14px; cursor: pointer; }
+  .bar span { font-size: 11px; color: #cbd5e1; }
+  @media print { body { margin: 14mm; } .bar { display: none; } }
 </style></head>
 <body>
+  <div class="bar">
+    <button onclick="window.print()">⬇ Save as PDF</button>
+    <span>Then choose "Save to Files" (phone) or "Save as PDF" (computer). Close this tab to go back.</span>
+  </div>
   <header>
     <div class="brand">Eat Train Live · Meal Plan</div>
     <h1>${esc(title)}</h1>
@@ -216,54 +226,28 @@ export function exportMealPlanPdf(opts: {
   <footer>Generated ${new Date().toLocaleDateString("en-GB")} · FitTrack</footer>
 </body></html>`;
 
-  // Print via a hidden iframe so the user NEVER leaves the app. (The old
-  // approach opened a new window / navigated the current tab to a blob URL,
-  // which trapped people on the plan with no way back on mobile.)
-  const iframe = document.createElement("iframe");
-  iframe.setAttribute("aria-hidden", "true");
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "0";
-  document.body.appendChild(iframe);
-
-  const cleanup = () => {
-    setTimeout(() => {
-      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-    }, 1000);
-  };
-
-  iframe.onload = () => {
-    try {
-      const win = iframe.contentWindow;
-      if (!win) throw new Error("no iframe window");
-      setTimeout(() => {
-        win.focus();
-        win.print();
-        cleanup();
-      }, 300);
-    } catch {
-      // Last-resort fallback: open in a NEW tab (never navigate the app itself).
-      const blob = new Blob([html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.target = "_blank";
-      a.rel = "noopener";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      cleanup();
-    }
-  };
-
-  const doc = iframe.contentWindow?.document;
-  if (doc) {
-    doc.open();
-    doc.write(html);
-    doc.close();
+  // Open the plan as a PREVIEW in a NEW browser tab: the member can read it,
+  // tap "Save as PDF" when ready, or just close the tab / swipe back to the app.
+  // A new tab (not the same one) means we never trap them on the plan — the old
+  // bug was navigating the CURRENT tab to a blob URL, which had no way back.
+  const win = window.open("", "_blank");
+  if (win) {
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    return true;
   }
+
+  // Popup blocked → fall back to a downloadable link the member taps themselves.
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
   return true;
 }

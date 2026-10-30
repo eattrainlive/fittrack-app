@@ -750,3 +750,25 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   enterprise; Edamam cheap(~$9) but weak branded; Nutritionix US-centric ~$499/mo.
   Free UK generics = CoFID (gov.uk McCance & Widdowson, ~3000 foods, no branded) — not
   imported (OFF dump covers needs).
+
+## 43 — Service-role key exposure: decision = leave it (2026-10-30)
+- Legacy service_role key was pasted in chat (private, never public → low real-world risk).
+- Project is ALREADY migrated to new API keys: publishable (sb_publishable_…) + secret
+  (sb_secret_…) exist, JWT Signing Keys = ECC P-256 (legacy HS256 secret now verify-only).
+- To truly kill the exposed legacy key = "Disable JWT-based API keys" on Settings → API →
+  Legacy tab, but ONLY after moving app + 7 Netlify fns + ~20 edge fns onto new keys
+  (app anon hardcoded in src/lib/supabase.ts; Netlify fns use env SUPABASE_SERVICE_ROLE_KEY;
+  edge fns use injected SUPABASE_SERVICE_ROLE_KEY — the uncertain bit).
+- DECISION (Michael): leave it for now. No rotation done. Future new work should use the
+  sb_publishable_/sb_secret_ keys so legacy reliance fades. Revisit full migration + disable
+  if misuse ever suspected.
+
+## 44 — Meal-plan PDF export: preview-in-new-tab (2026-10-30)
+- Problem: iframe win.print() fired the OS print dialog (not the downloadable preview
+  Michael wanted). Earlier same-tab blob nav had trapped users.
+- Fix (src/lib/mealPlanPdf.ts): open the branded plan HTML in a NEW tab via
+  window.open("","_blank") + document.write (fallback: <a target=_blank> blob link if
+  popup blocked). Added a sticky ETL top bar with a lime "⬇ Save as PDF" button
+  (window.print → Save to Files/PDF) + hint "Close this tab to go back". .bar hidden
+  @media print. New tab = always escapable, no trap. Verified render via screenshot.
+- PUSH src/lib/mealPlanPdf.ts.
