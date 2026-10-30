@@ -35,7 +35,8 @@ export function CoachMacroTargets({ memberUserId }: { memberUserId: string }) {
       setEditing(false);
       load();
     } else {
-      toast.error("Couldn't save targets");
+      console.error("staffSetMemberMacros failed for", memberUserId, res.error);
+      toast.error(res.error?.message || "Couldn't save targets");
     }
   };
 

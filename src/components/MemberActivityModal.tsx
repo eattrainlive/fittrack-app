@@ -719,19 +719,34 @@ export function MemberActivityModal({
           />
         </div>
 
-        {/* Macro targets — view/edit the member's calorie & macro goals */}
-        {member.id && (
-          <div className="space-y-2">
-            <CoachMacroTargets memberUserId={member.id} />
-          </div>
-        )}
-
-        {/* Nutrition — view-only food diary (day log + weekly averages) */}
-        {member.id && (
-          <div className="space-y-2">
-            <CoachNutritionLog memberUserId={member.id} />
-          </div>
-        )}
+        {/* Macro targets + food diary key on the member's AUTH user id. members.id
+            IS the auth id for app accounts; fall back to user_id just in case. A
+            non-UUID means this roster entry isn't a linked app account. */}
+        {(() => {
+          const authId = member.user_id || member.id;
+          const isUuid =
+            typeof authId === "string" &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+              authId,
+            );
+          if (!isUuid) {
+            return (
+              <p className="text-xs text-muted-foreground italic">
+                Nutrition & macro targets need a linked app account.
+              </p>
+            );
+          }
+          return (
+            <>
+              <div className="space-y-2">
+                <CoachMacroTargets memberUserId={authId} />
+              </div>
+              <div className="space-y-2">
+                <CoachNutritionLog memberUserId={authId} />
+              </div>
+            </>
+          );
+        })()}
 
         {/* Messages — read-only WhatsApp/SMS thread; reply via the GHL deep-link */}
         <MemberMessagesSection
