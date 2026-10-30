@@ -807,3 +807,36 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   No PDF files stored; regenerated from saved plan data each time (always matches).
   So each saved plan now: Load (re-log to diary) + PDF (view/save). PUSH
   src/components/MealPlanControls.tsx. Verified esbuild compile.
+
+## 48 — Ready-Made Plans by calorie goal (shared plans surfaced) (2026-10-30)
+- Shared saved plans (visibility='shared') now appear in the Meal Plans → Ready-Made
+  Plans tab, grouped into calorie-goal bands (daily kcal rounded to nearest 100; day
+  plan = day total, week plan = daily average). Previously that tab only had
+  ResourcesSection; shared plans were only in My Plans → Library.
+- src/components/ReadyMadePlans.tsx (new): listMealPlans → filter shared; dailyMacros()
+  (servings-aware ÷7 for week); bandOf()=round/100*100; accordions per band, opens the
+  band nearest getMemberMacros().calorie_target. Each plan: name, day/week, kcal/day +
+  macros, Load (Add/Replace dialog → loadMealPlan into today / Monday-of-week) + PDF
+  (buildMealPlanHtml → in-app preview overlay, same as planner).
+- src/components/MealPlansPage.tsx (edited): plans tab renders <ReadyMadePlans/> then
+  ResourcesSection (relabelled "More resources").
+- Loop: staff Save with "Share to member library" ON → shows for all members in the
+  matching calorie band. PUSH both files. Verified esbuild compile.
+
+## 49 — Manual + % macro targets, editable by client & staff (2026-10-30)
+- Calculator still autofills calorie/macro targets (unchanged). Added manual adjust on
+  both sides, with macros enterable as grams OR % of calories. Decisions: no lock (both
+  can edit; coach_set badge shows who set last); staff editor in Member Activity modal.
+- src/components/MacroTargetEditor.tsx (new, reusable): calorie input + grams/% toggle for
+  P/C/F (P4 C4 F9). % mode shows gram equivalents + flags macros-vs-calorie mismatch + %
+  total. onSave returns GRAMS.
+- Member (src/pages/Nutrition.tsx CalculatorSection): "Your Daily Targets" now shows all 4
+  macros; Edit button opens MacroTargetEditor inline → saveManualMacros (saveMemberMacros,
+  coach_set=false). Recalculate still there.
+- Staff: supabase/sql/member_macros_staff.sql (RUN) = mm_staff_read select policy +
+  staff_set_member_macros(uuid,int×4) SECURITY DEFINER RPC (is_staff guard, upsert,
+  coach_set=true). src/lib/memberMacrosAdmin.ts (getMemberMacrosFor + staffSetMemberMacros).
+  src/components/CoachMacroTargets.tsx (view + MacroTargetEditor) mounted in
+  MemberActivityModal above the nutrition log.
+- PUSH: MacroTargetEditor.tsx, memberMacrosAdmin.ts, CoachMacroTargets.tsx (new),
+  MemberActivityModal.tsx, Nutrition.tsx. RUN member_macros_staff.sql. Verified esbuild (all OK).

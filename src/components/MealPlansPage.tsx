@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getMemberMacros } from "@/lib/store";
 import { ResourcesSection } from "@/components/ResourcesSection";
 import { RecipeCards } from "@/components/RecipeCards";
+import { ReadyMadePlans } from "@/components/ReadyMadePlans";
 
 export function MealPlansPage() {
   const [tab, setTab] = useState<"plans" | "build">("plans");
@@ -30,11 +31,14 @@ export function MealPlansPage() {
       </div>
 
       {tab === "plans" ? (
-        <ResourcesSection
-          page="meal_plans"
-          heading="Ready-Made Plans"
-          blurb="Full plans you can follow as-is."
-        />
+        <div className="space-y-6">
+          <ReadyMadePlans />
+          <ResourcesSection
+            page="meal_plans"
+            heading="More resources"
+            blurb="Guides and extras from your coach."
+          />
+        </div>
       ) : (
         <RecipeCards targetCalories={target} />
       )}

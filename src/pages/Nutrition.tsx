@@ -111,6 +111,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { logFeatureView } from "@/lib/featureTracking";
 import { toDisplayableImage } from "@/lib/imageUpload";
+import { MacroTargetEditor } from "@/components/MacroTargetEditor";
 
 function ComingSoon({ title }: { title: string }) {
   return (
@@ -170,6 +171,7 @@ export default function Nutrition() {
   });
 
   const [showMacroCalc, setShowMacroCalc] = useState(false);
+  const [showMacroEdit, setShowMacroEdit] = useState(false);
   const [macroForm, setMacroForm] = useState({
     sex: "male",
     age: "",
@@ -484,6 +486,31 @@ export default function Nutrition() {
       toast.success("Macro targets saved!");
     } else {
       toast.error("Couldn't save macros — we'll retry");
+    }
+  };
+
+  // Manual adjust by the member (grams or % — editor returns grams). Always
+  // allowed; flips coach_set off since the member set these themselves.
+  const saveManualMacros = async (v: {
+    calorie_target: number;
+    protein_target: number;
+    carb_target: number;
+    fat_target: number;
+  }) => {
+    const newMacros = {
+      ...(macros || {}),
+      ...v,
+      coach_set: false,
+      tracking_enabled: true,
+      updated_at: new Date().toISOString(),
+    };
+    const res = await saveMemberMacros(newMacros);
+    if (res.success) {
+      setMacros(newMacros);
+      setShowMacroEdit(false);
+      toast.success("Targets updated");
+    } else {
+      toast.error("Couldn't save — we'll retry");
     }
   };
 
@@ -947,6 +974,9 @@ export default function Nutrition() {
             setMacroForm={setMacroForm}
             showMacroCalc={showMacroCalc}
             setShowMacroCalc={setShowMacroCalc}
+            showMacroEdit={showMacroEdit}
+            setShowMacroEdit={setShowMacroEdit}
+            saveManualMacros={saveManualMacros}
             calculateMacros={calculateMacros}
             toggleMacroTracking={toggleMacroTracking}
             todayMacros={todayMacros}
@@ -1482,6 +1512,9 @@ function CalculatorSection({
   setMacroForm,
   showMacroCalc,
   setShowMacroCalc,
+  showMacroEdit,
+  setShowMacroEdit,
+  saveManualMacros,
   calculateMacros,
   toggleMacroTracking,
   todayMacros,
@@ -1665,33 +1698,57 @@ function CalculatorSection({
                       </Badge>
                     )}
                   </div>
-                  {!macros?.coach_set && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2 text-xs"
-                      onClick={() => {
-                        setMacroForm({
-                          sex: macros?.sex || "male",
-                          age: macros?.age?.toString() || "",
-                          height: macros?.height_cm?.toString() || "",
-                          activity: macros?.activity_level?.toString() || "1.2",
-                          goal: macros?.macro_goal || "maintain",
-                          weight:
-                            bodyweight.length > 0
-                              ? bodyweight[
-                                  bodyweight.length - 1
-                                ].weight?.toString() || ""
-                              : "",
-                        });
-                        setShowMacroCalc(true);
-                      }}
-                    >
-                      Recalculate
-                    </Button>
+                  {!showMacroEdit && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => setShowMacroEdit(true)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => {
+                          setMacroForm({
+                            sex: macros?.sex || "male",
+                            age: macros?.age?.toString() || "",
+                            height: macros?.height_cm?.toString() || "",
+                            activity:
+                              macros?.activity_level?.toString() || "1.2",
+                            goal: macros?.macro_goal || "maintain",
+                            weight:
+                              bodyweight.length > 0
+                                ? bodyweight[
+                                    bodyweight.length - 1
+                                  ].weight?.toString() || ""
+                                : "",
+                          });
+                          setShowMacroCalc(true);
+                        }}
+                      >
+                        Recalculate
+                      </Button>
+                    </div>
                   )}
                 </div>
 
+                {showMacroEdit ? (
+                  <MacroTargetEditor
+                    initial={{
+                      calorie_target: macros?.calorie_target ?? 0,
+                      protein_target: macros?.protein_target ?? 0,
+                      carb_target: macros?.carb_target ?? 0,
+                      fat_target: macros?.fat_target ?? 0,
+                    }}
+                    onSave={saveManualMacros}
+                    onCancel={() => setShowMacroEdit(false)}
+                  />
+                ) : (
+                  <>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <p className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
@@ -1717,6 +1774,25 @@ function CalculatorSection({
                     <p className="text-3xl font-heading">
                       {macros.calorie_target}{" "}
                       <span className="text-sm">kcal</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">
+                      Carbs Target
+                    </p>
+                    <p className="text-2xl font-heading">
+                      {macros.carb_target ?? 0}g
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">
+                      Fat Target
+                    </p>
+                    <p className="text-2xl font-heading">
+                      {macros.fat_target ?? 0}g
                     </p>
                   </div>
                 </div>
@@ -1773,6 +1849,8 @@ function CalculatorSection({
                     </Button>
                   </div>
                 </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           )}

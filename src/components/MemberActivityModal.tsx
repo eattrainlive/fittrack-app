@@ -27,6 +27,7 @@ import {
 import { ActivityWinsGrid } from "@/components/ActivityWinsGrid";
 import { CoachPastWorkouts } from "@/components/CoachPastWorkouts";
 import { CoachNutritionLog } from "@/components/CoachNutritionLog";
+import { CoachMacroTargets } from "@/components/CoachMacroTargets";
 import { MemberMessagesSection } from "@/components/MemberMessagesSection";
 import { getHabitAdherence, type HabitAdherence } from "@/lib/habitAdherence";
 import { supabase } from "@/lib/supabase";
@@ -717,6 +718,13 @@ export function MemberActivityModal({
             exercises={exercises}
           />
         </div>
+
+        {/* Macro targets — view/edit the member's calorie & macro goals */}
+        {member.id && (
+          <div className="space-y-2">
+            <CoachMacroTargets memberUserId={member.id} />
+          </div>
+        )}
 
         {/* Nutrition — view-only food diary (day log + weekly averages) */}
         {member.id && (
