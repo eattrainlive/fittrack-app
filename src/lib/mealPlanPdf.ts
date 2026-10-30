@@ -129,13 +129,16 @@ const totalsBar = (t: Totals, label = "Total") =>
   `<div class="totals"><strong>${esc(label)}:</strong> ${t.cal} kcal
    &nbsp;·&nbsp; P ${t.p}g &nbsp;·&nbsp; C ${t.c}g &nbsp;·&nbsp; F ${t.f}g</div>`;
 
-export function exportMealPlanPdf(opts: {
+/** Build the printable meal-plan page as an HTML string. The caller shows it in
+ *  an IN-APP preview (iframe srcDoc) with Close + Save — reliable in the PWA on
+ *  iOS, where opening a new tab is unreliable and can trap the user. */
+export function buildMealPlanHtml(opts: {
   title: string;
   scope: "day" | "week";
   items: PlanItem[];
   targetCalories?: number | null;
   recipeDetails?: Record<string, RecipeDetail>;
-}) {
+}): string {
   const { title, scope, items, targetCalories, recipeDetails } = opts;
 
   let body = "";
@@ -203,19 +206,9 @@ export function exportMealPlanPdf(opts: {
   .meth ol { margin: 2px 0 0; padding-left: 16px; }
   .meth li { font-size: 11px; line-height: 1.4; color: #374151; }
   footer { margin-top: 24px; color: #9ca3af; font-size: 10px; border-top: 1px solid #eee; padding-top: 8px; }
-  .bar { position: sticky; top: 0; z-index: 10; background: #14170f; color: #fff;
-         margin: -32px -32px 18px; padding: 12px 16px; display: flex; gap: 12px;
-         align-items: center; flex-wrap: wrap; }
-  .bar button { background: #BFFF3C; color: #14170f; border: 0; font-weight: 700;
-                padding: 9px 16px; border-radius: 8px; font-size: 14px; cursor: pointer; }
-  .bar span { font-size: 11px; color: #cbd5e1; }
-  @media print { body { margin: 14mm; } .bar { display: none; } }
+  @media print { body { margin: 14mm; } }
 </style></head>
 <body>
-  <div class="bar">
-    <button onclick="window.print()">⬇ Save as PDF</button>
-    <span>Then choose "Save to Files" (phone) or "Save as PDF" (computer). Close this tab to go back.</span>
-  </div>
   <header>
     <div class="brand">Eat Train Live · Meal Plan</div>
     <h1>${esc(title)}</h1>
@@ -226,28 +219,5 @@ export function exportMealPlanPdf(opts: {
   <footer>Generated ${new Date().toLocaleDateString("en-GB")} · FitTrack</footer>
 </body></html>`;
 
-  // Open the plan as a PREVIEW in a NEW browser tab: the member can read it,
-  // tap "Save as PDF" when ready, or just close the tab / swipe back to the app.
-  // A new tab (not the same one) means we never trap them on the plan — the old
-  // bug was navigating the CURRENT tab to a blob URL, which had no way back.
-  const win = window.open("", "_blank");
-  if (win) {
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    return true;
-  }
-
-  // Popup blocked → fall back to a downloadable link the member taps themselves.
-  const blob = new Blob([html], { type: "text/html" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.target = "_blank";
-  a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
-  return true;
+  return html;
 }

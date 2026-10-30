@@ -787,3 +787,15 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
 - src/components/MemberActivityModal.tsx (edited) — renders <CoachNutritionLog memberUserId=
   {member.id}/> after Past workouts, before Messages. Imported component.
 - PUSH the 3 code files. RUN the SQL. Verified via esbuild compile (all 3 OK).
+
+## 46 — Meal-plan PDF: in-app preview overlay (iOS fix) (2026-10-30)
+- Entry 44's new-tab (window.open) approach was unreliable on iPhone PWA (no tab
+  chrome in standalone → still felt like a print/trap). Replaced with an IN-APP
+  full-screen preview.
+- src/lib/mealPlanPdf.ts: exportMealPlanPdf → renamed buildMealPlanHtml(opts):string
+  (returns the branded printable HTML; removed the in-page toolbar + window.open).
+- src/components/MealPlanControls.tsx: doPdf now setPreviewHtml(html); renders a
+  fixed inset-0 overlay with Close (X) + "Save as PDF" buttons and an <iframe
+  srcDoc={html}> preview. Save = previewFrame.contentWindow.print() → iOS share/
+  print sheet (Save to Files/PDF). Close always dismisses → never traps. Imported X,
+  useRef. PUSH both files. Verified esbuild compile.

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +25,8 @@ import {
   loadMealPlan,
   type SavedMealPlan,
 } from "@/lib/mealPlans";
-import { exportMealPlanPdf, type RecipeDetail } from "@/lib/mealPlanPdf";
+import { buildMealPlanHtml, type RecipeDetail } from "@/lib/mealPlanPdf";
+import { X } from "lucide-react";
 import { exportMealPlanImage } from "@/lib/mealPlanImage";
 import { getRecipes } from "@/lib/store";
 
@@ -47,6 +48,9 @@ export function MealPlanControls({
   const [saveOpen, setSaveOpen] = useState(false);
   const [plansOpen, setPlansOpen] = useState(false);
   const [pdfOpen, setPdfOpen] = useState(false);
+  // In-app PDF preview (reliable in the PWA; a new tab is unreliable on iOS).
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const previewFrame = useRef<HTMLIFrameElement>(null);
 
   // Save dialog state
   const [name, setName] = useState("");
@@ -179,7 +183,7 @@ export function MealPlanControls({
         }
       }
     }
-    exportMealPlanPdf({
+    const html = buildMealPlanHtml({
       title: titleFor(pdfScope),
       scope: pdfScope,
       items,
@@ -187,6 +191,15 @@ export function MealPlanControls({
       recipeDetails,
     });
     setPdfOpen(false);
+    setPreviewHtml(html); // open the in-app preview
+  };
+
+  const printPreview = () => {
+    const win = previewFrame.current?.contentWindow;
+    if (win) {
+      win.focus();
+      win.print();
+    }
   };
 
   const mine = plans.filter((p) => p.mine);
@@ -456,6 +469,38 @@ export function MealPlanControls({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* In-app PDF preview: full-screen overlay with Close + Save as PDF.
+          Lives inside the app (not a new tab) so it's reliable in the PWA on
+          iOS and can never trap the member — Close always dismisses it. */}
+      {previewHtml && (
+        <div className="fixed inset-0 z-[100] bg-black/60 flex flex-col">
+          <div className="flex items-center justify-between gap-2 bg-[#14170f] text-white px-4 py-3">
+            <button
+              onClick={() => setPreviewHtml(null)}
+              className="flex items-center gap-1.5 text-sm font-bold"
+              aria-label="Close preview"
+            >
+              <X className="h-5 w-5" /> Close
+            </button>
+            <button
+              onClick={printPreview}
+              className="flex items-center gap-1.5 bg-primary text-primary-foreground font-bold text-sm px-4 py-2 rounded-lg"
+            >
+              <FileDown className="h-4 w-4" /> Save as PDF
+            </button>
+          </div>
+          <iframe
+            ref={previewFrame}
+            title="Meal plan preview"
+            srcDoc={previewHtml}
+            className="flex-1 w-full bg-white"
+          />
+          <div className="bg-[#14170f] text-white/70 text-[11px] text-center py-2 px-4">
+            Tap "Save as PDF" → choose Save to Files (phone) or Save as PDF (computer).
+          </div>
+        </div>
+      )}
     </>
   );
 }
