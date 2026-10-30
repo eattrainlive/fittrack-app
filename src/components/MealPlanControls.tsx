@@ -205,6 +205,37 @@ export function MealPlanControls({
   const mine = plans.filter((p) => p.mine);
   const shared = plans.filter((p) => !p.mine && p.visibility === "shared");
 
+  // Rebuild the PDF preview from a SAVED plan's own data (no files stored).
+  const viewPlanPdf = async (plan: SavedMealPlan) => {
+    if (!plan.items.length) {
+      toast.error("This plan is empty.");
+      return;
+    }
+    const recipeDetails: Record<string, RecipeDetail> = {};
+    const wantIds = new Set(
+      plan.items.filter((i) => i.recipe_id).map((i) => String(i.recipe_id)),
+    );
+    if (wantIds.size) {
+      const all = await getRecipes();
+      for (const r of all as any[]) {
+        if (wantIds.has(String(r.id))) {
+          recipeDetails[String(r.id)] = {
+            ingredients: r.ingredients,
+            method: r.method,
+          };
+        }
+      }
+    }
+    const html = buildMealPlanHtml({
+      title: plan.name,
+      scope: plan.scope,
+      items: plan.items,
+      targetCalories,
+      recipeDetails,
+    });
+    setPreviewHtml(html);
+  };
+
   const PlanRow = ({ plan }: { plan: SavedMealPlan }) => (
     <div className="flex items-center justify-between gap-2 border border-border rounded-lg p-2.5">
       <div className="min-w-0">
@@ -228,6 +259,14 @@ export function MealPlanControls({
             "Load"
           )}
         </Button>
+        <button
+          onClick={() => viewPlanPdf(plan)}
+          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+          aria-label="View PDF"
+          title="View / save as PDF"
+        >
+          <FileDown className="h-4 w-4" />
+        </button>
         {plan.mine && (
           <button
             onClick={() => doDelete(plan)}

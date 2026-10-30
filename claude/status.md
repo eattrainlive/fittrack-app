@@ -799,3 +799,11 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   srcDoc={html}> preview. Save = previewFrame.contentWindow.print() → iOS share/
   print sheet (Save to Files/PDF). Close always dismisses → never traps. Imported X,
   useRef. PUSH both files. Verified esbuild compile.
+
+## 47 — Saved plans: View-PDF per plan (2026-10-30)
+- My Plans rows gained a FileDown (PDF) button next to Load. viewPlanPdf(plan) rebuilds
+  recipeDetails from getRecipes() for the plan's recipe_ids and calls buildMealPlanHtml
+  with the plan's own title/scope/items → setPreviewHtml (same in-app preview overlay).
+  No PDF files stored; regenerated from saved plan data each time (always matches).
+  So each saved plan now: Load (re-log to diary) + PDF (view/save). PUSH
+  src/components/MealPlanControls.tsx. Verified esbuild compile.
