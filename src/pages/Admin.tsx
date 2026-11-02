@@ -3591,28 +3591,53 @@ const Admin = () => {
                                                     workout.exercises[i - 1]
                                                       .linkedToNext);
 
-                                                let detailText = "";
-                                                if (ex.sets && ex.reps)
-                                                  detailText = `${ex.sets}x${ex.reps}`;
-                                                else if (
-                                                  ex.timeMins ||
-                                                  ex.timeSecs
+                                                const tt = Array.isArray(
+                                                  ex.trackingType,
                                                 )
+                                                  ? ex.trackingType
+                                                  : [ex.trackingType].filter(
+                                                      Boolean,
+                                                    );
+                                                const isCal = tt.some(
+                                                  (t: string) =>
+                                                    String(t)
+                                                      .toLowerCase()
+                                                      .includes("cal"),
+                                                );
+                                                let detailText = "";
+                                                if (ex.timeMins || ex.timeSecs)
                                                   detailText = `${ex.timeMins || 0}m ${ex.timeSecs || 0}s`;
                                                 else if (ex.distance)
                                                   detailText = `${ex.distance}m`;
+                                                else if (isCal && ex.reps)
+                                                  detailText = `${ex.sets ? ex.sets + "x" : ""}${ex.reps} cal`;
+                                                else if (ex.sets && ex.reps)
+                                                  detailText = `${ex.sets}x${ex.reps}${ex.eachSide ? "/side" : ""}`;
+                                                else if (ex.reps)
+                                                  detailText = `${ex.reps}${ex.eachSide ? "/side" : ""}`;
+                                                if (ex.weight)
+                                                  detailText += ` @${ex.weight}kg`;
 
                                                 return (
                                                   <div
                                                     key={i}
                                                     className={
                                                       ex.isSection
-                                                        ? "font-bold mt-2 text-primary"
+                                                        ? "mt-2 text-primary"
                                                         : "text-muted-foreground flex justify-between gap-1 items-start"
                                                     }
                                                   >
                                                     {ex.isSection ? (
-                                                      ex.name
+                                                      <div>
+                                                        <div className="font-bold">
+                                                          {ex.name}
+                                                        </div>
+                                                        {ex.description && (
+                                                          <div className="font-normal text-[10px] text-muted-foreground whitespace-pre-line mt-0.5 leading-snug">
+                                                            {ex.description}
+                                                          </div>
+                                                        )}
+                                                      </div>
                                                     ) : (
                                                       <>
                                                         <div className="flex items-start gap-1 min-w-0">

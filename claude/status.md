@@ -907,3 +907,15 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
 - All 8 files esbuild-compile clean. PUSH all + RUN newsletters.sql.
 - FLOW: staff build issue -> Publish -> Copy link -> paste /n/<slug> into GHL email as the
   "read more" button. App users see it in Community > Newsletters automatically.
+
+## 54 — Week-view day cards now show full workout detail (2026-11-02)
+- Problem: in the programme builder's week grid, each day card showed section
+  NAMES + basic sets only. Freestyle/Engine blocks (where the whole prescription
+  lives in the section description — "Every 4 min x6 rounds: 10 box jump overs,
+  8 burpees, max cal Air Bike, Score:...") rendered as just the movement names,
+  so you had to open every day to analyse a week.
+- Fix (src/pages/Admin.tsx, week-grid day card ~L3584): section rows now render
+  ex.description under the name (whitespace-pre-line, 10px muted). Per-exercise
+  detailText enriched: calories (Nx cal), each-side (/side), and @weight kg, in
+  addition to sets x reps / time / distance. Single edit; esbuild clean.
+- Result: a whole week reads at a glance incl. engine/AMRAP scoring. PUSH Admin.tsx.
