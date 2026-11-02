@@ -840,3 +840,44 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   MemberActivityModal above the nutrition log.
 - PUSH: MacroTargetEditor.tsx, memberMacrosAdmin.ts, CoachMacroTargets.tsx (new),
   MemberActivityModal.tsx, Nutrition.tsx. RUN member_macros_staff.sql. Verified esbuild (all OK).
+
+## 50 — Macro targets/diary staff fixes (2026-10-30)
+- "Couldn't save targets" + empty diary were a stale deploy / PostgREST schema-cache
+  timing issue (DB objects all present: rpc_exists/policies/staff_users all =1, member.id
+  = auth uid, direct insert OK). Resolved once latest build deployed.
+- Kept: CoachMacroTargets save now surfaces the real error (res.error.message + console).
+  MemberActivityModal computes authId = member.user_id || member.id, UUID-guards it, and
+  shows "need a linked app account" for non-linked roster entries. PUSH
+  MemberActivityModal.tsx + CoachMacroTargets.tsx.
+
+## 51 — Staff Insights "Year tab" didn't match the KPI summary — fixed (2026-11-02)
+- Cause: the app's Year/Trends reads the sheet's "App Year" tab (via the deployed Apps
+  Script staffhub.gs → Netlify staffhub.js proxy). "App Year" recomputed from the monthly
+  "<Month>- Overview" tabs with its OWN formulas, which defined some metrics differently
+  from the "Year Summary" tab (the trusted weekly KPI table, gid 658065908; NOTE its tab
+  NAME is "Year Summary", not "2026 KPI summary" which is just A1 title text — and there IS
+  a separate tab literally named "2026 KPI summary" = Key Growth Areas).
+- Mismatches were definitional: Cancellations excluded end-of-trial (229 vs 321) →
+  Net members 186 vs 94; ad spend all-channels vs Meta-only (£3,568 vs £1,960); attrition
+  monthly vs cumulative. Money/count totals already matched.
+- Decision (Michael): point App Year at the Year Summary; ad metrics = Meta-only.
+- Fix: ran repoint_app_year.gs (added to the Apps Script project, KPI_TAB='Year Summary')
+  — rewrites App Year C6:AB18 as INDEX/MATCH into 'Year Summary' (month via MATCH on its
+  header row 4 so it auto-handles new month columns; metric rows hardcoded to the current
+  Year Summary layout; conv_no/conv_rate/base/attrition/cpl derived). Cols A/B untouched.
+- Verified: App Year YEAR row now matches Year Summary cell-for-cell (net members 94,
+  cancellations 321, ad spend £1,960, leads 274). No app deploy — sheet-only. App caches
+  metrics (etl_staffhub_metrics_cache) so staff reload once to see it.
+- Caveat: Year Summary row numbers are hardcoded in the formulas; if its rows are
+  inserted/deleted, re-map. Script saved at outputs/repoint_app_year.gs.
+
+## 52 — One-time events RSVP popup on app open (2026-11-02)
+- New src/components/EventsAnnouncement.tsx: self-gating dialog shown once per member
+  per campaign. On app open (non-staff, not seen): getUpcomingEvents() → if any, shows
+  them with Count me in / Can't make it buttons + "X going" count. RSVP via setRsvp()
+  (community_event_rsvps) so answers feed the Community events-page totals directly.
+  Gate: localStorage "etl_events_popup_seen" === CAMPAIGN ("xmas-games-2026"); bump
+  CAMPAIGN const to re-announce. Skips staff; doesn't mark seen if there are no events.
+- Mounted in AppLayout.tsx next to <OnboardingTour/>. No SQL (community_events +
+  community_event_rsvps already exist). PUSH EventsAnnouncement.tsx + AppLayout.tsx.
+  Verified esbuild compile. Needs events published + future-dated to appear.

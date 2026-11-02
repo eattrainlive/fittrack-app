@@ -41,6 +41,7 @@ import { Button } from "./ui/button";
 import { toast } from "sonner";
 import { downloadSourceCode } from "@/lib/download";
 import { OnboardingTour } from "@/components/OnboardingTour";
+import { EventsAnnouncement } from "@/components/EventsAnnouncement";
 import { isTourDone } from "@/lib/onboardingTour";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -460,6 +461,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </nav>
 
       <OnboardingTour active={showTour} onComplete={() => setShowTour(false)} />
+      <EventsAnnouncement />
     </div>
   );
 }
