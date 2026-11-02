@@ -209,16 +209,34 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const isAuthPage = location.pathname === "/auth";
   const isTVMode = location.pathname.startsWith("/tv/");
   const isKiosk = location.pathname.startsWith("/checkin");
+  // Public newsletter pages (/n/<slug>) are readable without login — the GHL
+  // email links straight here, so they must never bounce to /auth.
+  const isNewsletterPublic = location.pathname.startsWith("/n/");
 
   useEffect(() => {
-    if (!isAuthLoading && !user && !isAuthPage && !isTVMode && !isKiosk) {
+    if (
+      !isAuthLoading &&
+      !user &&
+      !isAuthPage &&
+      !isTVMode &&
+      !isKiosk &&
+      !isNewsletterPublic
+    ) {
       navigate("/auth");
     }
-  }, [user, isAuthLoading, isAuthPage, isTVMode, isKiosk, navigate]);
+  }, [
+    user,
+    isAuthLoading,
+    isAuthPage,
+    isTVMode,
+    isKiosk,
+    isNewsletterPublic,
+    navigate,
+  ]);
 
-  // Critical/public routes render BEFORE the loading ring — TV, kiosk and auth
-  // must never wait on the session check.
-  if (isAuthPage || isTVMode || isKiosk) {
+  // Critical/public routes render BEFORE the loading ring — TV, kiosk, auth and
+  // public newsletter pages must never wait on the session check.
+  if (isAuthPage || isTVMode || isKiosk || isNewsletterPublic) {
     return (
       <div className="min-h-screen bg-background font-sans">{children}</div>
     );

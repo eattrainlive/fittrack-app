@@ -31,6 +31,8 @@ import Schedule from "./pages/Schedule";
 import Leaderboards from "./pages/Leaderboards";
 import Community from "./pages/Community";
 import CommunityWall from "./pages/CommunityWall";
+import NewsletterView from "./pages/NewsletterView";
+import NewsletterAdmin from "./pages/NewsletterAdmin";
 import ErgChallengePage from "./pages/ErgChallengePage";
 import Feed from "./pages/Feed";
 import { ParqGate } from "./components/ParqGate";
@@ -167,6 +169,11 @@ const AppRoutes = () => {
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/admin" element={<Admin />} />
                   <Route path="/admin/foods" element={<FoodsAdmin />} />
+                  <Route
+                    path="/admin/newsletters"
+                    element={<NewsletterAdmin />}
+                  />
+                  <Route path="/n/:slug" element={<NewsletterView />} />
                   <Route path="/messages" element={<Messages />} />
                   <Route path="/auth/callback" element={<Index />} />
                   <Route path="/auth/confirm" element={<Index />} />
@@ -205,6 +212,11 @@ const AppRoutes = () => {
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/admin/foods" element={<FoodsAdmin />} />
+                <Route
+                  path="/admin/newsletters"
+                  element={<NewsletterAdmin />}
+                />
+                <Route path="/n/:slug" element={<NewsletterView />} />
                 <Route path="/messages" element={<Messages />} />
                 <Route path="/auth/callback" element={<Index />} />
                 <Route path="/auth/confirm" element={<Index />} />

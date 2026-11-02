@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Facebook,
@@ -6,9 +6,15 @@ import {
   MessageSquare,
   ExternalLink,
   Bike,
+  Newspaper,
+  ChevronRight,
 } from "lucide-react";
 import UpcomingEvents from "@/components/UpcomingEvents";
 import { logFeatureView } from "@/lib/featureTracking";
+import {
+  listPublishedNewsletters,
+  type Newsletter,
+} from "@/lib/newsletters";
 
 const FACEBOOK_GROUP_URL = "https://www.facebook.com/groups/307886632668642";
 
@@ -81,8 +87,10 @@ function CommunityCard({
 
 export default function Community() {
   const navigate = useNavigate();
+  const [newsletters, setNewsletters] = useState<Newsletter[]>([]);
   useEffect(() => {
     logFeatureView("community");
+    listPublishedNewsletters().then(setNewsletters);
   }, []);
 
   return (
@@ -127,6 +135,58 @@ export default function Community() {
           onClick={() => navigate("/challenge")}
         />
       </section>
+
+      {newsletters.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Newspaper className="h-5 w-5 text-primary" />
+            <h2 className="font-heading text-xl font-bold tracking-wide">
+              Newsletters
+            </h2>
+          </div>
+          <div className="space-y-3">
+            {newsletters.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => navigate(`/n/${n.slug}`)}
+                className="group w-full text-left bg-card border border-border rounded-2xl overflow-hidden flex items-stretch active:scale-[.99] transition hover:border-primary/40"
+              >
+                {n.cover_image ? (
+                  <img
+                    src={n.cover_image}
+                    alt=""
+                    className="h-24 w-28 object-cover shrink-0"
+                  />
+                ) : (
+                  <div className="h-24 w-28 bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <Newspaper className="h-7 w-7" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0 p-4 flex flex-col justify-center">
+                  <h3 className="font-heading font-bold text-lg leading-tight tracking-wide truncate">
+                    {n.title}
+                  </h3>
+                  {n.subtitle && (
+                    <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
+                      {n.subtitle}
+                    </p>
+                  )}
+                  {n.published_at && (
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mt-1">
+                      {new Date(n.published_at).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </p>
+                  )}
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0 self-center mr-3" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section id="events" className="space-y-3 scroll-mt-4">
         <div className="flex items-center gap-2">

@@ -119,7 +119,7 @@ import JSZip from "jszip";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
 import { Navigate, useNavigate } from "react-router-dom";
-import { QrCode, ArrowRightLeft, Eye, Utensils } from "lucide-react";
+import { QrCode, ArrowRightLeft, Eye, Utensils, Newspaper } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import ExistingProgramsList from "@/components/ExistingProgramsList";
 import { PROG_CATEGORIES, guessCategory } from "@/lib/programCategories";
@@ -2349,6 +2349,13 @@ const Admin = () => {
             className="gap-2"
           >
             <Utensils className="h-4 w-4" /> Food Database
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate("/admin/newsletters")}
+            className="gap-2"
+          >
+            <Newspaper className="h-4 w-4" /> Newsletters
           </Button>
           <Button onClick={() => navigate("/checkin")} className="gap-2">
             <QrCode className="h-4 w-4" /> Check-in Kiosk

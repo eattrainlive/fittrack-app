@@ -881,3 +881,29 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
 - Mounted in AppLayout.tsx next to <OnboardingTour/>. No SQL (community_events +
   community_event_rsvps already exist). PUSH EventsAnnouncement.tsx + AppLayout.tsx.
   Verified esbuild compile. Needs events published + future-dated to appear.
+
+## 53 — In-app + public Newsletter system (2026-11-02)
+- Goal: email members via GHL (AI email builder) but have real content pages that
+  (a) live on a public shareable URL the GHL email links to, and (b) show inside the
+  app so app users never miss an issue and it pulls people onto the app.
+- SQL (RUN THIS): supabase/sql/newsletters.sql — public.newsletters table
+  (slug, title, subtitle, cover_image, blocks jsonb, published, published_at, created_by).
+  RLS: newsletters_read = select using (published OR is_staff()) with NO `to` clause, so
+  PUBLIC/anon can read PUBLISHED issues (email recipients not logged in). Write = staff only.
+- Lib: src/lib/newsletters.ts — Block model (hero|heading|text|image|callout|button|quote|
+  divider), slugify, blockId, list/get/save/delete, uploadNewsletterImage (reuses
+  community-images bucket, newsletters/ path, 3MB cap).
+- Renderer: src/components/NewsletterRenderer.tsx — on-brand scrolling page: cover Hero
+  (image + gradient + title), then typed blocks (lime callouts/buttons, quotes, images).
+- Public page: src/pages/NewsletterView.tsx at /n/:slug — EAT TRAIN LIVE header, renderer,
+  "Get all this in the ETL app" CTA (-> / if logged in else /auth). Readable logged-out.
+- Staff builder: src/pages/NewsletterAdmin.tsx at /admin/newsletters — list issues
+  (draft/published), create/edit (title/subtitle/cover + add/reorder/delete blocks per
+  type), Preview, Save draft, Publish, copy /n/<slug> link (paste into GHL), delete.
+- Wiring: App.tsx routes /admin/newsletters + /n/:slug (both route blocks); AppLayout.tsx
+  isNewsletterPublic (paths /n/) bypasses auth redirect + renders standalone; Admin.tsx
+  "Newsletters" button (Newspaper icon) next to Food Database; Community.tsx shows a live
+  "Newsletters" section listing published issues (cover thumb, links to /n/:slug).
+- All 8 files esbuild-compile clean. PUSH all + RUN newsletters.sql.
+- FLOW: staff build issue -> Publish -> Copy link -> paste /n/<slug> into GHL email as the
+  "read more" button. App users see it in Community > Newsletters automatically.
