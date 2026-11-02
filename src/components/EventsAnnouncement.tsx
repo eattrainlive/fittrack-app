@@ -42,8 +42,9 @@ export function EventsAnnouncement() {
   useEffect(() => {
     if (checked.current) return;
     checked.current = true;
-    // Staff skip it (they manage the events).
-    if (localStorage.getItem("fittrack_is_staff") === "true") return;
+    // NOTE: staff are currently included so Michael can test on his own account.
+    // To exclude staff for launch, uncomment the next line:
+    // if (localStorage.getItem("fittrack_is_staff") === "true") return;
     // Already seen this campaign.
     if (localStorage.getItem(SEEN_KEY) === CAMPAIGN) return;
 
