@@ -919,3 +919,18 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   detailText enriched: calories (Nx cal), each-side (/side), and @weight kg, in
   addition to sets x reps / time / distance. Single edit; esbuild clean.
 - Result: a whole week reads at a glance incl. engine/AMRAP scoring. PUSH Admin.tsx.
+
+## 55 — PAR-Q gate: prompt button instead of full-screen takeover (2026-11-02)
+- Problem: members without a valid PAR-Q got the full-screen ParqForm *instead*
+  of the app; if the form hung they were frozen/trapped with no obvious way out.
+- Change: ParqGate no longer replaces the app. It always renders children and,
+  when PAR-Q is invalid, shows a dismissible prompt bar (bottom-16, above nav):
+  "Complete your health check" + [Fill in] + [X]. Tapping opens ParqForm as an
+  overlay; ParqForm now takes an optional onClose and renders a top-right X, so
+  it can always be closed. Dismiss (X) hides the prompt for the session.
+- Files: src/components/ParqGate.tsx (soft prompt + showForm/dismissed state),
+  src/components/ParqForm.tsx (onClose prop + close button). esbuild clean.
+- NOTE/compliance: this makes PAR-Q effectively skippable (soft gate). Previously
+  it was a hard gate. If you want it mandatory again but non-freezing, option is
+  to block only Workouts/log actions until done, or re-prompt each session.
+  PUSH both files.

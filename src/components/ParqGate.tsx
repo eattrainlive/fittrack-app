@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldAlert, X } from "lucide-react";
 import { ParqForm } from "./ParqForm";
 import { getMyParqStatus } from "@/lib/parq";
 import { isStaff } from "@/lib/communityWall";
@@ -104,6 +104,8 @@ export function ParqGate({ children }: { children: React.ReactNode }) {
     "loading",
   );
   const [reloadTick, setReloadTick] = useState(0);
+  const [showForm, setShowForm] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   const allowed = isAllowedRoute(pathname);
 
@@ -165,24 +167,65 @@ export function ParqGate({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  if (state === "invalid") {
-    return (
-      <ParqForm
-        softFail
-        onDone={() => {
-          // Re-run the gate check after submit / skip.
-          // Clear any stale cache so it re-queries fresh.
-          try {
-            const u = localStorage.getItem("fittrack_current_uid");
-            if (u) clearCache(u);
-          } catch {
-            /* ignore */
-          }
-          setState("loading");
-          setReloadTick((t) => t + 1);
-        }}
-      />
-    );
-  }
-  return <>{children}</>;
+
+  // Re-run the gate check after submit (clears stale cache so it re-queries).
+  const handleDone = () => {
+    try {
+      const u = localStorage.getItem("fittrack_current_uid");
+      if (u) clearCache(u);
+    } catch {
+      /* ignore */
+    }
+    setShowForm(false);
+    setState("loading");
+    setReloadTick((t) => t + 1);
+  };
+
+  // A member without a valid PAR-Q can still USE the app — we never take the
+  // screen over. Instead we show a dismissible prompt; tapping it opens the
+  // form (which has its own close button), so no one can get stuck on it.
+  return (
+    <>
+      {children}
+
+      {state === "invalid" && showForm && (
+        <ParqForm
+          softFail
+          onDone={handleDone}
+          onClose={() => setShowForm(false)}
+        />
+      )}
+
+      {state === "invalid" && !showForm && !dismissed && (
+        <div className="fixed bottom-16 left-0 right-0 z-[60] px-3 pb-2">
+          <div className="mx-auto max-w-md rounded-xl border border-primary/30 bg-background shadow-lg p-3 flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <ShieldAlert className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold leading-tight">
+                Complete your health check
+              </p>
+              <p className="text-xs text-muted-foreground leading-tight">
+                A quick PAR-Q keeps you training safely.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowForm(true)}
+              className="shrink-0 bg-primary text-primary-foreground text-sm font-bold rounded-lg px-3 py-2"
+            >
+              Fill in
+            </button>
+            <button
+              onClick={() => setDismissed(true)}
+              aria-label="Dismiss"
+              className="shrink-0 p-1 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }

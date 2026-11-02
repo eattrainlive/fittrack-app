@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Loader2, ShieldAlert, ShieldCheck, X } from "lucide-react";
 import { toast } from "sonner";
 import { PARQ_QUESTIONS, saveParq } from "@/lib/parq";
 
@@ -14,9 +14,11 @@ interface ParqFormProps {
   onDone?: () => void;
   /** When true, a network error already occurred; show a soft "skip for now". */
   softFail?: boolean;
+  /** When provided, shows a close (X) button so the form can be dismissed. */
+  onClose?: () => void;
 }
 
-export function ParqForm({ onDone, softFail }: ParqFormProps) {
+export function ParqForm({ onDone, softFail, onClose }: ParqFormProps) {
   const [answers, setAnswers] = useState<Record<string, boolean | undefined>>(
     {},
   );
@@ -61,6 +63,15 @@ export function ParqForm({ onDone, softFail }: ParqFormProps) {
 
   return (
     <div className="fixed inset-0 z-[100] bg-background overflow-y-auto">
+      {onClose && (
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="fixed top-4 right-4 z-[110] p-2 rounded-lg bg-muted/80 hover:bg-muted text-foreground"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      )}
       <div className="min-h-full flex items-start justify-center p-4 md:p-8">
         <div className="w-full max-w-2xl space-y-6 py-8">
           {/* Header */}
