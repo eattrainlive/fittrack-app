@@ -281,6 +281,38 @@ serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "setPassword") {
+      // Staff set/reset a member's password directly (e.g. someone who can't do
+      // the email reset flow). memberId is the auth user id (== members.id for an
+      // app account); we also accept email as a fallback to resolve the user.
+      const memberId = String(body.memberId ?? "");
+      const email = String(body.email ?? "").trim().toLowerCase();
+      const password = String(body.password ?? "");
+      if (password.length < 6)
+        return json({ error: "Password must be at least 6 characters." }, 400);
+
+      // Resolve the auth user id: prefer the given memberId, else look up by email.
+      let userId = memberId;
+      if (!userId && email) {
+        for (let page = 1; page <= 50; page++) {
+          const { data: pg } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+          const users = pg?.users ?? [];
+          const hit = users.find((u: any) => String(u.email ?? "").toLowerCase() === email);
+          if (hit) { userId = hit.id; break; }
+          if (users.length < 200) break;
+        }
+      }
+      if (!userId) return json({ error: "Couldn't find that member's account." }, 404);
+
+      const { data, error } = await admin.auth.admin.updateUserById(userId, {
+        password,
+        // Make sure they can sign in immediately even if they never confirmed.
+        email_confirm: true,
+      });
+      if (error) return json({ error: error.message || "Couldn't set password." }, 400);
+      return json({ ok: true, email: data?.user?.email ?? email ?? null });
+    }
+
     if (action === "setAccess") {
       // A manual coach edit. Set the streams AND flag an override so the GymOS webhook won't
       // recompute (and stomp) this member's access on their next membership event.

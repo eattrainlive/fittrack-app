@@ -28,6 +28,27 @@ export const setMemberAccess = async (
 };
 
 /**
+ * Staff set/reset a member's password directly (for someone who can't use the
+ * email reset flow). The password is sent to the edge function, which uses the
+ * service role to update the auth user — it never touches the browser's session.
+ * Pass the member's AUTH user id (user_id ?? id); email is a fallback lookup.
+ */
+export const setMemberPassword = async (
+  staffSecret: string,
+  memberId: string,
+  password: string,
+  email?: string,
+): Promise<{ ok?: boolean; email?: string }> => {
+  return manageMembers({
+    action: "setPassword",
+    memberId,
+    email,
+    password,
+    staffSecret,
+  });
+};
+
+/**
  * Clear a member's manual access override. Server-side this sets
  * `access_override = false` and recomputes `allowed_access` from the
  * member's current membership. Returns the new `allowed_access`.

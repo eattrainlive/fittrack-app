@@ -934,3 +934,16 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   it was a hard gate. If you want it mandatory again but non-freezing, option is
   to block only Workouts/log actions until done, or re-prompt each session.
   PUSH both files.
+
+## 56 — Staff: set/reset a member's password (2026-11-02)
+- Why: some members can't use the email reset flow; staff need to set a password for them.
+- Backend: new action "setPassword" in manage-members edge fn. Guarded by STAFF_SECRET,
+  uses service role -> admin.auth.admin.updateUserById(userId,{password,email_confirm:true}).
+  Resolves userId from memberId (== auth id) or falls back to email via listUsers. Min 6 chars.
+  Browser NEVER holds the service key. REDEPLOY manage-members (paste updated index.ts).
+- Lib: setMemberPassword(staffSecret, memberId, password, email?) in memberAccessActions.ts.
+- UI: new CoachSetPassword.tsx mounted in MemberActivityModal (staff member drawer), above
+  macro targets. "Set / reset password" button -> input with Generate (Etl-xxxx-9999) + Copy +
+  Save. Toast on success; password never stored in plain text. Only shows for linked app
+  accounts (UUID authId). PUSH: CoachSetPassword.tsx, MemberActivityModal.tsx,
+  memberAccessActions.ts + redeploy manage-members fn.
