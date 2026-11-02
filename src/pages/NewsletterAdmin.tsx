@@ -309,8 +309,8 @@ export default function NewsletterAdmin() {
           </div>
         </div>
 
-        {/* Action bar */}
-        <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-background p-3 flex gap-2 max-w-2xl mx-auto">
+        {/* Action bar — sticky above the app's bottom nav (which sits at bottom-0). */}
+        <div className="sticky bottom-16 z-50 -mx-4 sm:-mx-6 border-t border-border bg-background/95 backdrop-blur p-3 flex gap-2 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
           <Button variant="outline" className="flex-1 gap-1.5" onClick={() => setPreview(true)}>
             <Eye className="h-4 w-4" /> Preview
           </Button>
