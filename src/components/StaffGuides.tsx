@@ -30,10 +30,23 @@ import {
   Pencil,
   Trash2,
   ChevronLeft,
+  ChevronDown,
   Search,
   Loader2,
   Video,
+  Folder,
 } from "lucide-react";
+
+/** Suggested section names so categories stay consistent (merged with any the
+ *  team has already created). Edit this list to change the defaults offered. */
+const SUGGESTED_SECTIONS = [
+  "Getting started",
+  "Trialist nurture",
+  "Member management",
+  "Reviews & bookings",
+  "Programming",
+  "Check-in",
+];
 
 export interface StaffGuide {
   id: string;
@@ -148,6 +161,14 @@ export function StaffGuides() {
   const [editing, setEditing] = useState<StaffGuide | null>(null);
   const [form, setForm] = useState(emptyGuide());
   const [saving, setSaving] = useState(false);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  const toggleSection = (cat: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(cat) ? next.delete(cat) : next.add(cat);
+      return next;
+    });
 
   const load = async () => {
     setLoading(true);
@@ -182,7 +203,13 @@ export function StaffGuides() {
   }, [guides]);
 
   const existingCategories = useMemo(
-    () => [...new Set(guides.map((g) => g.category).filter(Boolean))].sort(),
+    () =>
+      [
+        ...new Set([
+          ...SUGGESTED_SECTIONS,
+          ...guides.map((g) => g.category).filter(Boolean),
+        ]),
+      ].sort(),
     [guides],
   );
 
@@ -388,13 +415,32 @@ export function StaffGuides() {
                 : 'No guides yet. Click "Add guide" to create your first one.'}
             </p>
           ) : (
-            <div className="space-y-5">
-              {filteredCategories.map(([cat, list]) => (
-                <div key={cat}>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
-                    {cat}
-                  </h3>
-                  <div className="grid gap-2 sm:grid-cols-2">
+            <div className="space-y-3">
+              {filteredCategories.map(([cat, list]) => {
+                // While searching, keep every matching section open.
+                const isOpen = query.trim() ? true : !collapsed.has(cat);
+                return (
+                <div
+                  key={cat}
+                  className="rounded-xl border border-border overflow-hidden"
+                >
+                  <button
+                    onClick={() => toggleSection(cat)}
+                    className="w-full flex items-center gap-2 bg-muted/40 px-3 py-2.5 text-left hover:bg-muted/60 transition"
+                  >
+                    <ChevronDown
+                      className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${
+                        isOpen ? "" : "-rotate-90"
+                      }`}
+                    />
+                    <Folder className="h-4 w-4 text-primary shrink-0" />
+                    <span className="font-bold text-sm">{cat}</span>
+                    <span className="ml-auto rounded-full bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      {list.length}
+                    </span>
+                  </button>
+                  {isOpen && (
+                  <div className="grid gap-2 sm:grid-cols-2 p-3">
                     {list.map((g) => (
                       <button
                         key={g.id}
@@ -415,8 +461,10 @@ export function StaffGuides() {
                       </button>
                     ))}
                   </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

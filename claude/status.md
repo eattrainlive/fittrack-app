@@ -1034,3 +1034,13 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   "Check first" chip on the collapsed row + an amber reminder banner above the message
   ("No reply to your last message. Only send if you haven't already caught up with
   <name> in the gym"). Makes it a conscious decision. esbuild clean. PUSH cockpit file.
+
+## 65 — Staff Guides: collapsible section folders + suggested section names (2026-11-03)
+- Grouping by Category already existed (guides render under category headings; editor has a
+  Category field). Made it feel like folders: each section is now a collapsible card with a
+  Folder icon + count + chevron (click header to expand/collapse; stays open while searching).
+- Added SUGGESTED_SECTIONS (Getting started, Trialist nurture, Member management, Reviews &
+  bookings, Programming, Check-in) merged into the Category autocomplete so names stay
+  consistent — Carla/you just pick "Trialist nurture" when adding a guide.
+- src/components/StaffGuides.tsx only. esbuild clean. No SQL (staff_guides.category already
+  exists). PUSH StaffGuides.tsx.
