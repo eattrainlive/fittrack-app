@@ -434,7 +434,7 @@ function SendArea({
   const [savingOutcome, setSavingOutcome] = useState(false);
 
   const markOutcome = async (
-    outcome: "won" | "lost",
+    outcome: "won" | "lost" | "parked",
     reason?: TrialLossReason,
   ) => {
     setSavingOutcome(true);
@@ -449,7 +449,13 @@ function SendArea({
       toast.error("Couldn't save — try again");
       return;
     }
-    toast.success(outcome === "won" ? "Marked as won 🎉" : "Marked as lost");
+    toast.success(
+      outcome === "won"
+        ? "Marked as won 🎉"
+        : outcome === "lost"
+          ? "Marked as lost"
+          : "Moved out of the list",
+    );
     onSent();
   };
 
@@ -607,6 +613,14 @@ function SendArea({
           className="rounded-full border border-red-300 px-2.5 py-1 font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
         >
           Lost
+        </button>
+        <button
+          onClick={() => markOutcome("parked")}
+          disabled={savingOutcome}
+          title="Remove from the list without calling it won or lost (reversible)"
+          className="ml-auto rounded-full border border-border px-2.5 py-1 font-medium text-muted-foreground hover:bg-muted"
+        >
+          Move out
         </button>
       </div>
       {lostOpen && (

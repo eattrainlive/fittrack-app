@@ -947,3 +947,28 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   Save. Toast on success; password never stored in plain text. Only shows for linked app
   accounts (UUID authId). PUSH: CoachSetPassword.tsx, MemberActivityModal.tsx,
   memberAccessActions.ts + redeploy manage-members fn.
+
+## 57 — Trial nurture: suggestion no longer sticks on an early step (2026-11-03)
+- Symptom (Carla's cockpit): a trialist days past their trial end was still being
+  suggested the "After 1st visit" message. e.g. Samantha, k21 day 29/21, post_first
+  never sent -> it stayed the earliest un-sent overdue step, so it kept being picked.
+- Root cause: nextStep = actionable[0] (EARLIEST un-sent due/overdue step). A skipped
+  early touch is overdue forever, so it blocked later steps.
+- Fix (src/lib/trialNurture.ts, enrich()): nextStep now = the MOST ADVANCED due/overdue
+  step (last in chronological schedule order), with a floor so it never goes behind a
+  step already sent (latestSentDay). Early missed touches are skipped, not resurrected.
+  So a past-trial trialist now surfaces the ending/decision/review message instead.
+- Cockpit uses t.nextStep.step.key for the "· suggested" preselect (coach can still
+  Browse all to override), so this flows straight through. esbuild clean. PUSH trialNurture.ts.
+
+## 58 — Trial nurture: "Move out" (park) a trialist (2026-11-03)
+- Want: keep past-trial un-converted trialists in Carla's list, but let staff decide
+  to remove one without marking it Won/Lost.
+- New outcome kind "parked": like 'lost' it drops them from the active board, but it's
+  neutral (not a loss stat) and reversible (clearTrialOutcome brings them back).
+- Files: trialOutcomes.ts (TrialOutcomeKind += 'parked'), trialNurture.ts board filter
+  now drops 'lost' AND 'parked', TrialNurtureCockpit.tsx new "Move out" button in the
+  Outcome row + toast. esbuild clean.
+- SQL (RUN): supabase/sql/trial_outcomes_add_parked.sql — widens the outcome CHECK to
+  allow 'parked' (was won/lost only; parked would be rejected otherwise).
+- PUSH: trialOutcomes.ts, trialNurture.ts, TrialNurtureCockpit.tsx + RUN the SQL.

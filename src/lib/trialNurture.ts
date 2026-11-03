@@ -586,16 +586,29 @@ function enrich(
     firstBookingMs != null &&
     nowMs >= firstBookingMs + SESSION_FOLLOWUP_HOURS * 3600000;
 
-  // The one to action now: earliest un-sent step that is overdue or due (coach
-  // never sends the auto welcome). Overdue outranks due via step order (ascending
-  // day). A trialist who's already SIGNED UP gets no outreach — they move to the
-  // "Joined" list instead of being nurtured.
+  // The one to action now. A trialist who's already SIGNED UP gets no outreach —
+  // they move to the "Joined" list instead of being nurtured.
+  //
+  // We DON'T just take the earliest un-sent step: if a coach never sent an early
+  // touch (e.g. the "after 1st visit" check-in) the trialist would get stuck on
+  // it for the whole trial, even once they're days past the end — so the cockpit
+  // kept suggesting a first-session message to someone who's now due a review.
+  // Instead the current touch is the MOST ADVANCED step whose time has come
+  // (latest-day due/overdue, following the timeline), never going back behind a
+  // step already sent. Early missed touches are skipped rather than resurrected.
   const actionable = converted
     ? []
     : steps.filter(
         (s) => !s.step.auto && (s.state === "overdue" || s.state === "due"),
       );
-  const nextStep = actionable.length ? actionable[0] : null;
+  // Floor: never suggest a step earlier than the latest one already sent.
+  const latestSentDay = steps
+    .filter((s) => s.state === "sent")
+    .reduce((mx, s) => Math.max(mx, s.step.day), -1);
+  const atOrAfterFloor = actionable.filter((s) => s.step.day >= latestSentDay);
+  const pool = atOrAfterFloor.length ? atOrAfterFloor : actionable;
+  // Last in schedule (chronological) order = the furthest-along touch now due.
+  const nextStep = pool.length ? pool[pool.length - 1] : null;
 
   return {
     email: c.email,
@@ -806,8 +819,12 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
       .filter((t): t is NurtureTrialist => t != null)
       // drop trialists whose window is well past (no more drip to work)
       .filter((t) => t.trialDay <= 35)
-      // drop anyone the coach marked 'lost' — no more outreach.
-      .filter((t) => outcomeBy.get(String(t.email).toLowerCase()) !== "lost");
+      // drop anyone the coach marked 'lost' or 'parked' — no more outreach.
+      // ('parked' = manually moved out without calling it a loss; reversible.)
+      .filter((t) => {
+        const o = outcomeBy.get(String(t.email).toLowerCase());
+        return o !== "lost" && o !== "parked";
+      });
 
     const isWon = (t: NurtureTrialist) =>
       t.converted ||

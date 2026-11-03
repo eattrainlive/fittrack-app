@@ -1,6 +1,8 @@
 import { supabase } from "./supabase";
 
-export type TrialOutcomeKind = "won" | "lost";
+// "parked" = manually moved out of the active nurture list without calling it a
+// win or loss (e.g. gone quiet, out of trial). Reversible via clearTrialOutcome.
+export type TrialOutcomeKind = "won" | "lost" | "parked";
 export type TrialLossReason =
   | "price"
   | "timing"
