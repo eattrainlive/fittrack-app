@@ -178,7 +178,13 @@ function activityLine(t: NurtureTrialist): string | null {
 
 // ── Cockpit ─────────────────────────────────────────────────────────────────
 
-type Section = "dueNow" | "upcoming" | "joined" | "parked" | "lost";
+type Section =
+  | "dueNow"
+  | "waiting"
+  | "upcoming"
+  | "joined"
+  | "parked"
+  | "lost";
 
 export function TrialNurtureCockpit({ staffSecret }: { staffSecret: string }) {
   const [board, setBoard] = useState<NurtureBoard | null>(null);
@@ -210,8 +216,11 @@ export function TrialNurtureCockpit({ staffSecret }: { staffSecret: string }) {
     ((board as any)?.parked as NurtureTrialist[] | undefined) ?? [];
   const lost =
     ((board as any)?.lost as LostTrialist[] | undefined) ?? [];
+  const waiting =
+    ((board as any)?.waiting as NurtureTrialist[] | undefined) ?? [];
   const allEmpty =
     dueNow.length === 0 &&
+    waiting.length === 0 &&
     upcoming.length === 0 &&
     joined.length === 0 &&
     parked.length === 0 &&
@@ -241,7 +250,8 @@ export function TrialNurtureCockpit({ staffSecret }: { staffSecret: string }) {
             {(
               [
                 ["dueNow", `Due now ${dueNow.length}`],
-                ["upcoming", `In the drip ${upcoming.length}`],
+                ["waiting", `Waiting for reply ${waiting.length}`],
+                ["upcoming", `In the funnel ${upcoming.length}`],
                 ["joined", `Joined ${joined.length}`],
                 ["parked", `Parked ${parked.length}`],
                 ["lost", `Lost ${lost.length}`],
@@ -280,9 +290,19 @@ export function TrialNurtureCockpit({ staffSecret }: { staffSecret: string }) {
                 />
               </div>
             )
+          ) : section === "waiting" ? (
+            waiting.length === 0 ? (
+              <EmptyState text="Nobody's mid-conversation right now." />
+            ) : (
+              <div className="space-y-2">
+                {waiting.map((t) => (
+                  <WaitingRow key={t.email} t={t} staffSecret={staffSecret} />
+                ))}
+              </div>
+            )
           ) : section === "upcoming" ? (
             upcoming.length === 0 ? (
-              <EmptyState text="Nobody waiting in the drip." />
+              <EmptyState text="Nobody in the funnel yet." />
             ) : (
               <div className="space-y-2">
                 {upcoming
@@ -518,6 +538,11 @@ function NurtureRow({
             >
               {overdue ? "Overdue" : "Due"}
             </span>
+            {t.nextStep?.step?.key === "no_reply_followup" && (
+              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                Check first
+              </span>
+            )}
             {chips.map((c) => (
               <span
                 key={c.label}
@@ -655,6 +680,19 @@ function SendArea({
           </SelectContent>
         </Select>
       </div>
+
+      {/* No-reply chase — make Carla pause: she may have already caught them in
+          person, so this auto-suggestion should never be fired reflexively. */}
+      {step.key === "no_reply_followup" && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+          <span className="text-base leading-none">💬</span>
+          <span>
+            <span className="font-bold">No reply to your last message.</span>{" "}
+            Only send this if you haven't already caught up with {t.name} in the
+            gym — skip it if you have.
+          </span>
+        </div>
+      )}
 
       {/* template message (read-only) */}
       <div className="space-y-1">
@@ -949,6 +987,65 @@ function UpcomingRow({
                 setActivityOpen(true);
               }}
             />
+          </div>
+        </CardContent>
+      </Card>
+      <MemberActivityModal
+        member={activityMember}
+        staffSecret={staffSecret}
+        open={activityOpen}
+        onOpenChange={setActivityOpen}
+      />
+    </>
+  );
+}
+
+// ── Waiting for reply — messaged recently, holding off ───────────────────────
+function relTime(iso: string | null): string {
+  if (!iso) return "recently";
+  const ms = Date.now() - new Date(iso).getTime();
+  const h = Math.floor(ms / 3600000);
+  if (h < 1) return "just now";
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return d === 1 ? "yesterday" : `${d} days ago`;
+}
+
+function WaitingRow({
+  t,
+  staffSecret,
+}: {
+  t: NurtureTrialist;
+  staffSecret: string;
+}) {
+  const [activityOpen, setActivityOpen] = useState(false);
+  const activityMember = {
+    id: null,
+    email: t.email,
+    full_name: t.name,
+    membership: null,
+    online_client: false,
+  };
+  return (
+    <>
+      <Card className="border-l-4 border-amber-400">
+        <CardContent className="space-y-1.5 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate font-semibold">{t.name}</p>
+            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+              D{t.trialDay}/{trialLen(t)}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+              Waiting for reply
+            </span>
+            <span className="text-xs text-muted-foreground">
+              messaged {relTime(t.lastContactedAt)}
+            </span>
+          </div>
+          <div className="flex justify-end pt-0.5">
+            <ActivityButton onClick={() => setActivityOpen(true)} />
           </div>
         </CardContent>
       </Card>

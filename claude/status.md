@@ -1001,3 +1001,36 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   who already has a membership — so they keep getting check-in/behaviour touches, not an
   awkward "join us" message. New optional NurtureStep.assumesNoMembership field.
 - esbuild clean. No SQL. PUSH trialNurture.ts.
+
+## 62 — Trial nurture: "Waiting for reply" bucket + funnel relabel (2026-11-03)
+- After a message is sent, the trialist moves to a new "Waiting for reply" tab for
+  WAITING_DAYS (3) so the board stops nagging a live conversation. Clears early the
+  moment they reply (member_messages direction='in', occurred_at > last send) or when
+  the cooldown expires — then they re-surface in Due now / In the funnel as normal.
+- Lib: enrich() gains lastInboundAt param -> lastContactedAt + awaitingReply fields;
+  getNurtureBoard fetches last inbound per email and returns waiting[]; dueNow/upcoming
+  exclude awaiting ones. NurtureBoard += waiting. Resilient if member_messages errors.
+- Cockpit: "Waiting for reply N" tab + amber WaitingRow (name, D/x, "messaged Xd ago",
+  Open). Renamed "In the drip" tab -> "In the funnel" (people not due yet, still shown).
+- esbuild clean. No SQL. PUSH trialNurture.ts + TrialNurtureCockpit.tsx.
+
+## 63 — Trial nurture: auto "no-reply follow-up" nudge (2026-11-03)
+- When the normal sequence has nothing left to send AND a coach message has gone
+  unanswered past the WAITING cooldown, enrich() injects a synthetic NO_REPLY_NUDGE
+  step as the nextStep (so they re-appear in Due now labelled "No-reply follow-up").
+  Sending it logs step_key=no_reply_followup (templateKey trial_no_reply_followup) →
+  puts them back in Waiting; re-fires each cooldown until MAX_NO_REPLY_NUDGES (2) hit.
+- Reply tracking now ignores the AUTO welcome (only coach sends count), so an
+  auto-welcome never triggers Waiting or a chase. Clears on inbound reply as before.
+- ACTION (GHL): create an approved WhatsApp template named "trial_no_reply_followup"
+  with the copy in NO_REPLY_NUDGE (single message, name var). Sends fail silently
+  without it — in-app thread mirror still works.
+- esbuild clean. No SQL. PUSH trialNurture.ts (cockpit already handles any nextStep).
+
+## 64 — No-reply nudge shown as a "check first" prompt, not a silent suggestion (2026-11-03)
+- Nothing auto-sends (Carla always taps Send), but the no-reply chase could blend in
+  and get fired reflexively after she'd already spoken to them in the gym.
+- TrialNurtureCockpit.tsx: for step key "no_reply_followup" the card now shows an amber
+  "Check first" chip on the collapsed row + an amber reminder banner above the message
+  ("No reply to your last message. Only send if you haven't already caught up with
+  <name> in the gym"). Makes it a conscious decision. esbuild clean. PUSH cockpit file.

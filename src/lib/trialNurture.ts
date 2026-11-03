@@ -330,6 +330,30 @@ export function stepsForType(type: TrialType): NurtureStep[] {
 const OVERDUE_GRACE = 2;
 /** Hours after a booked session before the "how did it go?" step becomes due. */
 const SESSION_FOLLOWUP_HOURS = 3;
+/** After a message is sent, hold the trialist in "Waiting for reply" for this
+ *  many days (clears early if they reply) before they re-surface as due. */
+const WAITING_DAYS = 3;
+/** Max "no-reply" chase nudges to auto-suggest once the sequence is exhausted. */
+const MAX_NO_REPLY_NUDGES = 2;
+
+/** A synthetic step: a gentle chase when a coach message went unanswered and the
+ *  normal sequence has nothing left to send. Not in the day-based schedule — it's
+ *  injected by enrich() based on reply state. Needs a GHL template keyed
+ *  "trial_no_reply_followup". */
+const NO_REPLY_NUDGE: NurtureStep = {
+  key: "no_reply_followup",
+  label: "No-reply follow-up",
+  day: 999,
+  templateKey: "trial_no_reply_followup",
+  noNote: true,
+  category: "checkin",
+  blurb: "Gentle chase when a previous message went unanswered.",
+  templateBefore:
+    "Hey {name}, just checking you saw my last message — no pressure at all, I just didn't want to leave you hanging.",
+  templateAfter:
+    "If there's anything I can help with or any questions at all, I'm right here.",
+  defaultNote: "",
+};
 /** No attended session in this many days (and ≥ day 3) → no-show flag. */
 const NO_SHOW_DAYS = 5;
 /** Attended sessions in the first week ≥ this → hot-lead flag. */
@@ -380,6 +404,8 @@ export interface NurtureTrialist {
   };
   steps: StepStatus[]; // every step with its state
   nextStep: StepStatus | null; // the single step the coach should action now
+  lastContactedAt: string | null; // last nurture message sent (from the log)
+  awaitingReply: boolean; // messaged recently, no inbound reply yet → hold off
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -469,6 +495,7 @@ function enrich(
   workoutAt: string[] = [],
   hasReview = false, // a live review_bookings row (booked/completed, future)
   membershipProduct: string | null = null, // active NON-trial membership, if any
+  lastInboundAt: string | null = null, // last inbound reply from this trialist
 ): NurtureTrialist | null {
   if (!c.trial_start) return null; // clock not started — not in the drip yet
   const name = c.full_name || c.email;
@@ -632,6 +659,44 @@ function enrich(
   // Last in schedule (chronological) order = the furthest-along touch now due.
   const nextStep = pool.length ? pool[pool.length - 1] : null;
 
+  // Reply tracking is based on COACH messages (not the auto welcome): the last
+  // time a real nurture message went out, and whether they've replied since.
+  const autoKeys = new Set(
+    schedule.filter((s) => s.auto).map((s) => s.key),
+  );
+  const coachSendMs = logs
+    .filter((l) => !autoKeys.has(l.step_key))
+    .map((l) => Date.parse(l.sent_at))
+    .filter((t) => !isNaN(t));
+  const lastSentMs = coachSendMs.length ? Math.max(...coachSendMs) : 0;
+  const lastContactedAt = lastSentMs ? new Date(lastSentMs).toISOString() : null;
+  const inboundMs = lastInboundAt ? Date.parse(lastInboundAt) : NaN;
+  const repliedSinceSend = !isNaN(inboundMs) && inboundMs > lastSentMs;
+  const cooldownOver = lastSentMs > 0 && nowMs - lastSentMs >= WAITING_DAYS * MS_DAY;
+
+  // "Waiting for reply": messaged recently, no reply yet → hold out of the due
+  // list. Clears the moment an inbound reply lands, or when the cooldown expires.
+  const awaitingReply =
+    !converted && lastSentMs > 0 && !cooldownOver && !repliedSinceSend;
+
+  // No-reply chase: once the normal sequence has nothing left to send AND a coach
+  // message has gone unanswered past the cooldown, auto-suggest a gentle follow-up
+  // (capped, so it doesn't chase forever). Sending it logs under its own key, which
+  // puts them back in "waiting"; if still no reply after the cooldown it re-fires
+  // until the cap is hit.
+  const nudgesSent = logs.filter(
+    (l) => l.step_key === NO_REPLY_NUDGE.key,
+  ).length;
+  const nudgeDue =
+    !converted &&
+    nextStep == null &&
+    cooldownOver &&
+    !repliedSinceSend &&
+    nudgesSent < MAX_NO_REPLY_NUDGES;
+  const finalNextStep: StepStatus | null = nudgeDue
+    ? { step: NO_REPLY_NUDGE, state: "due" as StepState }
+    : nextStep;
+
   return {
     email: c.email,
     name,
@@ -687,7 +752,9 @@ function enrich(
       hasMembership,
     },
     steps,
-    nextStep,
+    nextStep: finalNextStep,
+    lastContactedAt,
+    awaitingReply,
   };
 }
 
@@ -704,6 +771,7 @@ export interface NurtureBoard {
   joined: NurtureTrialist[]; // signed up to a paid membership — the wins
   parked: NurtureTrialist[]; // manually moved out of the list (reversible)
   lost: LostTrialist[]; // coach-marked lost, with reason + date
+  waiting: NurtureTrialist[]; // messaged recently, waiting for a reply
 }
 
 /**
@@ -721,11 +789,11 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
 
     const rows = (cohort as CohortRow[]) ?? [];
     if (!rows.length)
-      return { dueNow: [], upcoming: [], joined: [], parked: [], lost: [] };
+      return { dueNow: [], upcoming: [], joined: [], parked: [], lost: [], waiting: [] };
 
     const emails = rows.map((r) => r.email);
 
-    const [{ data: bookings }, { data: logs }, { data: gmRows }] =
+    const [{ data: bookings }, { data: logs }, { data: gmRows }, { data: inbound }] =
       await Promise.all([
         supabase
           .from("member_bookings")
@@ -742,7 +810,24 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
           .from("gym_members")
           .select("id, email, product, status")
           .in("email", emails),
+        // Inbound WhatsApp/SMS replies — so "waiting for reply" clears the moment
+        // they actually reply. (member_messages, direction='in'.)
+        supabase
+          .from("member_messages")
+          .select("email, occurred_at, direction")
+          .eq("direction", "in")
+          .in("email", emails),
       ]);
+
+    // Last inbound reply time per trialist (max occurred_at).
+    const lastInboundBy = new Map<string, string>();
+    for (const m of (inbound as any[]) ?? []) {
+      const em = String(m?.email ?? "").toLowerCase();
+      const at = m?.occurred_at ?? null;
+      if (!em || !at) continue;
+      const prev = lastInboundBy.get(em);
+      if (!prev || at > prev) lastInboundBy.set(em, at);
+    }
 
     // An active NON-trial membership on gym_members = they've signed up (often
     // in their induction). Same /21/ + 30-day test as trialType, so the trial
@@ -864,6 +949,7 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
           workoutsBy.get(k) ?? [],
           reviewSet.has(k),
           membershipByEmail.get(k) ?? null,
+          lastInboundBy.get(k) ?? null,
         );
       })
       .filter((t): t is NurtureTrialist => t != null);
@@ -894,7 +980,16 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
     const joined = enriched
       .filter((t) => isWon(t))
       .sort((a, b) => b.trialDay - a.trialDay);
-    const active = enriched.filter((t) => !isWon(t));
+    const activeAll = enriched.filter((t) => !isWon(t));
+
+    // Just messaged, no reply yet → hold in "Waiting for reply" so the board
+    // doesn't keep nagging a conversation already in flight.
+    const waiting = activeAll
+      .filter((t) => t.awaitingReply)
+      .sort((a, b) =>
+        (b.lastContactedAt ?? "").localeCompare(a.lastContactedAt ?? ""),
+      );
+    const active = activeAll.filter((t) => !t.awaitingReply);
 
     const dueNow = active
       .filter((t) => t.nextStep != null)
@@ -909,10 +1004,17 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
       .filter((t) => t.nextStep == null)
       .sort((a, b) => b.trialDay - a.trialDay);
 
-    return { dueNow, upcoming, joined, parked, lost };
+    return { dueNow, upcoming, joined, parked, lost, waiting };
   } catch (e) {
     console.warn("getNurtureBoard failed", e);
-    return { dueNow: [], upcoming: [], joined: [], parked: [], lost: [] };
+    return {
+      dueNow: [],
+      upcoming: [],
+      joined: [],
+      parked: [],
+      lost: [],
+      waiting: [],
+    };
   }
 }
 
