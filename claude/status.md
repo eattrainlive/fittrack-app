@@ -987,3 +987,17 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
 - Cockpit: new "Lost N" tab; LostRow shows name, "Lost <date> · <reason> · email", a reason
   chip, and a Restore button (clearTrialOutcome -> refresh). esbuild clean.
 - No SQL/deploy beyond #58's CHECK widen. PUSH trialNurture.ts + TrialNurtureCockpit.tsx.
+
+## 61 — £21 gym trial: follow-on membership no longer drops them from nurture (2026-11-03)
+- Problem: £21 gym trialists get a follow-on membership added on INDUCTION DAY to roll on
+  after the trial. That set converted/joined, so they left the nurture list mid-trial even
+  though they still need the 21-day drip (and can still cancel).
+- Fix (src/lib/trialNurture.ts enrich()): kickstart21 (incl £21) is counted Joined ONLY once
+  the trial window has passed — within the 21 days a membership/converted flag no longer
+  pulls them out. coached30 unchanged (membership = joined).
+  converted = coached30 ? (c.converted||hasMembership) : (c.converted||hasMembership) && !withinTrial.
+- Also: steps that assume no membership ("let's set up your membership" = ending_soon,
+  decision, k21_ending, k21_decision) now carry assumesNoMembership and are dropped for anyone
+  who already has a membership — so they keep getting check-in/behaviour touches, not an
+  awkward "join us" message. New optional NurtureStep.assumesNoMembership field.
+- esbuild clean. No SQL. PUSH trialNurture.ts.

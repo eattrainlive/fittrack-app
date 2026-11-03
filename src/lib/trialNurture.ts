@@ -38,6 +38,10 @@ export interface NurtureStep {
   // Only surfaces for a trialist who has logged ZERO app workouts (dropped from
   // their step list once they've logged one). Used by the "try a workout" nudge.
   requiresNoAppWorkout?: boolean;
+  // Step assumes they HAVEN'T joined yet (e.g. "let's get your membership set
+  // up"). Dropped for anyone who already has a membership — common for £21 gym
+  // trialists who have a follow-on membership added on induction day.
+  assumesNoMembership?: boolean;
   // No coach-note slot ({{2}}) — one flowing message. The app hides the note box
   // and sends an empty note, and the GHL template must have NO {{2}} variable (an
   // empty {{2}} makes WhatsApp reject the send).
@@ -144,6 +148,7 @@ export const NURTURE_STEPS: NurtureStep[] = [
     day: 25,
     templateKey: "trial_ending_soon",
     category: "convert",
+    assumesNoMembership: true,
     blurb: "Heads-up the trial is ending + the membership options.",
     templateBefore: "Heyyyy {name}, so your trial is up in a few days.",
     templateAfter: "We hope you've enjoyed your time with us! I can book you in for a review to go over some membership options — just open the link to book whatever day/time works for you.\n\nhttps://api.leadconnectorhq.com/widget/bookings/trial-reviews\n\nAny issues let me know.",
@@ -156,6 +161,7 @@ export const NURTURE_STEPS: NurtureStep[] = [
     templateKey: "trial_decision",
     noNote: true,
     category: "convert",
+    assumesNoMembership: true,
     blurb: "Final decision nudge before the trial ends.",
     templateBefore: "Hey {name}, we haven't had you in for your trial review yet.",
     templateAfter: "Shall we get you set up before it ends so you don't lose your progress? I can book you in, is there a day/time that works for you?",
@@ -293,6 +299,7 @@ export const KICKSTART21_STEPS: NurtureStep[] = [
     day: 19,
     templateKey: "trial_k21_ending_soon",
     category: "convert",
+    assumesNoMembership: true,
     blurb: "Heads-up the Kickstart is ending + options.",
     templateBefore: "Heyyyy {name}, your 21 days are nearly up!",
     templateAfter: "We'd love to keep you going — I can talk you through the membership options whenever suits.",
@@ -305,6 +312,7 @@ export const KICKSTART21_STEPS: NurtureStep[] = [
     templateKey: "trial_k21_decision",
     noNote: true,
     category: "convert",
+    assumesNoMembership: true,
     blurb: "Final nudge before the Kickstart ends — no membership set up yet.",
     templateBefore:
       "We haven't got your membership set up yet {name}. Shall we get you set up so you don't lose the momentum? Is there a day/time that works for a quick chat? Or you can book a slot here\nhttps://api.leadconnectorhq.com/widget/bookings/trial-reviews",
@@ -542,6 +550,9 @@ function enrich(
     .filter((s) => !s.branch || s.branch === keepBranch)
     // drop the "try an app workout" nudge once they've logged one
     .filter((s) => !s.requiresNoAppWorkout || workoutDates.length === 0)
+    // drop "let's set up your membership" steps for anyone who already has one
+    // (e.g. a £21 trialist with a follow-on membership added on induction day)
+    .filter((s) => !s.assumesNoMembership || !membershipProduct)
     .map((step) => {
       const sent = step.branch ? sentMap.get(step.key) ?? branchSent : sentMap.get(step.key);
       if (sent) {
@@ -570,7 +581,18 @@ function enrich(
   //     nurturing them to protect the conversion — we only suppress the "review
   //     needed" nudge (they don't need one). It's not a conversion yet.
   const hasMembership = !!membershipProduct;
-  const converted = !!c.converted || (hasMembership && tType === "coached30");
+  const withinTrial = trialDay <= trialLengthDays(tType);
+  // Conversion / "Joined":
+  //   • Coached-30: a membership (or the converted flag) = joined, out of nurture.
+  //   • Kickstart-21 (incl. the £21 gym trial): a follow-on membership is often
+  //     added on INDUCTION DAY to roll on after the trial — that isn't a real
+  //     conversion yet and they still need nurturing. So we DON'T count them
+  //     joined while they're still inside the 21 days; only once the trial window
+  //     has passed (and the membership/flag stuck) do they move to Joined.
+  const converted =
+    tType === "coached30"
+      ? !!c.converted || hasMembership
+      : (!!c.converted || hasMembership) && !withinTrial;
 
   // ── Situational signals (the new Carla nudges) ──────────────────────────────
   const trialLen = trialLengthDays(tType);
