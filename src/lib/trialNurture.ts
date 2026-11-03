@@ -669,10 +669,19 @@ function enrich(
   };
 }
 
+export interface LostTrialist {
+  email: string;
+  name: string;
+  reason: string | null; // loss reason key, if one was chosen
+  at: string | null; // when it was recorded (ISO)
+}
+
 export interface NurtureBoard {
   dueNow: NurtureTrialist[]; // has an overdue/due step to send today
   upcoming: NurtureTrialist[]; // in the drip, nothing to send yet
   joined: NurtureTrialist[]; // signed up to a paid membership — the wins
+  parked: NurtureTrialist[]; // manually moved out of the list (reversible)
+  lost: LostTrialist[]; // coach-marked lost, with reason + date
 }
 
 /**
@@ -689,7 +698,8 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
       .not("trial_start", "is", null);
 
     const rows = (cohort as CohortRow[]) ?? [];
-    if (!rows.length) return { dueNow: [], upcoming: [], joined: [] };
+    if (!rows.length)
+      return { dueNow: [], upcoming: [], joined: [], parked: [], lost: [] };
 
     const emails = rows.map((r) => r.email);
 
@@ -798,12 +808,30 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
     // manual 'won' moves them to the Joined list even without a converted flag.
     const { data: outcomeRows } = await supabase
       .from("trial_outcomes")
-      .select("email, outcome");
+      .select("email, outcome, reason, updated_at, created_at");
     const outcomeBy = new Map<string, string>();
     for (const o of (outcomeRows as any[]) ?? [])
       if (o?.email) outcomeBy.set(String(o.email).toLowerCase(), String(o.outcome));
 
-    const enriched = rows
+    // Names for anyone with an outcome (lost trialists may be well past their
+    // trial, so read names from the full cohort set, not just the active rows).
+    const nameByEmail = new Map<string, string>();
+    for (const r of rows)
+      if (r.email) nameByEmail.set(String(r.email).toLowerCase(), r.full_name || r.email);
+
+    // Lost list — every trialist the coach marked lost, newest first, with the
+    // reason + the date it was recorded. Kept regardless of trial age.
+    const lost: LostTrialist[] = ((outcomeRows as any[]) ?? [])
+      .filter((o) => o?.outcome === "lost")
+      .map((o) => ({
+        email: o.email,
+        name: nameByEmail.get(String(o.email).toLowerCase()) || o.email,
+        reason: o.reason ?? null,
+        at: o.updated_at ?? o.created_at ?? null,
+      }))
+      .sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""));
+
+    const allEnriched = rows
       .map((c) => {
         const k = String(c.email).toLowerCase();
         return enrich(
@@ -816,13 +844,23 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
           membershipByEmail.get(k) ?? null,
         );
       })
-      .filter((t): t is NurtureTrialist => t != null)
+      .filter((t): t is NurtureTrialist => t != null);
+
+    const outcomeOf = (t: NurtureTrialist) =>
+      outcomeBy.get(String(t.email).toLowerCase());
+
+    // Parked = manually moved out (reversible). Kept in its own list so staff can
+    // see + bring them back. No 35-day cap here, so they stay findable.
+    const parked = allEnriched
+      .filter((t) => outcomeOf(t) === "parked")
+      .sort((a, b) => b.trialDay - a.trialDay);
+
+    const enriched = allEnriched
       // drop trialists whose window is well past (no more drip to work)
       .filter((t) => t.trialDay <= 35)
       // drop anyone the coach marked 'lost' or 'parked' — no more outreach.
-      // ('parked' = manually moved out without calling it a loss; reversible.)
       .filter((t) => {
-        const o = outcomeBy.get(String(t.email).toLowerCase());
+        const o = outcomeOf(t);
         return o !== "lost" && o !== "parked";
       });
 
@@ -849,10 +887,10 @@ export async function getNurtureBoard(): Promise<NurtureBoard> {
       .filter((t) => t.nextStep == null)
       .sort((a, b) => b.trialDay - a.trialDay);
 
-    return { dueNow, upcoming, joined };
+    return { dueNow, upcoming, joined, parked, lost };
   } catch (e) {
     console.warn("getNurtureBoard failed", e);
-    return { dueNow: [], upcoming: [], joined: [] };
+    return { dueNow: [], upcoming: [], joined: [], parked: [], lost: [] };
   }
 }
 

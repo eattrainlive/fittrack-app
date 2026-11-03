@@ -972,3 +972,18 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
 - SQL (RUN): supabase/sql/trial_outcomes_add_parked.sql — widens the outcome CHECK to
   allow 'parked' (was won/lost only; parked would be rejected otherwise).
 - PUSH: trialOutcomes.ts, trialNurture.ts, TrialNurtureCockpit.tsx + RUN the SQL.
+
+## 59 — Trial nurture: Parked tab + un-park (2026-11-03)
+- getNurtureBoard now also returns parked[] (outcome='parked', NOT 35-day capped so
+  they stay findable). NurtureBoard interface += parked. Both empty-returns updated.
+- Cockpit: new "Parked N" section tab; ParkedRow shows name/day/email + "Bring back"
+  (clearTrialOutcome(email) -> refresh). Fixed the catch-fallback board shape too.
+- PUSH trialNurture.ts + TrialNurtureCockpit.tsx (SQL from #58 still required).
+
+## 60 — Trial nurture: Lost tab (date + reason) (2026-11-03)
+- getNurtureBoard now also returns lost[] {email,name,reason,at} built from trial_outcomes
+  (select widened to reason, updated_at, created_at); names resolved from cohort rows.
+  Newest first, no age cap. NurtureBoard interface += lost; LostTrialist exported.
+- Cockpit: new "Lost N" tab; LostRow shows name, "Lost <date> · <reason> · email", a reason
+  chip, and a Restore button (clearTrialOutcome -> refresh). esbuild clean.
+- No SQL/deploy beyond #58's CHECK widen. PUSH trialNurture.ts + TrialNurtureCockpit.tsx.

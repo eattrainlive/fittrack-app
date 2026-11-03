@@ -22,6 +22,7 @@ import {
 import { MemberActivityModal } from "@/components/MemberActivityModal";
 import {
   setTrialOutcome,
+  clearTrialOutcome,
   LOSS_REASONS,
   type TrialLossReason,
 } from "@/lib/trialOutcomes";
@@ -40,6 +41,7 @@ import {
   type NurtureTrialist,
   type NurtureStep,
   type NurtureBoard,
+  type LostTrialist,
 } from "@/lib/trialNurture";
 
 // ── Defensive accessors for fields the protected repo lib adds ──────────────
@@ -176,7 +178,7 @@ function activityLine(t: NurtureTrialist): string | null {
 
 // ── Cockpit ─────────────────────────────────────────────────────────────────
 
-type Section = "dueNow" | "upcoming" | "joined";
+type Section = "dueNow" | "upcoming" | "joined" | "parked" | "lost";
 
 export function TrialNurtureCockpit({ staffSecret }: { staffSecret: string }) {
   const [board, setBoard] = useState<NurtureBoard | null>(null);
@@ -190,7 +192,7 @@ export function TrialNurtureCockpit({ staffSecret }: { staffSecret: string }) {
       setBoard(b);
     } catch (e) {
       console.error("[trialNurture] getNurtureBoard failed", e);
-      setBoard({ dueNow: [], upcoming: [] });
+      setBoard({ dueNow: [], upcoming: [], joined: [], parked: [] });
     } finally {
       setLoading(false);
     }
@@ -204,8 +206,16 @@ export function TrialNurtureCockpit({ staffSecret }: { staffSecret: string }) {
   const upcoming = board?.upcoming ?? [];
   const joined =
     ((board as any)?.joined as NurtureTrialist[] | undefined) ?? [];
+  const parked =
+    ((board as any)?.parked as NurtureTrialist[] | undefined) ?? [];
+  const lost =
+    ((board as any)?.lost as LostTrialist[] | undefined) ?? [];
   const allEmpty =
-    dueNow.length === 0 && upcoming.length === 0 && joined.length === 0;
+    dueNow.length === 0 &&
+    upcoming.length === 0 &&
+    joined.length === 0 &&
+    parked.length === 0 &&
+    lost.length === 0;
 
   // Group due-now by urgency.
   const overdue = dueNow
@@ -233,6 +243,8 @@ export function TrialNurtureCockpit({ staffSecret }: { staffSecret: string }) {
                 ["dueNow", `Due now ${dueNow.length}`],
                 ["upcoming", `In the drip ${upcoming.length}`],
                 ["joined", `Joined ${joined.length}`],
+                ["parked", `Parked ${parked.length}`],
+                ["lost", `Lost ${lost.length}`],
               ] as [Section, string][]
             ).map(([key, label]) => (
               <button
@@ -284,17 +296,136 @@ export function TrialNurtureCockpit({ staffSecret }: { staffSecret: string }) {
                   ))}
               </div>
             )
-          ) : joined.length === 0 ? (
-            <EmptyState text="No converted trialists to show." />
+          ) : section === "joined" ? (
+            joined.length === 0 ? (
+              <EmptyState text="No converted trialists to show." />
+            ) : (
+              <div className="space-y-2">
+                {joined.map((t) => (
+                  <UpcomingRow key={t.email} t={t} staffSecret={staffSecret} />
+                ))}
+              </div>
+            )
+          ) : section === "parked" ? (
+            parked.length === 0 ? (
+              <EmptyState text="Nobody parked. Use 'Move out' on a card to park them here." />
+            ) : (
+              <div className="space-y-2">
+                {parked.map((t) => (
+                  <ParkedRow key={t.email} t={t} onChange={load} />
+                ))}
+              </div>
+            )
+          ) : lost.length === 0 ? (
+            <EmptyState text="No lost trialists recorded." />
           ) : (
             <div className="space-y-2">
-              {joined.map((t) => (
-                <UpcomingRow key={t.email} t={t} staffSecret={staffSecret} />
+              {lost.map((t) => (
+                <LostRow key={t.email} t={t} onChange={load} />
               ))}
             </div>
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// ── Lost row — recorded loss with date + reason; can be restored ─────────────
+function LostRow({
+  t,
+  onChange,
+}: {
+  t: LostTrialist;
+  onChange: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const reasonLabel =
+    LOSS_REASONS.find((r) => r.key === t.reason)?.label ?? null;
+  const when = t.at
+    ? new Date(t.at).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : null;
+  const restore = async () => {
+    setBusy(true);
+    const { error } = await clearTrialOutcome(t.email);
+    setBusy(false);
+    if (error) {
+      toast.error("Couldn't restore — try again");
+      return;
+    }
+    toast.success("Restored to the nurture list");
+    onChange();
+  };
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 p-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-bold truncate">{t.name}</p>
+        <p className="text-[11px] text-muted-foreground">
+          {when ? `Lost ${when}` : "Lost"}
+          {reasonLabel ? ` · ${reasonLabel}` : ""} · {t.email}
+        </p>
+      </div>
+      {reasonLabel && (
+        <span className="shrink-0 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600 dark:text-red-400">
+          {reasonLabel}
+        </span>
+      )}
+      <Button
+        size="sm"
+        variant="outline"
+        className="gap-1.5 shrink-0"
+        disabled={busy}
+        onClick={restore}
+      >
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+        Restore
+      </Button>
+    </div>
+  );
+}
+
+// ── Parked row — moved out of the list; can be brought back ──────────────────
+function ParkedRow({
+  t,
+  onChange,
+}: {
+  t: NurtureTrialist;
+  onChange: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const unpark = async () => {
+    setBusy(true);
+    const { error } = await clearTrialOutcome(t.email);
+    setBusy(false);
+    if (error) {
+      toast.error("Couldn't bring back — try again");
+      return;
+    }
+    toast.success("Back in the nurture list");
+    onChange();
+  };
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 p-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-bold truncate">{t.name}</p>
+        <p className="text-[11px] text-muted-foreground">
+          Day {t.trialDay} · {t.email}
+        </p>
+      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        className="gap-1.5 shrink-0"
+        disabled={busy}
+        onClick={unpark}
+      >
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+        Bring back
+      </Button>
     </div>
   );
 }
