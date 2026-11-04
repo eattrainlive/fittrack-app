@@ -1044,3 +1044,35 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   consistent — Carla/you just pick "Trialist nurture" when adding a guide.
 - src/components/StaffGuides.tsx only. esbuild clean. No SQL (staff_guides.category already
   exists). PUSH StaffGuides.tsx.
+
+## 66 — Fix bodyweight_history PGRST204 "chest column" errors (2026-11-04)
+- Error feed: 12x PGRST204 "Could not find the 'chest' column of bodyweight_history"
+  from saveBodyweight + flushRetryQueue.bodyweight, several accounts.
+- Cause: Progress page measurements form (handleSaveMeasurements) sends
+  {weight, bodyFat, waist, arms, chest, legs} and saveBodyweight upserts them as
+  columns; table was missing chest (and likely legs). Failed saves queue in
+  localStorage and retry forever → repeated errors.
+- Fix (SQL, RUN): supabase/sql/bodyweight_history_add_measurements.sql — add if not
+  exists: "bodyFat", waist, arms, chest, legs, thigh, tummy (numeric). Names match
+  the app's camelCase keys ("bodyFat" quoted). notify pgrst reload schema.
+- Self-healing: once columns exist, each member's queued entry flushes OK on next
+  app open and dequeues — no manual queue clear. No code change. SQL only.
+- (The 51 JS errors are ResizeObserver-loop noise + generic "Script error." — benign.)
+
+## 67 — First-run: single sequential flow (fixes stuck home screen) (2026-11-04)
+- Problem: on first load a member got the PAR-Q medical form + events popup + onboarding
+  tour ALL at once → overlapping overlays left people stuck on the home screen.
+- New src/components/FirstRunFlow.tsx: one full-screen card at a time, in order, skipping
+  any already done:
+    1. PAR-Q medical form (members only; staff exempt) — reuses ParqForm (softFail).
+    2. "Add ETL to your phone" card — iPhone (Safari Share→Add to Home Screen) + Android
+       (Chrome ⋮→Install app). Shown to anyone not running the installed app; once installed (standalone) never again; if skipped, re-nudges ~weekly (etl_install_snooze_until).
+    3. Live events RSVP card — only if getUpcomingEvents() returns any and campaign not
+       seen (etl_events_popup_seen). Reuses communityRsvp setRsvp/getRsvpAggregates.
+  Steps advance one→next; renders null when queue empty.
+- AppLayout.tsx: removed onboarding-tour auto-launch (showTour/isTourDone/OnboardingTour)
+  and <EventsAnnouncement/>; mounts {user && <FirstRunFlow/>}.
+- ParqGate.tsx: gutted to a passthrough (medical now owned by FirstRunFlow) so the form
+  isn't rendered twice; route tree in App.tsx unchanged.
+- EventsAnnouncement.tsx + OnboardingTour.tsx now unused (left in repo, not mounted).
+- esbuild clean. No SQL. PUSH FirstRunFlow.tsx, AppLayout.tsx, ParqGate.tsx.

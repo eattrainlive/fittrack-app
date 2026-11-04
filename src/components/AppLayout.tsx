@@ -40,9 +40,7 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { toast } from "sonner";
 import { downloadSourceCode } from "@/lib/download";
-import { OnboardingTour } from "@/components/OnboardingTour";
-import { EventsAnnouncement } from "@/components/EventsAnnouncement";
-import { isTourDone } from "@/lib/onboardingTour";
+import { FirstRunFlow } from "@/components/FirstRunFlow";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -59,7 +57,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [membershipAllowed, setMembershipAllowed] = useState<boolean | null>(
     null,
   );
-  const [showTour, setShowTour] = useState(false);
 
   const handleDownloadSource = () => {
     downloadSourceCode(setIsZipping);
@@ -173,21 +170,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       unsubSync();
     };
   }, []);
-
-  // Show the onboarding tour once for members who haven't seen it.
-  useEffect(() => {
-    if (!user) return;
-    // Staff / kiosk views skip the tour.
-    if (localStorage.getItem("fittrack_is_staff") === "true") return;
-    let cancelled = false;
-    (async () => {
-      const done = await isTourDone();
-      if (!cancelled && !done) setShowTour(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
 
   const handleMarkRead = async (id: string) => {
     await markNotificationRead(id);
@@ -478,8 +460,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         />
       </nav>
 
-      <OnboardingTour active={showTour} onComplete={() => setShowTour(false)} />
-      <EventsAnnouncement />
+      {user && <FirstRunFlow />}
     </div>
   );
 }
