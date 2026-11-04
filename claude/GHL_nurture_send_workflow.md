@@ -75,6 +75,12 @@ key below; each branch's action = **Send WhatsApp → the matching approved temp
 | `trial_k21_ending_soon` | Ending soon |
 | `trial_k21_decision` | Decision |
 
+**Shared — used by BOTH 21-day & 30-day (one template each)**
+| template_key | template | notes |
+| --- | --- | --- |
+| `trial_not_attending` | Not attending (chase) | note-free: `{{1}}` only, no `{{2}}` |
+| `trial_restart_offer` | Offer free restart | note-free: `{{1}}` only, no `{{2}}` |
+
 ### Step 2e — (recommended) mirror the sent message into the app thread
 Workflow-sent WhatsApps don't trigger your "User Replied" sync, so after each Send add a **Custom
 Webhook → POST** to the message-sync fn so the message shows in the in-app chat thread:
