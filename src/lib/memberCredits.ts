@@ -108,16 +108,36 @@ export const getMyCredits = async (): Promise<MemberCredits | null> => {
     if (!user?.email) return null;
     const email = user.email.toLowerCase();
 
-    // Own gym_members rows (RLS: own email). Prefer an active membership.
-    const { data: rows } = await supabase
-      .from("gym_members")
-      .select("product, status, joined_on")
-      .ilike("email", email);
-    if (!rows || rows.length === 0) return null;
-    const row =
-      rows.find((r: any) => r.status === "active") ??
-      rows.find((r: any) => r.status === "paused") ??
-      rows[0];
+    // Resolve the roster row: prefer the confirmed member-link (handles a Quoox
+    // email that differs from the login email), else fall back to email match.
+    let row: any = null;
+    try {
+      const { data: link } = await supabase
+        .from("member_links")
+        .select("member_id")
+        .maybeSingle();
+      if (link?.member_id) {
+        const { data } = await supabase
+          .from("gym_members")
+          .select("product, status, joined_on")
+          .eq("id", link.member_id)
+          .maybeSingle();
+        row = data ?? null;
+      }
+    } catch {
+      /* no link / not readable — fall back to email */
+    }
+    if (!row) {
+      const { data: rows } = await supabase
+        .from("gym_members")
+        .select("product, status, joined_on")
+        .ilike("email", email);
+      if (!rows || rows.length === 0) return null;
+      row =
+        rows.find((r: any) => r.status === "active") ??
+        rows.find((r: any) => r.status === "paused") ??
+        rows[0];
+    }
     const product = String(row?.product || "");
     if (!product) return null;
 

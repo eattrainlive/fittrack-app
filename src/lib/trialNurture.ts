@@ -42,6 +42,13 @@ export interface NurtureStep {
   // up"). Dropped for anyone who already has a membership — common for £21 gym
   // trialists who have a follow-on membership added on induction day.
   assumesNoMembership?: boolean;
+  // Only for someone who has NOT attended at all (0 sessions) — the not-attending chase.
+  requiresNoAttendance?: boolean;
+  // Only for LOW usage (<= LOW_USAGE_MAX sessions) — the "restart your trial free" offer.
+  requiresLowUsage?: boolean;
+  // Only once they've actually been in (>= 1 session) — e.g. "great first week",
+  // so a no-show never gets a message that assumes they've trained.
+  requiresAttended?: boolean;
   // No coach-note slot ({{2}}) — one flowing message. The app hides the note box
   // and sends an empty note, and the GHL template must have NO {{2}} variable (an
   // empty {{2}} makes WhatsApp reject the send).
@@ -86,11 +93,27 @@ export const NURTURE_STEPS: NurtureStep[] = [
     defaultNote: "",
   },
   {
+    key: "not_attending",
+    label: "Not attending (chase)",
+    day: 5,
+    templateKey: "trial_not_attending",
+    noNote: true,
+    category: "behaviour",
+    requiresNoAttendance: true,
+    blurb: "They've not been in at all — warm chase to get them booked in.",
+    templateBefore:
+      "Hey {name}, we've not managed to get you in yet and I'd hate for you to miss out — the trial clock is ticking and I really want you to feel the difference.",
+    templateAfter:
+      "What day could you get down this week? Tell me what suits and I'll make sure someone's there to take you through everything and get you started.",
+    defaultNote: "",
+  },
+  {
     key: "week1_win",
     label: "Week 1 win",
     day: 7,
     templateKey: "trial_week1",
     category: "checkin",
+    requiresAttended: true,
     blurb: "Celebrate week 1 + point them at what's next.",
     templateBefore: "One week in, {name} — brilliant work getting started.",
     templateAfter: "This week we build on it. Keep the sessions coming and you'll really start to feel it.",
@@ -167,6 +190,21 @@ export const NURTURE_STEPS: NurtureStep[] = [
     templateAfter: "Shall we get you set up before it ends so you don't lose your progress? I can book you in, is there a day/time that works for you?",
     defaultNote: "",
   },
+  {
+    key: "trial_restart",
+    label: "Offer free restart (low usage)",
+    day: 29,
+    templateKey: "trial_restart_offer",
+    noNote: true,
+    category: "convert",
+    requiresLowUsage: true,
+    blurb: "Barely used the trial — offer to restart it for free so they get a proper go.",
+    templateBefore:
+      "Hi {name}, I've had a look and you've not had much chance to get stuck into your trial yet — which is a real shame as I know you'd feel the benefit once you got going.",
+    templateAfter:
+      "Would you like us to restart your trial for you, completely free, so you get a proper crack at it? Just say the word and I'll set it straight up — no pressure at all.",
+    defaultNote: "",
+  },
 ];
 
 // ── Trial types ──────────────────────────────────────────────────────────────
@@ -213,6 +251,21 @@ export const KICKSTART21_STEPS: NurtureStep[] = [
     blurb: "Check in after their first visit/session — how did it feel.",
     templateBefore: "Hey {name}, how did your first one go?",
     templateAfter: "Any aches or questions, just shout — totally normal to feel it at first. You've made the hardest step by getting in.",
+    defaultNote: "",
+  },
+  {
+    key: "not_attending",
+    label: "Not attending (chase)",
+    day: 4,
+    templateKey: "trial_not_attending",
+    noNote: true,
+    category: "behaviour",
+    requiresNoAttendance: true,
+    blurb: "They've not been in at all — warm chase to get them booked in.",
+    templateBefore:
+      "Hey {name}, we've not managed to get you in yet and I'd hate for you to miss out — the trial clock is ticking and I really want you to feel the difference.",
+    templateAfter:
+      "What day could you get down this week? Tell me what suits and I'll make sure someone's there to take you through everything and get you started.",
     defaultNote: "",
   },
   {
@@ -319,6 +372,21 @@ export const KICKSTART21_STEPS: NurtureStep[] = [
     templateAfter: "",
     defaultNote: "",
   },
+  {
+    key: "trial_restart",
+    label: "Offer free restart (low usage)",
+    day: 22,
+    templateKey: "trial_restart_offer",
+    noNote: true,
+    category: "convert",
+    requiresLowUsage: true,
+    blurb: "Barely used the Kickstart — offer to restart it for free so they get a proper go.",
+    templateBefore:
+      "Hi {name}, I've had a look and you've not had much chance to get stuck into your trial yet — which is a real shame as I know you'd feel the benefit once you got going.",
+    templateAfter:
+      "Would you like us to restart your trial for you, completely free, so you get a proper crack at it? Just say the word and I'll set it straight up — no pressure at all.",
+    defaultNote: "",
+  },
 ];
 
 /** The step schedule for a trialist's type. */
@@ -328,6 +396,8 @@ export function stepsForType(type: TrialType): NurtureStep[] {
 
 /** Days a step stays "due" after its day before it's flagged OVERDUE. */
 const OVERDUE_GRACE = 2;
+/** "Barely used the trial" threshold for the free-restart offer (sessions attended). */
+const LOW_USAGE_MAX = 2;
 /** Hours after a booked session before the "how did it go?" step becomes due. */
 const SESSION_FOLLOWUP_HOURS = 3;
 /** After a message is sent, hold the trialist in "Waiting for reply" for this
@@ -580,6 +650,10 @@ function enrich(
     // drop "let's set up your membership" steps for anyone who already has one
     // (e.g. a £21 trialist with a follow-on membership added on induction day)
     .filter((s) => !s.assumesNoMembership || !membershipProduct)
+    // audience gates for the no-show / low-usage templates
+    .filter((s) => !s.requiresNoAttendance || attended === 0)
+    .filter((s) => !s.requiresLowUsage || attended <= LOW_USAGE_MAX)
+    .filter((s) => !s.requiresAttended || attended >= 1)
     .map((step) => {
       const sent = step.branch ? sentMap.get(step.key) ?? branchSent : sentMap.get(step.key);
       if (sent) {

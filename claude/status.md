@@ -1102,3 +1102,36 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   all 20 plans → correct. esbuild clean. PUSH memberCredits.ts (+ the card/Schedule from 68).
 - Open: Core+ / Open Gym "Can switch to allowance" variant — unknown if it changes the
   product name we sync; if so we may need the variant's name to show its allowance.
+
+## 69 — Two new Carla templates: not-attending chase + free-restart offer (2026-11-04)
+- trialNurture.ts: added shared steps to BOTH schedules (same key/template so one GHL
+  template serves 21 & 30 day):
+  • not_attending (key "not_attending", templateKey trial_not_attending) — gated
+    requiresNoAttendance (attended===0). Day 5 (30d) / day 4 (21d). Warm "we've not got
+    you in yet, what day suits" chase.
+  • trial_restart (key "trial_restart", templateKey trial_restart_offer) — gated
+    requiresLowUsage (attended <= LOW_USAGE_MAX=2). Last step (day 29 / 22) so it auto-
+    suggests at the end for barely-used trialists: "restart your trial free".
+- New NurtureStep flags + filters: requiresNoAttendance / requiresLowUsage / requiresAttended.
+  Gated 30d week1_win with requiresAttended so a no-show never gets "great first week".
+- Both appear in Browse-all for manual send too. esbuild clean. No SQL.
+- ACTION (GHL): create approved templates trial_not_attending + trial_restart_offer
+  (single message, {{1}}=first name, no {{2}}). PUSH trialNurture.ts.
+
+## 70 — Win-back "Couldn't save" fix (2026-11-04)
+- Symptom: logging a call outcome (No answer etc.) in the win-back/reach-out call lists
+  showed "Couldn't save — try again".
+- Cause: contactProgress.ts upsert writes last_window (and removeFromList writes reopen_at +
+  status 'dismissed'), but the migration adding those — supabase/sql/staff_contact_progress_remove.sql
+  — was never run, so the column was missing (PGRST204) and the upsert errored.
+- Fix: RUN staff_contact_progress_remove.sql (adds reopen_at, last_window, widens status
+  check to include 'dismissed'). Idempotent. No code change / no push needed.
+
+## 71 — Credits resolve via member-link (email-mismatch robustness) (2026-11-04)
+- getMyCredits now resolves the roster row by member_links (user_id=auth.uid() -> member_id
+  -> gym_members by id) FIRST, falling back to email match. Fixes credits for members whose
+  Quoox membership email differs from their app login email (if linked).
+- SQL (RUN): member_credits_link_rls.sql — adds member-read RLS so a member can read their
+  own member_links row + the gym_members row they're linked to (staff policies unchanged).
+- Does NOT help if the PT 15 plan simply isn't synced into gym_members yet — that still
+  needs a fresh Quoox Active Memberships import. PUSH memberCredits.ts + RUN the SQL.
