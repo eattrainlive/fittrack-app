@@ -1076,3 +1076,29 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   isn't rendered twice; route tree in App.tsx unchanged.
 - EventsAnnouncement.tsx + OnboardingTour.tsx now unused (left in repo, not mounted).
 - esbuild clean. No SQL. PUSH FirstRunFlow.tsx, AppLayout.tsx, ParqGate.tsx.
+
+## 68 — Member-facing "credits left this period" (from GymOS-synced data) (2026-11-04)
+- Members couldn't see class/PT credits. GymOS/Quoox doesn't push a balance and we don't
+  call their API, so DERIVED from what we already sync (Michael chose this): product →
+  allowance, member_bookings → used this cycle.
+- Allowance rules: open gym = none; Core+ = 5 classes/cycle; Team training = unlimited
+  classes; PT = unlimited classes + numeric PT-session allowance (PT-10 → 10). PT/classes
+  usage split by isCoached (semi private pt).
+- Client-side (no edge fn): member reads own gym_members row (RLS own-email) for product +
+  joined_on; cycle is join-day anchored with reset date; member_bookings (authenticated
+  read) for used. src/lib/memberCredits.ts getMyCredits().
+- UI: src/components/MemberCreditsCard.tsx (Classes + PT sessions, "X of Y left", unlimited,
+  low=red, resets DD Mon). Mounted at top of src/pages/Schedule.tsx. Hidden if no allowance
+  applies (e.g. open gym) or membership not synced.
+- CAVEAT: it's our derived count from synced bookings — can differ from Quoox's official
+  ledger (manual adjustments, rollovers, no-show rules). esbuild clean. PUSH 3 files. No SQL.
+
+## 68b — Credit allowances: explicit per-plan rules (2026-11-04)
+- Replaced name-regex guess with an ordered allowancesFor() rules table in memberCredits.ts
+  so day/week counts aren't read as credits. Confirmed by Michael per plan:
+  Core+ =5 classes; Open Gym/Progress Project = none(hidden); everything else unlimited
+  classes; PT counts: Kickstart & "21 Day PT & Classes Bolt On" =10, 30 Day Trial & Forever
+  Strong =12, 6 Weeks =18, Couples N Pt = N each. Individual "N Pt"/"Pt-N" → N. Simulated
+  all 20 plans → correct. esbuild clean. PUSH memberCredits.ts (+ the card/Schedule from 68).
+- Open: Core+ / Open Gym "Can switch to allowance" variant — unknown if it changes the
+  product name we sync; if so we may need the variant's name to show its allowance.

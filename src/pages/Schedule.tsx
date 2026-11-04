@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Calendar, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
+import { MemberCreditsCard } from "@/components/MemberCreditsCard";
 
 const DEFAULT_SCHEDULE_URL =
   "https://eattrainlive.fitnesshub.net/schedule/?hf=1";
@@ -61,7 +62,10 @@ const Schedule = () => {
         </div>
       </header>
 
-      <div className="relative flex-1 bg-background flex items-center justify-center p-6">
+      <div className="relative flex-1 bg-background flex flex-col items-center justify-center p-6 gap-5 overflow-y-auto">
+        <div className="max-w-sm w-full">
+          <MemberCreditsCard />
+        </div>
         <div className="max-w-sm w-full text-center space-y-5">
           <div className="mx-auto h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
             <Calendar className="h-8 w-8 text-primary" />
