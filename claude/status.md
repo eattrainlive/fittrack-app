@@ -1135,3 +1135,15 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   own member_links row + the gym_members row they're linked to (staff policies unchanged).
 - Does NOT help if the PT 15 plan simply isn't synced into gym_members yet — that still
   needs a fresh Quoox Active Memberships import. PUSH memberCredits.ts + RUN the SQL.
+
+## 72 — "Listen & Let Go" wellness audio section (2026-11-05)
+- Hosting advice for the 121MB file: compress to MP3 ~128kbps (-> ~15-40MB), host in Supabase
+  Storage (streams via range requests), play with native <audio>. Avoid raw 121MB upload.
+- SQL (RUN): wellness_tracks_setup.sql — wellness_tracks table (public read published / staff
+  write) + public 'wellness-audio' storage bucket (200MB cap, staff write / public read).
+- Lib: src/lib/wellnessTracks.ts (list/listAll/save/delete + uploadAudio to the bucket).
+- UI: src/components/ListenAndLetGo.tsx — member list w/ native players (preload=none); staff
+  "Add recording" (upload file OR paste URL, title/desc/length, delete, hidden/published).
+- Wired into Coaching hub (Nutrition.tsx): new tile "Listen & Let Go" (🎧, alwaysOn so no
+  feature-flag needed) + section route. Added tileOn() helper honouring alwaysOn.
+- esbuild clean. PUSH wellnessTracks.ts, ListenAndLetGo.tsx, Nutrition.tsx + RUN the SQL.

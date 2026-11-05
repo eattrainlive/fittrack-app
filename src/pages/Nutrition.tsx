@@ -70,6 +70,7 @@ import { getEmbedUrl } from "@/lib/utils";
 import { ResourcesSection } from "@/components/ResourcesSection";
 import { MealPlansPage } from "@/components/MealPlansPage";
 import { StaffGuides } from "@/components/StaffGuides";
+import { ListenAndLetGo } from "@/components/ListenAndLetGo";
 import { StaffGuidesTile } from "@/components/StaffGuidesTile";
 import { AccountabilityCard } from "@/components/AccountabilityCard";
 import { CoachWhatsAppButton } from "@/components/CoachWhatsAppButton";
@@ -809,6 +810,14 @@ export default function Nutrition() {
       desc: "Videos & guides",
     },
     {
+      key: "listen",
+      flag: "nutrition_listen",
+      alwaysOn: true,
+      name: "Listen & Let Go",
+      icon: "🎧",
+      desc: "Sound baths & wellness audio",
+    },
+    {
       key: "progress",
       flag: "nutrition_progress",
       name: "Progress",
@@ -818,8 +827,9 @@ export default function Nutrition() {
   ];
 
   const isFlagOn = (flag: string) => (flags ? flags[flag] === true : false);
+  const tileOn = (t: any) => !!t?.alwaysOn || isFlagOn(t?.flag);
   const currentTile = TILES.find((t) => t.key === nutSection);
-  const sectionOff = nutSection && currentTile && !isFlagOn(currentTile.flag);
+  const sectionOff = nutSection && currentTile && !tileOn(currentTile);
 
   // ── Hub view (no section selected) ──────────────────────────────────────
   if (!nutSection) {
@@ -894,7 +904,7 @@ export default function Nutrition() {
 
         <div className="grid grid-cols-2 gap-4">
           {TILES.map((t) => {
-            const on = isFlagOn(t.flag);
+            const on = tileOn(t);
             return (
               <button
                 key={t.key}
@@ -1048,6 +1058,8 @@ export default function Nutrition() {
           heading="Education"
           blurb="Nutrition videos and guides."
         />
+      ) : nutSection === "listen" ? (
+        <ListenAndLetGo />
       ) : nutSection === "staff_guides" ? (
         <StaffGuides />
       ) : (

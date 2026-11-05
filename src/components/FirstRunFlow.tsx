@@ -93,10 +93,11 @@ export function FirstRunFlow() {
         }
       }
 
-      // 2. Install guide — show to anyone NOT already running the installed app.
-      // Once installed (standalone) it never shows again; if they skip without
-      // installing we re-nudge roughly weekly rather than giving up after one view.
-      if (!isStandalone()) {
+      // 2. Install guide — members only (staff work on a laptop/browser, so the
+      // prompt would keep re-triggering for them). Show to anyone NOT already
+      // running the installed app; once installed (standalone) it never shows
+      // again; if a member skips without installing we re-nudge roughly weekly.
+      if (!isStaff() && !isStandalone()) {
         const snoozeUntil = Number(localStorage.getItem(INSTALL_SNOOZE) || 0);
         if (!snoozeUntil || Date.now() > snoozeUntil) steps.push("install");
       }
