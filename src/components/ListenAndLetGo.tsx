@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Waves, Plus, Trash2, Loader2, Upload } from "lucide-react";
+import { Waves, Plus, Trash2, Loader2, Upload, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
   listTracks,
@@ -25,6 +25,7 @@ export function ListenAndLetGo() {
   const [tracks, setTracks] = useState<WellnessTrack[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<WellnessTrack | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -34,6 +35,12 @@ export function ListenAndLetGo() {
   useEffect(() => {
     load();
   }, []);
+
+  const formOpen = adding || !!editing;
+  const closeForm = () => {
+    setAdding(false);
+    setEditing(null);
+  };
 
   return (
     <div className="space-y-4 pb-24">
@@ -50,16 +57,17 @@ export function ListenAndLetGo() {
         </p>
       </div>
 
-      {staff && !adding && (
+      {staff && !formOpen && (
         <Button size="sm" className="gap-1.5" onClick={() => setAdding(true)}>
           <Plus className="h-4 w-4" /> Add recording
         </Button>
       )}
-      {staff && adding && (
-        <AddTrack
-          onClose={() => setAdding(false)}
+      {staff && formOpen && (
+        <TrackForm
+          editing={editing}
+          onClose={closeForm}
           onSaved={() => {
-            setAdding(false);
+            closeForm();
             load();
           }}
         />
@@ -97,16 +105,27 @@ export function ListenAndLetGo() {
                   )}
                 </div>
                 {staff && (
-                  <button
-                    onClick={async () => {
-                      if (!confirm(`Delete "${t.title}"?`)) return;
-                      await deleteTrack(t.id);
-                      load();
-                    }}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive shrink-0"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => {
+                        setAdding(false);
+                        setEditing(t);
+                      }}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`Delete "${t.title}"?`)) return;
+                        await deleteTrack(t.id);
+                        load();
+                      }}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 )}
               </div>
               {t.description && (
@@ -128,17 +147,20 @@ export function ListenAndLetGo() {
   );
 }
 
-function AddTrack({
+function TrackForm({
+  editing,
   onClose,
   onSaved,
 }: {
+  editing: WellnessTrack | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [duration, setDuration] = useState("");
-  const [url, setUrl] = useState("");
+  const [title, setTitle] = useState(editing?.title ?? "");
+  const [description, setDescription] = useState(editing?.description ?? "");
+  const [duration, setDuration] = useState(editing?.duration_label ?? "");
+  const [url, setUrl] = useState(editing?.audio_url ?? "");
+  const [published, setPublished] = useState(editing?.published ?? true);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -160,14 +182,16 @@ function AddTrack({
     if (!url.trim()) return toast.error("Upload a file or paste an audio URL");
     setBusy(true);
     const { success } = await saveTrack({
+      id: editing?.id,
       title,
       description,
       duration_label: duration,
       audio_url: url,
+      published,
     });
     setBusy(false);
     if (success) {
-      toast.success("Recording added");
+      toast.success(editing ? "Saved" : "Recording added");
       onSaved();
     } else {
       toast.error("Couldn't save — are you signed in as staff?");
@@ -239,9 +263,24 @@ function AddTrack({
           Tip: compress to MP3 (~128kbps) first — big files are slow to load.
         </p>
       </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={published}
+          onChange={(e) => setPublished(e.target.checked)}
+          className="h-4 w-4 accent-primary"
+        />
+        Visible to members
+      </label>
       <div className="flex gap-2 pt-1">
         <Button className="flex-1" disabled={busy} onClick={save}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add recording"}
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : editing ? (
+            "Save changes"
+          ) : (
+            "Add recording"
+          )}
         </Button>
         <Button variant="outline" disabled={busy} onClick={onClose}>
           Cancel
