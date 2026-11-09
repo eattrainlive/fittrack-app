@@ -412,8 +412,17 @@ export function MembersGrid({
         <MemberEngagementBoard
           staffSecret={staffSecret}
           onViewMember={(m) => {
-            const full = members.find((x) => x.id === m.id) || m;
-            setActivityMember(full);
+            const email = String((m as any).email || "").toLowerCase();
+            const full =
+              members.find(
+                (x) => String(x.email || "").toLowerCase() === email,
+              ) || {
+                id: (m as any).user_id || (m as any).member_ref,
+                user_id: (m as any).user_id,
+                email: (m as any).email,
+                full_name: (m as any).full_name,
+              };
+            setActivityMember(full as any);
             setActivityOpen(true);
           }}
         />

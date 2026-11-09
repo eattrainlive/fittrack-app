@@ -1174,3 +1174,20 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   (click to open full size) from responses.photos ?? q10photo/after*. esbuild clean. PUSH it.
 - (Separate from #74's member_photos RLS — accountability photos live in the check-in JSON,
   not member_photos, so they were a display gap not an RLS one.)
+
+## 76 — Member retention scoring restructured (attendance-based, all roster) (2026-11-09)
+- Problem: member-engagement scored only APP accounts and blended attendance 50%/app 30%/
+  habits 20%, so un-invited / not-joined PT/Classes/trial members (a) never appeared and
+  (b) could never beat ~50 even attending perfectly. Penalised non-app members.
+- Rewrote supabase/functions/member-engagement/index.ts: loops the ROSTER (gym_members,
+  active/paused + trials), scores on ATTENDANCE ONLY = distinct active days from
+  member_bookings (email) + scan_events (member_ref=gym_members.id) over the window.
+  Bands (14d default): >=2 visits/wk thriving · >=1/wk steady · >=1 visit slipping · 0 at-risk.
+  App usage is a SEPARATE badge (never scored). app_status = on_app / invited_not_joined /
+  not_invited (from auth.users existence + last_sign_in). Dedup by email; excludes staff +
+  online_client. REDEPLOY the edge fn.
+- Rebuilt MemberEngagementBoard.tsx: 4 bands + "Not on app" filter/count, per-member app
+  badge, attendance (visits + /wk + last), and an Invite/Re-send invite button for non-app
+  members (manage-members invite). MembersGrid onViewMember now matches by email.
+- esbuild clean (board, edge fn, MembersGrid). No SQL. REDEPLOY member-engagement + PUSH
+  MemberEngagementBoard.tsx + MembersGrid.tsx.
