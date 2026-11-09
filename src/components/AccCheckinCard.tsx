@@ -492,6 +492,48 @@ export function AccCheckinCard({
           </p>
         )}
 
+        {/* Progress photos — front / side / back from this check-in. Stored in
+            responses.photos (weekly) or after* (week 6); public media URLs. */}
+        {(() => {
+          const ps = r.photos || {};
+          const shots = (
+            [
+              ["Front", ps.front || r.q10photo || r.afterFront],
+              ["Side", ps.side || r.afterSide],
+              ["Back", ps.back || r.afterBack],
+            ] as [string, string | null | undefined][]
+          ).filter(([, u]) => !!u) as [string, string][];
+          if (!shots.length) return null;
+          return (
+            <div className="pt-1">
+              <p className="text-xs text-muted-foreground mb-1">
+                Progress photos
+              </p>
+              <div className="flex gap-2">
+                {shots.map(([label, url]) => (
+                  <a
+                    key={label}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-center"
+                  >
+                    <img
+                      src={url}
+                      alt={label}
+                      loading="lazy"
+                      className="h-28 w-20 rounded-lg border border-border object-cover"
+                    />
+                    <span className="block text-[10px] text-muted-foreground mt-0.5">
+                      {label}
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Full-answers expander */}
         {fullAnswers.length > 0 && (
           <div className="pt-1">

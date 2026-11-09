@@ -1147,3 +1147,30 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
 - Wired into Coaching hub (Nutrition.tsx): new tile "Listen & Let Go" (🎧, alwaysOn so no
   feature-flag needed) + section route. Added tileOn() helper honouring alwaysOn.
 - esbuild clean. PUSH wellnessTracks.ts, ListenAndLetGo.tsx, Nutrition.tsx + RUN the SQL.
+
+## 73 — bodyweight_history 23502 (null weight) fix (2026-11-09)
+- Error feed: 6x 23502 not-null violation on bodyweight_history from one member via
+  flushRetryQueue.bodyweight — a measurement-only save (waist/chest, no weight) produced a
+  null-weight row the NOT NULL column rejected, and the retry re-sent it forever.
+- Fix (SQL, RUN): bodyweight_history_weight_nullable.sql — alter column weight drop not null.
+  Measurement-only rows now save; the stuck retry clears on next flush. Self-healing, no code,
+  no push. (weight stays optional — a legit "track measurements without the scales" case.)
+- The 1x "quota exceeded" unhandled rejection = one member's browser storage full; browser-
+  specific, benign, nothing server-side to fix (they can clear site data if it recurs).
+
+## 74 — Coach can't see client 6-week progress photos (RLS) (2026-11-09)
+- member_photos / member_measurements had owner-only RLS (member_id=auth.uid()); no staff read,
+  so coach views (accPreviewData) got empty photo/measurement sets -> photos didn't load.
+- Fix (SQL, RUN): member_photos_staff_read.sql — add mp_staff_read + mm_staff_read (select to
+  authenticated using is_staff()). Owners keep read/write; staff read-only. Photos are in the
+  public 'media' bucket so they render once rows return. SQL only, no code/push.
+
+## 75 — Accountability check-in: show the member's progress photos (2026-11-09)
+- Issue: 6-week check-in progress photos didn't show for the coach. They're stored IN the
+  check-in (acc_checkins.responses.photos {front,side,back} weekly; after*/photos for week 6),
+  as public 'media' URLs — but AccCheckinCard rendered answers and EXCLUDED photos, never
+  displaying them (only the trackShot image showed).
+- Fix (AccCheckinCard.tsx): added a "Progress photos" block rendering front/side/back thumbs
+  (click to open full size) from responses.photos ?? q10photo/after*. esbuild clean. PUSH it.
+- (Separate from #74's member_photos RLS — accountability photos live in the check-in JSON,
+  not member_photos, so they were a display gap not an RLS one.)
