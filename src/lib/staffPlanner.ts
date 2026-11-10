@@ -111,6 +111,101 @@ export async function deleteReminder(id: string): Promise<{ ok: boolean; error?:
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
+// ── Calendar expansion ───────────────────────────────────────────────────────
+// Project reminders (incl. every recurrence) + content posts onto calendar days
+// within [startStr, endStr] inclusive (YYYY-MM-DD). Returns a map keyed by date.
+export interface CalItem {
+  key: string;
+  kind: "reminder" | "post";
+  date: string;
+  title: string;
+  recurring: boolean;
+  live: boolean; // the actionable stored instance (vs a projected recurrence)
+  reminder?: Reminder;
+  post?: ContentPost;
+}
+
+function stepDate(base: string, repeat: Repeat, dir: 1 | -1): string {
+  const d = new Date(base + "T00:00:00Z");
+  if (repeat === "daily") d.setUTCDate(d.getUTCDate() + dir);
+  else if (repeat === "weekly") d.setUTCDate(d.getUTCDate() + 7 * dir);
+  else if (repeat === "monthly") d.setUTCMonth(d.getUTCMonth() + dir);
+  return d.toISOString().slice(0, 10);
+}
+
+export function buildCalendar(
+  reminders: Reminder[],
+  posts: ContentPost[],
+  startStr: string,
+  endStr: string,
+): Record<string, CalItem[]> {
+  const map: Record<string, CalItem[]> = {};
+  const push = (date: string, item: CalItem) => {
+    if (date < startStr || date > endStr) return;
+    (map[date] ??= []).push(item);
+  };
+
+  for (const r of reminders) {
+    if (r.repeat === "none") {
+      push(r.due_date, {
+        key: `r-${r.id}`,
+        kind: "reminder",
+        date: r.due_date,
+        title: r.title,
+        recurring: false,
+        live: true,
+        reminder: r,
+      });
+      continue;
+    }
+    // Recurring: project from the stored due_date backward + forward across range.
+    const anchor = r.due_date;
+    // forward (and the anchor itself)
+    let cur = anchor;
+    for (let i = 0; i < 400 && cur <= endStr; i++) {
+      push(cur, {
+        key: `r-${r.id}-${cur}`,
+        kind: "reminder",
+        date: cur,
+        title: r.title,
+        recurring: true,
+        live: cur === anchor,
+        reminder: r,
+      });
+      cur = stepDate(cur, r.repeat, 1);
+    }
+    // backward
+    cur = stepDate(anchor, r.repeat, -1);
+    for (let i = 0; i < 400 && cur >= startStr; i++) {
+      push(cur, {
+        key: `r-${r.id}-${cur}`,
+        kind: "reminder",
+        date: cur,
+        title: r.title,
+        recurring: true,
+        live: false,
+        reminder: r,
+      });
+      cur = stepDate(cur, r.repeat, -1);
+    }
+  }
+
+  for (const p of posts) {
+    push(p.scheduled_for, {
+      key: `p-${p.id}`,
+      kind: "post",
+      date: p.scheduled_for,
+      title: p.caption.slice(0, 40),
+      recurring: false,
+      live: p.status !== "posted",
+      post: p,
+    });
+  }
+
+  for (const d of Object.keys(map)) map[d].sort((a, b) => (a.kind < b.kind ? -1 : 1));
+  return map;
+}
+
 // ── Content scheduler ────────────────────────────────────────────────────────
 export type Destination = "private" | "stories" | "main";
 export type PostStatus = "draft" | "scheduled" | "posted";

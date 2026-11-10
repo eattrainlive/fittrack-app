@@ -1326,3 +1326,15 @@ All four original hub modules now built (Today feed, faults, planner, AI content
 PUSH: staffBoards.ts, staffPulse.ts, AnnouncementsBoard.tsx, StaffPulse.tsx, SuppliesBoard.tsx,
 DailyChecklists.tsx, StaffTodayFeed.tsx, Admin.tsx. RUN staff_hub_boards.sql. DEPLOY staff-pulse.
 Remaining roadmap extras not built: shift handover notes, enquiry/lead inbox. BIRTHDAYS pending DOB.
+
+## 84 — Planner: live calendar view (reminders + content) (2026-11-10)
+- staffPlanner.ts: added buildCalendar(reminders, posts, start, end) — projects recurring reminders
+  onto EVERY occurrence in range (daily/weekly/monthly, step fwd+back from stored due_date, live
+  flag on the actual instance) + one-offs + content posts by scheduled_for. CalItem type.
+- StaffPlanner.tsx: Planner now has 3 sections (Calendar default | Reminders | Content calendar).
+  CalendarSection: month/week toggle, prev/next/today nav, Mon-start 7-col grid, day cells with
+  colour chips (violet=reminder, sky+repeat icon=recurring, destination colour=post). Click a day →
+  DayPanel (that day's items + "+ Reminder"/"+ Post" using ReminderForm/PostForm prefilled with the
+  date). ReminderForm gained initialDue, PostForm gained initialDate.
+No SQL, no edge fn — reads existing staff_reminders + content_posts.
+PUSH: staffPlanner.ts, StaffPlanner.tsx.

@@ -15,6 +15,10 @@ import {
   Sparkles,
   Copy,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
+  Repeat as RepeatIcon2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,17 +44,25 @@ import {
   type Destination,
   generateIdeas,
   type ContentIdeas,
+  buildCalendar,
+  type CalItem,
 } from "@/lib/staffPlanner";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const isDue = (d: string) => d <= todayStr();
 
+const SECTION_LABELS: Record<"calendar" | "reminders" | "content", string> = {
+  calendar: "Calendar",
+  reminders: "Reminders",
+  content: "Content calendar",
+};
+
 export function StaffPlanner({ staffSecret }: { staffSecret: string }) {
-  const [section, setSection] = useState<"reminders" | "content">("reminders");
+  const [section, setSection] = useState<"calendar" | "reminders" | "content">("calendar");
   return (
     <div className="space-y-4">
       <div className="flex gap-1.5">
-        {(["reminders", "content"] as const).map((s) => (
+        {(["calendar", "reminders", "content"] as const).map((s) => (
           <button
             key={s}
             onClick={() => setSection(s)}
@@ -60,11 +72,13 @@ export function StaffPlanner({ staffSecret }: { staffSecret: string }) {
                 : "bg-muted text-muted-foreground hover:bg-muted/70"
             }`}
           >
-            {s === "reminders" ? "Reminders" : "Content calendar"}
+            {SECTION_LABELS[s]}
           </button>
         ))}
       </div>
-      {section === "reminders" ? <RemindersSection /> : <ContentSection staffSecret={staffSecret} />}
+      {section === "calendar" && <CalendarSection staffSecret={staffSecret} />}
+      {section === "reminders" && <RemindersSection />}
+      {section === "content" && <ContentSection staffSecret={staffSecret} />}
     </div>
   );
 }
@@ -141,11 +155,19 @@ function RemindersSection() {
   );
 }
 
-function ReminderForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+function ReminderForm({
+  onDone,
+  onCancel,
+  initialDue,
+}: {
+  onDone: () => void;
+  onCancel: () => void;
+  initialDue?: string;
+}) {
   const [title, setTitle] = useState("");
   const [detail, setDetail] = useState("");
   const [assigned, setAssigned] = useState("");
-  const [due, setDue] = useState(todayStr());
+  const [due, setDue] = useState(initialDue || todayStr());
   const [repeat, setRepeat] = useState<Repeat>("none");
   const [saving, setSaving] = useState(false);
 
@@ -362,14 +384,16 @@ function PostForm({
   onDone,
   onCancel,
   initialCaption = "",
+  initialDate,
 }: {
   onDone: () => void;
   onCancel: () => void;
   initialCaption?: string;
+  initialDate?: string;
 }) {
   const [caption, setCaption] = useState(initialCaption);
   const [destination, setDestination] = useState<Destination>("main");
-  const [when, setWhen] = useState(todayStr());
+  const [when, setWhen] = useState(initialDate || todayStr());
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -635,6 +659,232 @@ function IdeaGroup({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Calendar view ────────────────────────────────────────────────────────────
+const WD = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const fromKey = (s: string) => new Date(s + "T00:00:00Z");
+const toKey = (d: Date) => d.toISOString().slice(0, 10);
+// Monday=0 index for a date.
+const mondayIdx = (d: Date) => (d.getUTCDay() + 6) % 7;
+
+function CalendarSection({ staffSecret }: { staffSecret: string }) {
+  const [mode, setMode] = useState<"month" | "week">("month");
+  const [anchor, setAnchor] = useState(() => todayStr()); // a date inside the shown period
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [posts, setPosts] = useState<ContentPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [addKind, setAddKind] = useState<"reminder" | "post" | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [r, p] = await Promise.all([listReminders(), listPosts()]);
+      setReminders(r);
+      setPosts(p);
+    } catch {
+      toast.error("Couldn't load the calendar");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Visible grid range.
+  const a = fromKey(anchor);
+  let gridStart: Date;
+  let gridEnd: Date;
+  if (mode === "week") {
+    gridStart = new Date(a);
+    gridStart.setUTCDate(a.getUTCDate() - mondayIdx(a));
+    gridEnd = new Date(gridStart);
+    gridEnd.setUTCDate(gridStart.getUTCDate() + 6);
+  } else {
+    const first = new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), 1));
+    gridStart = new Date(first);
+    gridStart.setUTCDate(first.getUTCDate() - mondayIdx(first));
+    const last = new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth() + 1, 0));
+    gridEnd = new Date(last);
+    gridEnd.setUTCDate(last.getUTCDate() + (6 - mondayIdx(last)));
+  }
+
+  const days: string[] = [];
+  for (let d = new Date(gridStart); d <= gridEnd; d.setUTCDate(d.getUTCDate() + 1)) days.push(toKey(d));
+  const byDay = buildCalendar(reminders, posts, toKey(gridStart), toKey(gridEnd));
+
+  const shift = (dir: 1 | -1) => {
+    const d = fromKey(anchor);
+    if (mode === "week") d.setUTCDate(d.getUTCDate() + 7 * dir);
+    else d.setUTCMonth(d.getUTCMonth() + dir);
+    setAnchor(toKey(d));
+    setSelected(null);
+    setAddKind(null);
+  };
+
+  const title =
+    mode === "week"
+      ? `Week of ${fromKey(days[0]).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
+      : a.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+
+  const monthOf = a.getUTCMonth();
+  const todayKey = todayStr();
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1">
+          <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => shift(-1)}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-sm font-semibold min-w-[150px] text-center">{title}</span>
+          <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => shift(1)}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button size="sm" variant="ghost" className="ml-1" onClick={() => { setAnchor(todayStr()); setSelected(null); }}>
+            Today
+          </Button>
+        </div>
+        <div className="flex gap-1.5">
+          {(["month", "week"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                mode === m ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {m === "month" ? "Month" : "Week"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <Spinner />
+      ) : (
+        <>
+          <div className="grid grid-cols-7 gap-px rounded-lg overflow-hidden border border-border bg-border">
+            {WD.map((w) => (
+              <div key={w} className="bg-muted/50 py-1 text-center text-[11px] font-medium text-muted-foreground">
+                {w}
+              </div>
+            ))}
+            {days.map((dk) => {
+              const items = byDay[dk] ?? [];
+              const inMonth = mode === "week" || fromKey(dk).getUTCMonth() === monthOf;
+              const isToday = dk === todayKey;
+              return (
+                <button
+                  key={dk}
+                  onClick={() => { setSelected(dk); setAddKind(null); }}
+                  className={`min-h-[76px] bg-card p-1 text-left align-top transition hover:bg-muted/40 ${
+                    inMonth ? "" : "opacity-40"
+                  } ${selected === dk ? "ring-2 ring-primary ring-inset" : ""}`}
+                >
+                  <div className={`text-[11px] font-medium mb-0.5 ${isToday ? "text-primary" : "text-muted-foreground"}`}>
+                    {fromKey(dk).getUTCDate()}
+                    {isToday ? " • today" : ""}
+                  </div>
+                  <div className="space-y-0.5">
+                    {items.slice(0, mode === "week" ? 8 : 3).map((it) => (
+                      <CalChip key={it.key} it={it} />
+                    ))}
+                    {items.length > (mode === "week" ? 8 : 3) && (
+                      <div className="text-[10px] text-muted-foreground">+{items.length - (mode === "week" ? 8 : 3)} more</div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {selected && (
+            <DayPanel
+              date={selected}
+              items={byDay[selected] ?? []}
+              addKind={addKind}
+              onAdd={setAddKind}
+              onChanged={() => { setAddKind(null); load(); }}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function CalChip({ it }: { it: CalItem }) {
+  const base =
+    it.kind === "post"
+      ? destStyle[it.post!.destination]
+      : it.recurring
+        ? "bg-sky-500/10 text-sky-700 dark:text-sky-400"
+        : "bg-violet-500/10 text-violet-700 dark:text-violet-400";
+  return (
+    <div className={`rounded px-1 py-0.5 text-[10px] leading-tight truncate flex items-center gap-0.5 ${base}`}>
+      {it.kind === "reminder" && it.recurring && <RepeatIcon2 className="h-2.5 w-2.5 shrink-0" />}
+      {it.kind === "post" && <CalendarClock className="h-2.5 w-2.5 shrink-0" />}
+      <span className="truncate">{it.title}</span>
+    </div>
+  );
+}
+
+function DayPanel({
+  date,
+  items,
+  addKind,
+  onAdd,
+  onChanged,
+}: {
+  date: string;
+  items: CalItem[];
+  addKind: "reminder" | "post" | null;
+  onAdd: (k: "reminder" | "post" | null) => void;
+  onChanged: () => void;
+}) {
+  const nice = fromKey(date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  return (
+    <div className="rounded-xl border border-border bg-card p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold flex items-center gap-1.5">
+          <CalendarDays className="h-4 w-4" /> {nice}
+        </h3>
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="outline" onClick={() => onAdd(addKind === "reminder" ? null : "reminder")}>
+            + Reminder
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => onAdd(addKind === "post" ? null : "post")}>
+            + Post
+          </Button>
+        </div>
+      </div>
+
+      {addKind === "reminder" && (
+        <ReminderForm initialDue={date} onDone={onChanged} onCancel={() => onAdd(null)} />
+      )}
+      {addKind === "post" && (
+        <PostForm initialDate={date} onDone={onChanged} onCancel={() => onAdd(null)} />
+      )}
+
+      {items.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Nothing scheduled. Add a reminder or post above.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {items.map((it) => (
+            <div key={it.key} className="flex items-center gap-2 text-sm">
+              <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${it.kind === "post" ? destStyle[it.post!.destination] : "bg-violet-500/10 text-violet-700 dark:text-violet-400"}`}>
+                {it.kind === "post" ? DESTINATION_LABEL[it.post!.destination] : it.recurring ? "Recurring" : "Reminder"}
+              </span>
+              <span className="truncate">{it.title}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
