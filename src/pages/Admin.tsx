@@ -124,6 +124,7 @@ import { supabase } from "@/lib/supabase";
 import ExistingProgramsList from "@/components/ExistingProgramsList";
 import { PROG_CATEGORIES, guessCategory } from "@/lib/programCategories";
 import { MembersGrid } from "@/components/MembersGrid";
+import { StaffTodayFeed } from "@/components/StaffTodayFeed";
 import {
   loadRosterMembers,
   bulkInviteNotOnApp,
@@ -321,7 +322,7 @@ const Admin = () => {
   const [trackF, setTrackF] = useState("All");
 
   // Members State
-  const [activeTab, setActiveTab] = useState("exercises");
+  const [activeTab, setActiveTab] = useState("today");
 
   // Nutrition section flags
   const [appFlags, setAppFlags] = useState<any>(null);
@@ -2372,6 +2373,7 @@ const Admin = () => {
         className="w-full"
       >
         <TabsList className="flex w-full max-w-[1300px] overflow-x-auto justify-start h-auto p-1">
+          <TabsTrigger value="today">Today</TabsTrigger>
           <TabsTrigger value="exercises">Manage Exercises</TabsTrigger>
           <TabsTrigger value="programs">Manage Programs</TabsTrigger>
           <TabsTrigger value="wow">Workout of the Week</TabsTrigger>
@@ -2388,6 +2390,9 @@ const Admin = () => {
           <TabsTrigger value="calllists">Call Lists</TabsTrigger>
           <TabsTrigger value="parq">PAR-Q</TabsTrigger>
         </TabsList>
+        <TabsContent value="today" className="space-y-6 mt-6">
+          <StaffTodayFeed staffSecret={staffSecret} onGoto={setActiveTab} />
+        </TabsContent>
         <TabsContent value="exercises" className="space-y-6 mt-6">
           <Card className="bg-card border-border">
             <CardHeader>

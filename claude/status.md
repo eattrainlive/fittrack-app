@@ -1244,3 +1244,18 @@ MembersGrid.tsx, member-engagement/index.ts.
   {{2}} coach note) — add 2 more branches to "Trial nurture — send".
 PUSH: retentionNurture.ts, RetentionCockpit.tsx, member-engagement/index.ts. REDEPLOY
 member-engagement. GHL: 2 more templates + branches.
+
+## 79 — Staff Hub "Today" action feed (central hub v1) (2026-11-10)
+First module of the central staff hub: a prioritised "what needs me today" home screen that
+aggregates live items from the tools already built (no new tables — read-only aggregator).
+- StaffTodayFeed.tsx (new): greeting + action cards. Pulls getNurtureBoard() (trials due) +
+  getRetentionBoard() (retention touches grouped by dueTouch) + waiting-for-reply count. Cards are
+  tone-ranked (urgent/warn/good/info) and each jumps to the tool that actions it (onGoto → Admin
+  tab: trials→calllists, retention→members). "All caught up" empty state.
+- Admin.tsx: added "Today" as the FIRST tab + made it the default landing tab (was "exercises").
+  ensureTabData("today") is a no-op; mount sync unaffected.
+PUSH: StaffTodayFeed.tsx, Admin.tsx. No SQL, no redeploy (retention counts populate once the
+pending member-engagement redeploy lands). All-staff shared.
+NEXT (agreed roadmap, not yet built): reminders + content scheduler, fault report centre, AI
+content generator, plus extras (shift handover, milestones feed, birthdays, low-stock, who's-in,
+checklists, announcements, enquiry inbox).
