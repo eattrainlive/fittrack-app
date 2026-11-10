@@ -1191,3 +1191,17 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   members (manage-members invite). MembersGrid onViewMember now matches by email.
 - esbuild clean (board, edge fn, MembersGrid). No SQL. REDEPLOY member-engagement + PUSH
   MemberEngagementBoard.tsx + MembersGrid.tsx.
+
+## 76b — member-engagement undercounting fix: paginate bulk reads (2026-11-09)
+- Numbers didn't marry up (e.g. Alana Pt-10: member-activity showed 4 Oct PT, retention board
+  showed 1 visit). Cause: the roster-wide member_bookings / scan_events / workout_history reads
+  had NO pagination, so Supabase's 1000-row cap silently truncated them and undercounted visits
+  for members whose rows fell past the limit. (member-activity queries per-member so never hit it.)
+- Fix: added pageAll() helper; all three bulk selects now page via .order().range() in 1000s.
+  Also removed ??= earlier (bundler). REDEPLOY member-engagement.
+
+## 76c — Retention board: filter by membership type (2026-11-10)
+- MemberEngagementBoard.tsx: added memberType(product) classifier (pt / classes=team training
+  / gym = open gym+core+ / other=trials) + a membership filter row (All / PT / Classes /
+  Gym-Core+). Band + app counts now recompute within the selected membership scope. Client-side
+  only — no edge-fn redeploy. esbuild clean. PUSH MemberEngagementBoard.tsx.

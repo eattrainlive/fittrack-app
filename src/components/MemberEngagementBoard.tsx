@@ -25,6 +25,22 @@ import { toast } from "sonner";
 
 type Band = "thriving" | "steady" | "slipping" | "at-risk";
 type AppStatus = "on_app" | "invited_not_joined" | "not_invited";
+type MemberType = "pt" | "classes" | "gym" | "other";
+
+/** Group a membership product into a category for filtering. */
+function memberType(product: string | null): MemberType {
+  const p = String(product || "").toLowerCase();
+  if (/\bpt\b|semi\s*private|personal/.test(p)) return "pt";
+  if (/team\s*training/.test(p)) return "classes";
+  if (/open\s*gym|core\s*\+|core\s*plus/.test(p)) return "gym";
+  return "other"; // trials + anything unmatched
+}
+const TYPE_FILTERS: { key: MemberType | "all"; label: string }[] = [
+  { key: "all", label: "All memberships" },
+  { key: "pt", label: "PT" },
+  { key: "classes", label: "Classes" },
+  { key: "gym", label: "Gym / Core+" },
+];
 
 interface EngagementMember {
   member_ref: string;
@@ -67,6 +83,7 @@ export function MemberEngagementBoard({
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(14);
   const [filter, setFilter] = useState<Filter>("all");
+  const [typeFilter, setTypeFilter] = useState<MemberType | "all">("all");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [inviting, setInviting] = useState<string | null>(null);
 
@@ -131,7 +148,19 @@ export function MemberEngagementBoard({
         ? { label: "Invited", cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400" }
         : { label: "Not on app", cls: "bg-muted text-muted-foreground" };
 
-  const filtered = (data?.members || []).filter((m) => {
+  // Scope by membership type first, then compute band/app counts within scope.
+  const inScope = (data?.members || []).filter(
+    (m) => typeFilter === "all" || memberType(m.membership) === typeFilter,
+  );
+  const counts = {
+    total: inScope.length,
+    thriving: inScope.filter((m) => m.band === "thriving").length,
+    steady: inScope.filter((m) => m.band === "steady").length,
+    slipping: inScope.filter((m) => m.band === "slipping").length,
+    atRisk: inScope.filter((m) => m.band === "at-risk").length,
+    notOnApp: inScope.filter((m) => m.app_status !== "on_app").length,
+  };
+  const filtered = inScope.filter((m) => {
     if (filter === "all") return true;
     if (filter === "notOnApp") return m.app_status !== "on_app";
     return m.band === filter;
@@ -177,18 +206,33 @@ export function MemberEngagementBoard({
             ))}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 mt-1">
+        {/* Membership filter */}
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {TYPE_FILTERS.map((t) => (
+            <Button
+              key={t.key}
+              size="sm"
+              variant={typeFilter === t.key ? "default" : "outline"}
+              className="h-7 text-xs"
+              onClick={() => setTypeFilter(t.key)}
+            >
+              {t.label}
+            </Button>
+          ))}
+        </div>
+        {/* Band / app filter */}
+        <div className="flex flex-wrap gap-2 mt-2">
           <Button size="sm" variant={filter === "all" ? "default" : "outline"} className="h-7 text-xs" onClick={() => setFilter("all")}>
-            All ({data.summary.total})
+            All ({counts.total})
           </Button>
           <Button size="sm" variant={filter === "at-risk" ? "default" : "outline"} className="h-7 text-xs" onClick={() => setFilter("at-risk")}>
-            <TrendingDown className="h-3 w-3 mr-1" /> At-risk ({data.summary.atRisk})
+            <TrendingDown className="h-3 w-3 mr-1" /> At-risk ({counts.atRisk})
           </Button>
           <Button size="sm" variant={filter === "slipping" ? "default" : "outline"} className="h-7 text-xs" onClick={() => setFilter("slipping")}>
-            Slipping ({data.summary.slipping})
+            Slipping ({counts.slipping})
           </Button>
           <Button size="sm" variant={filter === "notOnApp" ? "default" : "outline"} className="h-7 text-xs" onClick={() => setFilter("notOnApp")}>
-            <Smartphone className="h-3 w-3 mr-1" /> Not on app ({data.summary.notOnApp})
+            <Smartphone className="h-3 w-3 mr-1" /> Not on app ({counts.notOnApp})
           </Button>
         </div>
       </CardHeader>
@@ -197,10 +241,10 @@ export function MemberEngagementBoard({
         <div className="grid grid-cols-4 gap-2 mb-3">
           {(
             [
-              ["Thriving", data.summary.thriving, "border-emerald-500/30 bg-emerald-500/5", "text-emerald-600 dark:text-emerald-400"],
-              ["Steady", data.summary.steady, "border-sky-500/30 bg-sky-500/5", "text-sky-600 dark:text-sky-400"],
-              ["Slipping", data.summary.slipping, "border-amber-500/30 bg-amber-500/5", "text-amber-600 dark:text-amber-400"],
-              ["At-risk", data.summary.atRisk, "border-red-500/30 bg-red-500/5", "text-red-600 dark:text-red-400"],
+              ["Thriving", counts.thriving, "border-emerald-500/30 bg-emerald-500/5", "text-emerald-600 dark:text-emerald-400"],
+              ["Steady", counts.steady, "border-sky-500/30 bg-sky-500/5", "text-sky-600 dark:text-sky-400"],
+              ["Slipping", counts.slipping, "border-amber-500/30 bg-amber-500/5", "text-amber-600 dark:text-amber-400"],
+              ["At-risk", counts.atRisk, "border-red-500/30 bg-red-500/5", "text-red-600 dark:text-red-400"],
             ] as [string, number, string, string][]
           ).map(([label, n, box, txt]) => (
             <div key={label} className={`rounded-lg border p-2 text-center ${box}`}>

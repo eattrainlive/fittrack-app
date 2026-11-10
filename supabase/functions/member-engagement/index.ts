@@ -43,6 +43,22 @@ function normEmail(e: any): string {
 const dayMs = 86400000;
 const dayKey = (v: any) => String(v || "").slice(0, 10);
 
+// Fetch ALL rows for a query (Supabase caps a single select at 1000 rows, which
+// silently truncated the roster-wide reads and undercounted visits).
+async function pageAll(make: (from: number, to: number) => any): Promise<any[]> {
+  const out: any[] = [];
+  const size = 1000;
+  let from = 0;
+  while (true) {
+    const { data, error } = await make(from, from + size - 1);
+    if (error || !data || data.length === 0) break;
+    out.push(...data);
+    if (data.length < size) break;
+    from += size;
+  }
+  return out;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
@@ -93,7 +109,8 @@ serve(async (req) => {
     const daysByEmail: Record<string, Set<string>> = {};
     const daysByRef: Record<string, Set<string>> = {};
     try {
-      const { data } = await db.from("member_bookings").select("email, session_at, status").gte("session_at", startTs);
+      const data = await pageAll((f, t) =>
+        db.from("member_bookings").select("email, session_at, status").gte("session_at", startTs).order("session_at").range(f, t));
       for (const b of data ?? []) {
         if (b.status === "cancelled" || String(b.session_at) > nowIso) continue;
         const em = normEmail(b.email);
@@ -102,7 +119,8 @@ serve(async (req) => {
       }
     } catch (_) {}
     try {
-      const { data } = await db.from("scan_events").select("member_ref, ts, result").eq("result", "granted").gte("ts", startTs);
+      const data = await pageAll((f, t) =>
+        db.from("scan_events").select("member_ref, ts, result").eq("result", "granted").gte("ts", startTs).order("ts").range(f, t));
       for (const s of data ?? []) {
         if (String(s.ts) > nowIso) continue;
         const ref = String(s.member_ref);
@@ -114,7 +132,8 @@ serve(async (req) => {
     // App usage (workouts logged) by app user_id — shown as a badge only.
     const workoutsByUser: Record<string, number> = {};
     try {
-      const { data } = await db.from("workout_history").select("user_id, date").gte("date", startTs);
+      const data = await pageAll((f, t) =>
+        db.from("workout_history").select("user_id, date").gte("date", startTs).order("date").range(f, t));
       for (const w of data ?? []) { const u = String(w.user_id); workoutsByUser[u] = (workoutsByUser[u] || 0) + 1; }
     } catch (_) {}
 
