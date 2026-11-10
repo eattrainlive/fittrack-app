@@ -12,6 +12,9 @@ import {
   Camera,
   X,
   Send,
+  Sparkles,
+  Copy,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,12 +38,14 @@ import {
   DESTINATION_LABEL,
   type ContentPost,
   type Destination,
+  generateIdeas,
+  type ContentIdeas,
 } from "@/lib/staffPlanner";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const isDue = (d: string) => d <= todayStr();
 
-export function StaffPlanner() {
+export function StaffPlanner({ staffSecret }: { staffSecret: string }) {
   const [section, setSection] = useState<"reminders" | "content">("reminders");
   return (
     <div className="space-y-4">
@@ -59,7 +64,7 @@ export function StaffPlanner() {
           </button>
         ))}
       </div>
-      {section === "reminders" ? <RemindersSection /> : <ContentSection />}
+      {section === "reminders" ? <RemindersSection /> : <ContentSection staffSecret={staffSecret} />}
     </div>
   );
 }
@@ -257,10 +262,12 @@ const destStyle: Record<Destination, string> = {
   main: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
 };
 
-function ContentSection() {
+function ContentSection({ staffSecret }: { staffSecret: string }) {
   const [items, setItems] = useState<ContentPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [showIdeas, setShowIdeas] = useState(false);
+  const [prefill, setPrefill] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -276,27 +283,50 @@ function ContentSection() {
     load();
   }, [load]);
 
+  const useCaption = (text: string) => {
+    setPrefill(text);
+    setAdding(true);
+    setShowIdeas(false);
+  };
+
   const queued = items.filter((p) => p.status !== "posted");
   const posted = items.filter((p) => p.status === "posted");
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm text-muted-foreground">
           {queued.filter((p) => isDue(p.scheduled_for)).length} due to post · {queued.length} queued
         </p>
-        <Button size="sm" className="gap-1" onClick={() => setAdding((v) => !v)}>
-          <Plus className="h-4 w-4" /> New post
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1"
+            onClick={() => setShowIdeas((v) => !v)}
+          >
+            <Sparkles className="h-4 w-4" /> Idea generator
+          </Button>
+          <Button size="sm" className="gap-1" onClick={() => { setPrefill(""); setAdding((v) => !v); }}>
+            <Plus className="h-4 w-4" /> New post
+          </Button>
+        </div>
       </div>
+
+      {showIdeas && <IdeaGenerator staffSecret={staffSecret} onUse={useCaption} />}
 
       {adding && (
         <PostForm
+          initialCaption={prefill}
           onDone={() => {
             setAdding(false);
+            setPrefill("");
             load();
           }}
-          onCancel={() => setAdding(false)}
+          onCancel={() => {
+            setAdding(false);
+            setPrefill("");
+          }}
         />
       )}
 
@@ -328,8 +358,16 @@ function ContentSection() {
   );
 }
 
-function PostForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
-  const [caption, setCaption] = useState("");
+function PostForm({
+  onDone,
+  onCancel,
+  initialCaption = "",
+}: {
+  onDone: () => void;
+  onCancel: () => void;
+  initialCaption?: string;
+}) {
+  const [caption, setCaption] = useState(initialCaption);
   const [destination, setDestination] = useState<Destination>("main");
   const [when, setWhen] = useState(todayStr());
   const [notes, setNotes] = useState("");
@@ -488,6 +526,115 @@ function PostCard({ p, onChange }: { p: ContentPost; onChange: () => void }) {
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
+    </div>
+  );
+}
+
+function IdeaGenerator({
+  staffSecret,
+  onUse,
+}: {
+  staffSecret: string;
+  onUse: (text: string) => void;
+}) {
+  const [topic, setTopic] = useState("");
+  const [destination, setDestination] = useState<Destination>("main");
+  const [tone, setTone] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [ideas, setIdeas] = useState<ContentIdeas | null>(null);
+
+  const run = async () => {
+    if (!topic.trim()) return toast.error("Give it a topic to work with");
+    setLoading(true);
+    setIdeas(null);
+    const r = await generateIdeas(staffSecret, { topic, destination, tone });
+    setLoading(false);
+    if (r.ok && r.ideas) setIdeas(r.ideas);
+    else toast.error(r.error || "Couldn't generate — try again");
+  };
+
+  const copy = (t: string) => {
+    navigator.clipboard?.writeText(t).then(
+      () => toast.success("Copied"),
+      () => {},
+    );
+  };
+
+  return (
+    <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+      <div className="flex items-center gap-2 text-sm font-semibold">
+        <Sparkles className="h-4 w-4 text-primary" /> Content idea generator
+      </div>
+      <Input
+        placeholder="Topic — e.g. the million-metre challenge, metabolic adaptation, our Xmas party"
+        value={topic}
+        onChange={(e) => setTopic(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && run()}
+      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <select
+          value={destination}
+          onChange={(e) => setDestination(e.target.value as Destination)}
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+        >
+          {(Object.keys(DESTINATION_LABEL) as Destination[]).map((d) => (
+            <option key={d} value={d}>
+              {DESTINATION_LABEL[d]}
+            </option>
+          ))}
+        </select>
+        <Input placeholder="Tone (optional) — e.g. playful, inspiring" value={tone} onChange={(e) => setTone(e.target.value)} />
+      </div>
+      <Button className="w-full gap-1" disabled={loading} onClick={run}>
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+        {loading ? "Thinking…" : "Generate ideas"}
+      </Button>
+
+      {ideas && (
+        <div className="space-y-3 pt-1">
+          <IdeaGroup title="Captions" items={ideas.captions} onUse={onUse} onCopy={copy} useable />
+          <IdeaGroup title="Story ideas" items={ideas.stories} onCopy={copy} />
+          <IdeaGroup title="Future angles" items={ideas.angles} onCopy={copy} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IdeaGroup({
+  title,
+  items,
+  onUse,
+  onCopy,
+  useable = false,
+}: {
+  title: string;
+  items: string[];
+  onUse?: (t: string) => void;
+  onCopy: (t: string) => void;
+  useable?: boolean;
+}) {
+  if (!items.length) return null;
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+        <ChevronDown className="h-3 w-3" /> {title}
+      </p>
+      {items.map((t, i) => (
+        <div key={i} className="rounded-lg border border-border bg-card p-2.5 text-sm">
+          <p className="whitespace-pre-line">{t}</p>
+          <div className="flex gap-2 mt-2">
+            {useable && onUse && (
+              <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => onUse(t)}>
+                <Plus className="h-3.5 w-3.5" /> Use in a post
+              </Button>
+            )}
+            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => onCopy(t)}>
+              <Copy className="h-3.5 w-3.5" /> Copy
+            </Button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

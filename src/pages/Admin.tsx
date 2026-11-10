@@ -127,6 +127,8 @@ import { MembersGrid } from "@/components/MembersGrid";
 import { StaffTodayFeed } from "@/components/StaffTodayFeed";
 import { FaultReportCentre } from "@/components/FaultReportCentre";
 import { StaffPlanner } from "@/components/StaffPlanner";
+import { SuppliesBoard } from "@/components/SuppliesBoard";
+import { DailyChecklists } from "@/components/DailyChecklists";
 import {
   loadRosterMembers,
   bulkInviteNotOnApp,
@@ -2377,7 +2379,9 @@ const Admin = () => {
         <TabsList className="flex w-full max-w-[1300px] overflow-x-auto justify-start h-auto p-1">
           <TabsTrigger value="today">Today</TabsTrigger>
           <TabsTrigger value="planner">Planner</TabsTrigger>
+          <TabsTrigger value="checklists">Checklists</TabsTrigger>
           <TabsTrigger value="faults">Faults</TabsTrigger>
+          <TabsTrigger value="stock">Stock</TabsTrigger>
           <TabsTrigger value="exercises">Manage Exercises</TabsTrigger>
           <TabsTrigger value="programs">Manage Programs</TabsTrigger>
           <TabsTrigger value="wow">Workout of the Week</TabsTrigger>
@@ -2398,10 +2402,16 @@ const Admin = () => {
           <StaffTodayFeed staffSecret={staffSecret} onGoto={setActiveTab} />
         </TabsContent>
         <TabsContent value="planner" className="space-y-6 mt-6">
-          <StaffPlanner />
+          <StaffPlanner staffSecret={staffSecret} />
+        </TabsContent>
+        <TabsContent value="checklists" className="space-y-6 mt-6">
+          <DailyChecklists />
         </TabsContent>
         <TabsContent value="faults" className="space-y-6 mt-6">
           <FaultReportCentre />
+        </TabsContent>
+        <TabsContent value="stock" className="space-y-6 mt-6">
+          <SuppliesBoard />
         </TabsContent>
         <TabsContent value="exercises" className="space-y-6 mt-6">
           <Card className="bg-card border-border">

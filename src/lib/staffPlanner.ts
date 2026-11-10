@@ -202,3 +202,28 @@ export async function deletePost(id: string): Promise<{ ok: boolean; error?: str
   const { error } = await supabase.from("content_posts").delete().eq("id", id);
   return error ? { ok: false, error: error.message } : { ok: true };
 }
+
+// ── AI content idea generator ────────────────────────────────────────────────
+export interface ContentIdeas {
+  captions: string[];
+  stories: string[];
+  angles: string[];
+}
+
+export async function generateIdeas(
+  staffSecret: string,
+  input: { topic: string; destination?: Destination; tone?: string; extra?: string },
+): Promise<{ ok: boolean; ideas?: ContentIdeas; error?: string }> {
+  const { data, error } = await supabase.functions.invoke("content-ideas", {
+    body: { staffSecret, ...input },
+  });
+  if (error || data?.error) return { ok: false, error: error?.message || data?.error };
+  return {
+    ok: true,
+    ideas: {
+      captions: data?.captions ?? [],
+      stories: data?.stories ?? [],
+      angles: data?.angles ?? [],
+    },
+  };
+}

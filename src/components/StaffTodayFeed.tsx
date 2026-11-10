@@ -18,6 +18,8 @@ import {
   Wrench,
   Bell,
   CalendarClock,
+  Package,
+  ListChecks,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { staffName } from "@/components/staffHubShared";
@@ -25,6 +27,9 @@ import { getNurtureBoard } from "@/lib/trialNurture";
 import { getRetentionBoard, TOUCHES, type TouchKey } from "@/lib/retentionNurture";
 import { openFaultCount } from "@/lib/equipmentFaults";
 import { dueReminderCount, duePostCount } from "@/lib/staffPlanner";
+import { lowStockCount, pendingChecklistCount } from "@/lib/staffBoards";
+import { AnnouncementsBoard } from "@/components/AnnouncementsBoard";
+import { StaffPulse } from "@/components/StaffPulse";
 
 type Tone = "urgent" | "warn" | "good" | "info";
 
@@ -108,13 +113,16 @@ export function StaffTodayFeed({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [trial, retention, faultCount, remCount, postCount] = await Promise.all([
-        getNurtureBoard().catch(() => null),
-        getRetentionBoard(staffSecret).catch(() => ({ members: [] as any[] })),
-        openFaultCount().catch(() => 0),
-        dueReminderCount().catch(() => 0),
-        duePostCount().catch(() => 0),
-      ]);
+      const [trial, retention, faultCount, remCount, postCount, lowStock, pendingChecks] =
+        await Promise.all([
+          getNurtureBoard().catch(() => null),
+          getRetentionBoard(staffSecret).catch(() => ({ members: [] as any[] })),
+          openFaultCount().catch(() => 0),
+          dueReminderCount().catch(() => 0),
+          duePostCount().catch(() => 0),
+          lowStockCount().catch(() => 0),
+          pendingChecklistCount().catch(() => 0),
+        ]);
 
       const feed: FeedItem[] = [];
       let waiting = 0;
@@ -149,6 +157,21 @@ export function StaffTodayFeed({
         });
       }
 
+      // ── Opening/closing checklist outstanding ───────────────────────────
+      if (pendingChecks > 0) {
+        feed.push({
+          key: "checklists",
+          icon: ListChecks,
+          title: "Checklist items to do",
+          count: pendingChecks,
+          names: [],
+          cta: "Open checklists",
+          tab: "checklists",
+          tone: "info",
+          priority: 8,
+        });
+      }
+
       // ── Equipment faults ────────────────────────────────────────────────
       if (faultCount > 0) {
         feed.push({
@@ -161,6 +184,21 @@ export function StaffTodayFeed({
           tab: "faults",
           tone: "warn",
           priority: 15,
+        });
+      }
+
+      // ── Low / out of stock ──────────────────────────────────────────────
+      if (lowStock > 0) {
+        feed.push({
+          key: "stock",
+          icon: Package,
+          title: "Supplies low or out",
+          count: lowStock,
+          names: [],
+          cta: "Open stock",
+          tab: "stock",
+          tone: "warn",
+          priority: 18,
         });
       }
 
@@ -240,6 +278,8 @@ export function StaffTodayFeed({
         </p>
       </div>
 
+      <AnnouncementsBoard />
+
       {loading ? (
         <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Pulling together today's jobs…
@@ -304,6 +344,8 @@ export function StaffTodayFeed({
               })}
             </div>
           )}
+
+          <StaffPulse staffSecret={staffSecret} />
         </>
       )}
     </div>

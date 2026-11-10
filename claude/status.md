@@ -1290,3 +1290,39 @@ equipment_faults.sql. No edge-fn redeploy.
 NOTE: content scheduler is notify-to-post (surfaces due posts for whoever's on shift to publish), not
 auto-publish — Meta API/stories out of scope for now.
 PUSH: staffPlanner.ts, StaffPlanner.tsx, StaffTodayFeed.tsx, Admin.tsx. RUN staff_planner.sql.
+
+## 82 — Staff Hub: AI content idea generator (hub module 4) (2026-11-10)
+- supabase/functions/content-ideas/index.ts (new, DEPLOY): STAFF_SECRET-guarded; reuses existing
+  ANTHROPIC_API_KEY + claude-sonnet-5. Input {topic, destination?, tone?, extra?}; ETL brand-voice
+  system prompt; returns strict JSON {captions[3], stories[3], angles[3]} (parsed defensively).
+- staffPlanner.ts: added generateIdeas(staffSecret, {topic,destination,tone,extra}) → invokes
+  content-ideas; ContentIdeas type.
+- StaffPlanner.tsx: ContentSection now takes staffSecret; added "Idea generator" toggle →
+  IdeaGenerator (topic + destination + tone → captions/stories/angles, each Copy, captions also
+  "Use in a post" → prefills PostForm). PostForm takes initialCaption.
+- Admin.tsx: passes staffSecret to <StaffPlanner>.
+Flow: generate → "Use in a post" prefills the scheduler caption → schedule as normal.
+PUSH: staffPlanner.ts, StaffPlanner.tsx, Admin.tsx. DEPLOY content-ideas edge fn. No SQL.
+All four original hub modules now built (Today feed, faults, planner, AI content).
+
+## 83 — Staff Hub: announcements, milestones, who's-in, anniversaries, stock, checklists (2026-11-10)
+- staff_hub_boards.sql (new, RUN): staff_announcements, staff_supplies, checklist_templates +
+  checklist_log (unique per item/day) — all staff RLS; + pr_select_staff policy on
+  personal_records so the milestones feed can read PBs.
+- supabase/functions/staff-pulse/index.ts (new, DEPLOY): STAFF_SECRET-guarded read-only; returns
+  whosIn (today's granted scans → gym_members name/product), milestones (recent PBs 7d via members
+  name map, new joiners 7d, 4+/wk attendance streaks), anniversaries (active gym_members joined_on,
+  next 7 days, 1+ yr). NOTE: no DOB anywhere in schema → true BIRTHDAYS not built; anniversaries
+  only. Birthdays need DOB added to GymOS sync or a manual field.
+- staffBoards.ts (new): announcements/supplies/checklists CRUD + lowStockCount + pendingChecklistCount.
+- staffPulse.ts (new): getPulse() wrapper.
+- Components: AnnouncementsBoard (compact=pinned only / full=composer), StaffPulse (who's-in +
+  wins + anniversaries, 3-col), SuppliesBoard (ok/low/out toggles), DailyChecklists (sectioned,
+  per-day tick via checklist_log).
+- Admin.tsx: new tabs Checklists + Stock; Today enriched.
+- StaffTodayFeed.tsx: AnnouncementsBoard (full) at top; StaffPulse below action cards; new action
+  cards — Checklist items to do (info, p8), Supplies low/out (warn, p18); + lowStockCount/
+  pendingChecklistCount fetches.
+PUSH: staffBoards.ts, staffPulse.ts, AnnouncementsBoard.tsx, StaffPulse.tsx, SuppliesBoard.tsx,
+DailyChecklists.tsx, StaffTodayFeed.tsx, Admin.tsx. RUN staff_hub_boards.sql. DEPLOY staff-pulse.
+Remaining roadmap extras not built: shift handover notes, enquiry/lead inbox. BIRTHDAYS pending DOB.
