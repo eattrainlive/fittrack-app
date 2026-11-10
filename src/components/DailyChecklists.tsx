@@ -17,7 +17,7 @@ import {
   type ChecklistSection,
 } from "@/lib/staffBoards";
 
-const SECTIONS: ChecklistSection[] = ["opening", "closing", "cleaning", "general"];
+const SECTIONS: ChecklistSection[] = ["opening", "closing", "cleaning", "content", "general"];
 
 export function DailyChecklists() {
   const [items, setItems] = useState<ChecklistState[]>([]);

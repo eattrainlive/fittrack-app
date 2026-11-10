@@ -48,6 +48,8 @@ import {
   type CalItem,
   listCoaches,
   type Coach,
+  updateReminder,
+  splitOccurrence,
 } from "@/lib/staffPlanner";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -864,6 +866,7 @@ function DayPanel({
   onAdd: (k: "reminder" | "post" | null) => void;
   onChanged: () => void;
 }) {
+  const [editing, setEditing] = useState<string | null>(null);
   const nice = fromKey(date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
   return (
     <div className="rounded-xl border border-border bg-card p-3 space-y-3">
@@ -892,16 +895,130 @@ function DayPanel({
         <p className="text-xs text-muted-foreground">Nothing scheduled. Add a reminder or post above.</p>
       ) : (
         <div className="space-y-1.5">
-          {items.map((it) => (
-            <div key={it.key} className="flex items-center gap-2 text-sm">
-              <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${it.kind === "post" ? destStyle[it.post!.destination] : "bg-violet-500/10 text-violet-700 dark:text-violet-400"}`}>
-                {it.kind === "post" ? DESTINATION_LABEL[it.post!.destination] : it.recurring ? "Recurring" : "Reminder"}
-              </span>
-              <span className="truncate">{it.title}</span>
-            </div>
+          {items.map((it) =>
+            editing === it.key && it.kind === "reminder" ? (
+              <EditOccurrenceForm
+                key={it.key}
+                item={it}
+                date={date}
+                onDone={() => { setEditing(null); onChanged(); }}
+                onCancel={() => setEditing(null)}
+              />
+            ) : (
+              <div key={it.key} className="flex items-center gap-2 text-sm">
+                <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${it.kind === "post" ? destStyle[it.post!.destination] : "bg-violet-500/10 text-violet-700 dark:text-violet-400"}`}>
+                  {it.kind === "post" ? DESTINATION_LABEL[it.post!.destination] : it.recurring ? "Recurring" : "Reminder"}
+                </span>
+                {it.kind === "reminder" ? (
+                  <button className="truncate text-left hover:underline flex-1" onClick={() => setEditing(it.key)}>
+                    {it.title}
+                    {it.reminder?.assigned_to ? <span className="text-muted-foreground"> · {it.reminder.assigned_to}</span> : ""}
+                  </button>
+                ) : (
+                  <span className="truncate">{it.title}</span>
+                )}
+              </div>
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EditOccurrenceForm({
+  item,
+  date,
+  onDone,
+  onCancel,
+}: {
+  item: CalItem;
+  date: string;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const r = item.reminder!;
+  const [title, setTitle] = useState(r.title);
+  const [detail, setDetail] = useState(r.detail || "");
+  const [assigned, setAssigned] = useState(r.assigned_to || "");
+  const [scope, setScope] = useState<"all" | "one">("all");
+  const [saving, setSaving] = useState(false);
+  const [coaches, setCoaches] = useState<Coach[]>([]);
+  useEffect(() => {
+    listCoaches().then(setCoaches).catch(() => {});
+  }, []);
+
+  const patch = { title, detail, assigned_to: assigned };
+
+  const save = async () => {
+    if (!title.trim()) return toast.error("Give it a title");
+    setSaving(true);
+    let res;
+    if (r.repeat !== "none" && scope === "one") res = await splitOccurrence(r, date, patch);
+    else res = await updateReminder(r.id, patch);
+    setSaving(false);
+    if (res.ok) {
+      toast.success("Saved");
+      onDone();
+    } else toast.error(res.error || "Couldn't save");
+  };
+
+  const remove = async () => {
+    setSaving(true);
+    let res;
+    if (r.repeat !== "none" && scope === "one") res = await splitOccurrence(r, date, null);
+    else res = await deleteReminder(r.id);
+    setSaving(false);
+    if (res.ok) {
+      toast.success(r.repeat !== "none" && scope === "one" ? "This day removed" : "Deleted");
+      onDone();
+    } else toast.error(res.error || "Couldn't remove");
+  };
+
+  return (
+    <div className="rounded-lg border border-primary/40 bg-card p-3 space-y-2">
+      <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
+      <Textarea value={detail} onChange={(e) => setDetail(e.target.value)} rows={2} placeholder="Detail (optional)" />
+      <select
+        value={assigned}
+        onChange={(e) => setAssigned(e.target.value)}
+        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+      >
+        <option value="">Anyone on shift</option>
+        {coaches.map((c) => (
+          <option key={c.user_id} value={c.name}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+
+      {r.repeat !== "none" && (
+        <div className="flex gap-1.5 text-xs">
+          {(["all", "one"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setScope(s)}
+              className={`rounded-full px-2.5 py-1 font-medium transition ${
+                scope === s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {s === "all" ? "Every occurrence" : "Just this day"}
+            </button>
           ))}
         </div>
       )}
+
+      <div className="flex gap-2">
+        <Button size="sm" className="flex-1" disabled={saving} onClick={save}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+        </Button>
+        <Button size="sm" variant="outline" disabled={saving} onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="sm" variant="ghost" className="text-red-500" disabled={saving} onClick={remove}>
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }

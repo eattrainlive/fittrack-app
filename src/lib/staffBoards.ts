@@ -91,7 +91,7 @@ export async function deleteSupply(id: string) {
 }
 
 // ── Daily checklists ─────────────────────────────────────────────────────────
-export type ChecklistSection = "opening" | "closing" | "cleaning" | "general";
+export type ChecklistSection = "opening" | "closing" | "cleaning" | "content" | "general";
 export interface ChecklistItem {
   id: string;
   title: string;
@@ -108,6 +108,7 @@ export const SECTION_LABEL: Record<ChecklistSection, string> = {
   opening: "Opening",
   closing: "Closing",
   cleaning: "Cleaning",
+  content: "Content & social",
   general: "General",
 };
 

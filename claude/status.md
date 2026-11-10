@@ -1351,3 +1351,26 @@ PUSH: staffPlanner.ts, StaffPlanner.tsx.
 PUSH: Index.tsx, staffPlanner.ts, StaffPlanner.tsx, StaffTodayFeed.tsx. No SQL/edge fn.
 NOTE: "My jobs" matches on coach display name (assigned_to stores the name). Relies on
 localStorage fittrack_profile full_name matching the coach name in the dropdown.
+
+## 86 — Staff job plan seed (Steady cadence) (2026-11-10)
+- staffBoards.ts + DailyChecklists.tsx: added "content" checklist section ("Content & social").
+- staff_job_plan_seed.sql (new, RUN after staff_planner.sql + staff_hub_boards.sql): seeds
+  weekly reminders (assigned_to 'Michael', guarded/idempotent) — client-page posts Mon/Wed/Fri,
+  celebrate member Tue/Thu, member check-in sweep Mon, plan next week's content Fri, new-follower
+  catch-up Sun; each due_date anchored to next occurrence of its weekday via dow arithmetic. Plus
+  daily "Content & social" checklist items: post stories, DM new followers, reply to DMs/story
+  replies, reply to member check-ins. Re-run safe (NOT EXISTS guards).
+  To retarget owner: update staff_reminders set assigned_to='Name' where assigned_to='Michael'.
+PUSH: staffBoards.ts, DailyChecklists.tsx. RUN staff_job_plan_seed.sql.
+
+## 87 — Calendar: edit/assign a day's task incl. recurring (this day vs all) (2026-11-10)
+- staff_reminders_exceptions.sql (new, RUN): adds exceptions date[] default '{}' to staff_reminders.
+- staffPlanner.ts: Reminder.exceptions; buildCalendar skips exception dates when projecting a
+  recurring series; updateReminder(id, patch) (series-wide edit); splitOccurrence(original, date,
+  patch|null) — adds date to exceptions + inserts a one-off on that day with edited values (patch
+  null = just detach/remove that day).
+- StaffPlanner.tsx: DayPanel reminder rows now clickable → inline EditOccurrenceForm (title, detail,
+  coach assignee dropdown). Recurring items show scope toggle "Every occurrence" / "Just this day":
+  all→updateReminder, one→splitOccurrence. Remove button respects scope (one=detach day,
+  all/one-off=deleteReminder). Posts stay display-only.
+PUSH: staffPlanner.ts, StaffPlanner.tsx. RUN staff_reminders_exceptions.sql.

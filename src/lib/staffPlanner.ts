@@ -42,6 +42,7 @@ export interface Reminder {
   done_by: string | null;
   created_by: string | null;
   created_at: string;
+  exceptions: string[] | null; // recurring: dates (YYYY-MM-DD) to skip
 }
 
 export const REPEAT_LABEL: Record<Repeat, string> = {
@@ -123,6 +124,49 @@ export async function completeReminder(
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
+/** Edit a reminder's fields (applies to the whole series for a recurring one). */
+export async function updateReminder(
+  id: string,
+  patch: Partial<Pick<Reminder, "title" | "detail" | "assigned_to" | "repeat" | "due_date">>,
+): Promise<{ ok: boolean; error?: string }> {
+  const clean: Record<string, any> = {};
+  if (patch.title !== undefined) clean.title = patch.title.trim();
+  if (patch.detail !== undefined) clean.detail = patch.detail?.trim() || null;
+  if (patch.assigned_to !== undefined) clean.assigned_to = patch.assigned_to?.trim() || null;
+  if (patch.repeat !== undefined) clean.repeat = patch.repeat;
+  if (patch.due_date !== undefined) clean.due_date = patch.due_date;
+  const { error } = await supabase.from("staff_reminders").update(clean).eq("id", id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/**
+ * Edit or detach ONE occurrence of a recurring reminder: add the date to the
+ * series' exceptions so the calendar skips it, then (unless deleting) create a
+ * standalone one-off reminder on that date carrying the edited values.
+ */
+export async function splitOccurrence(
+  original: Reminder,
+  date: string,
+  patch: { title?: string; detail?: string; assigned_to?: string } | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const exceptions = Array.from(new Set([...(original.exceptions ?? []), date]));
+  const { error: e1 } = await supabase
+    .from("staff_reminders")
+    .update({ exceptions })
+    .eq("id", original.id);
+  if (e1) return { ok: false, error: e1.message };
+  if (patch === null) return { ok: true }; // just removed this occurrence
+  const { error: e2 } = await supabase.from("staff_reminders").insert({
+    title: (patch.title ?? original.title).trim(),
+    detail: (patch.detail ?? original.detail ?? "")?.trim() || null,
+    assigned_to: (patch.assigned_to ?? original.assigned_to ?? "")?.trim() || null,
+    due_date: date,
+    repeat: "none",
+    created_by: original.created_by,
+  });
+  return e2 ? { ok: false, error: e2.message } : { ok: true };
+}
+
 export async function reopenReminder(id: string): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase
     .from("staff_reminders")
@@ -185,32 +229,35 @@ export function buildCalendar(
     }
     // Recurring: project from the stored due_date backward + forward across range.
     const anchor = r.due_date;
+    const skip = new Set(r.exceptions ?? []);
     // forward (and the anchor itself)
     let cur = anchor;
     for (let i = 0; i < 400 && cur <= endStr; i++) {
-      push(cur, {
-        key: `r-${r.id}-${cur}`,
-        kind: "reminder",
-        date: cur,
-        title: r.title,
-        recurring: true,
-        live: cur === anchor,
-        reminder: r,
-      });
+      if (!skip.has(cur))
+        push(cur, {
+          key: `r-${r.id}-${cur}`,
+          kind: "reminder",
+          date: cur,
+          title: r.title,
+          recurring: true,
+          live: cur === anchor,
+          reminder: r,
+        });
       cur = stepDate(cur, r.repeat, 1);
     }
     // backward
     cur = stepDate(anchor, r.repeat, -1);
     for (let i = 0; i < 400 && cur >= startStr; i++) {
-      push(cur, {
-        key: `r-${r.id}-${cur}`,
-        kind: "reminder",
-        date: cur,
-        title: r.title,
-        recurring: true,
-        live: false,
-        reminder: r,
-      });
+      if (!skip.has(cur))
+        push(cur, {
+          key: `r-${r.id}-${cur}`,
+          kind: "reminder",
+          date: cur,
+          title: r.title,
+          recurring: true,
+          live: false,
+          reminder: r,
+        });
       cur = stepDate(cur, r.repeat, -1);
     }
   }
