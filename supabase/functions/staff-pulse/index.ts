@@ -22,7 +22,6 @@ const json = (o: any, s = 200) =>
 
 const dayMs = 86400000;
 const dayKey = (v: any) => String(v || "").slice(0, 10);
-const firstName = (n: string) => String(n || "").split(" ")[0] || n;
 
 async function pageAll(make: (f: number, t: number) => any): Promise<any[]> {
   const out: any[] = [];
@@ -104,7 +103,7 @@ Deno.serve(async (req) => {
       if (!nm) continue;
       milestones.push({
         type: "pb",
-        name: firstName(nm),
+        name: nm,
         detail: `New PB — ${p.exercise} ${p.weight}kg`,
         at: p.date,
       });
@@ -115,7 +114,7 @@ Deno.serve(async (req) => {
       if (!g.joined_on) continue;
       const jt = new Date(String(g.joined_on).slice(0, 10) + "T00:00:00Z").getTime();
       if (jt >= now - 7 * dayMs && jt <= now) {
-        milestones.push({ type: "join", name: firstName(g.full_name || g.email), detail: `Joined on ${g.product || "a membership"}`, at: String(g.joined_on).slice(0, 10) });
+        milestones.push({ type: "join", name: g.full_name || g.email, detail: `Joined on ${g.product || "a membership"}`, at: String(g.joined_on).slice(0, 10) });
       }
     }
 
@@ -123,7 +122,7 @@ Deno.serve(async (req) => {
     for (const [ref, set] of Object.entries(daysByRef)) {
       if (set.size >= 4) {
         const g = byRef[ref];
-        if (g) milestones.push({ type: "streak", name: firstName(g.full_name || g.email), detail: `In ${set.size}× this week 🔥`, at: todayKey });
+        if (g) milestones.push({ type: "streak", name: g.full_name || g.email, detail: `In ${set.size}× this week 🔥`, at: todayKey });
       }
     }
 
