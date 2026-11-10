@@ -180,18 +180,75 @@ export async function deleteReminder(id: string): Promise<{ ok: boolean; error?:
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
+// ── Staff events / marketing campaigns (hidden from members) ──────────────────
+export type EventKind = "event" | "campaign" | "promo" | "other";
+export interface StaffEvent {
+  id: string;
+  title: string;
+  kind: EventKind;
+  start_date: string;
+  end_date: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+export const EVENT_KIND_LABEL: Record<EventKind, string> = {
+  event: "Event",
+  campaign: "Campaign",
+  promo: "Promo",
+  other: "Other",
+};
+
+export async function listEvents(): Promise<StaffEvent[]> {
+  const { data, error } = await supabase
+    .from("staff_events")
+    .select("*")
+    .order("start_date", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as StaffEvent[];
+}
+export async function createEvent(input: {
+  title: string;
+  kind: EventKind;
+  start_date: string;
+  end_date?: string | null;
+  notes?: string;
+  created_by?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from("staff_events").insert({
+    title: input.title.trim(),
+    kind: input.kind,
+    start_date: input.start_date,
+    end_date: input.end_date || null,
+    notes: input.notes?.trim() || null,
+    created_by: input.created_by || null,
+  });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+export async function updateEvent(
+  id: string,
+  patch: Partial<Pick<StaffEvent, "title" | "kind" | "start_date" | "end_date" | "notes">>,
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from("staff_events").update(patch).eq("id", id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+export async function deleteEvent(id: string) {
+  await supabase.from("staff_events").delete().eq("id", id);
+}
+
 // ── Calendar expansion ───────────────────────────────────────────────────────
-// Project reminders (incl. every recurrence) + content posts onto calendar days
-// within [startStr, endStr] inclusive (YYYY-MM-DD). Returns a map keyed by date.
+// Project reminders (incl. every recurrence) + content posts + events onto
+// calendar days within [startStr, endStr] inclusive (YYYY-MM-DD).
 export interface CalItem {
   key: string;
-  kind: "reminder" | "post";
+  kind: "reminder" | "post" | "event";
   date: string;
   title: string;
   recurring: boolean;
   live: boolean; // the actionable stored instance (vs a projected recurrence)
   reminder?: Reminder;
   post?: ContentPost;
+  event?: StaffEvent;
 }
 
 function stepDate(base: string, repeat: Repeat, dir: 1 | -1): string {
@@ -207,6 +264,7 @@ export function buildCalendar(
   posts: ContentPost[],
   startStr: string,
   endStr: string,
+  events: StaffEvent[] = [],
 ): Record<string, CalItem[]> {
   const map: Record<string, CalItem[]> = {};
   const push = (date: string, item: CalItem) => {
@@ -274,7 +332,28 @@ export function buildCalendar(
     });
   }
 
-  for (const d of Object.keys(map)) map[d].sort((a, b) => (a.kind < b.kind ? -1 : 1));
+  for (const ev of events) {
+    const start = ev.start_date;
+    const end = ev.end_date || ev.start_date;
+    let cur = start < startStr ? startStr : start;
+    const stop = end > endStr ? endStr : end;
+    for (let i = 0; i < 400 && cur <= stop; i++) {
+      push(cur, {
+        key: `e-${ev.id}-${cur}`,
+        kind: "event",
+        date: cur,
+        title: ev.title,
+        recurring: false,
+        live: true,
+        event: ev,
+      });
+      cur = stepDate(cur, "daily", 1);
+    }
+  }
+
+  // Events first, then posts, then reminders.
+  const order: Record<string, number> = { event: 0, post: 1, reminder: 2 };
+  for (const d of Object.keys(map)) map[d].sort((a, b) => order[a.kind] - order[b.kind]);
   return map;
 }
 

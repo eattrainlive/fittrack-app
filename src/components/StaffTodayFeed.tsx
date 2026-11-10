@@ -30,9 +30,15 @@ import {
   dueReminderCount,
   duePostCount,
   listReminders,
+  listPosts,
+  listEvents,
   buildCalendar,
   completeReminder,
+  DESTINATION_LABEL,
+  EVENT_KIND_LABEL,
   type Reminder,
+  type ContentPost,
+  type StaffEvent,
 } from "@/lib/staffPlanner";
 import { lowStockCount, pendingChecklistCount } from "@/lib/staffBoards";
 import { AnnouncementsBoard } from "@/components/AnnouncementsBoard";
@@ -353,6 +359,7 @@ export function StaffTodayFeed({
           )}
 
           <MyJobs />
+          <TeamAgenda />
           <StaffPulse staffSecret={staffSecret} />
         </>
       )}
@@ -453,6 +460,110 @@ function MyJobs() {
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Team agenda — the week / month ahead (everyone's jobs + content + events) ──
+function TeamAgenda() {
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [posts, setPosts] = useState<ContentPost[]>([]);
+  const [events, setEvents] = useState<StaffEvent[]>([]);
+  const [range, setRange] = useState<"week" | "month">("week");
+
+  useEffect(() => {
+    let live = true;
+    Promise.all([listReminders(), listPosts(), listEvents()])
+      .then(([r, p, e]) => {
+        if (!live) return;
+        setReminders(r);
+        setPosts(p);
+        setEvents(e);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const now = new Date();
+  let start: Date;
+  let end: Date;
+  if (range === "week") {
+    const dow = (now.getUTCDay() + 6) % 7;
+    start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - dow));
+    end = new Date(start);
+    end.setUTCDate(start.getUTCDate() + 6);
+  } else {
+    start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
+  }
+  const startKey = toKeyUTC(start);
+  const endKey = toKeyUTC(end);
+  const todayKey = toKeyUTC(now);
+
+  const byDay = buildCalendar(reminders, posts, startKey, endKey, events);
+  const days = Object.keys(byDay)
+    .filter((d) => d >= startKey && d <= endKey)
+    .sort();
+
+  const tag = (it: any) =>
+    it.kind === "event"
+      ? EVENT_KIND_LABEL[it.event.kind]
+      : it.kind === "post"
+        ? DESTINATION_LABEL[it.post.destination]
+        : it.recurring
+          ? "Recurring"
+          : "Job";
+  const tagStyle = (it: any) =>
+    it.kind === "event"
+      ? "bg-amber-500/15 text-amber-800 dark:text-amber-300"
+      : it.kind === "post"
+        ? "bg-sky-500/10 text-sky-700 dark:text-sky-400"
+        : "bg-violet-500/10 text-violet-700 dark:text-violet-400";
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">The {range} ahead</h3>
+        <div className="flex gap-1.5">
+          {(["week", "month"] as const).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+                range === r ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+              }`}
+            >
+              This {r}
+            </button>
+          ))}
+        </div>
+      </div>
+      {days.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Nothing planned this {range} yet.</p>
+      ) : (
+        <div className="space-y-2 max-h-80 overflow-y-auto">
+          {days.map((d) => (
+            <div key={d} className="flex gap-2">
+              <div className={`w-16 shrink-0 text-[11px] font-medium ${d === todayKey ? "text-primary" : "text-muted-foreground"}`}>
+                {new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric" })}
+              </div>
+              <div className="min-w-0 flex-1 space-y-0.5">
+                {byDay[d].map((it) => (
+                  <div key={it.key} className="flex items-center gap-1.5 text-sm">
+                    <span className={`rounded px-1 py-0.5 text-[9px] font-medium shrink-0 ${tagStyle(it)}`}>{tag(it)}</span>
+                    <span className="truncate">{it.title}</span>
+                    {it.kind === "reminder" && it.reminder?.assigned_to && (
+                      <span className="text-[10px] text-muted-foreground shrink-0">· {it.reminder.assigned_to}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

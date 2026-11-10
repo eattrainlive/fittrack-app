@@ -50,23 +50,33 @@ import {
   type Coach,
   updateReminder,
   splitOccurrence,
+  listEvents,
+  createEvent,
+  updateEvent,
+  deleteEvent,
+  EVENT_KIND_LABEL,
+  type StaffEvent,
+  type EventKind,
 } from "@/lib/staffPlanner";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const isDue = (d: string) => d <= todayStr();
 
-const SECTION_LABELS: Record<"calendar" | "reminders" | "content", string> = {
+const SECTION_LABELS: Record<"calendar" | "reminders" | "content" | "events", string> = {
   calendar: "Calendar",
   reminders: "Reminders",
   content: "Content calendar",
+  events: "Events",
 };
 
 export function StaffPlanner({ staffSecret }: { staffSecret: string }) {
-  const [section, setSection] = useState<"calendar" | "reminders" | "content">("calendar");
+  const [section, setSection] = useState<"calendar" | "reminders" | "content" | "events">(
+    "calendar",
+  );
   return (
     <div className="space-y-4">
       <div className="flex gap-1.5">
-        {(["calendar", "reminders", "content"] as const).map((s) => (
+        {(["calendar", "reminders", "content", "events"] as const).map((s) => (
           <button
             key={s}
             onClick={() => setSection(s)}
@@ -83,6 +93,7 @@ export function StaffPlanner({ staffSecret }: { staffSecret: string }) {
       {section === "calendar" && <CalendarSection staffSecret={staffSecret} />}
       {section === "reminders" && <RemindersSection />}
       {section === "content" && <ContentSection staffSecret={staffSecret} />}
+      {section === "events" && <EventsSection />}
     </div>
   );
 }
@@ -694,6 +705,7 @@ function CalendarSection({ staffSecret }: { staffSecret: string }) {
   const [anchor, setAnchor] = useState(() => todayStr()); // a date inside the shown period
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [posts, setPosts] = useState<ContentPost[]>([]);
+  const [events, setEvents] = useState<StaffEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [addKind, setAddKind] = useState<"reminder" | "post" | null>(null);
@@ -701,9 +713,10 @@ function CalendarSection({ staffSecret }: { staffSecret: string }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [r, p] = await Promise.all([listReminders(), listPosts()]);
+      const [r, p, e] = await Promise.all([listReminders(), listPosts(), listEvents()]);
       setReminders(r);
       setPosts(p);
+      setEvents(e);
     } catch {
       toast.error("Couldn't load the calendar");
     } finally {
@@ -734,7 +747,7 @@ function CalendarSection({ staffSecret }: { staffSecret: string }) {
 
   const days: string[] = [];
   for (let d = new Date(gridStart); d <= gridEnd; d.setUTCDate(d.getUTCDate() + 1)) days.push(toKey(d));
-  const byDay = buildCalendar(reminders, posts, toKey(gridStart), toKey(gridEnd));
+  const byDay = buildCalendar(reminders, posts, toKey(gridStart), toKey(gridEnd), events);
 
   const shift = (dir: 1 | -1) => {
     const d = fromKey(anchor);
@@ -837,15 +850,19 @@ function CalendarSection({ staffSecret }: { staffSecret: string }) {
   );
 }
 
+const eventStyle = "bg-amber-500/15 text-amber-800 dark:text-amber-300 font-medium";
 function CalChip({ it }: { it: CalItem }) {
   const base =
-    it.kind === "post"
-      ? destStyle[it.post!.destination]
-      : it.recurring
-        ? "bg-sky-500/10 text-sky-700 dark:text-sky-400"
-        : "bg-violet-500/10 text-violet-700 dark:text-violet-400";
+    it.kind === "event"
+      ? eventStyle
+      : it.kind === "post"
+        ? destStyle[it.post!.destination]
+        : it.recurring
+          ? "bg-sky-500/10 text-sky-700 dark:text-sky-400"
+          : "bg-violet-500/10 text-violet-700 dark:text-violet-400";
   return (
     <div className={`rounded px-1 py-0.5 text-[10px] leading-tight truncate flex items-center gap-0.5 ${base}`}>
+      {it.kind === "event" && <CalendarDays className="h-2.5 w-2.5 shrink-0" />}
       {it.kind === "reminder" && it.recurring && <RepeatIcon2 className="h-2.5 w-2.5 shrink-0" />}
       {it.kind === "post" && <CalendarClock className="h-2.5 w-2.5 shrink-0" />}
       <span className="truncate">{it.title}</span>
@@ -906,8 +923,22 @@ function DayPanel({
               />
             ) : (
               <div key={it.key} className="flex items-center gap-2 text-sm">
-                <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${it.kind === "post" ? destStyle[it.post!.destination] : "bg-violet-500/10 text-violet-700 dark:text-violet-400"}`}>
-                  {it.kind === "post" ? DESTINATION_LABEL[it.post!.destination] : it.recurring ? "Recurring" : "Reminder"}
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                    it.kind === "event"
+                      ? eventStyle
+                      : it.kind === "post"
+                        ? destStyle[it.post!.destination]
+                        : "bg-violet-500/10 text-violet-700 dark:text-violet-400"
+                  }`}
+                >
+                  {it.kind === "event"
+                    ? EVENT_KIND_LABEL[it.event!.kind]
+                    : it.kind === "post"
+                      ? DESTINATION_LABEL[it.post!.destination]
+                      : it.recurring
+                        ? "Recurring"
+                        : "Reminder"}
                 </span>
                 {it.kind === "reminder" ? (
                   <button className="truncate text-left hover:underline flex-1" onClick={() => setEditing(it.key)}>
@@ -1017,6 +1048,158 @@ function EditOccurrenceForm({
         </Button>
         <Button size="sm" variant="ghost" className="text-red-500" disabled={saving} onClick={remove}>
           <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ── Events / marketing campaigns ─────────────────────────────────────────────
+const EVENT_KINDS: EventKind[] = ["event", "campaign", "promo", "other"];
+function EventsSection() {
+  const [events, setEvents] = useState<StaffEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setEvents(await listEvents());
+    } catch {
+      toast.error("Couldn't load events");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const today = todayStr();
+  const upcoming = events.filter((e) => (e.end_date || e.start_date) >= today);
+  const past = events.filter((e) => (e.end_date || e.start_date) < today);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {upcoming.length} upcoming · hidden from members
+        </p>
+        <Button size="sm" className="gap-1" onClick={() => { setAdding((v) => !v); setEditId(null); }}>
+          <Plus className="h-4 w-4" /> New event
+        </Button>
+      </div>
+
+      {adding && <EventForm onDone={() => { setAdding(false); load(); }} onCancel={() => setAdding(false)} />}
+
+      {loading ? (
+        <Spinner />
+      ) : upcoming.length === 0 && past.length === 0 ? (
+        <EmptyState text="No events planned. Add a campaign or event to get ahead." />
+      ) : (
+        <>
+          <div className="space-y-2">
+            {upcoming.map((e) =>
+              editId === e.id ? (
+                <EventForm key={e.id} event={e} onDone={() => { setEditId(null); load(); }} onCancel={() => setEditId(null)} />
+              ) : (
+                <EventRow key={e.id} e={e} onEdit={() => setEditId(e.id)} onChanged={load} />
+              ),
+            )}
+          </div>
+          {past.length > 0 && (
+            <details className="pt-1">
+              <summary className="text-xs text-muted-foreground cursor-pointer">Past ({past.length})</summary>
+              <div className="space-y-2 mt-2">
+                {past.map((e) => (
+                  <EventRow key={e.id} e={e} onEdit={() => setEditId(e.id)} onChanged={load} />
+                ))}
+              </div>
+            </details>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function EventRow({ e, onEdit, onChanged }: { e: StaffEvent; onEdit: () => void; onChanged: () => void }) {
+  const range =
+    e.end_date && e.end_date !== e.start_date
+      ? `${fmtDate(e.start_date)} → ${fmtDate(e.end_date)}`
+      : fmtDate(e.start_date);
+  return (
+    <div className="rounded-xl border border-border bg-card p-3 flex items-start gap-3">
+      <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300 shrink-0 mt-0.5">
+        {EVENT_KIND_LABEL[e.kind]}
+      </span>
+      <button className="min-w-0 flex-1 text-left" onClick={onEdit}>
+        <p className="font-semibold text-sm">{e.title}</p>
+        <p className="text-[11px] text-muted-foreground">{range}</p>
+        {e.notes && <p className="text-xs mt-1">{e.notes}</p>}
+      </button>
+      <button className="text-muted-foreground shrink-0" onClick={() => deleteEvent(e.id).then(onChanged)}>
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+function EventForm({ event, onDone, onCancel }: { event?: StaffEvent; onDone: () => void; onCancel: () => void }) {
+  const [title, setTitle] = useState(event?.title ?? "");
+  const [kind, setKind] = useState<EventKind>(event?.kind ?? "event");
+  const [start, setStart] = useState(event?.start_date ?? todayStr());
+  const [end, setEnd] = useState(event?.end_date ?? "");
+  const [notes, setNotes] = useState(event?.notes ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    if (!title.trim()) return toast.error("Give the event a title");
+    if (end && end < start) return toast.error("End date is before the start");
+    setSaving(true);
+    const payload = { title, kind, start_date: start, end_date: end || null, notes };
+    const r = event
+      ? await updateEvent(event.id, payload)
+      : await createEvent({ ...payload, created_by: staffName() || "Staff" });
+    setSaving(false);
+    if (r.ok) {
+      toast.success(event ? "Updated" : "Event added");
+      onDone();
+    } else toast.error(r.error || "Couldn't save");
+  };
+
+  return (
+    <div className="rounded-xl border border-primary/40 bg-card p-4 space-y-3">
+      <Input placeholder="Event / campaign name" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <select
+          value={kind}
+          onChange={(e) => setKind(e.target.value as EventKind)}
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+        >
+          {EVENT_KINDS.map((k) => (
+            <option key={k} value={k}>
+              {EVENT_KIND_LABEL[k]}
+            </option>
+          ))}
+        </select>
+        <div>
+          <label className="text-[10px] text-muted-foreground">Start</label>
+          <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">End (optional)</label>
+          <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+        </div>
+      </div>
+      <Textarea placeholder="Notes / plan (optional)" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      <div className="flex gap-2">
+        <Button className="flex-1" disabled={saving} onClick={submit}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : event ? "Save" : "Add event"}
+        </Button>
+        <Button variant="outline" onClick={onCancel} disabled={saving}>
+          Cancel
         </Button>
       </div>
     </div>
