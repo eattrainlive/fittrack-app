@@ -88,9 +88,9 @@ export const TOUCHES: Record<TouchKey, Touch> = {
     cooldownDays: 21,
     note: "coach",
     before:
-      "Hey {name}, you were flying with your app workouts for a while then things went quiet — everything ok?",
+      "Hey {name}, you were doing great with your app workouts for a while then things went quiet — everything ok?",
     after:
-      "Your programme's still there waiting. Want me to help you pick it back up, or switch you onto something fresh to reignite it?",
+      "Your programme's still there waiting. Want me to help you pick it back up, or switch you onto something fresh to get you back into it?",
     blurb: "Logged app workouts before, then stopped — win them back onto it.",
   },
 };
