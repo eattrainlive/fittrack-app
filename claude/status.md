@@ -1259,3 +1259,16 @@ pending member-engagement redeploy lands). All-staff shared.
 NEXT (agreed roadmap, not yet built): reminders + content scheduler, fault report centre, AI
 content generator, plus extras (shift handover, milestones feed, birthdays, low-stock, who's-in,
 checklists, announcements, enquiry inbox).
+
+## 80 — Staff Hub: Fault / equipment report centre (hub module 2) (2026-11-10)
+- equipment_faults.sql (new, RUN): equipment_faults table (title, location, severity
+  low/medium/high/out_of_order, status open/in_progress/fixed, photo_url, notes, reported_by,
+  resolved_by/at) + staff-only RLS + public 'equipment-faults' storage bucket (10MB, staff write).
+- equipmentFaults.ts (new): listFaults/openFaultCount/uploadFaultPhoto/createFault/setFaultStatus.
+- FaultReportCentre.tsx (new): log form (title/location/severity/notes/photo w/ camera capture) +
+  ticket cards with open→in_progress→fixed buttons, show/hide fixed.
+- Admin.tsx: added "Faults" tab (2nd, after Today) + mounted FaultReportCentre.
+- StaffTodayFeed.tsx: now also pulls openFaultCount() → "Equipment faults open" card (warn,
+  priority 15) jumping to the faults tab. Proves the feed aggregating a 2nd live source.
+PUSH: equipmentFaults.ts, FaultReportCentre.tsx, StaffTodayFeed.tsx, Admin.tsx. RUN
+equipment_faults.sql. No edge-fn redeploy.

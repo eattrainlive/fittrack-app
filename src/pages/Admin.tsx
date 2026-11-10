@@ -125,6 +125,7 @@ import ExistingProgramsList from "@/components/ExistingProgramsList";
 import { PROG_CATEGORIES, guessCategory } from "@/lib/programCategories";
 import { MembersGrid } from "@/components/MembersGrid";
 import { StaffTodayFeed } from "@/components/StaffTodayFeed";
+import { FaultReportCentre } from "@/components/FaultReportCentre";
 import {
   loadRosterMembers,
   bulkInviteNotOnApp,
@@ -2374,6 +2375,7 @@ const Admin = () => {
       >
         <TabsList className="flex w-full max-w-[1300px] overflow-x-auto justify-start h-auto p-1">
           <TabsTrigger value="today">Today</TabsTrigger>
+          <TabsTrigger value="faults">Faults</TabsTrigger>
           <TabsTrigger value="exercises">Manage Exercises</TabsTrigger>
           <TabsTrigger value="programs">Manage Programs</TabsTrigger>
           <TabsTrigger value="wow">Workout of the Week</TabsTrigger>
@@ -2392,6 +2394,9 @@ const Admin = () => {
         </TabsList>
         <TabsContent value="today" className="space-y-6 mt-6">
           <StaffTodayFeed staffSecret={staffSecret} onGoto={setActiveTab} />
+        </TabsContent>
+        <TabsContent value="faults" className="space-y-6 mt-6">
+          <FaultReportCentre />
         </TabsContent>
         <TabsContent value="exercises" className="space-y-6 mt-6">
           <Card className="bg-card border-border">

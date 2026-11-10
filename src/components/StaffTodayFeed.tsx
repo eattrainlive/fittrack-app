@@ -15,11 +15,13 @@ import {
   MessageSquare,
   ChevronRight,
   CheckCircle2,
+  Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { staffName } from "@/components/staffHubShared";
 import { getNurtureBoard } from "@/lib/trialNurture";
 import { getRetentionBoard, TOUCHES, type TouchKey } from "@/lib/retentionNurture";
+import { openFaultCount } from "@/lib/equipmentFaults";
 
 type Tone = "urgent" | "warn" | "good" | "info";
 
@@ -103,13 +105,29 @@ export function StaffTodayFeed({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [trial, retention] = await Promise.all([
+      const [trial, retention, faultCount] = await Promise.all([
         getNurtureBoard().catch(() => null),
         getRetentionBoard(staffSecret).catch(() => ({ members: [] as any[] })),
+        openFaultCount().catch(() => 0),
       ]);
 
       const feed: FeedItem[] = [];
       let waiting = 0;
+
+      // ── Equipment faults ────────────────────────────────────────────────
+      if (faultCount > 0) {
+        feed.push({
+          key: "faults",
+          icon: Wrench,
+          title: "Equipment faults open",
+          count: faultCount,
+          names: [],
+          cta: "Open fault board",
+          tab: "faults",
+          tone: "warn",
+          priority: 15,
+        });
+      }
 
       // ── Trials ──────────────────────────────────────────────────────────
       if (trial) {
