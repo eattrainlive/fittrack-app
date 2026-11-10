@@ -42,6 +42,28 @@ function normEmail(e: any): string {
 }
 const dayMs = 86400000;
 const dayKey = (v: any) => String(v || "").slice(0, 10);
+const isCoachedPt = (st: any) => /semi\s*private\s*pt/i.test(String(st || ""));
+
+// PT-session allowance for a genuine PT membership (null otherwise). Excludes
+// trial names where the number is days/weeks ("6 Weeks With PT", "21 Day PT…").
+function ptAllowance(product: any): number | null {
+  const p = String(product || "").toLowerCase();
+  const cp = p.match(/couples\s*(\d+)\s*pt/);
+  if (cp) return Number(cp[1]);
+  if (/day|week/.test(p)) return null;
+  const m = p.match(/(\d+)\s*pt\b/) || p.match(/pt[-\s]*(\d+)/);
+  return m ? Number(m[1]) : null;
+}
+const daysInMonth = (y: number, m: number) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+function ptCycleStart(joinedOn: string | null, now: Date): Date {
+  const j = joinedOn ? new Date(joinedOn + "T00:00:00Z") : null;
+  if (!j || isNaN(j.getTime())) return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const anchor = j.getUTCDate();
+  let y = now.getUTCFullYear(), m = now.getUTCMonth();
+  let s = new Date(Date.UTC(y, m, Math.min(anchor, daysInMonth(y, m))));
+  if (s.getTime() > now.getTime()) { m -= 1; if (m < 0) { m = 11; y -= 1; } s = new Date(Date.UTC(y, m, Math.min(anchor, daysInMonth(y, m)))); }
+  return s;
+}
 
 // Fetch ALL rows for a query (Supabase caps a single select at 1000 rows, which
 // silently truncated the roster-wide reads and undercounted visits).
@@ -77,7 +99,7 @@ serve(async (req) => {
 
     // ── Fetch everything once ────────────────────────────────────────────────
     const [rosterRes, appRes, linksRes] = await Promise.all([
-      db.from("gym_members").select("id, email, full_name, product, status"),
+      db.from("gym_members").select("id, email, full_name, product, status, joined_on"),
       db.from("members").select("id, email, full_name, online_client"),
       db.from("member_links").select("user_id, member_id").then((r) => r).catch(() => ({ data: [] } as any)),
     ]);
@@ -106,16 +128,26 @@ serve(async (req) => {
 
     // Attendance — booked sessions (by email) + gym scans (by member_ref = gym_members.id),
     // collected as distinct ACTIVE DAYS so a class + a scan on the same day = 1 visit.
+    // Fetch a wider booking window (covers the PT allowance cycle too), but only
+    // count attendance inside the scoring window.
+    const ptStartTs = new Date(now - Math.max(days, 40) * dayMs).toISOString();
     const daysByEmail: Record<string, Set<string>> = {};
     const daysByRef: Record<string, Set<string>> = {};
+    const ptDatesByEmail: Record<string, number[]> = {}; // coached PT session times (ms)
     try {
       const data = await pageAll((f, t) =>
-        db.from("member_bookings").select("email, session_at, status").gte("session_at", startTs).order("session_at").range(f, t));
+        db.from("member_bookings").select("email, session_at, status, session_type").gte("session_at", ptStartTs).order("session_at").range(f, t));
       for (const b of data ?? []) {
         if (b.status === "cancelled" || String(b.session_at) > nowIso) continue;
         const em = normEmail(b.email);
-        if (!daysByEmail[em]) daysByEmail[em] = new Set();
-        daysByEmail[em].add(dayKey(b.session_at));
+        if (String(b.session_at) >= startTs) {
+          if (!daysByEmail[em]) daysByEmail[em] = new Set();
+          daysByEmail[em].add(dayKey(b.session_at));
+        }
+        if (isCoachedPt(b.session_type)) {
+          if (!ptDatesByEmail[em]) ptDatesByEmail[em] = [];
+          ptDatesByEmail[em].push(new Date(b.session_at).getTime());
+        }
       }
     } catch (_) {}
     try {
@@ -176,11 +208,28 @@ serve(async (req) => {
       const loginDays = auth?.lastLogin ? Math.floor((now - new Date(auth.lastLogin).getTime()) / dayMs) : null;
       const workouts = appUserId ? (workoutsByUser[appUserId] || 0) : 0;
 
+      // PT credits (for PT memberships) — remaining in the current cycle + reset.
+      let ptCredits: any = null;
+      const ptAllow = ptAllowance(g.product);
+      if (ptAllow != null) {
+        const cs = ptCycleStart(g.joined_on ? String(g.joined_on).slice(0, 10) : null, new Date(now)).getTime();
+        const resetMs = cs + 31 * dayMs; // approx next anchor
+        const used = (ptDatesByEmail[ne] || []).filter((t) => t >= cs && t <= now).length;
+        ptCredits = {
+          allowance: ptAllow,
+          used,
+          remaining: Math.max(0, ptAllow - used),
+          resetDays: Math.max(0, Math.round((resetMs - now) / dayMs)),
+        };
+      }
+
       const flags: string[] = [];
       if (visits === 0) flags.push(`No visits in ${days}d`);
       else if (lastVisitDays != null && lastVisitDays >= 7) flags.push(`${lastVisitDays}d since last visit`);
       if (appStatus === "not_invited") flags.push("Not on the app");
       else if (appStatus === "invited_not_joined") flags.push("Invited — not joined");
+      if (ptCredits && ptCredits.remaining <= 2 && ptCredits.resetDays <= 10)
+        flags.push(`${ptCredits.remaining} PT left · resets ${ptCredits.resetDays}d`);
 
       scored.push({
         member_ref: g.id,
@@ -194,6 +243,7 @@ serve(async (req) => {
         attendance: { visits, perWeek: Math.round((visits / weeks) * 10) / 10, lastVisitDays },
         app_status: appStatus,
         app: { on_app: appStatus === "on_app", workouts, lastLoginDays: loginDays },
+        pt_credits: ptCredits,
         flags,
       });
     }

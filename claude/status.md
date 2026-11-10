@@ -1205,3 +1205,27 @@ old time-based workflows must be disabled to avoid double-messaging. (Reminder r
   / gym = open gym+core+ / other=trials) + a membership filter row (All / PT / Classes /
   Gym-Core+). Band + app counts now recompute within the selected membership scope. Client-side
   only — no edge-fn redeploy. esbuild clean. PUSH MemberEngagementBoard.tsx.
+
+## 77 — Retention nurture cockpit (trial-cockpit for active members) (2026-11-10)
+Built the active-member equivalent of the trial nurture cockpit: surfaces who's due a WhatsApp
+nudge, pre-fills the template, Send, cooldown + waiting-for-reply hold. Reuses the trial-nurture
+GHL pipe (no new webhook/workflow).
+- supabase/functions/member-engagement/index.ts: added PT-credits to each member
+  (ptAllowance/ptCycleStart/isCoachedPt helpers, joined_on in gym_members select, ptDatesByEmail,
+  pt_credits:{allowance,used,remaining,resetDays}). ptStartTs widened to max(days,40)d so a cycle
+  isn't truncated by a short window. REDEPLOY member-engagement.
+- src/lib/retentionNurture.ts (new): TOUCHES catalogue (missed_you/slipping/celebrate/pt_low),
+  candidateTouch priority (at-risk→missed_you, slipping→slipping, PT≤2 & reset≤10d→pt_low,
+  thriving→celebrate, steady→none), getRetentionBoard (overlays retention_touch_log cooldowns +
+  inbound replies → dueTouch/awaitingReply), sendTouch (POST /.netlify/functions/trial-nurture
+  then insert retention_touch_log), renderTouch. Cooldowns 14/14/28/14d, WAITING_DAYS=3.
+- src/components/RetentionCockpit.tsx (new): tabs per touch + Waiting-for-reply; TouchCard with
+  preview, optional coach note (coach touches), Send WhatsApp.
+- src/components/MembersGrid.tsx: mounts <RetentionCockpit> above MemberEngagementBoard in the
+  engagement view.
+- supabase/sql/retention_touch_log.sql (new): RUN — staff-only touch log (cooldown + waiting).
+- claude/GHL_retention_touches.md (new): 4 approved WhatsApp templates + add 4 branches to the
+  existing "Trial nurture — send" workflow (chain a Condition node if full).
+TODO Michael: RUN retention_touch_log.sql; REDEPLOY member-engagement; create the 4 GHL templates
++ branches (GHL_retention_touches.md); PUSH retentionNurture.ts, RetentionCockpit.tsx,
+MembersGrid.tsx, member-engagement/index.ts.
