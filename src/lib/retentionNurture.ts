@@ -4,7 +4,13 @@
 // out the ONE touch each member is due. Sends via the same GHL pipe as trials.
 import { supabase } from "@/lib/supabase";
 
-export type TouchKey = "missed_you" | "slipping" | "celebrate" | "pt_low";
+export type TouchKey =
+  | "missed_you"
+  | "slipping"
+  | "celebrate"
+  | "pt_low"
+  | "app_try"
+  | "app_comeback";
 
 export interface Touch {
   key: TouchKey;
@@ -38,7 +44,7 @@ export const TOUCHES: Record<TouchKey, Touch> = {
     note: "coach",
     before: "Hey {name}, not seen you quite as much lately — everything ok?",
     after:
-      "Anything I can do to help you get back into your groove? Happy to get a session booked in with you.",
+      "Anything I can do to help you get back into the swing of things? Happy to get a session booked in with you.",
     blurb: "Attendance dropping from their norm — a gentle check-in.",
   },
   celebrate: {
@@ -48,7 +54,7 @@ export const TOUCHES: Record<TouchKey, Touch> = {
     cooldownDays: 28,
     note: "none",
     before:
-      "{name}, loving seeing you in so consistently — brilliant work, it really does pay off.",
+      "Hey {name}, loving seeing you in so consistently — brilliant work, it really does pay off.",
     after: "Keep that momentum rolling — proud of you!",
     blurb: "Thriving / consistent attender — reinforce the habit.",
   },
@@ -62,6 +68,30 @@ export const TOUCHES: Record<TouchKey, Touch> = {
     after:
       "PT sessions left before they reset. Want me to get them booked in so you don't lose them? Let me know what days suit.",
     blurb: "PT allowance running low near reset — book before it expires.",
+  },
+  app_try: {
+    key: "app_try",
+    label: "Try the app",
+    templateKey: "retention_app_try",
+    cooldownDays: 21,
+    note: "coach",
+    before:
+      "Hey {name}, have you had a chance to dive into your training programmes in the ETL app yet?",
+    after:
+      "There's a plan matched to your goals ready to go — want me to show you how to get started? Takes two minutes and it really does make a difference.",
+    blurb: "On the app but hasn't started a programme — nudge them to try it.",
+  },
+  app_comeback: {
+    key: "app_comeback",
+    label: "App drop-off",
+    templateKey: "retention_app_comeback",
+    cooldownDays: 21,
+    note: "coach",
+    before:
+      "Hey {name}, you were flying with your app workouts for a while then things went quiet — everything ok?",
+    after:
+      "Your programme's still there waiting. Want me to help you pick it back up, or switch you onto something fresh to reignite it?",
+    blurb: "Logged app workouts before, then stopped — win them back onto it.",
   },
 };
 
@@ -77,6 +107,7 @@ export interface RetentionMember {
   band: "thriving" | "steady" | "slipping" | "at-risk";
   attendance: { visits: number; perWeek: number; lastVisitDays: number | null };
   app_status: "on_app" | "invited_not_joined" | "not_invited";
+  app: { on_app: boolean; lastWorkoutDays: number | null; recentWorkouts: number };
   pt_credits: { allowance: number; used: number; remaining: number; resetDays: number } | null;
   flags: string[];
   dueTouch: TouchKey | null;
@@ -86,10 +117,19 @@ export interface RetentionMember {
 
 /** Which touch (if any) a member qualifies for — priority order. */
 function candidateTouch(m: any): TouchKey | null {
+  // Attendance crisis first — the biggest retention signal.
   if (m.band === "at-risk") return "missed_you";
   if (m.band === "slipping") return "slipping";
   if (m.pt_credits && m.pt_credits.remaining <= 2 && m.pt_credits.resetDays <= 10)
     return "pt_low";
+  // App-programme usage — only for members who've actually signed in to the app
+  // (an invited-not-joined member is an invite problem, handled by the board).
+  const app = m.app || {};
+  if (app.on_app) {
+    if (app.lastWorkoutDays != null && app.lastWorkoutDays >= 14 && (app.recentWorkouts || 0) === 0)
+      return "app_comeback"; // was logging workouts, then tailed off
+    if (app.lastWorkoutDays == null) return "app_try"; // on the app, never logged a programme workout
+  }
   if (m.band === "thriving") return "celebrate";
   return null; // steady members are fine — no nudge
 }
@@ -161,6 +201,7 @@ export async function getRetentionBoard(
       band: m.band,
       attendance: m.attendance,
       app_status: m.app_status,
+      app: m.app ?? { on_app: false, lastWorkoutDays: null, recentWorkouts: 0 },
       pt_credits: m.pt_credits ?? null,
       flags: m.flags ?? [],
       dueTouch,

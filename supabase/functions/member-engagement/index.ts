@@ -161,12 +161,23 @@ serve(async (req) => {
       }
     } catch (_) {}
 
-    // App usage (workouts logged) by app user_id — shown as a badge only.
-    const workoutsByUser: Record<string, number> = {};
+    // App usage (workouts logged) by app user_id. Pulled over a WIDE window so we
+    // can tell "never used the app programmes" from "used them, then stopped".
+    const appWideStartTs = new Date(now - Math.max(days, 90) * dayMs).toISOString();
+    const recent14Ts = now - 14 * dayMs;
+    const workoutsByUser: Record<string, number> = {}; // within the scoring window (badge)
+    const woLastByUser: Record<string, number> = {};   // ms of most recent app workout
+    const woRecentByUser: Record<string, number> = {}; // count in the last 14 days
     try {
       const data = await pageAll((f, t) =>
-        db.from("workout_history").select("user_id, date").gte("date", startTs).order("date").range(f, t));
-      for (const w of data ?? []) { const u = String(w.user_id); workoutsByUser[u] = (workoutsByUser[u] || 0) + 1; }
+        db.from("workout_history").select("user_id, date").gte("date", appWideStartTs).order("date").range(f, t));
+      for (const w of data ?? []) {
+        const u = String(w.user_id);
+        const t = new Date(w.date).getTime();
+        if (String(w.date) >= startTs) workoutsByUser[u] = (workoutsByUser[u] || 0) + 1;
+        if (!woLastByUser[u] || t > woLastByUser[u]) woLastByUser[u] = t;
+        if (t >= recent14Ts) woRecentByUser[u] = (woRecentByUser[u] || 0) + 1;
+      }
     } catch (_) {}
 
     // ── Score each ACTIVE roster member (one row per person) ──────────────────
@@ -207,6 +218,9 @@ serve(async (req) => {
           : "invited_not_joined";
       const loginDays = auth?.lastLogin ? Math.floor((now - new Date(auth.lastLogin).getTime()) / dayMs) : null;
       const workouts = appUserId ? (workoutsByUser[appUserId] || 0) : 0;
+      const woLast = appUserId ? woLastByUser[appUserId] : undefined;
+      const lastWorkoutDays = woLast ? Math.floor((now - woLast) / dayMs) : null;
+      const recentWorkouts = appUserId ? (woRecentByUser[appUserId] || 0) : 0;
 
       // PT credits (for PT memberships) — remaining in the current cycle + reset.
       let ptCredits: any = null;
@@ -242,7 +256,7 @@ serve(async (req) => {
         band,
         attendance: { visits, perWeek: Math.round((visits / weeks) * 10) / 10, lastVisitDays },
         app_status: appStatus,
-        app: { on_app: appStatus === "on_app", workouts, lastLoginDays: loginDays },
+        app: { on_app: appStatus === "on_app", workouts, lastLoginDays: loginDays, lastWorkoutDays, recentWorkouts },
         pt_credits: ptCredits,
         flags,
       });

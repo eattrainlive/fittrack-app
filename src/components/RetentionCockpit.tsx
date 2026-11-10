@@ -21,6 +21,8 @@ const GROUPS: { key: TouchKey; title: string }[] = [
   { key: "missed_you", title: "Missed you (at-risk)" },
   { key: "slipping", title: "Slipping" },
   { key: "pt_low", title: "PT credits low" },
+  { key: "app_try", title: "Try the app" },
+  { key: "app_comeback", title: "App drop-off" },
   { key: "celebrate", title: "Celebrate regulars" },
 ];
 
@@ -163,6 +165,10 @@ function TouchCard({ m, onSent }: { m: RetentionMember; onSent: () => void }) {
             {touch.key === "pt_low" && m.pt_credits
               ? ` · ${m.pt_credits.remaining} PT left (resets ${m.pt_credits.resetDays}d)`
               : ""}
+            {touch.key === "app_comeback" && m.app.lastWorkoutDays != null
+              ? ` · last app workout ${m.app.lastWorkoutDays}d ago`
+              : ""}
+            {touch.key === "app_try" ? " · on app, no workouts logged" : ""}
           </p>
         </div>
         {open ? (

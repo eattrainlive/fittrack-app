@@ -1229,3 +1229,18 @@ GHL pipe (no new webhook/workflow).
 TODO Michael: RUN retention_touch_log.sql; REDEPLOY member-engagement; create the 4 GHL templates
 + branches (GHL_retention_touches.md); PUSH retentionNurture.ts, RetentionCockpit.tsx,
 MembersGrid.tsx, member-engagement/index.ts.
+
+## 78 — Retention: two app-usage touches + wording tweaks (2026-11-10)
+- member-engagement/index.ts: workout_history now pulled over a wide window (max(days,90)d) so we
+  can tell "never used app programmes" from "used then stopped". Each member now exposes
+  app.lastWorkoutDays + app.recentWorkouts (14d). REDEPLOY member-engagement.
+- retentionNurture.ts: 2 new touches — app_try (on app, no workout ever → retention_app_try) and
+  app_comeback (last app workout ≥14d ago & none in last 14d → retention_app_comeback), cooldown
+  21d, coach-note optional. candidateTouch priority: attendance (missed/slipping) → pt_low →
+  app_comeback → app_try → celebrate. Also matched copy to Michael's GHL edits (slipping "swing of
+  things", celebrate opens "Hey").
+- RetentionCockpit.tsx: added "Try the app" + "App drop-off" tabs + context line.
+- GHL_retention_touches.md: added retention_app_try + retention_app_comeback (both {{1}} name,
+  {{2}} coach note) — add 2 more branches to "Trial nurture — send".
+PUSH: retentionNurture.ts, RetentionCockpit.tsx, member-engagement/index.ts. REDEPLOY
+member-engagement. GHL: 2 more templates + branches.
