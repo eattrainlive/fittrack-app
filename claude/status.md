@@ -1272,3 +1272,21 @@ checklists, announcements, enquiry inbox).
   priority 15) jumping to the faults tab. Proves the feed aggregating a 2nd live source.
 PUSH: equipmentFaults.ts, FaultReportCentre.tsx, StaffTodayFeed.tsx, Admin.tsx. RUN
 equipment_faults.sql. No edge-fn redeploy.
+
+## 81 — Staff Hub: Planner — reminders + content scheduler (hub module 3) (2026-11-10)
+- staff_planner.sql (new, RUN): staff_reminders (title, detail, assigned_to, due_date, repeat
+  none/daily/weekly/monthly, done + done_at/by) + content_posts (caption, destination
+  private/stories/main, media_url, scheduled_for, status draft/scheduled/posted) + staff-only RLS
+  + public 'content-media' bucket (25MB, staff write).
+- staffPlanner.ts (new): reminders CRUD w/ roll-forward on complete (recurring reschedules to next
+  due + resets done; one-off just marks done); dueReminderCount(); content CRUD + uploadContentMedia
+  + markPosted; duePostCount().
+- StaffPlanner.tsx (new): toggle Reminders | Content calendar. Reminders = add form (title/detail/
+  assignee/date/repeat) + tickable rows w/ recurring badge + completed-oneoffs disclosure. Content =
+  add form (caption/destination/date/notes/image) w/ Schedule or Save draft + cards w/ Mark posted.
+- Admin.tsx: "Planner" tab (2nd) + mounted StaffPlanner.
+- StaffTodayFeed.tsx: now also pulls dueReminderCount() → "Reminders due" (priority 5) + duePostCount()
+  → "Posts to publish" (priority 12), both → planner tab.
+NOTE: content scheduler is notify-to-post (surfaces due posts for whoever's on shift to publish), not
+auto-publish — Meta API/stories out of scope for now.
+PUSH: staffPlanner.ts, StaffPlanner.tsx, StaffTodayFeed.tsx, Admin.tsx. RUN staff_planner.sql.

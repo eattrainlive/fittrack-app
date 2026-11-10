@@ -16,12 +16,15 @@ import {
   ChevronRight,
   CheckCircle2,
   Wrench,
+  Bell,
+  CalendarClock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { staffName } from "@/components/staffHubShared";
 import { getNurtureBoard } from "@/lib/trialNurture";
 import { getRetentionBoard, TOUCHES, type TouchKey } from "@/lib/retentionNurture";
 import { openFaultCount } from "@/lib/equipmentFaults";
+import { dueReminderCount, duePostCount } from "@/lib/staffPlanner";
 
 type Tone = "urgent" | "warn" | "good" | "info";
 
@@ -105,14 +108,46 @@ export function StaffTodayFeed({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [trial, retention, faultCount] = await Promise.all([
+      const [trial, retention, faultCount, remCount, postCount] = await Promise.all([
         getNurtureBoard().catch(() => null),
         getRetentionBoard(staffSecret).catch(() => ({ members: [] as any[] })),
         openFaultCount().catch(() => 0),
+        dueReminderCount().catch(() => 0),
+        duePostCount().catch(() => 0),
       ]);
 
       const feed: FeedItem[] = [];
       let waiting = 0;
+
+      // ── Reminders due today ─────────────────────────────────────────────
+      if (remCount > 0) {
+        feed.push({
+          key: "reminders",
+          icon: Bell,
+          title: "Reminders due",
+          count: remCount,
+          names: [],
+          cta: "Open planner",
+          tab: "planner",
+          tone: "warn",
+          priority: 5,
+        });
+      }
+
+      // ── Content due to post ─────────────────────────────────────────────
+      if (postCount > 0) {
+        feed.push({
+          key: "content",
+          icon: CalendarClock,
+          title: "Posts to publish",
+          count: postCount,
+          names: [],
+          cta: "Open planner",
+          tab: "planner",
+          tone: "warn",
+          priority: 12,
+        });
+      }
 
       // ── Equipment faults ────────────────────────────────────────────────
       if (faultCount > 0) {
