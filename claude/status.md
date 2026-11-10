@@ -1402,3 +1402,9 @@ PUSH: staffPlanner.ts, StaffPlanner.tsx. DEPLOY content-ideas edge fn.
   Gym-Core+) above the touch tabs; scopes members before due()/waiting counts so every touch tab +
   waiting respects the selected membership. Client-side only.
 PUSH: RetentionCockpit.tsx.
+
+## 91 — Retention cockpit: time-frame (window) selector (2026-11-10)
+- RetentionCockpit.tsx: added a Window row (7/14/30/60d, default 30) that re-invokes
+  getRetentionBoard(staffSecret, days); bands/attendance recompute server-side for the chosen
+  window. Sits above the membership filter + touch tabs.
+PUSH: RetentionCockpit.tsx.

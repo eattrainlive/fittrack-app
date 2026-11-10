@@ -46,11 +46,12 @@ export function RetentionCockpit({ staffSecret }: { staffSecret: string }) {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TouchKey | "waiting">("missed_you");
   const [typeFilter, setTypeFilter] = useState<MemberType | "all">("all");
+  const [days, setDays] = useState(30);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { members } = await getRetentionBoard(staffSecret);
+      const { members } = await getRetentionBoard(staffSecret, days);
       setMembers(members);
     } catch (e: any) {
       console.error("retention board failed", e);
@@ -58,7 +59,7 @@ export function RetentionCockpit({ staffSecret }: { staffSecret: string }) {
     } finally {
       setLoading(false);
     }
-  }, [staffSecret]);
+  }, [staffSecret, days]);
 
   useEffect(() => {
     load();
@@ -80,6 +81,20 @@ export function RetentionCockpit({ staffSecret }: { staffSecret: string }) {
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] text-muted-foreground mr-1">Window:</span>
+        {[7, 14, 30, 60].map((d) => (
+          <button
+            key={d}
+            onClick={() => setDays(d)}
+            className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+              days === d ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"
+            }`}
+          >
+            {d}d
+          </button>
+        ))}
+      </div>
       <div className="flex flex-wrap gap-1.5">
         {TYPE_FILTERS.map((t) => (
           <button
