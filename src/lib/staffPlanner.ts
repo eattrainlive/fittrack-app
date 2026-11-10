@@ -2,6 +2,31 @@
 // completion) + a content scheduler. Staff-only.
 import { supabase } from "@/lib/supabase";
 
+// ── Coaches (for assignment dropdown) ────────────────────────────────────────
+export interface Coach {
+  user_id: string;
+  name: string;
+}
+
+/** Staff/coaches with display names, for the "assign to" picker. */
+export async function listCoaches(): Promise<Coach[]> {
+  const { data: staffRows } = await supabase.from("staff_users").select("user_id");
+  const ids = (staffRows ?? []).map((s: any) => s.user_id);
+  if (!ids.length) return [];
+  const { data: memberRows } = await supabase
+    .from("members")
+    .select("id, email, full_name")
+    .in("id", ids);
+  const byId = new Map<string, any>((memberRows ?? []).map((m: any) => [m.id, m]));
+  return ids
+    .map((id: string) => {
+      const m = byId.get(id);
+      const name = m?.full_name || m?.email?.split("@")[0] || "Coach";
+      return { user_id: id, name };
+    })
+    .sort((a: Coach, b: Coach) => a.name.localeCompare(b.name));
+}
+
 // ── Reminders ────────────────────────────────────────────────────────────────
 export type Repeat = "none" | "daily" | "weekly" | "monthly";
 

@@ -297,6 +297,22 @@ const Index = () => {
         <CheckInHeaderButton />
       </div>
 
+      {localStorage.getItem("fittrack_is_staff") === "true" && (
+        <button
+          onClick={() => navigate("/admin")}
+          className="w-full flex items-center gap-3 rounded-xl border border-primary/40 bg-primary/10 p-3 text-left transition hover:bg-primary/15"
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary">
+            <ChevronRight className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-sm">Staff Hub — Today</p>
+            <p className="text-xs text-muted-foreground">Your jobs, trials, retention and more</p>
+          </div>
+          <ChevronRight className="w-5 h-5 text-primary shrink-0" />
+        </button>
+      )}
+
       {focusFlag && (
         <div className="flex items-center gap-3 rounded-xl border border-primary/40 bg-primary/5 p-3 animate-in fade-in slide-in-from-top-2">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">

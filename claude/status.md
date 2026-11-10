@@ -1338,3 +1338,16 @@ Remaining roadmap extras not built: shift handover notes, enquiry/lead inbox. BI
   date). ReminderForm gained initialDue, PostForm gained initialDate.
 No SQL, no edge fn — reads existing staff_reminders + content_posts.
 PUSH: staffPlanner.ts, StaffPlanner.tsx.
+
+## 85 — Staff home banner + coach assignment + "My jobs" (2026-11-10)
+- Index.tsx: staff-only banner (fittrack_is_staff==='true') → navigate('/admin') (lands on Today).
+- staffPlanner.ts: listCoaches() — staff_users → members names (same pattern as
+  AccountabilityCoachPanel), sorted; Coach type.
+- StaffPlanner.tsx ReminderForm: "Assign to" free-text → dropdown (Anyone on shift + each coach by
+  name); stores the coach display name in assigned_to.
+- StaffTodayFeed.tsx: new MyJobs section on Today — reminders assigned_to === staffName(), expanded
+  via buildCalendar across This week / This month (toggle), tickable live instances (completeReminder),
+  overdue in red, recurring marked ↻. Hidden if staffName()==="Staff" (can't identify coach).
+PUSH: Index.tsx, staffPlanner.ts, StaffPlanner.tsx, StaffTodayFeed.tsx. No SQL/edge fn.
+NOTE: "My jobs" matches on coach display name (assigned_to stores the name). Relies on
+localStorage fittrack_profile full_name matching the coach name in the dropdown.

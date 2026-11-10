@@ -46,6 +46,8 @@ import {
   type ContentIdeas,
   buildCalendar,
   type CalItem,
+  listCoaches,
+  type Coach,
 } from "@/lib/staffPlanner";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -170,6 +172,10 @@ function ReminderForm({
   const [due, setDue] = useState(initialDue || todayStr());
   const [repeat, setRepeat] = useState<Repeat>("none");
   const [saving, setSaving] = useState(false);
+  const [coaches, setCoaches] = useState<Coach[]>([]);
+  useEffect(() => {
+    listCoaches().then(setCoaches).catch(() => {});
+  }, []);
 
   const submit = async () => {
     if (!title.trim()) return toast.error("Give the reminder a title");
@@ -199,7 +205,18 @@ function ReminderForm({
         onChange={(e) => setDetail(e.target.value)}
       />
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Input placeholder="Assign to (optional)" value={assigned} onChange={(e) => setAssigned(e.target.value)} />
+        <select
+          value={assigned}
+          onChange={(e) => setAssigned(e.target.value)}
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+        >
+          <option value="">Anyone on shift</option>
+          {coaches.map((c) => (
+            <option key={c.user_id} value={c.name}>
+              {c.name}
+            </option>
+          ))}
+        </select>
         <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
         <select
           value={repeat}

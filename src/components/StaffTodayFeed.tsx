@@ -26,7 +26,14 @@ import { staffName } from "@/components/staffHubShared";
 import { getNurtureBoard } from "@/lib/trialNurture";
 import { getRetentionBoard, TOUCHES, type TouchKey } from "@/lib/retentionNurture";
 import { openFaultCount } from "@/lib/equipmentFaults";
-import { dueReminderCount, duePostCount } from "@/lib/staffPlanner";
+import {
+  dueReminderCount,
+  duePostCount,
+  listReminders,
+  buildCalendar,
+  completeReminder,
+  type Reminder,
+} from "@/lib/staffPlanner";
 import { lowStockCount, pendingChecklistCount } from "@/lib/staffBoards";
 import { AnnouncementsBoard } from "@/components/AnnouncementsBoard";
 import { StaffPulse } from "@/components/StaffPulse";
@@ -345,8 +352,108 @@ export function StaffTodayFeed({
             </div>
           )}
 
+          <MyJobs />
           <StaffPulse staffSecret={staffSecret} />
         </>
+      )}
+    </div>
+  );
+}
+
+// ── My jobs (reminders assigned to the signed-in coach) ──────────────────────
+const toKeyUTC = (d: Date) => d.toISOString().slice(0, 10);
+function MyJobs() {
+  const me = staffName();
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [range, setRange] = useState<"week" | "month">("week");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setReminders(await listReminders());
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const now = new Date();
+  let start: Date;
+  let end: Date;
+  if (range === "week") {
+    const dow = (now.getUTCDay() + 6) % 7; // Mon=0
+    start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - dow));
+    end = new Date(start);
+    end.setUTCDate(start.getUTCDate() + 6);
+  } else {
+    start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
+  }
+  const startKey = toKeyUTC(start);
+  const endKey = toKeyUTC(end);
+  const todayKey = toKeyUTC(now);
+
+  const mine = reminders.filter(
+    (r) => (r.assigned_to || "").trim().toLowerCase() === me.toLowerCase() && me !== "Staff",
+  );
+  const byDay = buildCalendar(mine, [], startKey, endKey);
+  const rows = Object.keys(byDay)
+    .sort()
+    .flatMap((d) => byDay[d].filter((it) => it.kind === "reminder").map((it) => ({ d, it })));
+
+  const tick = async (r: Reminder) => {
+    setBusy(true);
+    await completeReminder(r, me);
+    setBusy(false);
+    load();
+  };
+
+  if (me === "Staff") return null; // can't identify the coach → skip
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">My jobs</h3>
+        <div className="flex gap-1.5">
+          {(["week", "month"] as const).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+                range === r ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+              }`}
+            >
+              This {r}
+            </button>
+          ))}
+        </div>
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Nothing assigned to you this {range}.</p>
+      ) : (
+        <div className="space-y-1">
+          {rows.map(({ d, it }) => {
+            const overdue = d < todayKey && it.live;
+            return (
+              <div key={it.key} className="flex items-center gap-2 text-sm">
+                {it.live ? (
+                  <button disabled={busy} onClick={() => it.reminder && tick(it.reminder)} title="Mark done">
+                    <CheckCircle2 className="h-4 w-4 text-muted-foreground hover:text-emerald-500" />
+                  </button>
+                ) : (
+                  <span className="h-4 w-4 shrink-0" />
+                )}
+                <span className={`text-[11px] w-14 shrink-0 ${overdue ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                  {new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                </span>
+                <span className="truncate">{it.title}</span>
+                {it.recurring && <span className="text-[9px] text-muted-foreground shrink-0">↻</span>}
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
