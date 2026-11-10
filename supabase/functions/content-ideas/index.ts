@@ -41,6 +41,16 @@ Deno.serve(async (req) => {
     const destination = String(body.destination || "").trim();
     const tone = String(body.tone || "").trim();
     const extra = String(body.extra || "").trim();
+    const format = String(body.format || "").trim(); // reel | image | carousel
+
+    const formatLine =
+      format === "reel"
+        ? "Format: REEL. For each caption item, lead with a scroll-stopping HOOK (first line), then a short 15–30s shot/voiceover outline, then the caption with a clear CTA."
+        : format === "carousel"
+          ? "Format: CAROUSEL. For each caption item, give a slide-by-slide outline (Slide 1…, Slide 2…, 4–6 slides) then the caption to go underneath."
+          : format === "image"
+            ? "Format: SINGLE IMAGE. For each caption item, give a one-line image concept (what's in shot) then the caption."
+            : "";
 
     const destLine =
       destination === "stories"
@@ -54,6 +64,7 @@ Deno.serve(async (req) => {
     const userMsg = [
       `Topic: ${topic}`,
       destLine,
+      formatLine,
       tone ? `Preferred tone: ${tone}` : "",
       extra ? `Extra context: ${extra}` : "",
     ]

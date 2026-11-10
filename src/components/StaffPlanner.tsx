@@ -44,6 +44,7 @@ import {
   type Destination,
   generateIdeas,
   type ContentIdeas,
+  type ContentFormat,
   buildCalendar,
   type CalItem,
   listCoaches,
@@ -593,6 +594,7 @@ function IdeaGenerator({
 }) {
   const [topic, setTopic] = useState("");
   const [destination, setDestination] = useState<Destination>("main");
+  const [format, setFormat] = useState<ContentFormat>("image");
   const [tone, setTone] = useState("");
   const [loading, setLoading] = useState(false);
   const [ideas, setIdeas] = useState<ContentIdeas | null>(null);
@@ -601,7 +603,7 @@ function IdeaGenerator({
     if (!topic.trim()) return toast.error("Give it a topic to work with");
     setLoading(true);
     setIdeas(null);
-    const r = await generateIdeas(staffSecret, { topic, destination, tone });
+    const r = await generateIdeas(staffSecret, { topic, destination, tone, format });
     setLoading(false);
     if (r.ok && r.ideas) setIdeas(r.ideas);
     else toast.error(r.error || "Couldn't generate — try again");
@@ -625,7 +627,7 @@ function IdeaGenerator({
         onChange={(e) => setTopic(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && run()}
       />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <select
           value={destination}
           onChange={(e) => setDestination(e.target.value as Destination)}
@@ -637,7 +639,16 @@ function IdeaGenerator({
             </option>
           ))}
         </select>
-        <Input placeholder="Tone (optional) — e.g. playful, inspiring" value={tone} onChange={(e) => setTone(e.target.value)} />
+        <select
+          value={format}
+          onChange={(e) => setFormat(e.target.value as ContentFormat)}
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+        >
+          <option value="image">Single image</option>
+          <option value="reel">Reel</option>
+          <option value="carousel">Carousel</option>
+        </select>
+        <Input placeholder="Tone (optional)" value={tone} onChange={(e) => setTone(e.target.value)} />
       </div>
       <Button className="w-full gap-1" disabled={loading} onClick={run}>
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}

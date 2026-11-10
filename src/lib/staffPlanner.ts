@@ -456,9 +456,17 @@ export interface ContentIdeas {
   angles: string[];
 }
 
+export type ContentFormat = "image" | "reel" | "carousel";
+
 export async function generateIdeas(
   staffSecret: string,
-  input: { topic: string; destination?: Destination; tone?: string; extra?: string },
+  input: {
+    topic: string;
+    destination?: Destination;
+    tone?: string;
+    extra?: string;
+    format?: ContentFormat;
+  },
 ): Promise<{ ok: boolean; ideas?: ContentIdeas; error?: string }> {
   const { data, error } = await supabase.functions.invoke("content-ideas", {
     body: { staffSecret, ...input },

@@ -1374,3 +1374,31 @@ PUSH: staffBoards.ts, DailyChecklists.tsx. RUN staff_job_plan_seed.sql.
   all→updateReminder, one→splitOccurrence. Remove button respects scope (one=detach day,
   all/one-off=deleteReminder). Posts stay display-only.
 PUSH: staffPlanner.ts, StaffPlanner.tsx. RUN staff_reminders_exceptions.sql.
+
+## 88 — Hidden staff events/campaigns + team "week/month ahead" agenda (2026-11-10)
+- staff_events.sql (new, RUN): staff_events (title, kind event/campaign/promo/other, start_date,
+  end_date nullable, notes) + staff-only RLS (hidden from members).
+- staffPlanner.ts: StaffEvent/EventKind + EVENT_KIND_LABEL; listEvents/createEvent/updateEvent/
+  deleteEvent; buildCalendar now takes events[] (optional) and expands each across its date span;
+  CalItem kind += "event"; day sort order event→post→reminder.
+- StaffPlanner.tsx: new "Events" section (EventsSection + EventForm + EventRow, upcoming/past);
+  Calendar now loads + shows events (amber chips, CalendarDays icon) and labels them in DayPanel.
+- StaffTodayFeed.tsx: new TeamAgenda ("The week/month ahead") — merges ALL reminders (recurrences
+  expanded) + content posts + events for the range, grouped by day, with assignee shown; week/month
+  toggle. Sits between My jobs and the pulse.
+PUSH: staffPlanner.ts, StaffPlanner.tsx, StaffTodayFeed.tsx. RUN staff_events.sql.
+
+## 89 — AI content generator: format (reel / image / carousel) (2026-11-10)
+- content-ideas/index.ts: accepts `format` (reel|image|carousel) → tailors each caption item:
+  reel = hook + 15-30s shot/voiceover outline + caption; carousel = 4-6 slide-by-slide outline +
+  caption; image = one-line image concept + caption. DEPLOY content-ideas.
+- staffPlanner.ts: ContentFormat type; generateIdeas passes format.
+- StaffPlanner.tsx IdeaGenerator: added format dropdown (Single image / Reel / Carousel), default
+  image; destination+format+tone now a 3-col row.
+PUSH: staffPlanner.ts, StaffPlanner.tsx. DEPLOY content-ideas edge fn.
+
+## 90 — Retention cockpit: membership filter restored (2026-11-10)
+- RetentionCockpit.tsx: added memberType classifier + TYPE_FILTERS row (All / PT / Classes /
+  Gym-Core+) above the touch tabs; scopes members before due()/waiting counts so every touch tab +
+  waiting respects the selected membership. Client-side only.
+PUSH: RetentionCockpit.tsx.

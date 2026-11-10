@@ -26,10 +26,26 @@ const GROUPS: { key: TouchKey; title: string }[] = [
   { key: "celebrate", title: "Celebrate regulars" },
 ];
 
+type MemberType = "pt" | "classes" | "gym" | "other";
+function memberType(product: string | null): MemberType {
+  const p = String(product || "").toLowerCase();
+  if (/\bpt\b|semi\s*private|personal/.test(p)) return "pt";
+  if (/team\s*training/.test(p)) return "classes";
+  if (/open\s*gym|core\s*\+|core\s*plus/.test(p)) return "gym";
+  return "other";
+}
+const TYPE_FILTERS: { key: MemberType | "all"; label: string }[] = [
+  { key: "all", label: "All memberships" },
+  { key: "pt", label: "PT" },
+  { key: "classes", label: "Classes" },
+  { key: "gym", label: "Gym / Core+" },
+];
+
 export function RetentionCockpit({ staffSecret }: { staffSecret: string }) {
   const [members, setMembers] = useState<RetentionMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TouchKey | "waiting">("missed_you");
+  const [typeFilter, setTypeFilter] = useState<MemberType | "all">("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,8 +64,11 @@ export function RetentionCockpit({ staffSecret }: { staffSecret: string }) {
     load();
   }, [load]);
 
-  const due = (k: TouchKey) => members.filter((m) => m.dueTouch === k);
-  const waiting = members.filter((m) => m.awaitingReply);
+  const scoped = members.filter(
+    (m) => typeFilter === "all" || memberType(m.membership) === typeFilter,
+  );
+  const due = (k: TouchKey) => scoped.filter((m) => m.dueTouch === k);
+  const waiting = scoped.filter((m) => m.awaitingReply);
 
   if (loading) {
     return (
@@ -61,6 +80,21 @@ export function RetentionCockpit({ staffSecret }: { staffSecret: string }) {
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap gap-1.5">
+        {TYPE_FILTERS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTypeFilter(t.key)}
+            className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+              typeFilter === t.key
+                ? "bg-foreground text-background"
+                : "bg-muted text-muted-foreground hover:bg-muted/70"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
       <div className="flex flex-wrap gap-1.5">
         {GROUPS.map((g) => (
           <button
