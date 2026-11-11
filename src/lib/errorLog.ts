@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 // ── Error logging (fire-and-forget; never breaks the app) ───────────────────
 // Captures failed cloud writes / sync errors into the `error_log` table so
@@ -12,7 +13,7 @@ export const logError = async (
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     await supabase.from("error_log").insert({
       user_email: user?.email ?? null,
       user_id: user?.id ?? null,

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import { MessageCircle, ExternalLink } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
@@ -26,7 +27,7 @@ export function CoachWhatsAppButton({
 
   useEffect(() => {
     getCoachWhatsAppSettings().then(setSettings);
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    getCurrentUser().then(({ data: { user } }) => {
       if (!user) return;
       const fullName = (user.user_metadata?.full_name as string) || "";
       const firstName = fullName.split(" ")[0] || "";

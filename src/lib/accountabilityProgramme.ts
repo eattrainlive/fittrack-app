@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 export interface AccCohort {
   id: string;
@@ -79,7 +80,7 @@ export const getMyClientRecord = async (
 ): Promise<AccClient | null> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return null;
   try {
     const { data } = await supabase

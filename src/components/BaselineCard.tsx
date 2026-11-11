@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import { Camera, Scale, Dumbbell, ChevronRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,7 +113,7 @@ export function BaselineCard({ onDismiss }: { onDismiss: () => void }) {
       const up = await toDisplayableImage(file);
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       if (!user) throw new Error("No user");
       const fileExt = up.name.split(".").pop();
       const filePath = `nutrition-photos/${user.id}/baseline-${Date.now()}.${fileExt}`;

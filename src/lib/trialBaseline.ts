@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 // Quoox coached-trial plan names eligible for the 30-day progress pack.
 // "21 Days For £21" is the separate gym trial and is intentionally NOT included here.
@@ -18,7 +19,7 @@ export const daysSince = (iso?: string | null) => {
 export const getSettingValue = async (key: string): Promise<string | null> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return null;
   const { data } = await supabase
     .from("user_settings")
@@ -32,7 +33,7 @@ export const getSettingValue = async (key: string): Promise<string | null> => {
 export const setSettingValue = async (key: string, value: string) => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return;
   await supabase
     .from("user_settings")

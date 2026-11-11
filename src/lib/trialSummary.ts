@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 import { getMyGymMember } from "./store";
 import { getTrialGoals } from "./trialGoals";
 import { getMemberGoals } from "./memberGoals";
@@ -145,7 +146,7 @@ export const getProgressSummary = async (opts: {
 }): Promise<ProgressSummary | null> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return null;
   const userId = opts.userId || user.id;
 

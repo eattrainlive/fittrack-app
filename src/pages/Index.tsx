@@ -5,6 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getCurrentUser } from "@/lib/authUser";
 import {
   Activity,
   Flame,
@@ -99,7 +100,7 @@ const Index = () => {
 
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (user) {
       setUserName(
         user.user_metadata?.full_name || user.email?.split("@")[0] || "there",

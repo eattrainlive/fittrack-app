@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 import { resolveMemberContact } from "./accountabilityProgramme";
 
 /**
@@ -178,7 +179,7 @@ export const replyToCheckin = async (
 ): Promise<{ error: any }> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   // Only nudge when a Loom VIDEO becomes available (the message says "watch your
   // video"), and only once — fire if this save adds a loom the row didn't have.
   const { data: prev } = await supabase
@@ -221,7 +222,7 @@ export const addFollowup = async (
 ): Promise<{ error: any }> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   const { error } = await supabase.from("acc_followups").insert({
     client_id: clientId,
     note: note.trim(),

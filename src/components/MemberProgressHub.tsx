@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, forwardRef } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import { useNavigate } from "react-router-dom";
 import {
   Flame,
@@ -71,7 +72,7 @@ export function MemberProgressHub() {
 
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       if (user) {
         const { data: mh } = await supabase
           .from("member_habits")
@@ -113,7 +114,7 @@ export function MemberProgressHub() {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       if (!user) return null;
       const { data: existing } = await supabase
         .from("member_habits")

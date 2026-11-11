@@ -10,6 +10,7 @@
 //   • PT              → unlimited classes + a numeric PT-session allowance (PT-10 → 10)
 // PT (semi-private) session usage is counted separately from classes.
 import { supabase } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 const isCoached = (st: any) => /semi\s*private\s*pt/i.test(String(st || ""));
 
@@ -104,7 +105,7 @@ export const getMyCredits = async (): Promise<MemberCredits | null> => {
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (!user?.email) return null;
     const email = user.email.toLowerCase();
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -64,7 +65,7 @@ const Profile = () => {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+    getCurrentUser().then(async ({ data: { user } }) => {
       if (user) {
         setUser(user);
         setName(user.user_metadata?.full_name || "");

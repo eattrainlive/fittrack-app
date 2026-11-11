@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 import { getMyGymMember } from "./store";
 import { saveBodyweight } from "./store";
 import { saveMemberPhoto, uploadProgressPhoto } from "./trialGoals";
@@ -138,7 +139,7 @@ export const finishTrialSetup = async ({
 }) => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) throw new Error("not-authenticated");
 
   // Save goals row with setup_done flag
@@ -201,7 +202,7 @@ export const saveTrialHabits = async (
 ) => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) throw new Error("not-authenticated");
 
   const habitLib = await getHabitLibraryRows();
@@ -305,7 +306,7 @@ export const getTrialMomentum = async (): Promise<TrialMomentumData | null> => {
   // Goals
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   let goalText = "";
   let sessionsPerWeek = 3;
   let setupDone = false;

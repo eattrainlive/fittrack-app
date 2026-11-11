@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
@@ -147,7 +148,7 @@ export function WeeklyCheckin({
       const up = await toDisplayableImage(file);
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       if (!user) throw new Error("No user");
       const ext = up.name.split(".").pop();
       const path = `nutrition-photos/${user.id}/acc-week${week}-${which}-${Date.now()}.${ext}`;
@@ -180,7 +181,7 @@ export function WeeklyCheckin({
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       if (!user) throw new Error("No user");
 
       // Compute this programme week's average bodyweight from history.

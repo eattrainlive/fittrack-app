@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { getCurrentUser } from "@/lib/authUser";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -365,7 +366,7 @@ const Workouts = () => {
 
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (!user) return;
 
     const { data: profile } = await supabase
@@ -453,7 +454,7 @@ const Workouts = () => {
 
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       if (user) {
         const { data } = await supabase
           .from("members")

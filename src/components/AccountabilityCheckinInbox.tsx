@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +49,7 @@ export function AccountabilityCheckinInbox() {
     setCohort(c);
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     setMyUid(user?.id ?? null);
     if (c) {
       const [cs, cks] = await Promise.all([

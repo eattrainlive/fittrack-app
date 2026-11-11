@@ -2,6 +2,7 @@
 // staples (e.g. Weetabix for breakfast) come up as one-tap suggestions and
 // show instantly at the top of search, no lookup needed.
 import { supabase } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 export interface FrequentFood {
   name: string;
@@ -24,7 +25,7 @@ async function loadRecentDiary(): Promise<any[]> {
   if (cache && Date.now() - cache.at < 120000) return cache.rows;
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return [];
   const { data } = await supabase
     .from("food_diary")

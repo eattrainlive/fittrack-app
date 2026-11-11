@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 import { logError } from "./errorLog";
 
 const CHECKIN_KEY = "fittrack_habit_checkins";
@@ -37,7 +38,7 @@ export const saveHabitCheckin = async (checkin: any) => {
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (user) {
     const { error } = await supabase.from("habit_checkins").upsert(
       { ...row, member_id: user.id },
@@ -77,7 +78,7 @@ export const deleteHabitCheckin = async (checkin: any) => {
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (user) {
     let q = supabase
       .from("habit_checkins")

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -197,7 +198,7 @@ export function AccountabilityOnboarding({
       const up = await toDisplayableImage(file);
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       if (!user) throw new Error("No user");
       const ext = up.name.split(".").pop();
       const path = `nutrition-photos/${user.id}/acc-baseline-${which}-${Date.now()}.${ext}`;

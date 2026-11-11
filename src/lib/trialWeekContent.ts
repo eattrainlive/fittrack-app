@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 export interface TrialTask {
   id: string;
@@ -64,7 +65,7 @@ export const getTaskState = async (): Promise<Record<string, string>> => {
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (!user) return {};
     const { data } = await supabase
       .from("trial_goals")
@@ -85,7 +86,7 @@ export const toggleTask = async (
 ): Promise<Record<string, string>> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) throw new Error("not-authenticated");
 
   const { data } = await supabase

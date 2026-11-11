@@ -1,4 +1,5 @@
 import { Camera } from "lucide-react";
+import { getCurrentUser } from "@/lib/authUser";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { NumberField, QLabel } from "./onboardingFields";
@@ -42,7 +43,7 @@ export function TrackingBlock({
       const up = await toDisplayableImage(file);
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       if (!user) throw new Error("No user");
       const ext = up.name.split(".").pop();
       const path = `nutrition-photos/${user.id}/acc-track-w${week}-${Date.now()}.${ext}`;

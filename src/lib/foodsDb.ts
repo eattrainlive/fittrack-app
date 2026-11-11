@@ -1,6 +1,7 @@
 // Curated in-app food database — instant literal search over the gym's own
 // foods table (common UK staples + brands they sell). See supabase/sql/foods_table.sql.
 import { supabase } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 export interface FoodRow {
   id: string;
@@ -122,7 +123,7 @@ export const upsertFood = async (
 ): Promise<{ success: boolean; error?: any }> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   const row: any = {
     name: f.name.trim(),
     brand: f.brand?.trim() || null,

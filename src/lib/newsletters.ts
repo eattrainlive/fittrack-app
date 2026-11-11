@@ -1,6 +1,7 @@
 // Newsletters — staff build issues from blocks; members/public read them.
 // See supabase/sql/newsletters.sql.
 import { supabase } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 export type BlockType =
   | "hero"
@@ -120,7 +121,7 @@ export const saveNewsletter = async (
 ): Promise<{ success: boolean; id?: string; error?: any }> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   const row: any = {
     slug: n.slug,
     title: n.title.trim(),

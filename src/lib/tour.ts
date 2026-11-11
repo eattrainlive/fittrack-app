@@ -8,6 +8,7 @@
  */
 
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 const LS_KEY = "fittrack_tour_done";
 
@@ -20,7 +21,7 @@ export const markTourDone = async () => {
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (user) {
       await supabase.from("user_settings").upsert(
         {
@@ -42,7 +43,7 @@ export const resetTourDone = async () => {
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (user) {
       await supabase
         .from("user_settings")
@@ -63,7 +64,7 @@ export const fetchTourDone = async (): Promise<boolean> => {
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (!user) return isTourDoneLocal();
     const { data } = await supabase
       .from("user_settings")

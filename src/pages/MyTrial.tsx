@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,7 @@ const MyTrial = () => {
       }
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       if (user) {
         const { data: goals } = await supabase
           .from("trial_goals")

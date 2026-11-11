@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 /**
  * Stamp the current user's `members.onboarded_at` the first time they truly
@@ -14,7 +15,7 @@ export const markOnboarded = async (): Promise<void> => {
     const {
       data: { user },
       error,
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (error || !user) return;
 
     // Stamp onboarded_at via a SECURITY DEFINER RPC. A direct update is blocked

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import { Loader2, Check, Minus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
@@ -55,7 +56,7 @@ export function AccountabilitySetupTracker({
     setLoading(true);
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     setMyUid(user?.id ?? null);
     const [cs, cks] = await Promise.all([
       getCohortClients(cohort.id),

@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 import { getMyGymMember } from "./store";
 
 export interface AttendanceDay {
@@ -20,7 +21,7 @@ export const getAttendanceDays = async (
 ): Promise<AttendanceDay[]> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return [];
 
   const member = await getMyGymMember();
@@ -136,7 +137,7 @@ export const getMemberProgressDetail =
   async (): Promise<MemberProgressDetail> => {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (!user) {
       return {
         sessionsMTD: 0,

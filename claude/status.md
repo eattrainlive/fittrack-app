@@ -1439,3 +1439,14 @@ PUSH: src/lib/store.ts, src/pages/Workouts.tsx.
   (local save always succeeds). Fixes "stops saving after 15s but never finishes / returns to where I
   was". Combined with getSession fix (#93) + timeouts (#92).
 PUSH: src/pages/Workouts.tsx (plus #92/#93 store.ts + earlier Workouts.tsx changes).
+
+## 95 — App-wide getUser() → getSession() sweep (2026-11-11)
+- NEW src/lib/authUser.ts: getCurrentUser() — drop-in for supabase.auth.getUser() returning the same
+  { data:{ user }, error } shape, but reads the stored session via getSession() (no network) wrapped
+  in an 8s timeout → can never hang/deadlock.
+- Swept all 50 files (~109 call sites) replacing supabase.auth.getUser() → getCurrentUser() + added
+  the import. Fixed one multi-line-import insertion (Index.tsx) by hand. All 51 files esbuild-clean.
+- Removes the PWA LockManager/getUser deadlock class app-wide (loading, sync, checkins, etc.), not
+  just the workout-finish path.
+PUSH: src/lib/authUser.ts + the 50 swept files (git will show them). No SQL/redeploy.
+TEST after deploy: login, home load, a workout finish, a check-in — all should be snappy.

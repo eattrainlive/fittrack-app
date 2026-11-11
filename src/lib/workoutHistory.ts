@@ -7,6 +7,7 @@
  */
 
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 import { getWorkoutHistory } from "./store";
 
 /** Sum of weight*reps across every set in a workout. */
@@ -32,7 +33,7 @@ export const updateWorkout = async (
   localStorage.setItem("fittrack_history", JSON.stringify(history));
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return { success: false, error: "not-authenticated" };
   const volume = computeVolume(workout);
   const { error } = await supabase
@@ -51,7 +52,7 @@ export const deleteWorkout = async (
   localStorage.setItem("fittrack_history", JSON.stringify(history));
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return { success: false, error: "not-authenticated" };
   const { error } = await supabase
     .from("workout_history")

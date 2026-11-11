@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 import { logError } from "./errorLog";
 
 export interface MemberPhoto {
@@ -15,7 +16,7 @@ export interface MemberPhoto {
 export const getMyPhotos = async (): Promise<MemberPhoto[]> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return [];
   try {
     const { data } = await supabase
@@ -37,7 +38,7 @@ export const deleteMemberPhoto = async (
   if (!photo?.id) return { success: false, error: "no photo id" };
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return { success: false, error: "not signed in" };
   // remove the DB row (by id), scoped to the owner
   const { error } = await supabase

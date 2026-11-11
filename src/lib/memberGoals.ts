@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 import {
   getHabits,
   saveBodyweight,
@@ -56,7 +57,7 @@ const currentMonthStr = () => {
 export const getMemberGoals = async (): Promise<MemberGoals | null> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return null;
   const { data } = await supabase
     .from("member_goals")
@@ -84,7 +85,7 @@ export const saveMemberGoals = async (input: {
 }): Promise<MemberGoals | null> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return null;
 
   // Each habit slot stores the readable NAME (library habit) or a custom string.
@@ -203,7 +204,7 @@ export const setMonthlyHabits = async (
 ): Promise<void> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return;
   const ht = (habitTexts || [])
     .slice(0, 3)

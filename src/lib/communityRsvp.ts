@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 export type RsvpStatus = "attending" | "interested" | "not_attending";
 
@@ -111,6 +112,6 @@ export const getRsvpNames = async (eventId: string): Promise<RsvpName[]> => {
 const getMyId = async (): Promise<string | null> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   return user?.id ?? null;
 };

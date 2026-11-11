@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 export interface AccWeekHabit {
   habit_id: number;
@@ -55,7 +56,7 @@ export const ensureAccHabitsUnlocked = async (
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (!user) return;
     const uid = user.id;
 

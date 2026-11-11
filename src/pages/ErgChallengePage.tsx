@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Trash2, ChevronLeft, Shield, Trophy } from "lucide-react";
@@ -83,7 +84,7 @@ export default function ErgChallengePage() {
     setBoardCells(cells);
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     setUid(user?.id ?? "");
     if (staff) {
       const [lb, mem] = await Promise.all([

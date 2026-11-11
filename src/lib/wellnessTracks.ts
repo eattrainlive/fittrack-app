@@ -1,6 +1,7 @@
 // "Listen & Let Go" audio tracks (sound baths now; wider wellness hub later).
 // See supabase/sql/wellness_tracks_setup.sql.
 import { supabase } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 export interface WellnessTrack {
   id: string;
@@ -54,7 +55,7 @@ export const saveTrack = async (
 ): Promise<{ success: boolean; error?: any }> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   const row: any = {
     title: t.title.trim(),
     description: t.description?.trim() || null,

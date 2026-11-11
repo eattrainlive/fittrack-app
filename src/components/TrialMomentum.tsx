@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import {
   Trophy,
   Calendar,
@@ -65,7 +66,7 @@ export const TrialMomentum = () => {
 
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (user) {
       // Member habits — read the same table the setup step writes to.
       // Join the habits library to resolve the display name for preset habits;
@@ -185,7 +186,7 @@ export const TrialMomentum = () => {
       const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       await supabase.from("member_photos").insert({
         member_id: user!.id,
         url: pub.publicUrl,

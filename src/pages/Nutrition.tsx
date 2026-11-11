@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import {
   Check,
   ChevronRight,
@@ -226,7 +227,7 @@ export default function Nutrition() {
 
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       let currentNut = nut;
       if (user) {
         const { data: notes } = await supabase
@@ -382,7 +383,7 @@ export default function Nutrition() {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       if (!user) return;
 
       await supabase.functions.invoke("manage-members", {
@@ -619,7 +620,7 @@ export default function Nutrition() {
       const up = await toDisplayableImage(file);
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       if (!user) throw new Error("No user found");
 
       const fileExt = up.name.split(".").pop();

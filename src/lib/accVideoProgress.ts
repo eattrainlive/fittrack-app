@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import { supabase } from "./supabase";
 
 /**
@@ -15,7 +16,7 @@ export function useVideoProgress(weekNumber?: number) {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       if (!user) {
         setLoading(false);
         return;
@@ -52,7 +53,7 @@ export function useVideoProgress(weekNumber?: number) {
       try {
         const {
           data: { user },
-        } = await supabase.auth.getUser();
+        } = await getCurrentUser();
         if (!user) return;
         if (isWatched) {
           await supabase

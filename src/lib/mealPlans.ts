@@ -2,6 +2,7 @@
 // plan, reload it later (yours or the shared library). See supabase/sql/
 // saved_meal_plans.sql.
 import { supabase } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/authUser";
 import { getDiary, addDiaryItem, clearDiary } from "@/lib/store";
 
 export interface PlanItem {
@@ -76,7 +77,7 @@ export const saveMealPlan = async (p: {
 }): Promise<{ success: boolean; error?: any }> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return { success: false, error: "not signed in" };
   const { error } = await supabase.from("saved_meal_plans").insert({
     created_by: user.id,
@@ -91,7 +92,7 @@ export const saveMealPlan = async (p: {
 export const listMealPlans = async (): Promise<SavedMealPlan[]> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   const { data } = await supabase
     .from("saved_meal_plans")
     .select("*")

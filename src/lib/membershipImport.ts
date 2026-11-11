@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 const normEmail = (e: string) => e.toLowerCase().trim();
 
@@ -63,7 +64,7 @@ export const importMemberships = async (
 ) => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
   const results: ImportResults = {

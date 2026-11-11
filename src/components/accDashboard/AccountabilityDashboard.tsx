@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import { Loader2, Eye, CircleAlert, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
@@ -140,7 +141,7 @@ export function AccountabilityDashboard({
 
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (!user) {
       setLoading(false);
       return;
@@ -250,7 +251,7 @@ export function AccountabilityDashboard({
       const { data } = supabase.storage.from("media").getPublicUrl(path);
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       await supabase.from("member_photos").insert({
         member_id: user!.id,
         url: data.publicUrl,

@@ -1,6 +1,7 @@
 // Public newsletter page at /n/:slug — readable without logging in (the GHL
 // email links here). App users see the same via the in-app Newsletter list.
 import { useEffect, useState } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import { useParams, Link } from "react-router-dom";
 import { Loader2, Dumbbell } from "lucide-react";
 import { getNewsletter, type Newsletter } from "@/lib/newsletters";
@@ -15,7 +16,7 @@ export default function NewsletterView() {
 
   useEffect(() => {
     let alive = true;
-    supabase.auth.getUser().then(({ data }) => {
+    getCurrentUser().then(({ data }) => {
       if (alive) setLoggedIn(!!data.user);
     });
     (async () => {

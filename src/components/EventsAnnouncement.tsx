@@ -3,6 +3,7 @@
 // setRsvp, so they feed the same totals shown on the Community events page.
 // Shows once per member per campaign (bump CAMPAIGN to re-announce).
 import { useEffect, useRef, useState } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import {
   Dialog,
   DialogContent,
@@ -52,7 +53,7 @@ export function EventsAnnouncement() {
     (async () => {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       if (!user || !alive) return;
       const evs = await getUpcomingEvents();
       if (!alive || !evs.length) return; // nothing to announce — don't mark seen

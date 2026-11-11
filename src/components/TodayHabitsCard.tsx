@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, Flame, Sparkles, Pencil, ChevronRight } from "lucide-react";
@@ -47,7 +48,7 @@ export default function TodayHabitsCard() {
   const load = useCallback(async () => {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (!user) {
       setLoading(false);
       return;

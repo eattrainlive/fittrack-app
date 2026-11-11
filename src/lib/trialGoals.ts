@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 import {
   getHabits,
   saveBodyweight,
@@ -17,7 +18,7 @@ export const saveMemberPhoto = async (photo: {
 }) => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) throw new Error("Not signed in");
   const row = {
     member_id: user.id,
@@ -60,7 +61,7 @@ const asInt = (v: any) => {
 export const getTrialGoals = async (): Promise<TrialGoals | null> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return null;
   const { data } = await supabase
     .from("trial_goals")
@@ -85,7 +86,7 @@ export const saveTrialGoals = async (input: {
 }): Promise<TrialGoals | null> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return null;
 
   // Each habit slot stores the readable NAME (library habit) or a custom string.
@@ -198,7 +199,7 @@ export const uploadProgressPhoto = async (
     const up = await toDisplayableImage(file);
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (!user) return { error: "Not signed in" };
     const ext = up.name.split(".").pop() || "jpg";
     const path = `${user.id}/progress-${Date.now()}.${ext}`;

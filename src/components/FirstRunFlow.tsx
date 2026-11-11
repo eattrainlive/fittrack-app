@@ -8,6 +8,7 @@
 //   3. Live event / info push    — only if there's one and they haven't seen it
 //
 import { useEffect, useRef, useState } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import { supabase } from "@/lib/supabase";
 import { ParqForm } from "./ParqForm";
 import { getMyParqStatus } from "@/lib/parq";
@@ -76,7 +77,7 @@ export function FirstRunFlow() {
     (async () => {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCurrentUser();
       if (!user) {
         if (alive) setQueue([]);
         return;

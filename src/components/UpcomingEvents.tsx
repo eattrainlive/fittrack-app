@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { getCurrentUser } from "@/lib/authUser";
 import {
   CalendarDays,
   MapPin,
@@ -111,7 +112,7 @@ export default function UpcomingEvents() {
     setEvents(data);
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     setMyId(user?.id ?? null);
     if (data.length) {
       const agg = await getRsvpAggregates(

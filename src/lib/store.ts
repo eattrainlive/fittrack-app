@@ -1,4 +1,5 @@
 import * as pdfjsLib from "pdfjs-dist";
+import { getCurrentUser } from "@/lib/authUser";
 import { supabase } from "./supabase";
 import { logError } from "./errorLog";
 import { cleanExercises } from "./exerciseSync";
@@ -74,7 +75,7 @@ export const flushRetryQueue = async () => {
   if (!q.length) return;
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return;
 
   for (const item of q) {
@@ -242,7 +243,7 @@ export const saveMemberNutrition = async (nutrition: any) => {
   localStorage.setItem("fittrack_member_nutrition", JSON.stringify(nutrition));
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (user) {
     await supabase
       .from("member_nutrition")
@@ -262,7 +263,7 @@ export const saveMemberHabits = async (habits: any[]) => {
   localStorage.setItem("fittrack_member_habits", JSON.stringify(habits));
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (user) {
     const { data: existing } = await supabase
       .from("member_habits")
@@ -319,7 +320,7 @@ export const saveHabitCheckin = async (checkin: any) => {
   localStorage.setItem("fittrack_habit_checkins", JSON.stringify(checkins));
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (user) {
     await supabase
       .from("habit_checkins")
@@ -348,7 +349,7 @@ export const saveMemberMeasurement = async (measurement: any) => {
   );
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (user) {
     await supabase
       .from("member_measurements")
@@ -369,7 +370,7 @@ export const saveMemberPhoto = async (photo: any) => {
   localStorage.setItem("fittrack_member_photos", JSON.stringify(photos));
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (user) {
     await supabase
       .from("member_photos")
@@ -381,7 +382,7 @@ export const saveMemberPhoto = async (photo: any) => {
 export const deleteMemberPhoto = async (photo: any) => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return { success: false };
   // remove the DB row (by id), scoped to the owner
   const { error } = await supabase
@@ -427,7 +428,7 @@ export const resetMemberNutrition = async () => {
   localStorage.removeItem("fittrack_macro_logs");
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (user) {
     await Promise.all([
       supabase.from("member_nutrition").delete().eq("member_id", user.id),
@@ -453,7 +454,7 @@ export const saveMemberMacros = async (
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (user) {
       const { error } = await supabase
         .from("member_macros")
@@ -497,7 +498,7 @@ export const saveMacroLog = async (
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (user) {
       const { error } = await supabase
         .from("macro_logs")
@@ -704,7 +705,7 @@ export const saveExercises = async (
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (user) {
       if (exercises.length > 0) {
         // Whitelist fields to the columns that actually exist on the `exercises` table.
@@ -755,7 +756,7 @@ export const savePrograms = async (
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (user) {
       if (programs.length > 0) {
         // Whitelist fields to the columns that actually exist on the `programs` table.
@@ -848,7 +849,7 @@ export const deleteProgramRow = async (
 ): Promise<{ success: boolean; error?: any }> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return { success: false, error: "not-authenticated" };
   const { error } = await supabase
     .from("programs")
@@ -879,7 +880,7 @@ export const saveActiveProgram = async (
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (user && activeProgram) {
       await supabase.from("user_settings").upsert(
         {
@@ -908,7 +909,7 @@ export const savePreferredDays = async (
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (user) {
       await supabase
         .from("user_settings")
@@ -1165,7 +1166,7 @@ export const deletePersonalRecord = (id: string) => {
   prs = prs.filter((pr: any) => pr.id !== id);
   localStorage.setItem("fittrack_prs", JSON.stringify(prs));
   markDirty("prs"); // using dirty mechanism for deletions might be complex, simplified for now
-  supabase.auth.getUser().then(({ data: { user } }) => {
+  getCurrentUser().then(({ data: { user } }) => {
     if (user)
       supabase
         .from("personal_records")
@@ -1302,7 +1303,7 @@ export const saveBodyweight = async (
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (user) {
       const { error } = await supabase
         .from("bodyweight_history")
@@ -1336,7 +1337,7 @@ export const getEducationFolders = () => {
 
 export const saveEducationFolders = (folders: any[]) => {
   localStorage.setItem("fittrack_education_folders", JSON.stringify(folders));
-  supabase.auth.getUser().then(async ({ data: { user } }) => {
+  getCurrentUser().then(async ({ data: { user } }) => {
     if (user)
       await supabase
         .from("education_folders")
@@ -1350,7 +1351,7 @@ export const getVimeoToken = () => {
 
 export const saveVimeoToken = (token: string) => {
   localStorage.setItem("fittrack_vimeo_token", token);
-  supabase.auth.getUser().then(({ data: { user } }) => {
+  getCurrentUser().then(({ data: { user } }) => {
     if (user) {
       supabase
         .from("user_settings")
@@ -1369,7 +1370,7 @@ export const getAnthropicKey = () => {
 
 export const saveAnthropicKey = (key: string) => {
   localStorage.setItem("fittrack_anthropic_key", key);
-  supabase.auth.getUser().then(({ data: { user } }) => {
+  getCurrentUser().then(({ data: { user } }) => {
     if (user) {
       supabase
         .from("user_settings")
@@ -1473,7 +1474,7 @@ export const sendNotification = async (
 export const migrateLocalToSupabase = async () => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return;
 };
 
@@ -1484,7 +1485,7 @@ export const getEducationVideos = () => {
 
 export const saveEducationVideos = (videos: any[]) => {
   localStorage.setItem("fittrack_education_videos", JSON.stringify(videos));
-  supabase.auth.getUser().then(async ({ data: { user } }) => {
+  getCurrentUser().then(async ({ data: { user } }) => {
     if (user)
       await supabase
         .from("education_videos")
@@ -1508,7 +1509,7 @@ export const syncFromSupabase = async () => {
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (!user) return;
 
     // Flush any pending queued writes BEFORE syncing (push local → cloud first)
@@ -1763,7 +1764,7 @@ export const syncFromSupabase = async () => {
 export const syncProfile = async () => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
@@ -1831,7 +1832,7 @@ export const saveWowResult = async (
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (user) {
       const { error } = await supabase
         .from("wow_results")
@@ -1865,7 +1866,7 @@ const normEmail = (e: string) => e.toLowerCase().trim();
 export const getMyGymMember = async () => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user?.email) return null;
   const { data: rows } = await supabase
     .from("gym_members")
@@ -1944,7 +1945,7 @@ export const getMembershipAccess = async (): Promise<{
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user?.email) return { allowed: true, reason: "no-user" }; // fail-open
 
   const email = user.email.toLowerCase();
@@ -2267,7 +2268,7 @@ export const uploadRecipeImage = async (file: File): Promise<string | null> => {
 export const getDiary = async (date: string) => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return [];
   const { data } = await supabase
     .from("food_diary")
@@ -2292,7 +2293,7 @@ export const addDiaryItem = async (item: {
 }): Promise<{ success: boolean; error?: any }> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return { success: false, error: "not signed in" };
   const { error } = await supabase
     .from("food_diary")
@@ -2311,7 +2312,7 @@ export const clearDiary = async (
 ): Promise<{ success: boolean; error?: any }> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return { success: false, error: "not signed in" };
   const { error } = await supabase
     .from("food_diary")
@@ -2386,7 +2387,7 @@ export const addRecipe = async (
 ): Promise<{ success: boolean; error?: any; recipe?: any }> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return { success: false, error: "not signed in" };
   const { data, error } = await supabase
     .from("recipes")
@@ -2403,7 +2404,7 @@ export const addRecipe = async (
 export const getMyRecipes = async () => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return [];
   const { data } = await supabase
     .from("recipes")

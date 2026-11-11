@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 import { isStandalone } from "./installHelp";
 
 const LOCAL_KEY = "fittrack_onboarding_tour_done";
@@ -48,7 +49,7 @@ export const isTourDone = async (): Promise<boolean> => {
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (!user) return false;
     const { data } = await supabase
       .from("user_settings")
@@ -70,7 +71,7 @@ export const markTourDone = async () => {
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (!user) return;
     await supabase.from("user_settings").upsert(
       {
@@ -91,7 +92,7 @@ export const resetTour = async () => {
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCurrentUser();
     if (!user) return;
     await supabase.from("user_settings").upsert(
       {

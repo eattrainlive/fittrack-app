@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 export const isStaff = (): boolean =>
   localStorage.getItem("fittrack_is_staff") === "true";
@@ -34,7 +35,7 @@ export const getMe = async (): Promise<{
 } | null> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCurrentUser();
   if (!user) return null;
   const name =
     user.user_metadata?.full_name || user.email?.split("@")[0] || "Member";
