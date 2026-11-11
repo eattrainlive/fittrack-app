@@ -970,7 +970,12 @@ const Workouts = () => {
     // comparison, so we no longer open the separate PB or reward modals here —
     // they stacked on top of the roundup and darkened it. Just fold the PBs
     // into the roundup card.
-    const newPBs = await detectAndSavePBs(savedExercises);
+    let newPBs: Awaited<ReturnType<typeof detectAndSavePBs>> = [];
+    try {
+      newPBs = await detectAndSavePBs(savedExercises);
+    } catch {
+      /* best effort — never let PB sync block finishing the workout */
+    }
     if (newPBs.length > 0) {
       setRoundupData((prev) => prev ? { ...prev, pbs: newPBs.map((p) => ({ exercise: p.exercise, weight: p.weight, reps: p.reps })) } : prev);
     }

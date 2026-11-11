@@ -956,9 +956,12 @@ export const saveWorkoutToHistory = async (
   }
   setSyncStatus("saving");
   try {
+    // Use getSession() (reads the stored session, no network) rather than
+    // getUser() (a network call that can deadlock in PWAs and hang the save).
     const {
-      data: { user },
-    } = await withTimeout(supabase.auth.getUser());
+      data: { session },
+    } = await withTimeout(supabase.auth.getSession());
+    const user = session?.user;
     if (!user) {
       logError("saveWorkoutToHistory", "workout_history", {
         message: "not-authenticated",
@@ -1077,8 +1080,9 @@ export const detectAndSavePBs = async (exercises: any[]) => {
   markDirty("prs");
   try {
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await withTimeout(supabase.auth.getSession());
+    const user = session?.user;
     if (user) {
       const rows = newPBs.map((p: any) => ({
             id: p.id,
@@ -1088,9 +1092,11 @@ export const detectAndSavePBs = async (exercises: any[]) => {
             reps: Number(p.reps) || 0,
             date: p.date,
           }));
-      const { error } = await supabase
-        .from("personal_records")
-        .upsert(rows, { onConflict: "user_id, exercise" });
+      const { error } = await withTimeout(
+        supabase
+          .from("personal_records")
+          .upsert(rows, { onConflict: "user_id, exercise" }),
+      );
       if (error) {
         logError("detectAndSavePBs", "personal_records", error);
         enqueue("prs");

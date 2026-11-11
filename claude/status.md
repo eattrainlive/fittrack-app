@@ -1418,3 +1418,15 @@ PUSH: RetentionCockpit.tsx.
   reloads on mobile, so the stuck React state survived "closing" the app.
 PUSH: src/lib/store.ts, src/pages/Workouts.tsx. No SQL/redeploy. (Error #91 ResizeObserver filter +
 this both pending push.)
+
+## 93 — Root cause of stuck save: getUser() deadlock (2026-11-11)
+- Real cause: supabase.auth.getUser() (a network call, prone to PWA LockManager deadlock) hung the
+  finish flow. saveWorkoutToHistory AND detectAndSavePBs both used it; PBs path (new PB this session)
+  blocked completion AFTER the save timed out → "stopped saving but never finished".
+- store.ts: both now use getSession() (local read, no network) + withTimeout; personal_records upsert
+  also wrapped in withTimeout.
+- Workouts.tsx: detectAndSavePBs await wrapped in try/catch so PB sync can never block the finish
+  cleanup (clear active workout / view reset).
+NOTE: getUser() is used in ~109 places app-wide — same deadlock could surface elsewhere. Recommend a
+follow-up: migrate hot getUser() calls to a shared getSession-based helper.
+PUSH: src/lib/store.ts, src/pages/Workouts.tsx.
