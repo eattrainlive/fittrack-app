@@ -267,6 +267,14 @@ const Workouts = () => {
     null,
   );
   const [isSaving, setIsSaving] = useState(false);
+  // Safety net: never let the "Saving…" button hang. If a save hasn't settled
+  // after 20s (stalled network/suspended tab), force the button back so the user
+  // can retry — the workout is already stored locally + queued regardless.
+  useEffect(() => {
+    if (!isSaving) return;
+    const t = setTimeout(() => setIsSaving(false), 20000);
+    return () => clearTimeout(t);
+  }, [isSaving]);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [pastLiftsModal, setPastLiftsModal] = useState<{ name: string } | null>(

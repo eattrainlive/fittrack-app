@@ -1408,3 +1408,13 @@ PUSH: RetentionCockpit.tsx.
   getRetentionBoard(staffSecret, days); bands/attendance recompute server-side for the chosen
   window. Sits above the membership filter + touch tabs.
 PUSH: RetentionCockpit.tsx.
+
+## 92 — Fix: workout stuck on "Saving…" (2026-11-10/11)
+- store.ts saveWorkoutToHistory: wrapped supabase.auth.getUser() + the workout_history upsert in
+  withTimeout() (15s). A stalled network call now rejects → existing catch enqueues a retry + clears
+  sync status, instead of the await hanging forever. Local save already happens first, so no data loss.
+- Workouts.tsx: added a 20s watchdog useEffect that force-resets isSaving — the "Saving…" button can
+  never hang permanently (covers suspended-PWA/stalled cases). Root cause: PWA suspends rather than
+  reloads on mobile, so the stuck React state survived "closing" the app.
+PUSH: src/lib/store.ts, src/pages/Workouts.tsx. No SQL/redeploy. (Error #91 ResizeObserver filter +
+this both pending push.)
