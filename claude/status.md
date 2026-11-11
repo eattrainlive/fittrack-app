@@ -1430,3 +1430,12 @@ this both pending push.)
 NOTE: getUser() is used in ~109 places app-wide — same deadlock could surface elsewhere. Recommend a
 follow-up: migrate hot getUser() calls to a shared getSession-based helper.
 PUSH: src/lib/store.ts, src/pages/Workouts.tsx.
+
+## 94 — Workout finish: local-first, background cloud sync (2026-11-11)
+- Workouts.tsx handleSaveWorkout restructured: the UI completion (roundup, programme advance, clear
+  active workout, reset to browse, setIsSaving(false)) now runs SYNCHRONOUSLY/immediately. Cloud
+  sync (saveWorkoutToHistory) + PB detection run in the BACKGROUND (void .then/.catch), so finishing
+  never waits on network/auth. Toast reports sync result after. Programme advance is now optimistic
+  (local save always succeeds). Fixes "stops saving after 15s but never finishes / returns to where I
+  was". Combined with getSession fix (#93) + timeouts (#92).
+PUSH: src/pages/Workouts.tsx (plus #92/#93 store.ts + earlier Workouts.tsx changes).

@@ -919,7 +919,7 @@ const Workouts = () => {
     // Generate an ID before saving so we can dedupe
     const sessionWorkoutId = Date.now().toString();
 
-    const { success, error } = await saveWorkoutToHistory({
+    const workoutPayload = {
       id: sessionWorkoutId,
       name: activeWorkoutMeta?.title || workoutName,
       exercises: exercisesWithResults,
@@ -930,19 +930,13 @@ const Workouts = () => {
       week: activeWorkoutMeta.week,
       day: activeWorkoutMeta.day,
       stream: activeWorkoutMeta.stream,
-    });
+    };
 
-    setIsSaving(false);
-
+    // ── Finish the workout LOCALLY and immediately ──────────────────────────
+    // The cloud sync must NEVER block completion. saveWorkoutToHistory writes to
+    // local storage synchronously and queues a retry on failure, so we complete
+    // the UI right away and fire the cloud sync + PB detection in the background.
     if (navigator.vibrate) navigator.vibrate([30, 50, 30, 50, 50]);
-
-    if (success) {
-      toast.success("Workout saved successfully!");
-    } else {
-      // Failure must be unmissable — do NOT advance to Up Next automatically
-      toast.error("Saved on device — will retry syncing");
-      console.error("Cloud sync error:", error);
-    }
 
     saveBlockScores(savedExercises, {
       workoutId: sessionWorkoutId,
@@ -952,7 +946,6 @@ const Workouts = () => {
       day: activeWorkoutMeta?.day,
     });
 
-    // Fire the session roundup (volume + PBs + stats).
     const totalSetsCount = savedExercises.reduce(
       (acc, ex) =>
         acc + (Array.isArray(ex.setsData) ? ex.setsData.length : 0),
@@ -966,38 +959,22 @@ const Workouts = () => {
       workoutName: activeWorkoutMeta?.title || workoutName,
       pbs: [],
     });
-    // The Session Roundup now carries both the PBs and the volume/animal
-    // comparison, so we no longer open the separate PB or reward modals here —
-    // they stacked on top of the roundup and darkened it. Just fold the PBs
-    // into the roundup card.
-    let newPBs: Awaited<ReturnType<typeof detectAndSavePBs>> = [];
-    try {
-      newPBs = await detectAndSavePBs(savedExercises);
-    } catch {
-      /* best effort — never let PB sync block finishing the workout */
-    }
-    if (newPBs.length > 0) {
-      setRoundupData((prev) => prev ? { ...prev, pbs: newPBs.map((p) => ({ exercise: p.exercise, weight: p.weight, reps: p.reps })) } : prev);
-    }
 
-    if (success && activeProgram) {
+    // Advance the programme (optimistic — the session is saved locally regardless).
+    if (activeProgram) {
       const nextIndex = activeProgram.currentIndex + 1;
       if (nextIndex < activeProgram.workouts.length) {
         const updatedProgram = { ...activeProgram, currentIndex: nextIndex };
         setActiveProgram(updatedProgram);
         saveActiveProgram(updatedProgram);
-        // Delay the Up Next toast so it doesn't cover the save result
         setTimeout(
-          () =>
-            toast.info(`Up next: ${activeProgram.workouts[nextIndex].name}`),
+          () => toast.info(`Up next: ${activeProgram.workouts[nextIndex].name}`),
           1400,
         );
       } else {
         setTimeout(
           () =>
-            toast.success(
-              `Congratulations! You completed ${activeProgram.name}!`,
-            ),
+            toast.success(`Congratulations! You completed ${activeProgram.name}!`),
           1400,
         );
         setActiveProgram(null);
@@ -1005,6 +982,7 @@ const Workouts = () => {
       }
     }
 
+    // Clear the active session + return to browse — the workout is now finished.
     setWorkoutName("");
     setExercises([
       {
@@ -1031,6 +1009,34 @@ const Workouts = () => {
     setShowSectionSlide(false);
     setViewMode("browse");
     localStorage.removeItem("fittrack_active_workout");
+    setIsSaving(false);
+
+    // ── Background: cloud sync + PB detection (best-effort, never blocks) ────
+    void saveWorkoutToHistory(workoutPayload)
+      .then(({ success }) =>
+        success
+          ? toast.success("Workout saved!")
+          : toast("Saved on device — will sync when back online"),
+      )
+      .catch(() => {});
+    void detectAndSavePBs(savedExercises)
+      .then((newPBs) => {
+        if (newPBs.length > 0) {
+          setRoundupData((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  pbs: newPBs.map((p) => ({
+                    exercise: p.exercise,
+                    weight: p.weight,
+                    reps: p.reps,
+                  })),
+                }
+              : prev,
+          );
+        }
+      })
+      .catch(() => {});
   };
 
   // Loading guard: if the library hasn't synced yet (only the tiny default set or empty),
