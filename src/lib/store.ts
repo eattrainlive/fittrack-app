@@ -928,6 +928,17 @@ export const getWorkoutHistory = () => {
   return stored ? JSON.parse(stored) : [];
 };
 
+// Guard against a network/auth call that never settles (the classic "stuck on
+// Saving…" — the workout is already saved locally, we just can't let the cloud
+// sync hang the UI forever). On timeout it rejects, the catch enqueues a retry.
+const withTimeout = <T>(p: PromiseLike<T>, ms = 15000): Promise<T> =>
+  Promise.race([
+    Promise.resolve(p),
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error("sync-timeout")), ms),
+    ),
+  ]);
+
 export const saveWorkoutToHistory = async (
   workout: any,
 ): Promise<{ success: boolean; error?: any; workout?: any }> => {
@@ -947,7 +958,7 @@ export const saveWorkoutToHistory = async (
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await withTimeout(supabase.auth.getUser());
     if (!user) {
       logError("saveWorkoutToHistory", "workout_history", {
         message: "not-authenticated",
@@ -961,24 +972,26 @@ export const saveWorkoutToHistory = async (
       };
     }
     // Write top-level columns (matching the existing table shape) AND keep data in sync.
-    const { data: rows, error } = await supabase
-      .from("workout_history")
-      .upsert(
-        {
-          id: newWorkout.id,
-          user_id: user.id,
-          date: newWorkout.date,
-          name: newWorkout.name ?? null,
-          exercises: newWorkout.exercises ?? [],
-          volume: newWorkout.volume ?? 0,
-          reward: newWorkout.reward ?? null,
-          duration: newWorkout.duration ?? null,
-          type: newWorkout.type ?? "strength",
-          data: newWorkout,
-        },
-        { onConflict: "id" },
-      )
-      .select();
+    const { data: rows, error } = await withTimeout(
+      supabase
+        .from("workout_history")
+        .upsert(
+          {
+            id: newWorkout.id,
+            user_id: user.id,
+            date: newWorkout.date,
+            name: newWorkout.name ?? null,
+            exercises: newWorkout.exercises ?? [],
+            volume: newWorkout.volume ?? 0,
+            reward: newWorkout.reward ?? null,
+            duration: newWorkout.duration ?? null,
+            type: newWorkout.type ?? "strength",
+            data: newWorkout,
+          },
+          { onConflict: "id" },
+        )
+        .select(),
+    );
 
     if (error) {
       logError("saveWorkoutToHistory", "workout_history", error);

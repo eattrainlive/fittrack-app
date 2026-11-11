@@ -5,14 +5,25 @@ import "./pwa-manifest";
 import { registerServiceWorker, startVersionGate } from "./sw-register";
 import { logError } from "./lib/errorLog";
 
-// Catch uncaught client errors so they land in error_log (staff can see them)
+// Catch uncaught client errors so they land in error_log (staff can see them).
+// Some browser warnings are benign noise and not real errors — don't log them.
+const IGNORED_ERRORS = [
+  "ResizeObserver loop completed with undelivered notifications",
+  "ResizeObserver loop limit exceeded",
+];
+const isIgnorableError = (msg: unknown) =>
+  typeof msg === "string" && IGNORED_ERRORS.some((m) => msg.includes(m));
+
 if (typeof window !== "undefined") {
-  window.addEventListener("error", (e) =>
-    logError("window.error", "-", { message: e.message, code: "js" }),
-  );
-  window.addEventListener("unhandledrejection", (e) =>
-    logError("unhandledrejection", "-", (e as any).reason),
-  );
+  window.addEventListener("error", (e) => {
+    if (isIgnorableError(e.message)) return;
+    logError("window.error", "-", { message: e.message, code: "js" });
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const reason = (e as any).reason;
+    if (isIgnorableError(reason?.message ?? reason)) return;
+    logError("unhandledrejection", "-", reason);
+  });
 }
 
 // Machine QR redirects — run before React mounts so the site never flashes for a machine slug
