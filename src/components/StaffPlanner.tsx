@@ -175,10 +175,12 @@ function ReminderForm({
   onDone,
   onCancel,
   initialDue,
+  campaignId,
 }: {
   onDone: () => void;
   onCancel: () => void;
   initialDue?: string;
+  campaignId?: string;
 }) {
   const [title, setTitle] = useState("");
   const [detail, setDetail] = useState("");
@@ -200,6 +202,7 @@ function ReminderForm({
       assigned_to: assigned,
       due_date: due,
       repeat,
+      campaign_id: campaignId ?? null,
       created_by: staffName() || "Staff",
     });
     setSaving(false);
@@ -1069,14 +1072,17 @@ function EditOccurrenceForm({
 const EVENT_KINDS: EventKind[] = ["event", "campaign", "promo", "other"];
 function EventsSection() {
   const [events, setEvents] = useState<StaffEvent[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState<null | "event" | "campaign">(null);
   const [editId, setEditId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setEvents(await listEvents());
+      const [e, r] = await Promise.all([listEvents(), listReminders()]);
+      setEvents(e);
+      setReminders(r);
     } catch {
       toast.error("Couldn't load events");
     } finally {
@@ -1088,48 +1094,182 @@ function EventsSection() {
   }, [load]);
 
   const today = todayStr();
-  const upcoming = events.filter((e) => (e.end_date || e.start_date) >= today);
-  const past = events.filter((e) => (e.end_date || e.start_date) < today);
+  const byStart = (a: StaffEvent, b: StaffEvent) => a.start_date.localeCompare(b.start_date);
+  const campaigns = events.filter((e) => e.kind === "campaign").sort(byStart);
+  const childrenOf = (id: string) => events.filter((e) => e.campaign_id === id).sort(byStart);
+  const tasksOf = (id: string) =>
+    reminders.filter((r) => r.campaign_id === id).sort((a, b) => a.due_date.localeCompare(b.due_date));
+  const standalone = events.filter((e) => e.kind !== "campaign" && !e.campaign_id);
+  const upcoming = standalone.filter((e) => (e.end_date || e.start_date) >= today).sort(byStart);
+  const past = standalone.filter((e) => (e.end_date || e.start_date) < today);
+
+  const reload = () => {
+    setAdding(null);
+    setEditId(null);
+    load();
+  };
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm text-muted-foreground">
-          {upcoming.length} upcoming · hidden from members
+          {campaigns.length} campaign{campaigns.length === 1 ? "" : "s"} · hidden from members
         </p>
-        <Button size="sm" className="gap-1" onClick={() => { setAdding((v) => !v); setEditId(null); }}>
-          <Plus className="h-4 w-4" /> New event
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" className="gap-1" onClick={() => { setAdding(adding === "campaign" ? null : "campaign"); setEditId(null); }}>
+            <Plus className="h-4 w-4" /> Campaign
+          </Button>
+          <Button size="sm" className="gap-1" onClick={() => { setAdding(adding === "event" ? null : "event"); setEditId(null); }}>
+            <Plus className="h-4 w-4" /> Event
+          </Button>
+        </div>
       </div>
 
-      {adding && <EventForm onDone={() => { setAdding(false); load(); }} onCancel={() => setAdding(false)} />}
+      {adding === "campaign" && <EventForm fixedKind="campaign" onDone={reload} onCancel={() => setAdding(null)} />}
+      {adding === "event" && <EventForm onDone={reload} onCancel={() => setAdding(null)} />}
 
       {loading ? (
         <Spinner />
-      ) : upcoming.length === 0 && past.length === 0 ? (
-        <EmptyState text="No events planned. Add a campaign or event to get ahead." />
+      ) : events.length === 0 ? (
+        <EmptyState text="Nothing planned yet. Add a campaign (e.g. Black Friday) then plan events under it." />
       ) : (
-        <>
-          <div className="space-y-2">
-            {upcoming.map((e) =>
-              editId === e.id ? (
-                <EventForm key={e.id} event={e} onDone={() => { setEditId(null); load(); }} onCancel={() => setEditId(null)} />
-              ) : (
-                <EventRow key={e.id} e={e} onEdit={() => setEditId(e.id)} onChanged={load} />
-              ),
-            )}
-          </div>
-          {past.length > 0 && (
-            <details className="pt-1">
-              <summary className="text-xs text-muted-foreground cursor-pointer">Past ({past.length})</summary>
-              <div className="space-y-2 mt-2">
-                {past.map((e) => (
-                  <EventRow key={e.id} e={e} onEdit={() => setEditId(e.id)} onChanged={load} />
-                ))}
-              </div>
-            </details>
+        <div className="space-y-4">
+          {campaigns.map((c) =>
+            editId === c.id ? (
+              <EventForm key={c.id} event={c} fixedKind="campaign" onDone={reload} onCancel={() => setEditId(null)} />
+            ) : (
+              <CampaignCard
+                key={c.id}
+                campaign={c}
+                items={childrenOf(c.id)}
+                tasks={tasksOf(c.id)}
+                editId={editId}
+                onEditCampaign={() => setEditId(c.id)}
+                onEditItem={setEditId}
+                onChanged={reload}
+              />
+            ),
           )}
-        </>
+
+          {(upcoming.length > 0 || past.length > 0) && (
+            <div className="space-y-2">
+              {campaigns.length > 0 && (
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Other events</p>
+              )}
+              {upcoming.map((e) =>
+                editId === e.id ? (
+                  <EventForm key={e.id} event={e} onDone={reload} onCancel={() => setEditId(null)} />
+                ) : (
+                  <EventRow key={e.id} e={e} onEdit={() => setEditId(e.id)} onChanged={load} />
+                ),
+              )}
+              {past.length > 0 && (
+                <details className="pt-1">
+                  <summary className="text-xs text-muted-foreground cursor-pointer">Past ({past.length})</summary>
+                  <div className="space-y-2 mt-2">
+                    {past.map((e) => (
+                      <EventRow key={e.id} e={e} onEdit={() => setEditId(e.id)} onChanged={load} />
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CampaignCard({
+  campaign,
+  items,
+  tasks,
+  editId,
+  onEditCampaign,
+  onEditItem,
+  onChanged,
+}: {
+  campaign: StaffEvent;
+  items: StaffEvent[];
+  tasks: Reminder[];
+  editId: string | null;
+  onEditCampaign: () => void;
+  onEditItem: (id: string | null) => void;
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const [addMode, setAddMode] = useState<null | "event" | "task">(null);
+  const range =
+    campaign.end_date && campaign.end_date !== campaign.start_date
+      ? `${fmtDate(campaign.start_date)} → ${fmtDate(campaign.end_date)}`
+      : fmtDate(campaign.start_date);
+  const count = items.length + tasks.length;
+  const done = () => { setAddMode(null); onChanged(); };
+
+  return (
+    <div className="rounded-xl border border-amber-400/50 bg-amber-500/5">
+      <div className="flex items-start gap-2 p-3">
+        <button onClick={() => setOpen((v) => !v)} className="mt-0.5 shrink-0 text-amber-700 dark:text-amber-400">
+          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </button>
+        <button className="min-w-0 flex-1 text-left" onClick={onEditCampaign}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300">
+              Campaign
+            </span>
+            <span className="font-semibold text-sm">{campaign.title}</span>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            {range} · {count} item{count === 1 ? "" : "s"}
+          </p>
+          {campaign.notes && <p className="text-xs mt-1">{campaign.notes}</p>}
+        </button>
+        <button className="text-muted-foreground shrink-0" onClick={() => deleteEvent(campaign.id).then(onChanged)}>
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+      {open && (
+        <div className="px-3 pb-3 pl-9 space-y-2">
+          {count === 0 && !addMode && (
+            <p className="text-[11px] text-muted-foreground">
+              No items yet — add launch events or assigned jobs below.
+            </p>
+          )}
+
+          {items.map((it) =>
+            editId === it.id ? (
+              <EventForm key={it.id} event={it} onDone={onChanged} onCancel={() => onEditItem(null)} />
+            ) : (
+              <EventRow key={it.id} e={it} onEdit={() => onEditItem(it.id)} onChanged={onChanged} />
+            ),
+          )}
+
+          {tasks.map((t) => (
+            <ReminderRow key={t.id} r={t} onChange={onChanged} />
+          ))}
+
+          {addMode === "event" && <EventForm campaignId={campaign.id} onDone={done} onCancel={() => setAddMode(null)} />}
+          {addMode === "task" && (
+            <ReminderForm
+              campaignId={campaign.id}
+              initialDue={campaign.start_date}
+              onDone={done}
+              onCancel={() => setAddMode(null)}
+            />
+          )}
+
+          {!addMode && (
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="gap-1" onClick={() => setAddMode("event")}>
+                <Plus className="h-3.5 w-3.5" /> Event
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1" onClick={() => setAddMode("task")}>
+                <Plus className="h-3.5 w-3.5" /> Task
+              </Button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -1157,44 +1297,63 @@ function EventRow({ e, onEdit, onChanged }: { e: StaffEvent; onEdit: () => void;
   );
 }
 
-function EventForm({ event, onDone, onCancel }: { event?: StaffEvent; onDone: () => void; onCancel: () => void }) {
+function EventForm({
+  event,
+  onDone,
+  onCancel,
+  fixedKind,
+  campaignId,
+}: {
+  event?: StaffEvent;
+  onDone: () => void;
+  onCancel: () => void;
+  fixedKind?: EventKind; // force a kind + hide the picker (used for campaigns)
+  campaignId?: string; // attach the new event to this campaign
+}) {
+  const isCampaign = (event?.kind ?? fixedKind) === "campaign";
   const [title, setTitle] = useState(event?.title ?? "");
-  const [kind, setKind] = useState<EventKind>(event?.kind ?? "event");
+  const [kind, setKind] = useState<EventKind>(event?.kind ?? fixedKind ?? "event");
   const [start, setStart] = useState(event?.start_date ?? todayStr());
   const [end, setEnd] = useState(event?.end_date ?? "");
   const [notes, setNotes] = useState(event?.notes ?? "");
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
-    if (!title.trim()) return toast.error("Give the event a title");
+    if (!title.trim()) return toast.error("Give it a title");
     if (end && end < start) return toast.error("End date is before the start");
     setSaving(true);
     const payload = { title, kind, start_date: start, end_date: end || null, notes };
     const r = event
       ? await updateEvent(event.id, payload)
-      : await createEvent({ ...payload, created_by: staffName() || "Staff" });
+      : await createEvent({ ...payload, campaign_id: campaignId ?? null, created_by: staffName() || "Staff" });
     setSaving(false);
     if (r.ok) {
-      toast.success(event ? "Updated" : "Event added");
+      toast.success(event ? "Updated" : "Added");
       onDone();
     } else toast.error(r.error || "Couldn't save");
   };
 
   return (
     <div className="rounded-xl border border-primary/40 bg-card p-4 space-y-3">
-      <Input placeholder="Event / campaign name" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <select
-          value={kind}
-          onChange={(e) => setKind(e.target.value as EventKind)}
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-        >
-          {EVENT_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {EVENT_KIND_LABEL[k]}
-            </option>
-          ))}
-        </select>
+      <Input
+        placeholder={isCampaign ? "Campaign name (e.g. Black Friday)" : "Event / task name"}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
+      <div className={`grid grid-cols-1 gap-3 ${fixedKind ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+        {!fixedKind && (
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value as EventKind)}
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            {EVENT_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {EVENT_KIND_LABEL[k]}
+              </option>
+            ))}
+          </select>
+        )}
         <div>
           <label className="text-[10px] text-muted-foreground">Start</label>
           <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
@@ -1204,10 +1363,23 @@ function EventForm({ event, onDone, onCancel }: { event?: StaffEvent; onDone: ()
           <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
         </div>
       </div>
-      <Textarea placeholder="Notes / plan (optional)" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      <Textarea
+        placeholder={isCampaign ? "Campaign goal / notes (optional)" : "What needs done / notes (optional)"}
+        rows={2}
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+      />
       <div className="flex gap-2">
         <Button className="flex-1" disabled={saving} onClick={submit}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : event ? "Save" : "Add event"}
+          {saving ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : event ? (
+            "Save"
+          ) : isCampaign ? (
+            "Add campaign"
+          ) : (
+            "Add event"
+          )}
         </Button>
         <Button variant="outline" onClick={onCancel} disabled={saving}>
           Cancel

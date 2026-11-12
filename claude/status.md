@@ -1450,3 +1450,25 @@ PUSH: src/pages/Workouts.tsx (plus #92/#93 store.ts + earlier Workouts.tsx chang
   just the workout-finish path.
 PUSH: src/lib/authUser.ts + the 50 swept files (git will show them). No SQL/redeploy.
 TEST after deploy: login, home load, a workout finish, a check-in — all should be snappy.
+
+## 96 — Planner: campaigns as containers for events (2026-11-12)
+- staff_events_campaigns.sql (new, RUN): adds staff_events.campaign_id uuid → self-ref FK
+  (on delete set null) + index.
+- staffPlanner.ts: StaffEvent.campaign_id; createEvent/updateEvent accept campaign_id.
+- StaffPlanner.tsx EventsSection rewritten: campaigns (kind='campaign') shown as expandable
+  CampaignCard with their child events nested + "Add item to campaign" (EventForm prefilled with
+  campaign_id); standalone events listed under "Other events". Separate "Campaign" / "Event"
+  add buttons. EventForm gained fixedKind (hides kind picker, used for campaigns) + campaignId.
+  Children are normal staff_events so they already sync to the calendar + team agenda.
+PUSH: staffPlanner.ts, StaffPlanner.tsx. RUN staff_events_campaigns.sql.
+
+## 97 — Campaign items can be assignable tasks (reminders) (2026-11-12)
+- staff_reminders_campaign.sql (new, RUN): adds staff_reminders.campaign_id → staff_events(id) FK
+  (on delete set null) + index.
+- staffPlanner.ts: Reminder.campaign_id; createReminder accepts campaign_id.
+- StaffPlanner.tsx: ReminderForm gained campaignId prop (passes campaign_id). EventsSection now
+  also loads reminders; CampaignCard shows child EVENTS (EventRow) + TASKS (ReminderRow, tickable,
+  assignee) and has Event / Task add buttons — Task opens ReminderForm prefilled with campaign_id +
+  the campaign start date. Tasks are normal reminders → flow into My jobs, the calendar and the team
+  agenda, assigned to a coach. Removed unused addChildTo state.
+PUSH: staffPlanner.ts, StaffPlanner.tsx. RUN staff_reminders_campaign.sql.

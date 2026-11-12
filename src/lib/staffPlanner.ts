@@ -43,6 +43,7 @@ export interface Reminder {
   created_by: string | null;
   created_at: string;
   exceptions: string[] | null; // recurring: dates (YYYY-MM-DD) to skip
+  campaign_id: string | null; // parent campaign (staff_events.id), if any
 }
 
 export const REPEAT_LABEL: Record<Repeat, string> = {
@@ -90,6 +91,7 @@ export async function createReminder(input: {
   assigned_to?: string;
   due_date: string;
   repeat: Repeat;
+  campaign_id?: string | null;
   created_by?: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from("staff_reminders").insert({
@@ -98,6 +100,7 @@ export async function createReminder(input: {
     assigned_to: input.assigned_to?.trim() || null,
     due_date: input.due_date,
     repeat: input.repeat,
+    campaign_id: input.campaign_id || null,
     created_by: input.created_by || null,
   });
   return error ? { ok: false, error: error.message } : { ok: true };
@@ -189,6 +192,7 @@ export interface StaffEvent {
   start_date: string;
   end_date: string | null;
   notes: string | null;
+  campaign_id: string | null; // parent campaign, if this event belongs to one
   created_by: string | null;
   created_at: string;
 }
@@ -213,6 +217,7 @@ export async function createEvent(input: {
   start_date: string;
   end_date?: string | null;
   notes?: string;
+  campaign_id?: string | null;
   created_by?: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from("staff_events").insert({
@@ -221,13 +226,16 @@ export async function createEvent(input: {
     start_date: input.start_date,
     end_date: input.end_date || null,
     notes: input.notes?.trim() || null,
+    campaign_id: input.campaign_id || null,
     created_by: input.created_by || null,
   });
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 export async function updateEvent(
   id: string,
-  patch: Partial<Pick<StaffEvent, "title" | "kind" | "start_date" | "end_date" | "notes">>,
+  patch: Partial<
+    Pick<StaffEvent, "title" | "kind" | "start_date" | "end_date" | "notes" | "campaign_id">
+  >,
 ): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from("staff_events").update(patch).eq("id", id);
   return error ? { ok: false, error: error.message } : { ok: true };
