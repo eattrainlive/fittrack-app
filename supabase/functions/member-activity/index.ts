@@ -82,6 +82,16 @@ serve(async (req) => {
     }
     const memberRef = g?.id ?? null;
 
+    // Resolve the member's APP-ACCOUNT user_id from their EMAIL (members.id = auth id).
+    // The id passed in may be a roster id, not the app account — without this the
+    // by-user_id workout count reads 0 even when they've logged sessions.
+    let appUserId = userId;
+    if (email) {
+      const { data: mem } = await db.from("members").select("id, email");
+      const hit = (mem ?? []).find((m: any) => normEmail(m.email) === normEmail(email))?.id ?? null;
+      if (hit) appUserId = String(hit);
+    }
+
     const now = new Date();
     const nowMs = now.getTime();
     const threeMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1)).toISOString();
@@ -94,8 +104,8 @@ serve(async (req) => {
     const scans = memberRef
       ? ((await db.from("scan_events").select("ts, result").eq("member_ref", memberRef).eq("result", "granted").gte("ts", threeMonthsAgo)).data ?? [])
       : [];
-    const workouts = userId
-      ? ((await db.from("workout_history").select("date").eq("user_id", userId).gte("date", threeMonthsAgo)).data ?? [])
+    const workouts = appUserId
+      ? ((await db.from("workout_history").select("date").eq("user_id", appUserId).gte("date", threeMonthsAgo)).data ?? [])
       : [];
 
     const inRange = (t: string, startMs: number) => { const x = new Date(t).getTime(); return x >= startMs && x <= nowMs; };

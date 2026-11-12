@@ -188,6 +188,22 @@ async function computeSummary(db: any, p: { userId: string | null; email: string
     }
   } catch (e) { out._prsError = (e as Error).message; }
 
+  // ── Current PBs (full list, NOT windowed) — best lift per exercise ───────────
+  try {
+    if (userId) {
+      const { data } = await db.from("personal_records")
+        .select("exercise, weight, reps, date")
+        .eq("user_id", userId)
+        .order("weight", { ascending: false });
+      out.currentPbs = (data ?? []).map((r: any) => ({
+        exercise: String(r.exercise),
+        weight: Number(r.weight) || 0,
+        reps: Number(r.reps) || 0,
+        date: r.date,
+      }));
+    }
+  } catch (e) { out._currentPbsError = (e as Error).message; }
+
   // ── Bodyweight (by user_id) — first vs latest in window ──────────────────────
   try {
     if (userId) {

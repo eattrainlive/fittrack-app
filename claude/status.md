@@ -1515,3 +1515,14 @@ RUN: evolt_scans_schema.sql, then evolt_import_sample.sql (imports this file).
 - MemberActivityModal: mounts <StaffEvoltScans email userId> (outside the linked-account gate, since
   scans match by email even without an app account) so staff can view any member's scans + compare.
 PUSH: EvoltScansCard.tsx, MemberActivityModal.tsx. No SQL.
+
+## 100 — Member activity: fix sessions=0 + show current PBs (2026-11-12)
+- BUG: member-activity counted workouts by the passed id (often a roster id, not the auth id) →
+  sessionsLogged 0 while PBs showed. Fix: resolve appUserId from email via members table (members.id
+  = auth id), mirroring progress-summary; workout_history now queried by appUserId. REDEPLOY
+  member-activity.
+- progress-summary: added currentPbs (full best-lift-per-exercise list from personal_records, not
+  windowed). REDEPLOY progress-summary.
+- trialSummary.ts: ProgressSummary.currentPbs type. MemberActivityModal: normalises currentPbs +
+  renders a "Current PBs" grid (weight × reps per exercise) under Strength Wins.
+PUSH: trialSummary.ts, MemberActivityModal.tsx. REDEPLOY member-activity + progress-summary.

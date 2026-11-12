@@ -38,6 +38,8 @@ export interface ProgressSummary {
   activitiesCount: number;
   // strength
   prs: { exercise: string; start: number; now: number; gain: number }[];
+  // current PBs — best lift per exercise (full list, not windowed)
+  currentPbs?: { exercise: string; weight: number; reps: number; date: string }[];
   // body
   weightStart?: number;
   weightNow?: number;

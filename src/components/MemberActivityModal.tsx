@@ -183,6 +183,7 @@ export function MemberActivityModal({
           setSummary({
             ...d,
             prs: d.prs ?? [],
+            currentPbs: d.currentPbs ?? [],
             coachedUsed: d.coachedUsed ?? 0,
             coachedTotal: d.coachedTotal ?? 0,
             coachedUpcoming: d.coachedUpcoming ?? 0,
@@ -569,6 +570,31 @@ export function MemberActivityModal({
                   >
                     +{pr.gain} kg
                   </Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Current PBs — the member's best lift per exercise, all in one place */}
+        {!summaryLoading && s && (s.currentPbs?.length ?? 0) > 0 && (
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Current PBs
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {(s.currentPbs ?? []).map((pb) => (
+                <div
+                  key={pb.exercise}
+                  className="p-2.5 rounded-lg bg-muted/30 border border-border text-xs"
+                >
+                  <p className="font-semibold capitalize truncate">
+                    {pb.exercise.replace(/_/g, " ")}
+                  </p>
+                  <p className="text-sm font-bold text-primary">
+                    {pb.weight} kg
+                    {pb.reps ? <span className="text-[10px] font-normal text-muted-foreground"> × {pb.reps}</span> : null}
+                  </p>
                 </div>
               ))}
             </div>
