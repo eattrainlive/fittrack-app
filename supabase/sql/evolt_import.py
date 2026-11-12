@@ -45,35 +45,36 @@ def num(v):
     try: return str(float(v))
     except (ValueError,TypeError): return "null"
 
-def main(path):
-    rows = rows_from(path)
-    hdr = [str(c).strip() if c is not None else "" for c in rows[0]]
+def main(paths):
     cols = ["id","scan_at","email","mobile","first_name","last_name","gender","age","location",
             "height","weight","body_fat_pct","bmi","bio_age","bwi","lbm","smm","smm_rating","mineral",
             "protein","whr","tbw","ac","body_fat","subcutaneous_fat","visceral_fat","visceral_fat_area",
             "systolic","diastolic","pulse","raw"]
-    out=[]; n=0
-    for r in rows[1:]:
-        rec={}
-        raw={}
-        for h,v in zip(hdr,r):
-            if h in COLMAP: rec[COLMAP[h]]=v
-            if h: raw[h]= (v if not isinstance(v,datetime.datetime) else str(v))
-        if not rec.get("id"): continue
-        rec["scan_at"]=parse_date(rec.get("scan_at"))
-        if rec.get("email"): rec["email"]=str(rec["email"]).strip().lower()
-        vals=[]
-        for c in cols:
-            if c=="raw": vals.append("'"+json.dumps(raw).replace("'","''")+"'::jsonb")
-            elif c in NUM: vals.append(num(rec.get(c)))
-            elif c=="scan_at": vals.append(q(rec.get("scan_at")))
-            else: vals.append(q(rec.get(c)))
-        out.append("("+",".join(vals)+")"); n+=1
-    print("-- Evolt import: %d scans from %s" % (n, path.split('/')[-1]))
+    byid={}  # dedupe globally by scan id (last file wins)
+    for path in paths:
+        rows = rows_from(path)
+        hdr = [str(c).strip() if c is not None else "" for c in rows[0]]
+        for r in rows[1:]:
+            rec={}; raw={}
+            for h,v in zip(hdr,r):
+                if h in COLMAP: rec[COLMAP[h]]=v
+                if h: raw[h]= (v if not isinstance(v,datetime.datetime) else str(v))
+            if not rec.get("id"): continue
+            rec["scan_at"]=parse_date(rec.get("scan_at"))
+            if rec.get("email"): rec["email"]=str(rec["email"]).strip().lower()
+            vals=[]
+            for c in cols:
+                if c=="raw": vals.append("'"+json.dumps(raw).replace("'","''")+"'::jsonb")
+                elif c in NUM: vals.append(num(rec.get(c)))
+                elif c=="scan_at": vals.append(q(rec.get("scan_at")))
+                else: vals.append(q(rec.get(c)))
+            byid[str(rec["id"])] = "("+",".join(vals)+")"
+    out=list(byid.values())
+    print("-- Evolt import: %d distinct scans from %d file(s)" % (len(out), len(paths)))
     print("insert into public.evolt_scans (%s) values" % ",".join(cols))
     print(",\n".join(out))
     upd=",".join("%s=excluded.%s"%(c,c) for c in cols if c!="id")
     print("on conflict (id) do update set "+upd+";")
 
 if __name__=="__main__":
-    main(sys.argv[1])
+    main(sys.argv[1:])

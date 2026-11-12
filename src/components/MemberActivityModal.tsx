@@ -29,6 +29,7 @@ import { CoachPastWorkouts } from "@/components/CoachPastWorkouts";
 import { CoachNutritionLog } from "@/components/CoachNutritionLog";
 import { CoachSetPassword } from "@/components/CoachSetPassword";
 import { LinkedEmailsCard } from "@/components/LinkedEmailsCard";
+import { StaffEvoltScans } from "@/components/EvoltScansCard";
 import { CoachMacroTargets } from "@/components/CoachMacroTargets";
 import { MemberMessagesSection } from "@/components/MemberMessagesSection";
 import { getHabitAdherence, type HabitAdherence } from "@/lib/habitAdherence";
@@ -758,6 +759,16 @@ export function MemberActivityModal({
               </div>
             </>
           );
+        })()}
+
+        {/* Evolt scans — matched by email, so shown for any member with scans,
+            whether or not they have a linked app account. */}
+        {(() => {
+          const authId = member.user_id || member.id;
+          const isUuid =
+            typeof authId === "string" &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authId);
+          return <StaffEvoltScans email={member.email} userId={isUuid ? authId : undefined} />;
         })()}
 
         {/* Messages — read-only WhatsApp/SMS thread; reply via the GHL deep-link */}

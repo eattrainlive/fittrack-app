@@ -1497,3 +1497,21 @@ RUN: evolt_scans_schema.sql, then evolt_import_sample.sql (imports this file).
   instead of relying on RLS. Staff can read all scans (staff policy) so the member self-view must
   filter explicitly; previously a staff account saw the whole gym on their own Progress tab. Members
   (non-staff) were never affected. PUSH src/lib/evoltScans.ts.
+
+## 98c — Evolt full history import (10,401 scans) (2026-11-12)
+- 9 Evolt export files combined + deduped by scan id → 10,401 distinct scans (2020→now).
+- evolt_import.py now accepts multiple files + dedupes globally (last wins).
+- Bulk import split into evolt_import_part01..03.sql (~3500 rows each, ~800KB, web-editor safe),
+  TYPED COLUMNS ONLY (raw jsonb omitted to keep files small — charts/UI don't use raw). Run in order
+  after evolt_scans_schema.sql; each is re-run safe (on conflict). parts 04-07 are obsolete no-op
+  placeholders (couldn't delete from mount) — ignore.
+- Future weekly imports: python3 evolt_import.py <export.xlsx> > new.sql (single small file).
+
+## 99 — Evolt: scan comparison + staff member view (2026-11-12)
+- EvoltScansCard.tsx refactored: shared EvoltScanView (latest readings + deltas + trend charts +
+  a scan-to-scan COMPARE block — two date pickers, metric A→B with improvement-coloured deltas,
+  direction-aware via lowerBetter). EvoltScansCard (member, getMyScans) + StaffEvoltScans (staff,
+  getScansForEmails by member email + linked emails) both use it.
+- MemberActivityModal: mounts <StaffEvoltScans email userId> (outside the linked-account gate, since
+  scans match by email even without an app account) so staff can view any member's scans + compare.
+PUSH: EvoltScansCard.tsx, MemberActivityModal.tsx. No SQL.
