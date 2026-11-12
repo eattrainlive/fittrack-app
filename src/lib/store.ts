@@ -700,7 +700,7 @@ export const getExerciseEnrichment = async () => {
 export const saveExercises = async (
   exercises: any[],
 ): Promise<{ success: boolean; error?: any }> => {
-  localStorage.setItem("fittrack_exercises", JSON.stringify(exercises));
+  safeLocalSet("fittrack_exercises", JSON.stringify(exercises));
   markDirty("exercises");
   setSyncStatus("saving");
   try {
@@ -751,7 +751,7 @@ export const getPrograms = () => {
 export const savePrograms = async (
   programs: any[],
 ): Promise<{ success: boolean; error?: any }> => {
-  localStorage.setItem("fittrack_programs", JSON.stringify(programs));
+  safeLocalSet("fittrack_programs", JSON.stringify(programs));
   markDirty("programs");
   setSyncStatus("saving");
   try {
@@ -1585,7 +1585,7 @@ export const syncFromSupabase = async () => {
 
     // Guard: only overwrite local if store is NOT dirty (no pending unconfirmed writes)
     if (ex.data && ex.data.length > 0 && !isDirty("exercises")) {
-      localStorage.setItem(
+      safeLocalSet(
         "fittrack_exercises",
         JSON.stringify(cleanExercises(ex.data)),
       );
@@ -1599,7 +1599,7 @@ export const syncFromSupabase = async () => {
         clearDirty("exercises");
         dequeue("exercises");
         if (ex.data && ex.data.length > 0) {
-          localStorage.setItem(
+          safeLocalSet(
             "fittrack_exercises",
             JSON.stringify(cleanExercises(ex.data)),
           );
@@ -1623,7 +1623,7 @@ export const syncFromSupabase = async () => {
           return { ...extraData, ...p };
         });
       }
-      localStorage.setItem("fittrack_programs", JSON.stringify(activePrg));
+      safeLocalSet("fittrack_programs", JSON.stringify(activePrg));
     } else if (isDirty("programs")) {
       // Only staff should re-push programmes to the shared library.
       // For members, just clear the dirty flag and load from cloud.
@@ -1635,7 +1635,7 @@ export const syncFromSupabase = async () => {
         clearDirty("programs");
         dequeue("programs");
         if (prg.data && prg.data.length > 0) {
-          localStorage.setItem("fittrack_programs", JSON.stringify(prg.data));
+          safeLocalSet("fittrack_programs", JSON.stringify(prg.data));
         }
       }
     }

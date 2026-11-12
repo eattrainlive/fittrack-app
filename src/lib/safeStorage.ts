@@ -6,16 +6,17 @@
 // still succeeds.
 
 // Large, re-fetchable caches we can safely drop to make room, worst-first.
+// NOTE: the exercise library (fittrack_exercises) and programmes
+// (fittrack_programs) are deliberately NOT evictable — the workout UI needs them
+// for names, videos and swaps; dropping them breaks the live workout screen.
 const EVICTABLE = [
   "fittrack_member_photos",
   "fittrack_recipes",
   "fittrack_education_videos",
   "fittrack_education_folders",
-  "fittrack_exercises",
   "fittrack_habits_library",
   "fittrack_wow_results",
   "fittrack_wows",
-  "fittrack_programs",
   "fittrack_scheduled_events",
 ];
 

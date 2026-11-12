@@ -1551,3 +1551,15 @@ IMMEDIATE for a stuck device: clear the app's site data / reinstall the PWA to f
 - ErgChallengePage.tsx: new staff card "Add class metres (no name)" (uses the selected machine) →
   adds to the gym total only, not to any member or the leaderboard.
 PUSH: ergChallenge.ts, ErgChallengePage.tsx. RUN erg_communal_metres.sql.
+
+## 101b — Fix: exercises show as slugs / no video/swap (quota knock-on) (2026-11-12)
+- Cause: a full localStorage quota made the UNWRAPPED fittrack_exercises sync write (store.ts 1588)
+  throw → library never cached → getExercises() fell back to tiny defaults → workouts rendered raw
+  slugs (GLUTE-DRIVE-MACHINE) with no video/swap/W×R. Also safeStorage wrongly listed
+  fittrack_exercises as evictable.
+- Fix: removed fittrack_exercises + fittrack_programs from safeStorage EVICTABLE (critical for the
+  workout UI). Wrapped all exercise-library writes (saveExercises + both sync paths) and all
+  programme writes with safeLocalSet so a full quota can't abort them (it evicts cosmetic caches
+  instead).
+PUSH: safeStorage.ts, store.ts. Recover a stuck device: clear app site data once, then it reloads the
+library cleanly on next sync.
