@@ -10,12 +10,11 @@
 // (fittrack_programs) are deliberately NOT evictable — the workout UI needs them
 // for names, videos and swaps; dropping them breaks the live workout screen.
 const EVICTABLE = [
-  "fittrack_member_photos",
+  "fittrack_member_photos", // server-backed cache (member_photos table + media bucket)
   "fittrack_recipes",
   "fittrack_education_videos",
   "fittrack_education_folders",
   "fittrack_habits_library",
-  "fittrack_wow_results",
   "fittrack_wows",
   "fittrack_scheduled_events",
 ];

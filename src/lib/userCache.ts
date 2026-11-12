@@ -10,6 +10,7 @@
  */
 
 import { supabase } from "./supabase";
+import { safeLocalSet } from "./safeStorage";
 
 /** All localStorage keys that hold per-user data. */
 export const USER_CACHE_KEYS = [
@@ -54,7 +55,7 @@ export const refreshActiveProgramFromServer = async (userId: string) => {
       .eq("key", "active_program")
       .maybeSingle();
     if (data?.value) {
-      localStorage.setItem("fittrack_active_program", data.value);
+      safeLocalSet("fittrack_active_program", data.value);
     } else {
       localStorage.removeItem("fittrack_active_program");
     }

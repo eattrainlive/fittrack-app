@@ -1563,3 +1563,12 @@ PUSH: ergChallenge.ts, ErgChallengePage.tsx. RUN erg_communal_metres.sql.
   instead).
 PUSH: safeStorage.ts, store.ts. Recover a stuck device: clear app site data once, then it reloads the
 library cleanly on next sync.
+
+## 101c — Harden ALL store writes against quota; audit evictable list (2026-11-12)
+- Audited safeStorage EVICTABLE: removed fittrack_wow_results (can hold un-flushed WOW submissions).
+  Kept member_photos (server-backed: member_photos table + media bucket). exercises/programs already
+  removed earlier. Remaining evictables are all re-fetchable server caches.
+- Replaced ALL 48 localStorage.setItem in store.ts with safeLocalSet so a single quota throw can't
+  abort the multi-key fittrack_synced chain (which would leave later caches — history, prs, bodyweight,
+  macros, etc. — stale/empty). userCache.ts active_program write wrapped too.
+PUSH: safeStorage.ts, store.ts, userCache.ts.

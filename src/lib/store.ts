@@ -25,7 +25,7 @@ const DIRTY_STORES = [
 type DirtyStore = (typeof DIRTY_STORES)[number];
 
 export const markDirty = (store: DirtyStore) =>
-  localStorage.setItem(`fittrack_dirty_${store}`, "1");
+  safeLocalSet(`fittrack_dirty_${store}`, "1");
 export const clearDirty = (store: DirtyStore) =>
   localStorage.removeItem(`fittrack_dirty_${store}`);
 export const isDirty = (store: DirtyStore) =>
@@ -61,7 +61,7 @@ const getQueue = (): QueuedWrite[] => {
   }
 };
 const setQueue = (q: QueuedWrite[]) =>
-  localStorage.setItem("fittrack_retry_queue", JSON.stringify(q));
+  safeLocalSet("fittrack_retry_queue", JSON.stringify(q));
 const enqueue = (store: DirtyStore) => {
   const q = getQueue().filter((x) => x.store !== store);
   q.push({ store, timestamp: Date.now() });
@@ -174,7 +174,7 @@ export const flushRetryQueue = async () => {
             weight: Number(p.weight) || 0,
             reps: parseInt(String(p.reps)) || 0,
           }));
-          localStorage.setItem("fittrack_prs", JSON.stringify(clean)); // heal local copy
+          safeLocalSet("fittrack_prs", JSON.stringify(clean)); // heal local copy
           const rows = clean.map((p: any) => ({
             id: p.id,
             user_id: user.id,
@@ -227,7 +227,7 @@ export const getHabits = async () => {
     .select("*")
     .order("sort_order", { ascending: true });
   if (data) {
-    localStorage.setItem("fittrack_habits_library", JSON.stringify(data));
+    safeLocalSet("fittrack_habits_library", JSON.stringify(data));
     return data;
   }
   const local = localStorage.getItem("fittrack_habits_library");
@@ -241,7 +241,7 @@ export const getMemberNutrition = () => {
 };
 
 export const saveMemberNutrition = async (nutrition: any) => {
-  localStorage.setItem("fittrack_member_nutrition", JSON.stringify(nutrition));
+  safeLocalSet("fittrack_member_nutrition", JSON.stringify(nutrition));
   const {
     data: { user },
   } = await getCurrentUser();
@@ -261,7 +261,7 @@ export const getMemberHabits = () => {
 };
 
 export const saveMemberHabits = async (habits: any[]) => {
-  localStorage.setItem("fittrack_member_habits", JSON.stringify(habits));
+  safeLocalSet("fittrack_member_habits", JSON.stringify(habits));
   const {
     data: { user },
   } = await getCurrentUser();
@@ -293,7 +293,7 @@ export const saveMemberHabits = async (habits: any[]) => {
       .upsert(payload)
       .select();
     if (data) {
-      localStorage.setItem("fittrack_member_habits", JSON.stringify(data));
+      safeLocalSet("fittrack_member_habits", JSON.stringify(data));
       return data;
     }
     if (error) console.error("Error saving member habits:", error);
@@ -318,7 +318,7 @@ export const saveHabitCheckin = async (checkin: any) => {
   } else {
     checkins.push(checkin);
   }
-  localStorage.setItem("fittrack_habit_checkins", JSON.stringify(checkins));
+  safeLocalSet("fittrack_habit_checkins", JSON.stringify(checkins));
   const {
     data: { user },
   } = await getCurrentUser();
@@ -344,7 +344,7 @@ export const saveMemberMeasurement = async (measurement: any) => {
     id: measurement.id || Date.now().toString(),
   };
   measurements.push(newMeasurement);
-  localStorage.setItem(
+  safeLocalSet(
     "fittrack_member_measurements",
     JSON.stringify(measurements),
   );
@@ -368,7 +368,7 @@ export const saveMemberPhoto = async (photo: any) => {
   const photos = getMemberPhotos();
   const newPhoto = { ...photo, id: photo.id || Date.now().toString() };
   photos.push(newPhoto);
-  localStorage.setItem("fittrack_member_photos", JSON.stringify(photos));
+  safeLocalSet("fittrack_member_photos", JSON.stringify(photos));
   const {
     data: { user },
   } = await getCurrentUser();
@@ -404,7 +404,7 @@ export const deleteMemberPhoto = async (photo: any) => {
   const local = getMemberPhotos().filter(
     (p: any) => String(p.id) !== String(photo.id),
   );
-  localStorage.setItem("fittrack_member_photos", JSON.stringify(local));
+  safeLocalSet("fittrack_member_photos", JSON.stringify(local));
   if (error) logError("deleteMemberPhoto", "member_photos", error);
   return { success: !error, error };
 };
@@ -449,7 +449,7 @@ export const getMemberMacros = () => {
 export const saveMemberMacros = async (
   macros: any,
 ): Promise<{ success: boolean; error?: any }> => {
-  localStorage.setItem("fittrack_member_macros", JSON.stringify(macros));
+  safeLocalSet("fittrack_member_macros", JSON.stringify(macros));
   markDirty("macros");
   setSyncStatus("saving");
   try {
@@ -493,7 +493,7 @@ export const saveMacroLog = async (
   if (existingIdx >= 0) logs[existingIdx] = log;
   else logs.push(log);
 
-  localStorage.setItem("fittrack_macro_logs", JSON.stringify(logs));
+  safeLocalSet("fittrack_macro_logs", JSON.stringify(logs));
   markDirty("macroLogs");
   setSyncStatus("saving");
   try {
@@ -873,7 +873,7 @@ export const saveActiveProgram = async (
   activeProgram: any,
 ): Promise<{ success: boolean; error?: any }> => {
   if (activeProgram)
-    localStorage.setItem(
+    safeLocalSet(
       "fittrack_active_program",
       JSON.stringify(activeProgram),
     );
@@ -906,7 +906,7 @@ export const getPreferredDays = () => {
 export const savePreferredDays = async (
   days: number,
 ): Promise<{ success: boolean; error?: any }> => {
-  localStorage.setItem("fittrack_preferred_days", days.toString());
+  safeLocalSet("fittrack_preferred_days", days.toString());
   try {
     const {
       data: { user },
@@ -1078,7 +1078,7 @@ export const detectAndSavePBs = async (exercises: any[]) => {
   if (newPBs.length === 0) return [];
 
   const merged = Object.values(byName);
-  localStorage.setItem("fittrack_prs", JSON.stringify(merged));
+  safeLocalSet("fittrack_prs", JSON.stringify(merged));
   markDirty("prs");
   try {
     const {
@@ -1127,7 +1127,7 @@ export const savePersonalRecord = (exerciseId: string, weight: number) => {
     date,
   }; // kept exerciseId for backwards compat in Progress.tsx
   prs.push(newPr);
-  localStorage.setItem("fittrack_prs", JSON.stringify(prs));
+  safeLocalSet("fittrack_prs", JSON.stringify(prs));
   markDirty("prs");
   supabase.auth
     .getUser()
@@ -1165,7 +1165,7 @@ export const savePersonalRecord = (exerciseId: string, weight: number) => {
 export const deletePersonalRecord = (id: string) => {
   let prs = getPersonalRecords();
   prs = prs.filter((pr: any) => pr.id !== id);
-  localStorage.setItem("fittrack_prs", JSON.stringify(prs));
+  safeLocalSet("fittrack_prs", JSON.stringify(prs));
   markDirty("prs"); // using dirty mechanism for deletions might be complex, simplified for now
   getCurrentUser().then(({ data: { user } }) => {
     if (user)
@@ -1298,7 +1298,7 @@ export const saveBodyweight = async (
   const history = getBodyweightHistory();
   const date = new Date().toISOString().split("T")[0];
   history.push({ date, ...data });
-  localStorage.setItem("fittrack_bodyweight", JSON.stringify(history));
+  safeLocalSet("fittrack_bodyweight", JSON.stringify(history));
   markDirty("bodyweight");
   setSyncStatus("saving");
   try {
@@ -1337,7 +1337,7 @@ export const getEducationFolders = () => {
 };
 
 export const saveEducationFolders = (folders: any[]) => {
-  localStorage.setItem("fittrack_education_folders", JSON.stringify(folders));
+  safeLocalSet("fittrack_education_folders", JSON.stringify(folders));
   getCurrentUser().then(async ({ data: { user } }) => {
     if (user)
       await supabase
@@ -1351,7 +1351,7 @@ export const getVimeoToken = () => {
 };
 
 export const saveVimeoToken = (token: string) => {
-  localStorage.setItem("fittrack_vimeo_token", token);
+  safeLocalSet("fittrack_vimeo_token", token);
   getCurrentUser().then(({ data: { user } }) => {
     if (user) {
       supabase
@@ -1370,7 +1370,7 @@ export const getAnthropicKey = () => {
 };
 
 export const saveAnthropicKey = (key: string) => {
-  localStorage.setItem("fittrack_anthropic_key", key);
+  safeLocalSet("fittrack_anthropic_key", key);
   getCurrentUser().then(({ data: { user } }) => {
     if (user) {
       supabase
@@ -1392,7 +1392,7 @@ export const getCommunityPosts = () => {
 export const saveCommunityPost = (post: any) => {
   const posts = getCommunityPosts();
   posts.unshift(post);
-  localStorage.setItem("fittrack_community_posts", JSON.stringify(posts));
+  safeLocalSet("fittrack_community_posts", JSON.stringify(posts));
   return posts;
 };
 
@@ -1404,7 +1404,7 @@ export const getCommunityComments = () => {
 export const saveCommunityComment = (comment: any) => {
   const comments = getCommunityComments();
   comments.push(comment);
-  localStorage.setItem("fittrack_community_comments", JSON.stringify(comments));
+  safeLocalSet("fittrack_community_comments", JSON.stringify(comments));
   return comments;
 };
 
@@ -1485,7 +1485,7 @@ export const getEducationVideos = () => {
 };
 
 export const saveEducationVideos = (videos: any[]) => {
-  localStorage.setItem("fittrack_education_videos", JSON.stringify(videos));
+  safeLocalSet("fittrack_education_videos", JSON.stringify(videos));
   getCurrentUser().then(async ({ data: { user } }) => {
     if (user)
       await supabase
@@ -1659,7 +1659,7 @@ export const syncFromSupabase = async () => {
           }
         });
         if (localOnly.length > 0) enqueue("history");
-        localStorage.setItem(
+        safeLocalSet(
           "fittrack_history",
           JSON.stringify(Array.from(byId.values())),
         );
@@ -1668,11 +1668,11 @@ export const syncFromSupabase = async () => {
     }
 
     if (bw.data && bw.data.length > 0 && !isDirty("bodyweight")) {
-      localStorage.setItem("fittrack_bodyweight", JSON.stringify(bw.data));
+      safeLocalSet("fittrack_bodyweight", JSON.stringify(bw.data));
     }
 
     if (prs.data && prs.data.length > 0 && !isDirty("prs"))
-      localStorage.setItem("fittrack_prs", JSON.stringify(prs.data));
+      safeLocalSet("fittrack_prs", JSON.stringify(prs.data));
     else if (isDirty("prs")) {
       const local = localStorage.getItem("fittrack_prs");
       if (local) {
@@ -1695,38 +1695,38 @@ export const syncFromSupabase = async () => {
     }
 
     if (wows.data)
-      localStorage.setItem("fittrack_wows", JSON.stringify(wows.data));
+      safeLocalSet("fittrack_wows", JSON.stringify(wows.data));
     if (wowRes.data && !isDirty("wowResults"))
-      localStorage.setItem("fittrack_wow_results", JSON.stringify(wowRes.data));
+      safeLocalSet("fittrack_wow_results", JSON.stringify(wowRes.data));
     if (nut.data)
-      localStorage.setItem(
+      safeLocalSet(
         "fittrack_member_nutrition",
         JSON.stringify(nut.data),
       );
     if (mhab.data && mhab.data.length > 0)
-      localStorage.setItem("fittrack_member_habits", JSON.stringify(mhab.data));
+      safeLocalSet("fittrack_member_habits", JSON.stringify(mhab.data));
     if (chk.data && chk.data.length > 0)
-      localStorage.setItem("fittrack_habit_checkins", JSON.stringify(chk.data));
+      safeLocalSet("fittrack_habit_checkins", JSON.stringify(chk.data));
     if (meas.data && meas.data.length > 0)
-      localStorage.setItem(
+      safeLocalSet(
         "fittrack_member_measurements",
         JSON.stringify(meas.data),
       );
     if (phot.data && phot.data.length > 0)
-      localStorage.setItem("fittrack_member_photos", JSON.stringify(phot.data));
+      safeLocalSet("fittrack_member_photos", JSON.stringify(phot.data));
     if (habLib.data && habLib.data.length > 0)
-      localStorage.setItem(
+      safeLocalSet(
         "fittrack_habits_library",
         JSON.stringify(habLib.data),
       );
     if (mac.data && !isDirty("macros"))
-      localStorage.setItem("fittrack_member_macros", JSON.stringify(mac.data));
+      safeLocalSet("fittrack_member_macros", JSON.stringify(mac.data));
     else if (isDirty("macros")) {
       const local = localStorage.getItem("fittrack_member_macros");
       if (local) saveMemberMacros(JSON.parse(local));
     }
     if (mlogs.data && mlogs.data.length > 0 && !isDirty("macroLogs"))
-      localStorage.setItem("fittrack_macro_logs", JSON.stringify(mlogs.data));
+      safeLocalSet("fittrack_macro_logs", JSON.stringify(mlogs.data));
     else if (isDirty("macroLogs")) {
       const local = localStorage.getItem("fittrack_macro_logs");
       if (local) {
@@ -1736,23 +1736,23 @@ export const syncFromSupabase = async () => {
     }
 
     if (eduFolders.data && eduFolders.data.length > 0)
-      localStorage.setItem(
+      safeLocalSet(
         "fittrack_education_folders",
         JSON.stringify(eduFolders.data),
       );
     if (eduVideos.data && eduVideos.data.length > 0)
-      localStorage.setItem(
+      safeLocalSet(
         "fittrack_education_videos",
         JSON.stringify(eduVideos.data),
       );
 
     if (settings) {
       const active = settings.find((s) => s.key === "active_program");
-      if (active) localStorage.setItem("fittrack_active_program", active.value);
+      if (active) safeLocalSet("fittrack_active_program", active.value);
 
       const prefDays = settings.find((s) => s.key === "preferred_days");
       if (prefDays)
-        localStorage.setItem("fittrack_preferred_days", prefDays.value);
+        safeLocalSet("fittrack_preferred_days", prefDays.value);
     }
 
     window.dispatchEvent(new Event("fittrack_synced"));
@@ -1773,7 +1773,7 @@ export const syncProfile = async () => {
       .eq("id", user.id)
       .single();
     if (profile)
-      localStorage.setItem("fittrack_profile", JSON.stringify(profile));
+      safeLocalSet("fittrack_profile", JSON.stringify(profile));
   }
 };
 
@@ -1785,7 +1785,7 @@ export const getWorkoutsOfWeek = async () => {
     .select("*")
     .order("week_start", { ascending: false });
   if (data) {
-    localStorage.setItem("fittrack_wows", JSON.stringify(data));
+    safeLocalSet("fittrack_wows", JSON.stringify(data));
     return data;
   }
   const local = localStorage.getItem("fittrack_wows");
@@ -1826,7 +1826,7 @@ export const saveWowResult = async (
   } else {
     localResults.push(result);
   }
-  localStorage.setItem("fittrack_wow_results", JSON.stringify(localResults));
+  safeLocalSet("fittrack_wow_results", JSON.stringify(localResults));
   markDirty("wowResults");
   setSyncStatus("saving");
 
@@ -2175,7 +2175,7 @@ export const getAppSettings = async () => {
     .eq("id", 1)
     .maybeSingle();
   if (data) {
-    localStorage.setItem("fittrack_app_settings", JSON.stringify(data));
+    safeLocalSet("fittrack_app_settings", JSON.stringify(data));
     return data;
   }
   return cachedData;
@@ -2190,7 +2190,7 @@ export const saveAppSettings = async (patch: Record<string, boolean>) => {
     const cur = JSON.parse(
       localStorage.getItem("fittrack_app_settings") || "{}",
     );
-    localStorage.setItem(
+    safeLocalSet(
       "fittrack_app_settings",
       JSON.stringify({ ...cur, ...patch }),
     );
@@ -2213,7 +2213,7 @@ export const getRecipes = async (meal?: string) => {
     // has a much smaller localStorage limit than Chrome) stop us returning the
     // recipes. This was why recipes loaded in Chrome but not Safari / the app.
     try {
-      localStorage.setItem("fittrack_recipes", JSON.stringify(data));
+      safeLocalSet("fittrack_recipes", JSON.stringify(data));
     } catch (e) {
       console.warn("recipes cache skipped (storage full)", e);
     }
