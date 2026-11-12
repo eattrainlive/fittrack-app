@@ -93,6 +93,7 @@ import {
   saveWowResult,
 } from "@/lib/store";
 import { getExerciseHistory } from "@/lib/exerciseHistory";
+import { safeLocalSet } from "@/lib/safeStorage";
 import { saveBlockScores } from "@/lib/blockScores";
 import { getEmbedUrl } from "@/lib/utils";
 import { toast } from "sonner";
@@ -545,7 +546,7 @@ const Workouts = () => {
         exercises.length > 1 ||
         (exercises.length === 1 && exercises[0].name);
       if (viewMode === "active" || hasActiveContent) {
-        localStorage.setItem(
+        safeLocalSet(
           "fittrack_active_workout",
           JSON.stringify({
             workoutName,

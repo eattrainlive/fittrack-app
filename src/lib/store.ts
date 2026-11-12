@@ -2,6 +2,7 @@ import * as pdfjsLib from "pdfjs-dist";
 import { getCurrentUser } from "@/lib/authUser";
 import { supabase } from "./supabase";
 import { logError } from "./errorLog";
+import { safeLocalSet } from "./safeStorage";
 import { cleanExercises } from "./exerciseSync";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -952,7 +953,7 @@ export const saveWorkoutToHistory = async (
   // dedupe: don't add if same id already exists
   if (!history.find((h: any) => h.id === newWorkout.id)) {
     history.unshift(newWorkout);
-    localStorage.setItem("fittrack_history", JSON.stringify(history));
+    safeLocalSet("fittrack_history", JSON.stringify(history));
     markDirty("history");
   }
   setSyncStatus("saving");

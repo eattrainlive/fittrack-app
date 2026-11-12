@@ -1531,3 +1531,14 @@ PUSH: trialSummary.ts, MemberActivityModal.tsx. REDEPLOY member-activity + progr
 - progress-summary + member-activity resolved the app user_id by fetching ALL members unpaginated
   (capped at 1000) → members past row 1000 never resolved, so PBs/sessions read 0. Replaced with a
   filtered ilike("email") lookup + paginated normalized fallback in both functions. REDEPLOY both.
+
+## 101 — Fix: "quota exceeded" crash when starting a workout (2026-11-12)
+- Root: localStorage full (Safari/iOS small quota) → the unwrapped fittrack_active_workout write
+  threw QuotaExceededError → AppErrorBoundary "Something went wrong".
+- safeStorage.ts (new): safeLocalSet() catches quota errors and evicts re-downloadable caches
+  (member_photos, recipes, education videos, exercises, habits library, wows, programs, scheduled
+  events — all reload from Supabase) then retries.
+- Used safeLocalSet for the active-workout write (Workouts.tsx) and the fittrack_history write
+  (store.ts). Starting/finishing a workout no longer crashes on a full quota.
+PUSH: safeStorage.ts, store.ts, Workouts.tsx. No SQL/redeploy.
+IMMEDIATE for a stuck device: clear the app's site data / reinstall the PWA to free storage now.
