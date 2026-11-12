@@ -1526,3 +1526,8 @@ PUSH: EvoltScansCard.tsx, MemberActivityModal.tsx. No SQL.
 - trialSummary.ts: ProgressSummary.currentPbs type. MemberActivityModal: normalises currentPbs +
   renders a "Current PBs" grid (weight × reps per exercise) under Strength Wins.
 PUSH: trialSummary.ts, MemberActivityModal.tsx. REDEPLOY member-activity + progress-summary.
+
+## 100b — Fix member resolution 1000-row cap (Anna's PBs 0) (2026-11-12)
+- progress-summary + member-activity resolved the app user_id by fetching ALL members unpaginated
+  (capped at 1000) → members past row 1000 never resolved, so PBs/sessions read 0. Replaced with a
+  filtered ilike("email") lookup + paginated normalized fallback in both functions. REDEPLOY both.

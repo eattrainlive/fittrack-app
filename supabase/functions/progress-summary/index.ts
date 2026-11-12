@@ -103,9 +103,19 @@ async function computeSummary(db: any, p: { userId: string | null; email: string
   // id, every by-user_id section below (workouts, habits, goals, PBs, photos, nutrition) reads 0.
   if (email) {
     try {
-      const { data: mem } = await db.from("members").select("id, email");
       const target = normEmail(email);
-      const hit = (mem ?? []).find((m: any) => normEmail(m.email) === target)?.id ?? null;
+      // 1) Direct filtered lookup — works no matter how many members exist.
+      const { data: direct } = await db.from("members").select("id, email").ilike("email", email).limit(10);
+      let hit = (direct ?? []).find((m: any) => normEmail(m.email) === target)?.id ?? null;
+      // 2) Paginated normalized scan — catches +alias / gmail-dot differences.
+      if (!hit) {
+        for (let from = 0; from < 50000; from += 1000) {
+          const { data } = await db.from("members").select("id, email").range(from, from + 999);
+          if (!data || !data.length) break;
+          hit = data.find((m: any) => normEmail(m.email) === target)?.id ?? null;
+          if (hit || data.length < 1000) break;
+        }
+      }
       if (hit) userId = hit;   // override any incorrect id passed by the caller
     } catch (_) { /* keep whatever userId we had */ }
   }

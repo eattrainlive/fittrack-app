@@ -87,8 +87,17 @@ serve(async (req) => {
     // by-user_id workout count reads 0 even when they've logged sessions.
     let appUserId = userId;
     if (email) {
-      const { data: mem } = await db.from("members").select("id, email");
-      const hit = (mem ?? []).find((m: any) => normEmail(m.email) === normEmail(email))?.id ?? null;
+      const target = normEmail(email);
+      const { data: direct } = await db.from("members").select("id, email").ilike("email", email).limit(10);
+      let hit = (direct ?? []).find((m: any) => normEmail(m.email) === target)?.id ?? null;
+      if (!hit) {
+        for (let from = 0; from < 50000; from += 1000) {
+          const { data } = await db.from("members").select("id, email").range(from, from + 999);
+          if (!data || !data.length) break;
+          hit = data.find((m: any) => normEmail(m.email) === target)?.id ?? null;
+          if (hit || data.length < 1000) break;
+        }
+      }
       if (hit) appUserId = String(hit);
     }
 
