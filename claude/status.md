@@ -1542,3 +1542,12 @@ PUSH: trialSummary.ts, MemberActivityModal.tsx. REDEPLOY member-activity + progr
   (store.ts). Starting/finishing a workout no longer crashes on a full quota.
 PUSH: safeStorage.ts, store.ts, Workouts.tsx. No SQL/redeploy.
 IMMEDIATE for a stuck device: clear the app's site data / reinstall the PWA to free storage now.
+
+## 102 — Erg challenge: communal (class) metres, off leaderboard (2026-11-12)
+- erg_communal_metres.sql (new, RUN): member_id nullable; source check widened to include 'class';
+  both leaderboard RPCs (public + staff) now exclude null-member rows; summary (total) unchanged so
+  communal metres still count toward the gym total.
+- ergChallenge.ts: logErgMetresCommunal(machine, metres) inserts member_id:null, source:'class'.
+- ErgChallengePage.tsx: new staff card "Add class metres (no name)" (uses the selected machine) →
+  adds to the gym total only, not to any member or the leaderboard.
+PUSH: ergChallenge.ts, ErgChallengePage.tsx. RUN erg_communal_metres.sql.

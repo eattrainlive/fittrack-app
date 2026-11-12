@@ -22,6 +22,7 @@ import {
   getMyErgLogs,
   deleteErgLog,
   logErgMetresForMember,
+  logErgMetresCommunal,
   getErgLeaderboard,
   getErgLeaderboardPublic,
   buildErgBoards,
@@ -70,6 +71,8 @@ export default function ErgChallengePage() {
   const [machine, setMachine] = useState<ErgMachine>("bike");
   const [metres, setMetres] = useState("");
   const [staffSaving, setStaffSaving] = useState(false);
+  const [classMetres, setClassMetres] = useState("");
+  const [classSaving, setClassSaving] = useState(false);
 
   const staff = isStaff();
 
@@ -168,6 +171,28 @@ export default function ErgChallengePage() {
       `Added ${n.toLocaleString()} m for ${mem?.full_name || mem?.email || "member"}`,
     );
     setMetres("");
+    load();
+  };
+
+  const submitClassLog = async () => {
+    const n = Math.floor(Number(classMetres));
+    if (!classMetres || Number.isNaN(n) || n <= 0) {
+      toast.error("Enter a whole number of metres (1+).");
+      return;
+    }
+    if (n > MAX) {
+      toast.error(`Max ${MAX.toLocaleString()} m per entry.`);
+      return;
+    }
+    setClassSaving(true);
+    const { error } = await logErgMetresCommunal(machine, n);
+    setClassSaving(false);
+    if (error) {
+      toast.error("Couldn't save — try again.");
+      return;
+    }
+    toast.success(`Added ${n.toLocaleString()} m to the gym total (class)`);
+    setClassMetres("");
     load();
   };
 
@@ -528,6 +553,43 @@ export default function ErgChallengePage() {
                 disabled={staffSaving}
               >
                 {staffSaving ? "Saving…" : "Add metres"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-border">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-heading tracking-wide">
+                Add class metres (no name)
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Counts toward the gym total but isn't added to anyone's name or the leaderboard —
+                for classes where people don't log individually. Uses the machine selected above.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Metres ({ERG_MACHINES.find((m) => m.key === machine)?.label})
+                </label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={MAX}
+                  placeholder="e.g. 20000 (whole class total)"
+                  value={classMetres}
+                  onChange={(e) => setClassMetres(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </div>
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={submitClassLog}
+                disabled={classSaving}
+              >
+                {classSaving ? "Saving…" : "Add to gym total"}
               </Button>
             </CardContent>
           </Card>

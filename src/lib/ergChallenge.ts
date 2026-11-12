@@ -52,6 +52,14 @@ export const logErgMetres = async (machine: ErgMachine, metres: number) => {
   return await supabase.from("erg_challenge_logs").insert({ machine, metres });
 };
 
+// Staff: add COMMUNAL metres (no member) — counts toward the gym total but
+// never appears on an individual leaderboard. For classes where people don't log.
+export const logErgMetresCommunal = async (machine: ErgMachine, metres: number) => {
+  return await supabase
+    .from("erg_challenge_logs")
+    .insert({ member_id: null, machine, metres, source: "class" });
+};
+
 // Staff: log metres on behalf of a member (member_id set to that member).
 export const logErgMetresForMember = async (
   memberId: string,
