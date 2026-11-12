@@ -1491,3 +1491,9 @@ PUSH: staffPlanner.ts, StaffPlanner.tsx. RUN staff_reminders_campaign.sql.
   email support.usa@evolt360.com to ask about API/partner data access.
 PUSH: evoltScans.ts, EvoltScansCard.tsx, LinkedEmailsCard.tsx, MemberActivityModal.tsx, Progress.tsx.
 RUN: evolt_scans_schema.sql, then evolt_import_sample.sql (imports this file).
+
+## 98b — Fix: Evolt "my scans" over-returned for staff (2026-11-12)
+- getMyScans now resolves the signed-in user's email + linked emails and filters .in("email", list)
+  instead of relying on RLS. Staff can read all scans (staff policy) so the member self-view must
+  filter explicitly; previously a staff account saw the whole gym on their own Progress tab. Members
+  (non-staff) were never affected. PUSH src/lib/evoltScans.ts.

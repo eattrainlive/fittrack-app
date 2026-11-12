@@ -1,5 +1,6 @@
 // Evolt body-scan history + member alternate-email matching.
 import { supabase } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/authUser";
 
 export interface EvoltScan {
   id: string;
@@ -24,13 +25,33 @@ export interface EvoltScan {
   raw: any;
 }
 
-/** The signed-in member's own scans, oldest-first (RLS returns only theirs). */
+/**
+ * The signed-in person's OWN scans, oldest-first. Filters explicitly to their
+ * login email + any linked emails — we can't rely on RLS alone here because a
+ * staff account can read everyone's scans (for coaching tools), which would
+ * otherwise show the whole gym on their personal Progress tab.
+ */
 export async function getMyScans(): Promise<EvoltScan[]> {
+  const {
+    data: { user },
+  } = await getCurrentUser();
+  if (!user) return [];
+  const emails = new Set<string>();
+  if (user.email) emails.add(String(user.email).toLowerCase().trim());
+  try {
+    const linked = await listMemberEmails(user.id);
+    for (const m of linked) emails.add(m.email.toLowerCase().trim());
+  } catch {
+    /* ignore — login email alone is fine */
+  }
+  const list = [...emails].filter(Boolean);
+  if (!list.length) return [];
   const { data, error } = await supabase
     .from("evolt_scans")
     .select(
       "id, scan_at, email, first_name, last_name, weight, body_fat_pct, bmi, bio_age, lbm, smm, smm_rating, protein, tbw, body_fat, subcutaneous_fat, visceral_fat, visceral_fat_area, whr, raw",
     )
+    .in("email", list)
     .order("scan_at", { ascending: true });
   if (error) throw error;
   return (data ?? []) as EvoltScan[];
