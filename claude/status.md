@@ -1572,3 +1572,15 @@ library cleanly on next sync.
   abort the multi-key fittrack_synced chain (which would leave later caches — history, prs, bodyweight,
   macros, etc. — stale/empty). userCache.ts active_program write wrapped too.
 PUSH: safeStorage.ts, store.ts, userCache.ts.
+
+## 103 — Contact hub: unify trial nurture + retention + waiting + lookup (2026-11-12)
+- ContactHub.tsx (new): one "Contact" tab with segmented sections — Trials (StaffHubTab = trial
+  nurture/call lists), Members (RetentionCockpit), Waiting for reply (combined trials+members via
+  getNurtureBoard.waiting + getRetentionBoard awaitingReply), Find a member (roster search →
+  MemberActivityModal).
+- Admin.tsx: new "Contact" tab (2nd, after Today) + mounted ContactHub.
+- StaffTodayFeed.tsx: trial/retention/waiting action cards now deep-link to the Contact tab (was
+  calllists/members).
+- MembersGrid.tsx: removed the duplicate RetentionCockpit mount (now lives in Contact); Members tab
+  keeps roster + the attendance MemberEngagementBoard.
+PUSH: ContactHub.tsx, Admin.tsx, StaffTodayFeed.tsx, MembersGrid.tsx. No SQL/redeploy.

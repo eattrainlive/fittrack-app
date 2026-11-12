@@ -224,8 +224,8 @@ export function StaffTodayFeed({
             title: "Trialists due a message",
             count: trial.dueNow.length,
             names: firstNames(trial.dueNow),
-            cta: "Open trial nurture",
-            tab: "calllists",
+            cta: "Open contact hub",
+            tab: "contact",
             tone: "urgent",
             priority: 10,
           });
@@ -249,8 +249,8 @@ export function StaffTodayFeed({
           title: TOUCHES[k].label + " · members",
           count: grp.length,
           names: firstNames(grp),
-          cta: "Open retention board",
-          tab: "members",
+          cta: "Open contact hub",
+          tab: "contact",
           tone: retentionTone[k],
           priority: retentionPriority[k],
         });
@@ -305,7 +305,7 @@ export function StaffTodayFeed({
             </span>
             {waitingCount > 0 && (
               <button
-                onClick={() => onGoto("members")}
+                onClick={() => onGoto("contact")}
                 className="rounded-full bg-muted px-3 py-1 font-medium text-muted-foreground inline-flex items-center gap-1"
               >
                 <MessageSquare className="h-3.5 w-3.5" /> {waitingCount} waiting for a reply

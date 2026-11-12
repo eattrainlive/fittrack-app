@@ -23,7 +23,6 @@ import SyncPaxtonCard from "@/components/SyncPaxtonCard";
 import { NeedsLinkingCard } from "@/components/NeedsLinkingCard";
 import { MemberActivityModal } from "@/components/MemberActivityModal";
 import { MemberEngagementBoard } from "@/components/MemberEngagementBoard";
-import { RetentionCockpit } from "@/components/RetentionCockpit";
 import { CheckInReport } from "@/components/CheckInReport";
 import { MemberCard } from "@/components/MemberCard";
 import {
@@ -409,14 +408,7 @@ export function MembersGrid({
           bulkInviting={bulkInviting}
         />
       )}
-      {showEngagement && (
-        <div className="mb-4 rounded-xl border border-border bg-card p-3">
-          <p className="font-heading uppercase tracking-wide text-sm mb-2">
-            Retention nudges
-          </p>
-          <RetentionCockpit staffSecret={staffSecret} />
-        </div>
-      )}
+      {/* Retention nudges moved to the Contact tab (one place for outreach). */}
       {showEngagement && (
         <MemberEngagementBoard
           staffSecret={staffSecret}
