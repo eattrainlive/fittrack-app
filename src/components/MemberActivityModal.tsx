@@ -28,6 +28,7 @@ import { ActivityWinsGrid } from "@/components/ActivityWinsGrid";
 import { CoachPastWorkouts } from "@/components/CoachPastWorkouts";
 import { CoachNutritionLog } from "@/components/CoachNutritionLog";
 import { CoachSetPassword } from "@/components/CoachSetPassword";
+import { LinkedEmailsCard } from "@/components/LinkedEmailsCard";
 import { CoachMacroTargets } from "@/components/CoachMacroTargets";
 import { MemberMessagesSection } from "@/components/MemberMessagesSection";
 import { getHabitAdherence, type HabitAdherence } from "@/lib/habitAdherence";
@@ -745,6 +746,9 @@ export function MemberActivityModal({
                   authId={authId}
                   email={member.email}
                 />
+              </div>
+              <div className="space-y-2">
+                <LinkedEmailsCard userId={authId} />
               </div>
               <div className="space-y-2">
                 <CoachMacroTargets memberUserId={authId} />

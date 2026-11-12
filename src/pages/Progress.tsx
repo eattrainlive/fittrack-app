@@ -40,6 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { PastWorkouts } from "@/components/PastWorkouts";
 import { MemberProgressHub } from "@/components/MemberProgressHub";
+import { EvoltScansCard } from "@/components/EvoltScansCard";
 import { logFeatureView } from "@/lib/featureTracking";
 
 const Progress = () => {
@@ -201,10 +202,15 @@ const Progress = () => {
           <TabsTrigger value="charts">Charts & Bodyweight</TabsTrigger>
           <TabsTrigger value="prs">Personal Records</TabsTrigger>
           <TabsTrigger value="history">Past Workouts</TabsTrigger>
+          <TabsTrigger value="evolt">Evolt Scans</TabsTrigger>
         </TabsList>
 
         <TabsContent value="hub" className="space-y-4">
           <MemberProgressHub />
+        </TabsContent>
+
+        <TabsContent value="evolt" className="space-y-4">
+          <EvoltScansCard />
         </TabsContent>
 
         <TabsContent value="charts" className="space-y-4">

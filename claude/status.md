@@ -1472,3 +1472,22 @@ PUSH: staffPlanner.ts, StaffPlanner.tsx. RUN staff_events_campaigns.sql.
   the campaign start date. Tasks are normal reminders → flow into My jobs, the calendar and the team
   agenda, assigned to a coach. Removed unused addChildTo state.
 PUSH: staffPlanner.ts, StaffPlanner.tsx. RUN staff_reminders_campaign.sql.
+
+## 98 — Evolt body-scan import + Progress section + linked emails (2026-11-12)
+- evolt_scans_schema.sql (new, RUN): evolt_scans (scan id PK, email citext, ~30 metrics + raw jsonb;
+  staff RLS + member read-own by auth email OR linked emails) + member_emails (staff-managed
+  alternate emails, member read-own; unique email).
+- evolt_import.py (new, reusable) + evolt_import_sample.sql: converts an Evolt Result-Activity export
+  (xlsx/csv) → upsert SQL keyed by scan id (re-import safe). Ran on the uploaded 6-week file → 247
+  scans, dates parsed day-first (01/10→2026-10-01), emails normalised. Same script does the full
+  2020→now dump.
+- evoltScans.ts: getMyScans (member RLS), getScansForEmails (staff), member_emails CRUD.
+- EvoltScansCard.tsx: member Progress "Evolt Scans" tab — latest readings + deltas + recharts trend
+  lines (weight, body fat %, SMM, visceral fat) + link to Evolt app. Mounted as a Progress tab.
+- LinkedEmailsCard.tsx: staff add/remove a member's alternate emails; mounted in MemberActivityModal
+  (valid-auth-id block). Staff-only writes (RLS) so nobody can claim another's email to see data.
+- Evolt API: searched — no public/self-serve API; access is via partner integrations (EGYM/Technogym)
+  set up by their sales/support; one (Myzone) discontinued 2025-09. So sync is import-based for now;
+  email support.usa@evolt360.com to ask about API/partner data access.
+PUSH: evoltScans.ts, EvoltScansCard.tsx, LinkedEmailsCard.tsx, MemberActivityModal.tsx, Progress.tsx.
+RUN: evolt_scans_schema.sql, then evolt_import_sample.sql (imports this file).
