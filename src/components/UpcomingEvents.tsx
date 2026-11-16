@@ -5,6 +5,7 @@ import {
   MapPin,
   Plus,
   Pencil,
+  Link2,
   Trash2,
   ExternalLink,
   X,
@@ -103,6 +104,23 @@ export default function UpcomingEvents() {
   const [myId, setMyId] = useState<string | null>(null);
   const [rsvpBusy, setRsvpBusy] = useState<string | null>(null);
   const [namesFor, setNamesFor] = useState<string | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Deep link: /community?event=<id> scrolls to + highlights that event so an
+  // email "RSVP now" link lands members straight on it.
+  useEffect(() => {
+    if (!events.length) return;
+    const target = new URLSearchParams(window.location.search).get("event");
+    if (target && events.some((e) => e.id === target)) {
+      setHighlightId(target);
+      requestAnimationFrame(() =>
+        cardRefs.current[target]?.scrollIntoView({ behavior: "smooth", block: "center" }),
+      );
+      const t = setTimeout(() => setHighlightId(null), 2800);
+      return () => clearTimeout(t);
+    }
+  }, [events]);
   const [names, setNames] = useState<RsvpName[]>([]);
   const [namesLoading, setNamesLoading] = useState(false);
 
@@ -214,7 +232,12 @@ export default function UpcomingEvents() {
           {events.map((ev) => (
             <div
               key={ev.id}
-              className="bg-card border border-border rounded-2xl overflow-hidden"
+              ref={(el) => {
+                cardRefs.current[ev.id] = el;
+              }}
+              className={`bg-card border rounded-2xl overflow-hidden transition ${
+                highlightId === ev.id ? "border-primary ring-2 ring-primary" : "border-border"
+              }`}
             >
               {ev.image_url && (
                 <img
@@ -231,6 +254,19 @@ export default function UpcomingEvents() {
                   </h3>
                   {staff && (
                     <div className="flex gap-1 shrink-0">
+                      <button
+                        onClick={() => {
+                          const url = `${window.location.origin}/community?event=${ev.id}`;
+                          navigator.clipboard?.writeText(url).then(
+                            () => toast.success("RSVP link copied — paste it in your email"),
+                            () => toast.error("Couldn't copy"),
+                          );
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
+                        aria-label="Copy RSVP link"
+                      >
+                        <Link2 className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => openEdit(ev)}
                         className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"

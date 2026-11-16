@@ -1584,3 +1584,9 @@ PUSH: safeStorage.ts, store.ts, userCache.ts.
 - MembersGrid.tsx: removed the duplicate RetentionCockpit mount (now lives in Contact); Members tab
   keeps roster + the attendance MemberEngagementBoard.
 PUSH: ContactHub.tsx, Admin.tsx, StaffTodayFeed.tsx, MembersGrid.tsx. No SQL/redeploy.
+
+## 104 — Event RSVP deep link for emails (2026-11-16)
+- UpcomingEvents.tsx: /community?event=<id> scrolls to + highlights that event (ring) so an email
+  link lands members straight on its RSVP buttons. Added a staff "copy RSVP link" button (Link2) on
+  each event card → copies ${origin}/community?event=<id> to paste into an email.
+PUSH: UpcomingEvents.tsx. No SQL/redeploy.
