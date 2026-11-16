@@ -29,6 +29,7 @@ import {
   listReminders,
   createReminder,
   completeReminder,
+  toggleOccurrenceDone,
   reopenReminder,
   deleteReminder,
   REPEAT_LABEL,
@@ -940,27 +941,35 @@ function DayPanel({
                 {it.kind === "reminder" ? (
                   <button
                     className="shrink-0"
-                    title={it.reminder?.done ? "Done" : "Mark done"}
+                    title={it.done ? "Done — tap to undo" : "Mark done"}
                     onClick={async () => {
-                      await completeReminder(it.reminder!, staffName() || "Staff");
+                      const res = await toggleOccurrenceDone(it.reminder!, it.date, staffName() || "Staff");
+                      if (!res.ok) {
+                        toast.error(res.error || "Couldn't update — did the completions SQL run?");
+                        return;
+                      }
                       onChanged();
                     }}
                   >
                     <CheckCircle2
-                      className={`h-4 w-4 ${it.reminder?.done ? "text-emerald-500" : "text-muted-foreground hover:text-emerald-500"}`}
+                      className={`h-4 w-4 ${it.done ? "text-emerald-500" : "text-muted-foreground hover:text-emerald-500"}`}
                     />
                   </button>
                 ) : it.kind === "post" ? (
                   <button
                     className="shrink-0"
-                    title={it.post?.posted ? "Posted" : "Mark posted"}
+                    title={it.done ? "Posted" : "Mark posted"}
                     onClick={async () => {
-                      await markPosted(it.post!.id, staffName() || "Staff");
+                      const res = await markPosted(it.post!.id, staffName() || "Staff");
+                      if (res && !res.ok) {
+                        toast.error(res.error || "Couldn't update");
+                        return;
+                      }
                       onChanged();
                     }}
                   >
                     <CheckCircle2
-                      className={`h-4 w-4 ${it.post?.posted ? "text-emerald-500" : "text-muted-foreground hover:text-emerald-500"}`}
+                      className={`h-4 w-4 ${it.done ? "text-emerald-500" : "text-muted-foreground hover:text-emerald-500"}`}
                     />
                   </button>
                 ) : (
@@ -985,14 +994,14 @@ function DayPanel({
                 </span>
                 {it.kind === "reminder" ? (
                   <button
-                    className={`truncate text-left hover:underline flex-1 ${it.reminder?.done ? "line-through text-muted-foreground" : ""}`}
+                    className={`truncate text-left hover:underline flex-1 ${it.done ? "line-through text-muted-foreground" : ""}`}
                     onClick={() => setEditing(it.key)}
                   >
                     {it.title}
                     {it.reminder?.assigned_to ? <span className="text-muted-foreground"> · {it.reminder.assigned_to}</span> : ""}
                   </button>
                 ) : (
-                  <span className={`truncate ${it.kind === "post" && it.post?.posted ? "line-through text-muted-foreground" : ""}`}>
+                  <span className={`truncate ${it.done ? "line-through text-muted-foreground" : ""}`}>
                     {it.title}
                   </span>
                 )}

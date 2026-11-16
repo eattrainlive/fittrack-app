@@ -1607,3 +1607,16 @@ PUSH: ErgMetrePad.tsx, TVDisplay.tsx. (Needs erg_communal_metres.sql already run
   - Events get no checkbox (spacer keeps alignment).
 - Reminder title still clickable to open the edit/assign occurrence form.
 - No SQL, no redeploy. Push: src/components/StaffPlanner.tsx
+
+## #106b — Tick-off fix: per-occurrence completion
+- Problem: ticking a recurring day-panel item rolled the whole series forward
+  (completeReminder) so it vanished off that day instead of showing as done —
+  looked like "nothing happens, page jumps up".
+- Added staff_reminders.completions date[] (new SQL: staff_reminders_completions.sql).
+- toggleOccurrenceDone(reminder, date): one-offs flip `done`; recurring add/remove
+  the exact date in completions — tick stays on that day, other occurrences untouched,
+  and tapping again un-ticks.
+- buildCalendar now sets CalItem.done per occurrence (one-off done / date in completions / post posted).
+- DayPanel tick uses it.done + toggleOccurrenceDone(it.date); green tick + strike-through when done.
+- RUN: supabase/sql/staff_reminders_completions.sql
+- Push: src/lib/staffPlanner.ts, src/components/StaffPlanner.tsx

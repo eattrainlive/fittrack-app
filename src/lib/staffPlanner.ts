@@ -43,6 +43,7 @@ export interface Reminder {
   created_by: string | null;
   created_at: string;
   exceptions: string[] | null; // recurring: dates (YYYY-MM-DD) to skip
+  completions: string[] | null; // recurring: dates ticked done (per-occurrence)
   campaign_id: string | null; // parent campaign (staff_events.id), if any
 }
 
@@ -124,6 +125,33 @@ export async function completeReminder(
           due_date: nextDue(r.due_date < todayStr() ? todayStr() : r.due_date, r.repeat),
         };
   const { error } = await supabase.from("staff_reminders").update(patch).eq("id", r.id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/**
+ * Tick (or untick) ONE occurrence on a specific date without rolling the series.
+ * One-off reminders use the plain `done` flag; recurring ones record the date in
+ * `completions` so the tick stays put on that day and others are unaffected.
+ */
+export async function toggleOccurrenceDone(
+  r: Reminder,
+  date: string,
+  by?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (r.repeat === "none") {
+    const patch = r.done
+      ? { done: false, done_at: null, done_by: null }
+      : { done: true, done_at: new Date().toISOString(), done_by: by || null };
+    const { error } = await supabase.from("staff_reminders").update(patch).eq("id", r.id);
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }
+  const cur = new Set(r.completions ?? []);
+  if (cur.has(date)) cur.delete(date);
+  else cur.add(date);
+  const { error } = await supabase
+    .from("staff_reminders")
+    .update({ completions: Array.from(cur).sort() })
+    .eq("id", r.id);
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
@@ -254,6 +282,7 @@ export interface CalItem {
   title: string;
   recurring: boolean;
   live: boolean; // the actionable stored instance (vs a projected recurrence)
+  done?: boolean; // this specific occurrence/post is ticked complete
   reminder?: Reminder;
   post?: ContentPost;
   event?: StaffEvent;
@@ -289,6 +318,7 @@ export function buildCalendar(
         title: r.title,
         recurring: false,
         live: true,
+        done: r.done,
         reminder: r,
       });
       continue;
@@ -296,6 +326,7 @@ export function buildCalendar(
     // Recurring: project from the stored due_date backward + forward across range.
     const anchor = r.due_date;
     const skip = new Set(r.exceptions ?? []);
+    const doneSet = new Set(r.completions ?? []);
     // forward (and the anchor itself)
     let cur = anchor;
     for (let i = 0; i < 400 && cur <= endStr; i++) {
@@ -307,6 +338,7 @@ export function buildCalendar(
           title: r.title,
           recurring: true,
           live: cur === anchor,
+          done: doneSet.has(cur),
           reminder: r,
         });
       cur = stepDate(cur, r.repeat, 1);
@@ -322,6 +354,7 @@ export function buildCalendar(
           title: r.title,
           recurring: true,
           live: false,
+          done: doneSet.has(cur),
           reminder: r,
         });
       cur = stepDate(cur, r.repeat, -1);
@@ -336,6 +369,7 @@ export function buildCalendar(
       title: p.caption.slice(0, 40),
       recurring: false,
       live: p.status !== "posted",
+      done: p.status === "posted",
       post: p,
     });
   }
