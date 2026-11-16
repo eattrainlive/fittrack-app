@@ -13,7 +13,10 @@ import {
   Mail,
   MailCheck,
   Loader2,
+  UserX,
+  UserCheck,
 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { isTrialEligible } from "@/lib/trialSummary";
 import { CoachTrialReviewModal } from "@/components/CoachTrialReviewModal";
@@ -58,10 +61,25 @@ const trialWindow = (joinedOn?: string | null) => {
 };
 
 interface GymRosterRow {
+  id?: string | null;
   product?: string | null;
   joined_on?: string | null;
   status?: string | null;
   full_name?: string | null;
+  manual_inactive_at?: string | null;
+  ended_on?: string | null;
+}
+
+// Effective membership bucket: manual "left" flag wins over Quoox status; cancelled is
+// inactive too. Unknown/pending/missing → "other" (shown, never silently hidden).
+type MembershipState = "active" | "paused" | "inactive" | "other";
+function effectiveMembershipState(gr?: GymRosterRow | null): MembershipState {
+  if (gr?.manual_inactive_at) return "inactive";
+  const s = String(gr?.status ?? "").toLowerCase();
+  if (s === "active") return "active";
+  if (s === "paused") return "paused";
+  if (s === "cancelled") return "inactive";
+  return "other";
 }
 
 interface MembersGridProps {
@@ -107,6 +125,9 @@ export function MembersGrid({
   const [pipelineMode, setPipelineMode] = useState(false);
   const [query, setQuery] = useState("");
   const [membershipFilter, setMembershipFilter] = useState("all");
+  // Default view hides the Inactive bucket (left/cancelled) but keeps them in the DB.
+  const [stateFilter, setStateFilter] = useState<"live" | "inactive" | "all">("live");
+  const [stateBusy, setStateBusy] = useState<string | null>(null);
   const [appStatusFilter, setAppStatusFilter] =
     useState<AppStatusFilter>("all");
   const [staffOnly, setStaffOnly] = useState(false);
@@ -116,7 +137,7 @@ export function MembersGrid({
     try {
       const { data } = await supabase
         .from("gym_members")
-        .select("email,product,joined_on,status,full_name");
+        .select("id,email,product,joined_on,status,full_name,manual_inactive_at,ended_on");
       if (!data) return;
       const map: Record<string, GymRosterRow> = {};
       for (const r of data) {
@@ -188,6 +209,42 @@ export function MembersGrid({
       .toLowerCase()
       .trim();
 
+  const stateFor = (email?: string | null): MembershipState =>
+    effectiveMembershipState(rosterMap[emailKey(email)]);
+
+  const setMemberInactive = async (member: any, inactive: boolean) => {
+    const gr = rosterMap[emailKey(member.email)];
+    const ref = gr?.id || (typeof member.id === "string" && !member.id.startsWith("app:") ? member.id : null);
+    if (!ref) {
+      toast.error("No roster record to update for this person.");
+      return;
+    }
+    setStateBusy(String(member.id));
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-members", {
+        body: {
+          action: inactive ? "markInactive" : "reactivate",
+          memberRef: ref,
+          by: localStorage.getItem("fittrack_staff_name") || "Staff",
+          staffSecret,
+        },
+      });
+      if (error || data?.error) throw new Error(error?.message || data?.error);
+      // Reflect locally without a full refetch.
+      setRosterMap((prev) => {
+        const key = emailKey(member.email);
+        const row = prev[key];
+        if (!row) return prev;
+        return { ...prev, [key]: { ...row, manual_inactive_at: inactive ? new Date().toISOString() : null } };
+      });
+      toast.success(inactive ? "Moved to Inactive — access ends after 7 days" : "Reactivated");
+    } catch (e: any) {
+      toast.error(e.message || "Couldn't update — did the manual-inactive SQL run?");
+    } finally {
+      setStateBusy(null);
+    }
+  };
+
   const reviewInfoFor = (email?: string | null) => reviewMap[emailKey(email)];
 
   const isReviewBooked = (email?: string | null) => {
@@ -241,8 +298,18 @@ export function MembersGrid({
       if (appStatusFilter === "notInvited" && !member.notInvited) return false;
     }
     if (staffOnly && !member.is_staff) return false;
+    // Membership-state bucket. "live" (default) hides the Inactive bucket but a search
+    // query overrides it so you can always find someone to reactivate.
+    const est = stateFor(member.email);
+    if (stateFilter === "inactive" && est !== "inactive") return false;
+    if (stateFilter === "live" && est === "inactive" && !q) return false;
     return true;
   });
+
+  const inactiveCount = useMemo(
+    () => membersState.filter((m) => stateFor(m.email) === "inactive").length,
+    [membersState, rosterMap],
+  );
 
   const presentBuckets = useMemo(() => {
     const set = new Set<string>();
@@ -408,6 +475,31 @@ export function MembersGrid({
           bulkInviting={bulkInviting}
         />
       )}
+
+      {/* Membership state buckets — keeps lapsed members in the DB but out of the way. */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {([
+          ["live", "Active"],
+          ["inactive", `Inactive${inactiveCount ? ` (${inactiveCount})` : ""}`],
+          ["all", "All"],
+        ] as const).map(([val, label]) => (
+          <button
+            key={val}
+            onClick={() => setStateFilter(val)}
+            className={`rounded-full px-3 py-1 text-xs font-medium border transition ${
+              stateFilter === val
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-muted/40 text-muted-foreground border-border hover:bg-muted"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+        <span className="text-[11px] text-muted-foreground ml-1">
+          Inactive = no active membership. Still in the database — reactivate any time.
+        </span>
+      </div>
+
       {/* Retention nudges moved to the Contact tab (one place for outreach). */}
       {showEngagement && (
         <MemberEngagementBoard
@@ -462,24 +554,60 @@ export function MembersGrid({
               !!rb && (rb.status === "booked" || rb.status === "completed");
             const showNeedsBooking =
               !reviewBooked && inReviewWindow(gr?.joined_on);
+            const est = stateFor(member.email);
+            const hasRoster = !!gr || (typeof member.id === "string" && !member.id.startsWith("app:"));
+            const busy = stateBusy === String(member.id);
             return (
-              <MemberCard
+              <div
                 key={member.id}
-                member={member}
-                rosterProduct={gr?.product}
-                rosterJoinedOn={gr?.joined_on}
-                isTrialist={isTrialist}
-                reviewBooked={reviewBooked}
-                showNeedsBooking={showNeedsBooking}
-                reviewAppointmentAt={rb?.appointment_at}
-                onSetAccess={onSetAccess}
-                onSetStaff={onSetStaff}
-                onSetOnlineClient={onSetOnlineClient}
-                onInviteMember={onInviteMember}
-                onOpenTrialReview={openTrialReview}
-                onViewActivity={handleViewActivity}
-                onClearAccessOverride={handleClearOverride}
-              />
+                className={est === "inactive" ? "rounded-xl ring-1 ring-amber-400/50" : undefined}
+              >
+                <MemberCard
+                  member={member}
+                  rosterProduct={gr?.product}
+                  rosterJoinedOn={gr?.joined_on}
+                  isTrialist={isTrialist}
+                  reviewBooked={reviewBooked}
+                  showNeedsBooking={showNeedsBooking}
+                  reviewAppointmentAt={rb?.appointment_at}
+                  onSetAccess={onSetAccess}
+                  onSetStaff={onSetStaff}
+                  onSetOnlineClient={onSetOnlineClient}
+                  onInviteMember={onInviteMember}
+                  onOpenTrialReview={openTrialReview}
+                  onViewActivity={handleViewActivity}
+                  onClearAccessOverride={handleClearOverride}
+                />
+                {hasRoster && (
+                  <div className="mt-1 flex items-center justify-between px-1">
+                    {est === "inactive" ? (
+                      <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                        Inactive — no active membership
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground capitalize">{est}</span>
+                    )}
+                    <button
+                      disabled={busy}
+                      onClick={() => setMemberInactive(member, est !== "inactive")}
+                      className={`inline-flex items-center gap-1 text-[11px] font-medium disabled:opacity-50 ${
+                        est === "inactive"
+                          ? "text-emerald-600 hover:underline dark:text-emerald-400"
+                          : "text-muted-foreground hover:text-amber-600 hover:underline"
+                      }`}
+                    >
+                      {busy ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : est === "inactive" ? (
+                        <UserCheck className="h-3 w-3" />
+                      ) : (
+                        <UserX className="h-3 w-3" />
+                      )}
+                      {est === "inactive" ? "Reactivate" : "Mark as left"}
+                    </button>
+                  </div>
+                )}
+              </div>
             );
           })}
           {visibleMembers.length === 0 && (

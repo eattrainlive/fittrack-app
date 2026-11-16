@@ -1952,11 +1952,26 @@ export const getMembershipAccess = async (): Promise<{
   const email = user.email.toLowerCase();
   const { data: rows, error } = await supabase
     .from("gym_members")
-    .select("status, ended_on")
+    .select("status, ended_on, manual_inactive_at")
     .ilike("email", email);
 
   if (error) return { allowed: true, reason: "lookup-error" }; // fail-open on error
   if (!rows || rows.length === 0) return { allowed: true, reason: "unmatched" }; // not synced yet → allow
+
+  const GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+
+  // Manual "has left" flag wins over Quoox status (Quoox may be stale / still 'active').
+  // If a coach has marked them inactive by hand, access runs on a 7-day grace from that
+  // moment and then cuts — regardless of what the roster status says.
+  const manualInactive = rows.reduce((max: number, r: any) => {
+    const t = r.manual_inactive_at ? new Date(r.manual_inactive_at).getTime() : 0;
+    return t > max ? t : max;
+  }, 0);
+  if (manualInactive) {
+    return Date.now() - manualInactive < GRACE_MS
+      ? { allowed: true, reason: "grace" }
+      : { allowed: false, reason: "left" };
+  }
 
   // Active or paused anywhere = allowed
   if (rows.some((r: any) => r.status === "active"))
@@ -1969,7 +1984,6 @@ export const getMembershipAccess = async (): Promise<{
     const t = r.ended_on ? new Date(r.ended_on).getTime() : 0;
     return t > max ? t : max;
   }, 0);
-  const GRACE_MS = 7 * 24 * 60 * 60 * 1000;
   if (latestEnd && Date.now() - latestEnd < GRACE_MS)
     return { allowed: true, reason: "grace" };
 

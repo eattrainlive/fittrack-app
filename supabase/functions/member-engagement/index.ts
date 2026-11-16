@@ -99,7 +99,7 @@ serve(async (req) => {
 
     // ── Fetch everything once ────────────────────────────────────────────────
     const [rosterRes, appRes, linksRes] = await Promise.all([
-      db.from("gym_members").select("id, email, full_name, product, status, joined_on"),
+      db.from("gym_members").select("id, email, full_name, product, status, joined_on, manual_inactive_at"),
       db.from("members").select("id, email, full_name, online_client"),
       db.from("member_links").select("user_id, member_id").then((r) => r).catch(() => ({ data: [] } as any)),
     ]);
@@ -185,7 +185,12 @@ serve(async (req) => {
     const scored: any[] = [];
     for (const g of rosterRes.data ?? []) {
       const st = String(g.status ?? "").toLowerCase();
-      if (st !== "active" && st !== "paused") continue; // live memberships + trials only
+      // Only ACTIVE members are scored for retention. Paused (holiday freezes) keep app
+      // access but are deliberately kept out of slipping/at-risk flags — they're expected
+      // not to attend. Cancelled, pending, unknown, and anyone a coach has manually marked
+      // as left are excluded too (they belong in the Inactive bucket, not the reports).
+      if (st !== "active") continue;
+      if (g.manual_inactive_at) continue;
       const ne = normEmail(g.email);
       if (!ne || seen.has(ne)) continue;
       seen.add(ne);

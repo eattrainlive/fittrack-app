@@ -115,8 +115,20 @@ async function inviteOne(
 
 // Fetch the full roster once (id, email, name, product, status).
 async function loadRoster(admin: any) {
-  const { data } = await admin.from("gym_members").select("id, email, full_name, product, status");
+  const { data } = await admin.from("gym_members").select("id, email, full_name, product, status, joined_on, ended_on, manual_inactive_at");
   return data ?? [];
+}
+
+// Effective membership bucket: manual "left" flag wins over the Quoox status; cancelled
+// also counts as inactive. Everything else maps through (active / paused), with unknown
+// and pending shown as 'other' so we never silently hide a real member.
+function effectiveState(g: any): "active" | "paused" | "inactive" | "other" {
+  if (g?.manual_inactive_at) return "inactive";
+  const s = String(g?.status ?? "").toLowerCase();
+  if (s === "active") return "active";
+  if (s === "paused") return "paused";
+  if (s === "cancelled") return "inactive";
+  return "other";
 }
 // Fetch all confirmed links: user_id -> member_id.
 async function loadLinks(admin: any) {
@@ -425,6 +437,8 @@ serve(async (req) => {
         return {
           id: g.id, email: g.email, full_name: g.full_name,
           product: g.product, status: g.status, joined_on: g.joined_on,
+          manual_inactive_at: g.manual_inactive_at ?? null,
+          membership_state: effectiveState(g),     // active | paused | inactive | other
           onApp,                                   // completed setup (password set)
           invitedPending: !!st?.exists && !onApp,  // account exists (invited/clicked) but not finished
           notInvited: !st?.exists && !onApp,       // never invited
@@ -446,6 +460,7 @@ serve(async (req) => {
         rows.push({
           id: `app:${m.id}`, email: m.email, full_name: (m as any).full_name ?? null,
           product: null, status: null, joined_on: null,
+          manual_inactive_at: null, membership_state: "other",
           onApp: onbo, invitedPending: !onbo, notInvited: false,
           last_sign_in_at: null,
           user_id: String(m.id),
@@ -456,6 +471,31 @@ serve(async (req) => {
         });
       }
       return json({ members: rows, total: rows.length, onApp: rows.filter((r) => r.onApp).length });
+    }
+
+    if (action === "markInactive") {
+      // Move a member to the Inactive bucket by hand (Quoox didn't cancel them, or hasn't yet).
+      // Sets manual_inactive_at = now so the access gate, reports and roster all treat them as
+      // left — and it STICKS over the webhook. They stay in the DB for easy reactivation.
+      const memberRef = String(body.memberRef ?? body.rosterId ?? "");
+      if (!memberRef) return json({ error: "memberRef required" }, 400);
+      const { error } = await admin.from("gym_members")
+        .update({ manual_inactive_at: new Date().toISOString(), manual_inactive_by: body.by ?? null })
+        .eq("id", memberRef);
+      if (error) throw error;
+      return json({ ok: true, manual_inactive_at: new Date().toISOString() });
+    }
+
+    if (action === "reactivate") {
+      // Clear the manual "left" flag — status then follows Quoox again (active if their
+      // membership is live). Access and reports pick them back up immediately.
+      const memberRef = String(body.memberRef ?? body.rosterId ?? "");
+      if (!memberRef) return json({ error: "memberRef required" }, 400);
+      const { error } = await admin.from("gym_members")
+        .update({ manual_inactive_at: null, manual_inactive_by: null })
+        .eq("id", memberRef);
+      if (error) throw error;
+      return json({ ok: true, manual_inactive_at: null });
     }
 
     return json({ error: `Unknown action: ${action}` }, 400);

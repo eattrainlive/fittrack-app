@@ -1620,3 +1620,25 @@ PUSH: ErgMetrePad.tsx, TVDisplay.tsx. (Needs erg_communal_metres.sql already run
 - DayPanel tick uses it.done + toggleOccurrenceDone(it.date); green tick + strike-through when done.
 - RUN: supabase/sql/staff_reminders_completions.sql
 - Push: src/lib/staffPlanner.ts, src/components/StaffPlanner.tsx
+
+## #107 — Lapsed members: Inactive bucket + access cut-off
+Goal: people with no active membership stop cluttering the Members list & retention
+reports, lose app access after a short grace, but stay in the DB to reactivate.
+
+- SQL gym_members_manual_inactive.sql: adds manual_inactive_at + manual_inactive_by.
+  Manual "left" flag WINS over Quoox status (webhook can't un-leave them).
+- Access gate (store.ts getMembershipAccess): manual_inactive_at overrides active;
+  7-day grace from the manual date, then blocked (reason "left"). Cancelled grace
+  from ended_on unchanged.
+- member-engagement edge fn: now scores ACTIVE ONLY (paused keep access but drop out
+  of slipping/at-risk), and skips manual_inactive_at rows. Redeploy.
+- manage-members edge fn: new actions markInactive / reactivate (service-role writes);
+  rosterStatus now returns manual_inactive_at + membership_state (active|paused|inactive|other). Redeploy.
+- MembersGrid: Active / Inactive(N) / All bucket toggle (default hides Inactive but a
+  search still finds them); per-card "Mark as left" / "Reactivate" with amber ring +
+  state label. Uses direct gym_members read for state; invokes manage-members.
+
+Decisions: grace 7 days; paused = keep access, hidden from slipping; trigger = both auto (Quoox) + manual button.
+RUN: supabase/sql/gym_members_manual_inactive.sql
+REDEPLOY: member-engagement, manage-members
+PUSH: src/lib/store.ts, src/components/MembersGrid.tsx
