@@ -1686,3 +1686,12 @@ come from webhooks. Two app-side signals instead (Michael chose both):
   upload has >=20 rows, so a partial export can't nuke the roster. Reversible via Reactivate.
 RUN: gym_members_end_date.sql   REDEPLOY: gymos-webhook, manage-members, member-engagement
 PUSH: src/lib/store.ts, src/lib/membershipImport.ts, src/components/MembersGrid.tsx
+
+## #111 — Online-client access safety + Review flag
+- getMembershipAccess now checks members.online_client FIRST (before any gym_members
+  status / end-date / inactive logic): online coaching clients (and staff via the existing
+  localStorage flag) always keep app access, even with no/lapsed gym membership. Fail-open.
+- MembersGrid: 'other' state (unknown/pending_review — ambiguous, e.g. recurring cancels
+  with no end date) now shows an orange "Review — no clear membership status" label so
+  staff can catch stragglers the auto-rules can't classify.
+- No new SQL. Push: src/lib/store.ts, src/components/MembersGrid.tsx

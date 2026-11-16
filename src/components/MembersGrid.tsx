@@ -588,6 +588,10 @@ export function MembersGrid({
                       <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
                         Inactive — no active membership
                       </span>
+                    ) : est === "other" ? (
+                      <span className="text-[11px] font-medium text-orange-600 dark:text-orange-400">
+                        Review — no clear membership status
+                      </span>
                     ) : (
                       <span className="text-[11px] text-muted-foreground capitalize">{est}</span>
                     )}

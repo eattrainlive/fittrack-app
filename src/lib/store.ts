@@ -1950,6 +1950,22 @@ export const getMembershipAccess = async (): Promise<{
   if (!user?.email) return { allowed: true, reason: "no-user" }; // fail-open
 
   const email = user.email.toLowerCase();
+
+  // Online coaching clients (and any staff account) keep app access regardless of gym
+  // membership status — they may have no gym membership, or a lapsed one, but still train
+  // online with us. This must run BEFORE the gym_members status checks so the new
+  // inactive / end-date logic can never lock a paying online client out.
+  try {
+    const { data: meRows } = await supabase
+      .from("members")
+      .select("online_client")
+      .ilike("email", email)
+      .limit(1);
+    if (meRows?.[0]?.online_client) return { allowed: true, reason: "online-client" };
+  } catch {
+    /* members lookup failed — fall through to membership checks (fail-open elsewhere) */
+  }
+
   const { data: rows, error } = await supabase
     .from("gym_members")
     .select("status, ended_on, end_date, manual_inactive_at")
