@@ -283,6 +283,8 @@ export interface CalItem {
   recurring: boolean;
   live: boolean; // the actionable stored instance (vs a projected recurrence)
   done?: boolean; // this specific occurrence/post is ticked complete
+  carried?: boolean; // an open task carried forward onto today because it's past-due & not done
+  origDate?: string; // the task's original due date (when carried)
   reminder?: Reminder;
   post?: ContentPost;
   event?: StaffEvent;
@@ -309,16 +311,24 @@ export function buildCalendar(
     (map[date] ??= []).push(item);
   };
 
+  const today = todayStr();
   for (const r of reminders) {
     if (r.repeat === "none") {
-      push(r.due_date, {
+      // Open tasks carry forward: a one-off that's past its due date and still not done
+      // moves onto today and stays there each day until it's ticked, so it never falls
+      // off the planner. Done tasks stay on their original date as a record.
+      const carried = !r.done && r.due_date < today;
+      const showDate = carried ? today : r.due_date;
+      push(showDate, {
         key: `r-${r.id}`,
         kind: "reminder",
-        date: r.due_date,
+        date: showDate,
         title: r.title,
         recurring: false,
         live: true,
         done: r.done,
+        carried,
+        origDate: carried ? r.due_date : undefined,
         reminder: r,
       });
       continue;

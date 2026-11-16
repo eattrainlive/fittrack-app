@@ -981,16 +981,20 @@ function DayPanel({
                       ? eventStyle
                       : it.kind === "post"
                         ? destStyle[it.post!.destination]
-                        : "bg-violet-500/10 text-violet-700 dark:text-violet-400"
+                        : it.carried
+                          ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                          : "bg-violet-500/10 text-violet-700 dark:text-violet-400"
                   }`}
                 >
                   {it.kind === "event"
                     ? EVENT_KIND_LABEL[it.event!.kind]
                     : it.kind === "post"
                       ? DESTINATION_LABEL[it.post!.destination]
-                      : it.recurring
-                        ? "Recurring"
-                        : "Reminder"}
+                      : it.carried
+                        ? "Open"
+                        : it.recurring
+                          ? "Recurring"
+                          : "Reminder"}
                 </span>
                 {it.kind === "reminder" ? (
                   <button
@@ -999,6 +1003,9 @@ function DayPanel({
                   >
                     {it.title}
                     {it.reminder?.assigned_to ? <span className="text-muted-foreground"> · {it.reminder.assigned_to}</span> : ""}
+                    {it.carried && it.origDate ? (
+                      <span className="text-amber-600/80 dark:text-amber-400/80"> · since {fmtDate(it.origDate)}</span>
+                    ) : ""}
                   </button>
                 ) : (
                   <span className={`truncate ${it.done ? "line-through text-muted-foreground" : ""}`}>

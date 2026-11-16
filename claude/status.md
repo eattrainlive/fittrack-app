@@ -1642,3 +1642,12 @@ Decisions: grace 7 days; paused = keep access, hidden from slipping; trigger = b
 RUN: supabase/sql/gym_members_manual_inactive.sql
 REDEPLOY: member-engagement, manage-members
 PUSH: src/lib/store.ts, src/components/MembersGrid.tsx
+
+## #108 — Open tasks carry forward in the planner
+- Any one-off reminder (no repeat) that's past due and not done now moves onto TODAY
+  in the calendar and stays there each day until ticked — so open tasks never fall off
+  the planner. Done tasks stay on their original date as a record.
+- buildCalendar: carried = !done && due_date < today → show on today; carried/origDate on CalItem.
+- DayPanel: carried items show an amber "Open" badge + "· since <original date>".
+- Today feed already surfaced overdue (lte today) — this makes the calendar match.
+- No SQL, no redeploy. Push: src/lib/staffPlanner.ts, src/components/StaffPlanner.tsx
