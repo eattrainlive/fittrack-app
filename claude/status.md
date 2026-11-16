@@ -1590,3 +1590,12 @@ PUSH: ContactHub.tsx, Admin.tsx, StaffTodayFeed.tsx, MembersGrid.tsx. No SQL/red
   link lands members straight on its RSVP buttons. Added a staff "copy RSVP link" button (Link2) on
   each event card → copies ${origin}/community?event=<id> to paste into an email.
 PUSH: UpcomingEvents.tsx. No SQL/redeploy.
+
+## 105 — TV display: no-typing erg metre logger (2026-11-16)
+- ErgMetrePad.tsx (new): floating bottom-right pad on the TV/programme display. Collapsed = small
+  "Log metres" pill (shows session tally). Expanded = Ski/Bike/Row buttons + quick-add chips
+  (+100/+250/+500/+1k) + a −/+ stepper (100m steps) + Add button + session total. Each add →
+  logErgMetresCommunal (class metres, no name → gym total only). Fixed/collapsible so it never
+  overlaps the programme.
+- TVDisplay.tsx: mounted <ErgMetrePad />.
+PUSH: ErgMetrePad.tsx, TVDisplay.tsx. (Needs erg_communal_metres.sql already run.)

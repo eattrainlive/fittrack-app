@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { getPrograms, getExercises } from "@/lib/store";
+import { ErgMetrePad } from "@/components/ErgMetrePad";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dumbbell, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -200,6 +201,7 @@ const TVDisplay = () => {
         color: "#ffffff",
       }}
     >
+      <ErgMetrePad />
       <div className="flex items-start justify-between mb-4 md:mb-6">
         <div>
           <h1 className="text-3xl md:text-4xl font-heading uppercase tracking-wide text-white drop-shadow-md leading-none">
