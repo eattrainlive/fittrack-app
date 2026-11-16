@@ -195,10 +195,14 @@ export const importMemberships = async (
   // Reactivate). GUARD: only run when the Active upload is substantial, so a partial/empty
   // export can never wrongly deactivate the whole roster.
   const today = new Date().toISOString().split("T")[0];
+  // Was-a-member statuses that should be cleared if they're no longer on the Active export.
+  // Includes 'unknown'/'pending_review' so ambiguous stragglers (e.g. a recurring cancel the
+  // webhook never caught) get swept too. Paused is deliberately left alone (intentional freeze).
+  const clearable = new Set(["active", "unknown", "pending_review"]);
   if (activeRows.length >= 20) {
     for (const [email, member] of existingByEmail) {
       if (
-        member.status === "active" &&
+        clearable.has(String(member.status)) &&
         !activeEmails.has(email) &&
         !endedEmails.has(email)
       ) {
