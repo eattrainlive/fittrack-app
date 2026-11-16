@@ -1599,3 +1599,11 @@ PUSH: UpcomingEvents.tsx. No SQL/redeploy.
   overlaps the programme.
 - TVDisplay.tsx: mounted <ErgMetrePad />.
 PUSH: ErgMetrePad.tsx, TVDisplay.tsx. (Needs erg_communal_metres.sql already run.)
+
+## #106 — Calendar day-panel: tick items off inline
+- StaffPlanner DayPanel items now have a leading CheckCircle2 tick:
+  - Reminders/tasks → completeReminder (rolls recurring forward / marks one-off done); done items show green tick + line-through.
+  - Content posts → markPosted; posted items show green tick + line-through.
+  - Events get no checkbox (spacer keeps alignment).
+- Reminder title still clickable to open the edit/assign occurrence form.
+- No SQL, no redeploy. Push: src/components/StaffPlanner.tsx

@@ -937,6 +937,35 @@ function DayPanel({
               />
             ) : (
               <div key={it.key} className="flex items-center gap-2 text-sm">
+                {it.kind === "reminder" ? (
+                  <button
+                    className="shrink-0"
+                    title={it.reminder?.done ? "Done" : "Mark done"}
+                    onClick={async () => {
+                      await completeReminder(it.reminder!, staffName() || "Staff");
+                      onChanged();
+                    }}
+                  >
+                    <CheckCircle2
+                      className={`h-4 w-4 ${it.reminder?.done ? "text-emerald-500" : "text-muted-foreground hover:text-emerald-500"}`}
+                    />
+                  </button>
+                ) : it.kind === "post" ? (
+                  <button
+                    className="shrink-0"
+                    title={it.post?.posted ? "Posted" : "Mark posted"}
+                    onClick={async () => {
+                      await markPosted(it.post!.id, staffName() || "Staff");
+                      onChanged();
+                    }}
+                  >
+                    <CheckCircle2
+                      className={`h-4 w-4 ${it.post?.posted ? "text-emerald-500" : "text-muted-foreground hover:text-emerald-500"}`}
+                    />
+                  </button>
+                ) : (
+                  <span className="h-4 w-4 shrink-0" />
+                )}
                 <span
                   className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
                     it.kind === "event"
@@ -955,12 +984,17 @@ function DayPanel({
                         : "Reminder"}
                 </span>
                 {it.kind === "reminder" ? (
-                  <button className="truncate text-left hover:underline flex-1" onClick={() => setEditing(it.key)}>
+                  <button
+                    className={`truncate text-left hover:underline flex-1 ${it.reminder?.done ? "line-through text-muted-foreground" : ""}`}
+                    onClick={() => setEditing(it.key)}
+                  >
                     {it.title}
                     {it.reminder?.assigned_to ? <span className="text-muted-foreground"> · {it.reminder.assigned_to}</span> : ""}
                   </button>
                 ) : (
-                  <span className="truncate">{it.title}</span>
+                  <span className={`truncate ${it.kind === "post" && it.post?.posted ? "line-through text-muted-foreground" : ""}`}>
+                    {it.title}
+                  </span>
                 )}
               </div>
             ),
