@@ -99,7 +99,7 @@ serve(async (req) => {
 
     // ── Fetch everything once ────────────────────────────────────────────────
     const [rosterRes, appRes, linksRes] = await Promise.all([
-      db.from("gym_members").select("id, email, full_name, product, status, joined_on, manual_inactive_at"),
+      db.from("gym_members").select("id, email, full_name, product, status, joined_on, manual_inactive_at, end_date"),
       db.from("members").select("id, email, full_name, online_client"),
       db.from("member_links").select("user_id, member_id").then((r) => r).catch(() => ({ data: [] } as any)),
     ]);
@@ -183,6 +183,7 @@ serve(async (req) => {
     // ── Score each ACTIVE roster member (one row per person) ──────────────────
     const seen = new Set<string>();
     const scored: any[] = [];
+    const todayStr = new Date().toISOString().slice(0, 10);
     for (const g of rosterRes.data ?? []) {
       const st = String(g.status ?? "").toLowerCase();
       // Only ACTIVE members are scored for retention. Paused (holiday freezes) keep app
@@ -191,6 +192,8 @@ serve(async (req) => {
       // as left are excluded too (they belong in the Inactive bucket, not the reports).
       if (st !== "active") continue;
       if (g.manual_inactive_at) continue;
+      // Expired fixed-term trial / end-of-period cancel whose end date has passed.
+      if (g.end_date && String(g.end_date) < todayStr) continue;
       const ne = normEmail(g.email);
       if (!ne || seen.has(ne)) continue;
       seen.add(ne);

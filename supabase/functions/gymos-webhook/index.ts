@@ -159,12 +159,34 @@ async function processEvent(db: any, body: any) {
     joined_on: membership.startDateUtc ? String(membership.startDateUtc).slice(0, 10) : undefined,
     last_import_at: nowIso, updated_at: nowIso,
   };
+  // Scheduled end date (fixed-term trials, end-of-period cancels). Set it on any event that
+  // carries a membership so it stays current; clear it when the membership has no end (a
+  // recurring/auto-renew plan). When it passes, the app treats the member as expired WITHOUT
+  // needing a cancellation webhook (which Quoox doesn't reliably send).
+  if (body?.payload?.membership) {
+    memberRow.end_date = membership.endDateUtc ? String(membership.endDateUtc).slice(0, 10) : null;
+  }
   let newStatus: string | null = null;
   if (isPause && !pauseEnded) { newStatus = "paused"; memberRow.status = "paused"; memberRow.ended_on = null; }
   else if (isPause && pauseEnded) { newStatus = "active"; memberRow.status = "active"; memberRow.ended_on = null; }
   else if (isCancel) { newStatus = "cancelled"; memberRow.status = "cancelled"; memberRow.ended_on = String(eventTs).slice(0, 10); }
   else if (isJoin) { newStatus = "active"; memberRow.status = "active"; memberRow.ended_on = null; }
   // payment events do NOT change membership status.
+
+  // Avoid creating a DUPLICATE roster row. The import may have already created a row for
+  // this person keyed by email (`email:<addr>`), while webhooks key by the GymOS member id.
+  // If a row already exists for this email, update THAT row (and stamp the GymOS id on it)
+  // instead of inserting a second one — otherwise a cancel lands on one row while a stale
+  // 'active' row keeps masking it.
+  if (email) {
+    try {
+      const { data: existing } = await db.from("gym_members").select("id").ilike("email", email);
+      if (existing && existing.length) {
+        const match = existing.find((r: any) => String(r.id) === String(gymosId)) ?? existing[0];
+        memberRow.id = match.id;
+      }
+    } catch (e) { console.error("roster email-match:", (e as Error).message); }
+  }
 
   await db.from("gym_members").upsert(memberRow, { onConflict: "id" });
 

@@ -189,21 +189,29 @@ export const importMemberships = async (
     }
   }
 
-  // Flag members active before, but absent from Active upload and not in Ended
-  for (const [email, member] of existingByEmail) {
-    if (
-      member.status === "active" &&
-      !activeEmails.has(email) &&
-      !endedEmails.has(email)
-    ) {
-      await supabase
-        .from("gym_members")
-        .update({
-          status: "pending_review",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", member.id);
-      results.flagged++;
+  // Source-of-truth pass: a member who WAS active but is no longer on the Active upload
+  // (and isn't in the Ended upload) has left — Quoox doesn't reliably webhook cancellations,
+  // so the active export is the authority. Move them to the Inactive bucket (reversible via
+  // Reactivate). GUARD: only run when the Active upload is substantial, so a partial/empty
+  // export can never wrongly deactivate the whole roster.
+  const today = new Date().toISOString().split("T")[0];
+  if (activeRows.length >= 20) {
+    for (const [email, member] of existingByEmail) {
+      if (
+        member.status === "active" &&
+        !activeEmails.has(email) &&
+        !endedEmails.has(email)
+      ) {
+        await supabase
+          .from("gym_members")
+          .update({
+            status: "cancelled",
+            ended_on: member.ended_on || today,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", member.id);
+        results.flagged++;
+      }
     }
   }
 

@@ -68,13 +68,17 @@ interface GymRosterRow {
   full_name?: string | null;
   manual_inactive_at?: string | null;
   ended_on?: string | null;
+  end_date?: string | null;
 }
 
 // Effective membership bucket: manual "left" flag wins over Quoox status; cancelled is
-// inactive too. Unknown/pending/missing → "other" (shown, never silently hidden).
+// inactive too, as is a membership whose scheduled end date has passed (expired trial /
+// end-of-period cancel). Unknown/pending/missing → "other" (shown, never silently hidden).
 type MembershipState = "active" | "paused" | "inactive" | "other";
 function effectiveMembershipState(gr?: GymRosterRow | null): MembershipState {
   if (gr?.manual_inactive_at) return "inactive";
+  const today = new Date().toISOString().slice(0, 10);
+  if (gr?.end_date && gr.end_date < today) return "inactive"; // scheduled end has passed
   const s = String(gr?.status ?? "").toLowerCase();
   if (s === "active") return "active";
   if (s === "paused") return "paused";
@@ -137,7 +141,7 @@ export function MembersGrid({
     try {
       const { data } = await supabase
         .from("gym_members")
-        .select("id,email,product,joined_on,status,full_name,manual_inactive_at,ended_on");
+        .select("id,email,product,joined_on,status,full_name,manual_inactive_at,ended_on,end_date");
       if (!data) return;
       const map: Record<string, GymRosterRow> = {};
       for (const r of data) {

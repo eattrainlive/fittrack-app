@@ -115,7 +115,7 @@ async function inviteOne(
 
 // Fetch the full roster once (id, email, name, product, status).
 async function loadRoster(admin: any) {
-  const { data } = await admin.from("gym_members").select("id, email, full_name, product, status, joined_on, ended_on, manual_inactive_at");
+  const { data } = await admin.from("gym_members").select("id, email, full_name, product, status, joined_on, ended_on, end_date, manual_inactive_at");
   return data ?? [];
 }
 
@@ -124,6 +124,8 @@ async function loadRoster(admin: any) {
 // and pending shown as 'other' so we never silently hide a real member.
 function effectiveState(g: any): "active" | "paused" | "inactive" | "other" {
   if (g?.manual_inactive_at) return "inactive";
+  const today = new Date().toISOString().slice(0, 10);
+  if (g?.end_date && String(g.end_date) < today) return "inactive"; // scheduled end passed
   const s = String(g?.status ?? "").toLowerCase();
   if (s === "active") return "active";
   if (s === "paused") return "paused";

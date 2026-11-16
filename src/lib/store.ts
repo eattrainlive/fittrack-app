@@ -1952,13 +1952,14 @@ export const getMembershipAccess = async (): Promise<{
   const email = user.email.toLowerCase();
   const { data: rows, error } = await supabase
     .from("gym_members")
-    .select("status, ended_on, manual_inactive_at")
+    .select("status, ended_on, end_date, manual_inactive_at")
     .ilike("email", email);
 
   if (error) return { allowed: true, reason: "lookup-error" }; // fail-open on error
   if (!rows || rows.length === 0) return { allowed: true, reason: "unmatched" }; // not synced yet → allow
 
   const GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+  const today = new Date().toISOString().slice(0, 10);
 
   // Manual "has left" flag wins over Quoox status (Quoox may be stale / still 'active').
   // If a coach has marked them inactive by hand, access runs on a 7-day grace from that
@@ -1973,15 +1974,19 @@ export const getMembershipAccess = async (): Promise<{
       : { allowed: false, reason: "left" };
   }
 
-  // Active or paused anywhere = allowed
-  if (rows.some((r: any) => r.status === "active"))
-    return { allowed: true, reason: "active" };
-  if (rows.some((r: any) => r.status === "paused"))
-    return { allowed: true, reason: "paused" };
+  // A membership is LIVE if it's active/paused AND hasn't passed its scheduled end date.
+  // end_date catches fixed-term trials and end-of-period cancellations that Quoox never
+  // sends a cancellation webhook for.
+  const live = (r: any) =>
+    (r.status === "active" || r.status === "paused") && (!r.end_date || r.end_date >= today);
+  if (rows.some(live)) return { allowed: true, reason: "active" };
 
-  // Otherwise cancelled/expired only — check 7-day grace on most recent ended_on
+  // Otherwise expired/cancelled — 7-day grace from the most recent end (end_date or ended_on).
   const latestEnd = rows.reduce((max: number, r: any) => {
-    const t = r.ended_on ? new Date(r.ended_on).getTime() : 0;
+    const t = Math.max(
+      r.end_date ? new Date(r.end_date).getTime() : 0,
+      r.ended_on ? new Date(r.ended_on).getTime() : 0,
+    );
     return t > max ? t : max;
   }, 0);
   if (latestEnd && Date.now() - latestEnd < GRACE_MS)

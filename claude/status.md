@@ -1651,3 +1651,38 @@ PUSH: src/lib/store.ts, src/components/MembersGrid.tsx
 - DayPanel: carried items show an amber "Open" badge + "· since <original date>".
 - Today feed already surfaced overdue (lte today) — this makes the calendar match.
 - No SQL, no redeploy. Push: src/lib/staffPlanner.ts, src/components/StaffPlanner.tsx
+
+## #109 — Membership cancellation sync: root cause + fixes
+Diagnosis (Jennie Tindall + webhook_log):
+- Quoox sends every membership event as eventType "Membership added" with
+  payload.membership.status ALWAYS "Active" (even the one cancel that landed).
+  Webhook correctly routes cancels on eventType "Membership Cancelled".
+- "Membership Cancelled" reached the webhook only ONCE (6 Aug) despite the Quoox
+  trigger showing 295 hits → ~294 cancellations never delivered (trigger was posting
+  to an old endpoint/key; the URL in Quoox now looks correct). DELIVERY problem, not code.
+- Duplicate roster rows: import keys by email ('email:<addr>'), webhook keys by Quoox id.
+  Two rows per member; a cancel on one is masked by a stale 'active' on the other.
+Fixes built:
+- gymos-webhook: before upsert, match an existing row by email and update THAT row
+  (stamping the Quoox id) instead of inserting a duplicate. Redeploy.
+- dedupe_gym_members.sql: one-time merge of existing duplicate rows into the canonical
+  (Quoox-id) row; carries cancelled/manual_inactive/ended_on forward; repoints
+  scan_events/membership_status_history/member_links; drops loser member_flags. Run once.
+Still Michael's side: verify the Quoox "Membership Cancelled" trigger actually DELIVERS
+now (cancel a test member → check webhook_log for a 'Membership Cancelled' row). Backlog
+of already-cancelled members → import Ended file or the manual "Mark as left" button.
+RUN: dedupe_gym_members.sql   REDEPLOY: gymos-webhook
+
+## #110 — Leaver detection without cancellation webhooks (end-date + import)
+Confirmed: Quoox does NOT deliver membership-cancellation webhooks (Michael's own
+cancel produced no webhook_log row; session events flow fine). So cancellations can't
+come from webhooks. Two app-side signals instead (Michael chose both):
+- END DATE: gym_members_end_date.sql adds end_date; webhook mirrors membership.endDateUtc
+  (null for recurring). Access gate, effectiveState (MembersGrid + manage-members) and
+  member-engagement all treat end_date < today as expired/inactive → catches fixed-term
+  trials + end-of-period cancels automatically, no webhook needed. Grace from end_date.
+- IMPORT = SOURCE OF TRUTH: membershipImport "active before, not on Active upload, not in
+  Ended" now → cancelled + ended_on (was pending_review). Guard: only runs when Active
+  upload has >=20 rows, so a partial export can't nuke the roster. Reversible via Reactivate.
+RUN: gym_members_end_date.sql   REDEPLOY: gymos-webhook, manage-members, member-engagement
+PUSH: src/lib/store.ts, src/lib/membershipImport.ts, src/components/MembersGrid.tsx
