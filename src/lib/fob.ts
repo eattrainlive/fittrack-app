@@ -168,6 +168,76 @@ export async function fobStats(fromISO: string, toISO: string): Promise<FobStats
   };
 }
 
+// ── LIVE: read 24hr usage straight from scan_events (no import needed) ────────
+// scan_events already holds Paxton door entries with name, membership and result, so the
+// panel can run off live data back to whenever check-ins started.
+async function fetchScans24hr(fromISO: string, toISO: string): Promise<any[]> {
+  const all: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("scan_events")
+      .select("ts, member_name, member_ref, result, method, site, checkin_for, gym_members(product)")
+      .gte("ts", fromISO).lte("ts", toISO)
+      .or("checkin_for.ilike.%24%,site.eq.unit_1b")
+      .order("ts", { ascending: false })
+      .range(from, from + 999);
+    if (error) throw new Error(error.message);
+    all.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  return all;
+}
+
+export async function fobStatsLive(fromISO: string, toISO: string): Promise<FobStats> {
+  const [scans, pricesRes] = await Promise.all([
+    fetchScans24hr(fromISO, toISO),
+    supabase.from("membership_plan_prices").select("plan_name, monthly_price"),
+  ]);
+  const priceMap = new Map<string, number>();
+  for (const p of pricesRes.data ?? []) priceMap.set(String(p.plan_name).trim().toLowerCase(), Number(p.monthly_price) || 0);
+
+  const userCounts = new Map<string, number>();
+  const userProduct = new Map<string, string | null>();
+  let codeOnly = 0;
+  const hourCounts = new Array(24).fill(0);
+  for (const e of scans) {
+    const d = new Date(e.ts); if (!isNaN(+d)) hourCounts[d.getHours()]++;
+    const name = String(e.member_name || "").trim();
+    const known = name && name.toLowerCase() !== "unknown";
+    if (!known) { codeOnly++; continue; }
+    userCounts.set(name, (userCounts.get(name) ?? 0) + 1);
+    if (!userProduct.has(name)) userProduct.set(name, (e as any).gym_members?.product ?? null);
+  }
+
+  const byUser: FobUser[] = [];
+  let attributedRevenue = 0, matchedUsers = 0;
+  for (const [name, entries] of userCounts) {
+    const product = userProduct.get(name) ?? null;
+    const fee = product ? (priceMap.get(product.trim().toLowerCase()) ?? 0) : 0;
+    if (product) { matchedUsers++; attributedRevenue += fee; }
+    byUser.push({ name, entries, member: product ? name : null, fee });
+  }
+  byUser.sort((a, b) => b.entries - a.entries);
+
+  const from = new Date(fromISO), to = new Date(toISO);
+  const days = Math.max(1, Math.round((+to - +from) / 86400000));
+  return {
+    totalEntries: scans.length, grantedEntries: scans.length,
+    uniqueUsers: userCounts.size, codeOnlyEntries: codeOnly,
+    codeOnlyShare: scans.length ? codeOnly / scans.length : 0,
+    byUser, byHour: hourCounts.map((entries, h) => ({ hour: String(h).padStart(2, "0"), entries })),
+    attributedRevenue, matchedUsers, days,
+  };
+}
+
+export async function liveFobBounds(): Promise<{ min: string | null; max: string | null }> {
+  const [a, b] = await Promise.all([
+    supabase.from("scan_events").select("ts").or("checkin_for.ilike.%24%,site.eq.unit_1b").order("ts", { ascending: true }).limit(1),
+    supabase.from("scan_events").select("ts").or("checkin_for.ilike.%24%,site.eq.unit_1b").order("ts", { ascending: false }).limit(1),
+  ]);
+  return { min: a.data?.[0]?.ts ?? null, max: b.data?.[0]?.ts ?? null };
+}
+
 export async function fobDateBounds(): Promise<{ min: string | null; max: string | null }> {
   const [a, b] = await Promise.all([
     supabase.from("fob_entries").select("ts").order("ts", { ascending: true }).limit(1),

@@ -1788,3 +1788,16 @@ Built:
 - FinanceTab: "24hr Unit" sub-tab mounted.
 RUN: fob_entries.sql   PUSH: fob.ts, Fob24hrPanel.tsx, FinanceTab.tsx
 Note: value is understated (code-only + unmatched excluded); recommend personal fobs for all.
+
+## #119 — 24hr unit now reads LIVE scan_events + export pagination fix
+- Diagnosed Michael's checkins_2026-01-01_2026-11-23.csv: capped at 1000 rows → only reached
+  Nov 3, not Jan. Root cause: CheckInReport export had no .range() pagination.
+- CheckInReport.tsx: paginate scan_events in 1000-row chunks → full date ranges export.
+- fob.ts: fobStatsLive(from,to) + liveFobBounds() read 24hr usage straight from scan_events
+  (checkin_for ilike 24 OR site=unit_1b), paginated, with gym_members(product)→plan price for
+  attributed revenue. member_ref/product already on the row = no name-matching needed.
+- Fob24hrPanel: now LIVE (fobStatsLive/liveFobBounds); removed Paxton CSV upload (data's already
+  in scan_events). Back to whenever check-ins started.
+- fob_entries.sql + parseFobCsv/importFobEntries kept but unused (optional historical backfill).
+PUSH: src/components/CheckInReport.tsx, src/lib/fob.ts, src/components/Fob24hrPanel.tsx
+(No SQL needed for the live path; fob_entries.sql optional.)

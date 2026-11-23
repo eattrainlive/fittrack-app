@@ -1,11 +1,10 @@
 // 24hr gym unit view: fob usage (Paxton import) + attributed membership revenue vs 24hr
 // site costs = is the unit profitable. Built on fob_entries + the finance site-split.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Upload, Users, DoorOpen, PoundSterling, KeyRound, AlertTriangle } from "lucide-react";
+import { Loader2, Users, DoorOpen, PoundSterling, KeyRound, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { Button } from "@/components/ui/button";
-import { parseFobCsv, importFobEntries, fobStats, fobDateBounds, type FobStats, type FobEntry } from "@/lib/fob";
+import { fobStatsLive, liveFobBounds, type FobStats } from "@/lib/fob";
 import { listTransactions, listCategories, costsBySite, finPeriodRange, gbp, gbp2, FIN_PERIODS, type FinPeriod, type CategoryKind } from "@/lib/finance";
 
 type Period = FinPeriod | "all";
@@ -26,7 +25,6 @@ export function Fob24hrPanel() {
   const [cost24, setCost24] = useState(0);
   const [bounds, setBounds] = useState<{ min: string | null; max: string | null }>({ min: null, max: null });
   const [loading, setLoading] = useState(true);
-  const [showUpload, setShowUpload] = useState(false);
 
   const range = useMemo(() => {
     if (period === "all") {
@@ -39,11 +37,11 @@ export function Fob24hrPanel() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const b = await fobDateBounds();
+      const b = await liveFobBounds();
       setBounds(b);
       const from = period === "all" ? (b.min ?? "2000-01-01T00:00:00") : `${finPeriodRange(period as FinPeriod).from}T00:00:00`;
       const to = period === "all" ? (b.max ?? new Date().toISOString()) : `${finPeriodRange(period as FinPeriod).to}T23:59:59`;
-      const [s, txns, cats] = await Promise.all([fobStats(from, to), listTransactions(from.slice(0, 10), to.slice(0, 10)), listCategories()]);
+      const [s, txns, cats] = await Promise.all([fobStatsLive(from, to), listTransactions(from.slice(0, 10), to.slice(0, 10)), listCategories()]);
       setStats(s);
       const kindOf = (name: string): CategoryKind => cats.find((c) => c.name === name)?.kind ?? "expense";
       setCost24(costsBySite(txns, kindOf)["24hr"] || 0);
@@ -71,17 +69,14 @@ export function Fob24hrPanel() {
               {p === "all" ? "All imported" : FIN_PERIODS.find((x) => x.key === p)?.label}
             </button>
           ))}
-          <Button size="sm" variant="outline" onClick={() => setShowUpload((s) => !s)} className="gap-1"><Upload className="h-3.5 w-3.5" /> Import</Button>
         </div>
       </div>
-
-      {showUpload && <FobUpload onImported={() => { setShowUpload(false); load(); }} />}
 
       {loading || !stats ? (
         <div className="flex items-center gap-2 text-muted-foreground py-10 justify-center"><Loader2 className="h-5 w-5 animate-spin" /> Loading fob usage…</div>
       ) : stats.grantedEntries === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
-          No fob entries in this period. {bounds.min ? `Imported data runs ${bounds.min.slice(0, 10)} → ${bounds.max?.slice(0, 10)}.` : "Import a Paxton export to begin."}
+          No 24hr entries in this period. {bounds.min ? `Live check-in data runs ${bounds.min.slice(0, 10)} → ${bounds.max?.slice(0, 10)}.` : "No 24hr check-ins recorded yet."}
         </div>
       ) : (
         <>
@@ -144,40 +139,6 @@ export function Fob24hrPanel() {
             </div>
           </div>
         </>
-      )}
-    </div>
-  );
-}
-
-function FobUpload({ onImported }: { onImported: () => void }) {
-  const [parsed, setParsed] = useState<{ rows: FobEntry[]; skipped: number } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [name, setName] = useState("");
-  const onFile = async (f: File) => {
-    setName(f.name);
-    const res = parseFobCsv(await f.text());
-    setParsed(res);
-    if (!res.rows.length) toast.error("No access events found — is this a Paxton CSV export?");
-  };
-  const doImport = async () => {
-    if (!parsed?.rows.length) return;
-    setBusy(true);
-    const res = await importFobEntries(parsed.rows);
-    setBusy(false);
-    if (!res.ok) { toast.error(res.error || "Import failed"); return; }
-    toast.success(`Imported ${res.inserted} new entries`);
-    setParsed(null); setName(""); onImported();
-  };
-  return (
-    <div className="rounded-xl border border-dashed border-border bg-card p-4 space-y-2">
-      <div className="flex items-center gap-2 text-sm font-semibold"><Upload className="h-4 w-4" /> Import Paxton access log (CSV)</div>
-      <input type="file" accept=".csv,text/csv" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} className="block text-sm" />
-      {parsed && (
-        <div className="text-sm space-y-1">
-          <div><span className="font-medium">{name}</span> <span className="text-muted-foreground">· {parsed.rows.length} access events{parsed.skipped ? `, ${parsed.skipped} non-entry rows skipped` : ""}</span></div>
-          <Button size="sm" disabled={busy} onClick={doImport} className="gap-1">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Import</Button>
-          <p className="text-[11px] text-muted-foreground">Re-importing the same export is safe — duplicates are skipped.</p>
-        </div>
       )}
     </div>
   );

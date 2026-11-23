@@ -99,16 +99,23 @@ export function CheckInReport() {
     try {
       const startISO = `${startDate}T00:00:00`;
       const endISO = `${endDate}T23:59:59`;
-      const { data, error } = await supabase
-        .from("scan_events")
-        .select(
-          "ts, member_name, member_ref, result, method, site, device_id, checkin_for, source, gym_members(product)",
-        )
-        .gte("ts", startISO)
-        .lte("ts", endISO)
-        .order("ts", { ascending: false });
-      if (error) throw error;
-      setRows((data || []) as unknown as ScanRow[]);
+      // Paginate past Supabase's 1000-row cap so long date ranges return in full.
+      const all: any[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase
+          .from("scan_events")
+          .select(
+            "ts, member_name, member_ref, result, method, site, device_id, checkin_for, source, gym_members(product)",
+          )
+          .gte("ts", startISO)
+          .lte("ts", endISO)
+          .order("ts", { ascending: false })
+          .range(from, from + 999);
+        if (error) throw error;
+        all.push(...(data || []));
+        if (!data || data.length < 1000) break;
+      }
+      setRows(all as unknown as ScanRow[]);
     } catch (e) {
       console.error("check-in report load failed", e);
       setRows([]);
