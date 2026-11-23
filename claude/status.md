@@ -1801,3 +1801,19 @@ Note: value is understated (code-only + unmatched excluded); recommend personal 
 - fob_entries.sql + parseFobCsv/importFobEntries kept but unused (optional historical backfill).
 PUSH: src/components/CheckInReport.tsx, src/lib/fob.ts, src/components/Fob24hrPanel.tsx
 (No SQL needed for the live path; fob_entries.sql optional.)
+
+## #120 — Finance: VAT projection + tax pot
+Standard scheme (output − input, 20%). Decision: standard 20%.
+- finance_vat.sql: transaction_categories.vat_treatment (standard/zero/exempt/none, defaults
+  seeded: Rent/Insurance/Bank&fees exempt, Wages/Owner drawings none, rest standard);
+  feature_settings 'finance' gains vatRate(20)+revenueVatable(true); tax_pot table (staff RLS).
+- finance.ts: VatTreatment + VAT_LABEL; computeVat (output VAT on standard revenue incl. MRR if
+  revenueVatable, input VAT on standard expenses; VAT element = gross×r/(100+r)); vatOfGross;
+  tax_pot CRUD (list/balance/add/delete); setCategoryVat/setCategorySite; FinanceSettings gains
+  vatRate+revenueVatable.
+- FinanceTab: "VAT / Tax" sub-tab. Tiles output/input/owed; Tax pot (balance, "Add £owed to pot",
+  manual +add/−paid, history w/ delete); VAT settings (rate, membership-vatable toggle) +
+  per-category treatment editor. Period-aware. saveFinanceSettings calls updated for new fields.
+Note to Michael: estimate only, not a filed return; entity split uses the 24hr/main site split.
+Next/last: planned future revenue (golf sim, yoga) in Forecast; custom date range for >12mo.
+RUN: finance_vat.sql   PUSH: finance.ts, FinanceTab.tsx

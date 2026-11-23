@@ -5,8 +5,10 @@ import { supabase } from "@/lib/supabase";
 
 export type CategoryKind = "revenue" | "expense" | "owner";
 export type Site = "24hr" | "main" | "shared";
+export type VatTreatment = "standard" | "zero" | "exempt" | "none";
 export const SITE_LABEL: Record<Site, string> = { "24hr": "24hr gym", main: "Main site", shared: "Shared" };
-export interface Category { name: string; kind: CategoryKind; sort: number; default_site?: Site | null }
+export const VAT_LABEL: Record<VatTreatment, string> = { standard: "Standard 20%", zero: "Zero-rated", exempt: "Exempt", none: "No VAT" };
+export interface Category { name: string; kind: CategoryKind; sort: number; default_site?: Site | null; vat_treatment?: VatTreatment }
 
 export interface BankTxn {
   id: string;
@@ -141,8 +143,76 @@ export function parseBankCsv(text: string): { rows: ParsedRow[]; skipped: number
 
 // ── CRUD ─────────────────────────────────────────────────────────────────────
 export async function listCategories(): Promise<Category[]> {
-  const { data } = await supabase.from("transaction_categories").select("name, kind, sort, default_site").order("sort");
+  const { data } = await supabase.from("transaction_categories").select("name, kind, sort, default_site, vat_treatment").order("sort");
   return (data as Category[]) ?? [];
+}
+
+export async function setCategoryVat(name: string, vat_treatment: VatTreatment): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from("transaction_categories").update({ vat_treatment }).eq("name", name);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function setCategorySite(name: string, default_site: Site | null): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from("transaction_categories").update({ default_site }).eq("name", name);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+// ── VAT (standard scheme: output − input; amounts are gross/VAT-inclusive) ────
+export interface VatResult { outputVat: number; inputVat: number; owed: number; vatableRevenue: number; vatableExpenses: number }
+
+/** VAT element of a gross (inclusive) amount at the given %: gross × r/(100+r). */
+export function vatOfGross(gross: number, ratePct: number) { return gross * (ratePct / (100 + ratePct)); }
+
+/**
+ * Output VAT from revenue, input VAT reclaimed from expenses. Revenue is either the
+ * membership MRR (treated standard-rated if revenueVatable) or bank revenue txns by category.
+ */
+export function computeVat(opts: {
+  txns: BankTxn[];
+  kindOf: (c: string) => CategoryKind;
+  treatmentOf: (c: string) => VatTreatment;
+  rate: number;
+  revenueSource: RevenueSource;
+  mrrRevenue: number;
+  revenueVatable: boolean;
+}): VatResult {
+  let vatableRevenue = 0, vatableExpenses = 0;
+  // Revenue
+  if (opts.revenueSource === "mrr") {
+    if (opts.revenueVatable) vatableRevenue = opts.mrrRevenue;
+  } else {
+    for (const t of opts.txns) {
+      if (t.excluded || !t.category || t.status === "needs_review") continue;
+      if (opts.kindOf(t.category) === "revenue" && opts.treatmentOf(t.category) === "standard") vatableRevenue += Math.abs(t.amount);
+    }
+  }
+  // Expenses (input VAT reclaim only on standard-rated purchases)
+  for (const t of opts.txns) {
+    if (t.excluded || !t.category || t.status === "needs_review") continue;
+    if (opts.kindOf(t.category) === "expense" && opts.treatmentOf(t.category) === "standard") vatableExpenses += Math.abs(t.amount);
+  }
+  const outputVat = vatOfGross(vatableRevenue, opts.rate);
+  const inputVat = vatOfGross(vatableExpenses, opts.rate);
+  return { outputVat, inputVat, owed: outputVat - inputVat, vatableRevenue, vatableExpenses };
+}
+
+// ── Tax pot ──────────────────────────────────────────────────────────────────
+export interface TaxPotEntry { id: string; ts: string; amount: number; note: string | null; created_by: string | null }
+export async function listTaxPot(): Promise<TaxPotEntry[]> {
+  const { data } = await supabase.from("tax_pot").select("*").order("ts", { ascending: false });
+  return (data as TaxPotEntry[]) ?? [];
+}
+export async function taxPotBalance(): Promise<number> {
+  const { data } = await supabase.from("tax_pot").select("amount").range(0, 9999);
+  return (data ?? []).reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
+}
+export async function addTaxPot(amount: number, note: string, by?: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from("tax_pot").insert({ amount, note: note || null, created_by: by || null });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+export async function deleteTaxPot(id: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from("tax_pot").delete().eq("id", id);
+  return error ? { ok: false, error: error.message } : { ok: true };
 }
 
 /** Expenses per site over the given transactions (costs of each unit). */
@@ -203,7 +273,7 @@ export async function addCategory(name: string, kind: CategoryKind): Promise<{ o
 
 // ── Break-even + revenue-source setting (feature_settings key 'finance') ──────
 export type RevenueSource = "mrr" | "bank";
-export interface FinanceSettings { breakEvenMonthly: number; ownerPayTarget: number; revenueSource: RevenueSource }
+export interface FinanceSettings { breakEvenMonthly: number; ownerPayTarget: number; revenueSource: RevenueSource; vatRate: number; revenueVatable: boolean }
 export async function getFinanceSettings(): Promise<FinanceSettings> {
   const { data } = await supabase.from("feature_settings").select("value").eq("key", "finance").maybeSingle();
   const v = (data?.value ?? {}) as any;
@@ -211,6 +281,8 @@ export async function getFinanceSettings(): Promise<FinanceSettings> {
     breakEvenMonthly: Number(v.breakEvenMonthly) || 0,
     ownerPayTarget: Number(v.ownerPayTarget) || 0,
     revenueSource: v.revenueSource === "bank" ? "bank" : "mrr",
+    vatRate: v.vatRate != null ? Number(v.vatRate) : 20,
+    revenueVatable: v.revenueVatable !== false,
   };
 }
 export async function saveFinanceSettings(s: FinanceSettings): Promise<{ ok: boolean; error?: string }> {

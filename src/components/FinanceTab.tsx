@@ -12,13 +12,14 @@ import {
   listRules, addRule, deleteRule, applyRulesToUncoded,
   buildForecast, recentMonthlyExpenses, mrrGrowthFromTrend,
   costsBySite, setSite, SITE_LABEL,
+  computeVat, listTaxPot, taxPotBalance, addTaxPot, deleteTaxPot, setCategoryVat, VAT_LABEL,
   FIN_PERIODS, type FinPeriod, type BankTxn, type Category, type ParsedRow,
-  type RevenueSource, type TxnRule, type CategoryKind, type Site,
+  type RevenueSource, type TxnRule, type CategoryKind, type Site, type VatTreatment, type TaxPotEntry,
 } from "@/lib/finance";
 import { loadKpis } from "@/lib/kpis";
 import { Fob24hrPanel } from "@/components/Fob24hrPanel";
 
-type Sub = "pnl" | "transactions" | "upload" | "forecast" | "unit";
+type Sub = "pnl" | "transactions" | "upload" | "forecast" | "unit" | "vat";
 
 // Period → which of the 12 trend months to sum for MRR revenue.
 function periodMrr(trend: { month: string; mrr: number }[], period: FinPeriod): number {
@@ -42,6 +43,8 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
   const [revSource, setRevSource] = useState<RevenueSource>("mrr");
   const [mrrRevenue, setMrrRevenue] = useState(0);
   const [trend, setTrend] = useState<{ month: string; mrr: number }[]>([]);
+  const [vatRate, setVatRate] = useState(20);
+  const [revenueVatable, setRevenueVatable] = useState(true);
 
   const kindOf = useCallback((name: string) => cats.find((c) => c.name === name)?.kind ?? "expense", [cats]);
   const range = finPeriodRange(period);
@@ -54,7 +57,7 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
       ]);
       setCats(c); setTxns(t); setRules(r);
       setBreakEven(s.breakEvenMonthly); setBeInput(s.breakEvenMonthly ? String(s.breakEvenMonthly) : "");
-      setRevSource(s.revenueSource);
+      setRevSource(s.revenueSource); setVatRate(s.vatRate); setRevenueVatable(s.revenueVatable);
       try {
         const kpi = await loadKpis(period, staffSecret);
         setMrrRevenue(periodMrr(kpi.trend, period));
@@ -76,13 +79,17 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
 
   const saveBe = async () => {
     const val = Number(beInput) || 0;
-    const res = await saveFinanceSettings({ breakEvenMonthly: val, ownerPayTarget: 0, revenueSource: revSource });
+    const res = await saveFinanceSettings({ breakEvenMonthly: val, ownerPayTarget: 0, revenueSource: revSource, vatRate, revenueVatable });
     if (!res.ok) { toast.error(res.error || "Couldn't save"); return; }
     setBreakEven(val); toast.success("Break-even saved");
   };
   const changeRevSource = async (src: RevenueSource) => {
     setRevSource(src);
-    await saveFinanceSettings({ breakEvenMonthly: breakEven, ownerPayTarget: 0, revenueSource: src });
+    await saveFinanceSettings({ breakEvenMonthly: breakEven, ownerPayTarget: 0, revenueSource: src, vatRate, revenueVatable });
+  };
+  const saveVatSettings = async (rate: number, vatable: boolean) => {
+    setVatRate(rate); setRevenueVatable(vatable);
+    await saveFinanceSettings({ breakEvenMonthly: breakEven, ownerPayTarget: 0, revenueSource: revSource, vatRate: rate, revenueVatable: vatable });
   };
 
   return (
@@ -93,17 +100,17 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
           <p className="text-xs text-muted-foreground">Profit &amp; loss from your bank statement.</p>
         </div>
         <div className="flex gap-1.5">
-          {(["pnl", "forecast", "unit", "transactions", "upload"] as Sub[]).map((s) => (
+          {(["pnl", "forecast", "vat", "unit", "transactions", "upload"] as Sub[]).map((s) => (
             <button key={s} onClick={() => setSub(s)}
               className={`rounded-full px-3 py-1 text-xs font-medium border transition ${
                 sub === s ? "bg-primary text-primary-foreground border-primary" : "bg-muted/40 text-muted-foreground border-border hover:bg-muted"}`}>
-              {s === "pnl" ? "P&L" : s === "forecast" ? "Forecast" : s === "unit" ? "24hr Unit" : s === "transactions" ? "Transactions" : "Upload"}
+              {s === "pnl" ? "P&L" : s === "forecast" ? "Forecast" : s === "vat" ? "VAT / Tax" : s === "unit" ? "24hr Unit" : s === "transactions" ? "Transactions" : "Upload"}
             </button>
           ))}
         </div>
       </div>
 
-      {(sub === "pnl" || sub === "transactions") && (
+      {(sub === "pnl" || sub === "transactions" || sub === "vat") && (
         <div className="flex gap-1.5 flex-wrap">
           {FIN_PERIODS.map((p) => (
             <button key={p.key} onClick={() => setPeriod(p.key)}
@@ -124,6 +131,9 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
                  revSource={revSource} changeRevSource={changeRevSource}
                  vsBreakEven={vsBreakEven} beTarget={beTarget} label={range.label}
                  beInput={beInput} setBeInput={setBeInput} saveBe={saveBe} onGoCode={() => setSub("transactions")} />
+      ) : sub === "vat" ? (
+        <VatView txns={txns} cats={cats} kindOf={kindOf} revSource={revSource} mrrRevenue={mrrRevenue}
+                 vatRate={vatRate} revenueVatable={revenueVatable} saveVatSettings={saveVatSettings} label={range.label} onChanged={load} />
       ) : sub === "unit" ? (
         <Fob24hrPanel />
       ) : sub === "forecast" ? (
@@ -465,6 +475,118 @@ function ForecastView({ trend, kindOf, breakEven }: { trend: { month: string; mr
       </div>
       <p className="text-[11px] text-muted-foreground">
         A straight-line projection from current MRR and recent expenses — a planning tool, not a guarantee. It assumes steady growth and flat costs.
+      </p>
+    </div>
+  );
+}
+
+function VatView({ txns, cats, kindOf, revSource, mrrRevenue, vatRate, revenueVatable, saveVatSettings, label, onChanged }: any) {
+  const treatmentOf = (name: string): VatTreatment => cats.find((c: Category) => c.name === name)?.vat_treatment ?? "standard";
+  const vat = useMemo(() => computeVat({ txns, kindOf, treatmentOf, rate: vatRate, revenueSource: revSource, mrrRevenue, revenueVatable }),
+    [txns, cats, vatRate, revSource, mrrRevenue, revenueVatable]);
+
+  const [pot, setPot] = useState<TaxPotEntry[]>([]);
+  const [bal, setBal] = useState(0);
+  const [addAmt, setAddAmt] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
+  const loadPot = useCallback(async () => { setPot(await listTaxPot()); setBal(await taxPotBalance()); }, []);
+  useEffect(() => { loadPot(); }, [loadPot]);
+
+  const addOwed = async () => {
+    if (vat.owed <= 0) { toast.message("No VAT owed this period"); return; }
+    const res = await addTaxPot(Math.round(vat.owed), `VAT set-aside · ${label}`, localStorage.getItem("fittrack_staff_name") || "Staff");
+    if (!res.ok) { toast.error(res.error || "Couldn't add"); return; }
+    toast.success(`Added ${gbp(Math.round(vat.owed))} to tax pot`); loadPot();
+  };
+  const addManual = async (sign: 1 | -1) => {
+    const v = Number(addAmt) || 0; if (!v) return;
+    const res = await addTaxPot(sign * Math.abs(v), sign > 0 ? "Manual top-up" : "Paid to HMRC", localStorage.getItem("fittrack_staff_name") || "Staff");
+    if (!res.ok) { toast.error(res.error || "Couldn't save"); return; }
+    setAddAmt(""); loadPot();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Tile label="Output VAT (on sales)" value={gbp(vat.outputVat)} icon={PoundSterling} tone="text-emerald-600 dark:text-emerald-400" />
+        <Tile label="Input VAT (reclaimable)" value={gbp(vat.inputVat)} icon={PoundSterling} tone="text-muted-foreground" />
+        <Tile label={`VAT owed · ${label}`} value={gbp(vat.owed)} icon={PoundSterling}
+              tone={vat.owed > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"} />
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <h3 className="text-sm font-semibold">Tax pot</h3>
+            <div className="text-2xl font-bold tabular-nums">{gbp(bal)}<span className="text-xs font-normal text-muted-foreground"> set aside</span></div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button size="sm" onClick={addOwed} className="gap-1">Add {gbp(Math.max(0, Math.round(vat.owed)))} to pot</Button>
+            <div className="flex items-center gap-1">
+              <span className="text-sm text-muted-foreground">£</span>
+              <input type="number" value={addAmt} onChange={(e) => setAddAmt(e.target.value)} placeholder="amount"
+                     className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm" />
+              <Button size="sm" variant="outline" onClick={() => addManual(1)}>+ add</Button>
+              <Button size="sm" variant="outline" onClick={() => addManual(-1)}>− paid</Button>
+            </div>
+          </div>
+        </div>
+        {pot.length > 0 && (
+          <div className="space-y-1 max-h-[220px] overflow-auto">
+            {pot.map((e) => (
+              <div key={e.id} className="flex items-center gap-2 text-sm border-b border-border/40 py-0.5">
+                <span className="w-20 shrink-0 text-xs text-muted-foreground">{e.ts.slice(0, 10)}</span>
+                <span className="flex-1 truncate text-muted-foreground">{e.note || "—"}</span>
+                <span className={`tabular-nums ${e.amount >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                  {e.amount >= 0 ? "+" : "−"}{gbp2(Math.abs(e.amount))}
+                </span>
+                <button className="text-xs text-muted-foreground hover:text-red-600 hover:underline"
+                  onClick={async () => { const r = await deleteTaxPot(e.id); if (!r.ok) toast.error(r.error || "Failed"); else loadPot(); }}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3 text-xs">
+        <button className="underline text-muted-foreground" onClick={() => setShowSettings((s) => !s)}>
+          {showSettings ? "Hide" : "VAT settings & category treatment"}
+        </button>
+        <span className="text-muted-foreground">Rate {vatRate}% · membership revenue {revenueVatable ? "standard-rated" : "not VATable"}</span>
+      </div>
+
+      {showSettings && (
+        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="text-sm flex items-center gap-1">VAT rate
+              <input type="number" value={vatRate} onChange={(e) => saveVatSettings(Number(e.target.value) || 0, revenueVatable)}
+                     className="w-16 rounded-md border border-border bg-background px-2 py-1 text-sm" />%
+            </label>
+            <label className="text-sm flex items-center gap-1.5">
+              <input type="checkbox" checked={revenueVatable} onChange={(e) => saveVatSettings(vatRate, e.target.checked)} />
+              Membership revenue is standard-rated
+            </label>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">VAT treatment per category (only standard-rated items generate/reclaim VAT):</p>
+            <div className="grid gap-1 sm:grid-cols-2">
+              {cats.map((c: Category) => (
+                <div key={c.name} className="flex items-center gap-2 text-sm">
+                  <span className="flex-1 truncate">{c.name}</span>
+                  <select value={c.vat_treatment ?? "standard"}
+                    onChange={async (e) => { const r = await setCategoryVat(c.name, e.target.value as VatTreatment); if (!r.ok) toast.error(r.error || "Failed"); else onChanged(); }}
+                    className="rounded-md border border-border bg-background px-1.5 py-0.5 text-xs">
+                    {(["standard", "zero", "exempt", "none"] as VatTreatment[]).map((t) => <option key={t} value={t}>{VAT_LABEL[t]}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <p className="text-[11px] text-muted-foreground">
+        Estimate only, on a standard (output − input) basis from VAT-inclusive amounts — not a filed return. When you split the business for the threshold, each entity's VAT comes from its own site via the 24hr/main split.
       </p>
     </div>
   );
