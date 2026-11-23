@@ -11,8 +11,9 @@ import {
   financialTotals, getFinanceSettings, saveFinanceSettings, finPeriodRange, gbp, gbp2,
   listRules, addRule, deleteRule, applyRulesToUncoded,
   buildForecast, recentMonthlyExpenses, mrrGrowthFromTrend,
+  costsBySite, setSite, SITE_LABEL,
   FIN_PERIODS, type FinPeriod, type BankTxn, type Category, type ParsedRow,
-  type RevenueSource, type TxnRule, type CategoryKind,
+  type RevenueSource, type TxnRule, type CategoryKind, type Site,
 } from "@/lib/finance";
 import { loadKpis } from "@/lib/kpis";
 
@@ -65,6 +66,7 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
   useEffect(() => { load(); }, [load]);
 
   const bankTotals = useMemo(() => financialTotals(txns, kindOf), [txns, kindOf]);
+  const siteCosts = useMemo(() => costsBySite(txns, kindOf), [txns, kindOf]);
   // In MRR mode the revenue line comes from memberships, not bank credits; expenses still bank.
   const revenueTotal = revSource === "mrr" ? mrrRevenue : bankTotals.totalRevenue;
   const netProfit = revenueTotal - bankTotals.totalExpenses;
@@ -117,7 +119,7 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
           <Loader2 className="h-5 w-5 animate-spin" /> Loading…
         </div>
       ) : sub === "pnl" ? (
-        <PnlView bankTotals={bankTotals} revenueTotal={revenueTotal} netProfit={netProfit}
+        <PnlView bankTotals={bankTotals} siteCosts={siteCosts} revenueTotal={revenueTotal} netProfit={netProfit}
                  revSource={revSource} changeRevSource={changeRevSource}
                  vsBreakEven={vsBreakEven} beTarget={beTarget} label={range.label}
                  beInput={beInput} setBeInput={setBeInput} saveBe={saveBe} onGoCode={() => setSub("transactions")} />
@@ -141,7 +143,7 @@ function Tile({ label, value, tone, icon: Icon }: { label: string; value: string
   );
 }
 
-function PnlView({ bankTotals, revenueTotal, netProfit, revSource, changeRevSource, vsBreakEven, beTarget, label, beInput, setBeInput, saveBe, onGoCode }: any) {
+function PnlView({ bankTotals, siteCosts, revenueTotal, netProfit, revSource, changeRevSource, vsBreakEven, beTarget, label, beInput, setBeInput, saveBe, onGoCode }: any) {
   const exp = [...bankTotals.expenses.entries()].sort((a: any, b: any) => b[1] - a[1]);
   const rev = revSource === "mrr"
     ? [["Membership revenue (MRR)", revenueTotal] as [string, number]]
@@ -196,6 +198,21 @@ function PnlView({ bankTotals, revenueTotal, netProfit, revSource, changeRevSour
       <div className="grid gap-4 md:grid-cols-2">
         <Breakdown title="Revenue" rows={rev} tone="text-emerald-600 dark:text-emerald-400" />
         <Breakdown title="Expenses" rows={exp} tone="text-red-600 dark:text-red-400" />
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <h3 className="text-sm font-semibold mb-2">Costs by site</h3>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {(["24hr", "main", "shared"] as Site[]).map((s) => (
+            <div key={s} className="rounded-lg border border-border/60 p-3">
+              <div className="text-xs font-medium text-muted-foreground">{SITE_LABEL[s]}</div>
+              <div className="mt-1 text-xl font-bold tabular-nums text-red-600 dark:text-red-400">{gbp(siteCosts[s] || 0)}</div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          Tag each transaction's site under Transactions. Shared costs serve both units and aren't split — revenue attribution to the 24hr unit comes once fob usage is imported.
+        </p>
       </div>
     </div>
   );
@@ -256,11 +273,25 @@ function TxnTable({ txns, cats, rules, onChanged, label }: { txns: BankTxn[]; ca
             </span>
             <select
               value={t.category ?? ""}
-              onChange={async (e) => { const r = await setCategory(t.id, e.target.value || null); if (!r.ok) toast.error(r.error || "Failed"); else onChanged(); }}
-              className="w-44 shrink-0 rounded-md border border-border bg-background px-1.5 py-1 text-xs"
+              onChange={async (e) => {
+                const name = e.target.value || null;
+                const ds = name ? cats.find((c) => c.name === name)?.default_site ?? null : null;
+                const r = await setCategory(t.id, name, ds); if (!r.ok) toast.error(r.error || "Failed"); else onChanged();
+              }}
+              className="w-40 shrink-0 rounded-md border border-border bg-background px-1.5 py-1 text-xs"
             >
               <option value="">— uncategorised —</option>
               {cats.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+            </select>
+            <select
+              value={t.site}
+              onChange={async (e) => { const r = await setSite(t.id, e.target.value as Site); if (!r.ok) toast.error(r.error || "Failed"); else onChanged(); }}
+              className="w-24 shrink-0 rounded-md border border-border bg-background px-1.5 py-1 text-xs"
+              title="Site / cost centre"
+            >
+              <option value="shared">Shared</option>
+              <option value="main">Main</option>
+              <option value="24hr">24hr</option>
             </select>
             <button title={t.excluded ? "Include" : "Exclude"}
               onClick={async () => { const r = await setExcluded(t.id, !t.excluded); if (!r.ok) toast.error(r.error || "Failed"); else onChanged(); }}

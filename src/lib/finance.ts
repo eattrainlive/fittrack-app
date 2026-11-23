@@ -4,7 +4,9 @@
 import { supabase } from "@/lib/supabase";
 
 export type CategoryKind = "revenue" | "expense" | "owner";
-export interface Category { name: string; kind: CategoryKind; sort: number }
+export type Site = "24hr" | "main" | "shared";
+export const SITE_LABEL: Record<Site, string> = { "24hr": "24hr gym", main: "Main site", shared: "Shared" };
+export interface Category { name: string; kind: CategoryKind; sort: number; default_site?: Site | null }
 
 export interface BankTxn {
   id: string;
@@ -15,6 +17,7 @@ export interface BankTxn {
   category: string | null;
   status: "needs_review" | "coded";
   excluded: boolean;
+  site: Site;
   import_batch: string | null;
 }
 
@@ -138,8 +141,24 @@ export function parseBankCsv(text: string): { rows: ParsedRow[]; skipped: number
 
 // ── CRUD ─────────────────────────────────────────────────────────────────────
 export async function listCategories(): Promise<Category[]> {
-  const { data } = await supabase.from("transaction_categories").select("name, kind, sort").order("sort");
+  const { data } = await supabase.from("transaction_categories").select("name, kind, sort, default_site").order("sort");
   return (data as Category[]) ?? [];
+}
+
+/** Expenses per site over the given transactions (costs of each unit). */
+export function costsBySite(txns: BankTxn[], kindOf: (c: string) => CategoryKind): Record<Site, number> {
+  const out: Record<Site, number> = { "24hr": 0, main: 0, shared: 0 };
+  for (const t of txns) {
+    if (t.excluded || !t.category || t.status === "needs_review") continue;
+    if (kindOf(t.category) !== "expense") continue;
+    out[t.site] += signedForKind(t, "expense");
+  }
+  return out;
+}
+
+export async function setSite(id: string, site: Site): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from("bank_transactions").update({ site }).eq("id", id);
+  return error ? { ok: false, error: error.message } : { ok: true };
 }
 
 export async function listTransactions(fromISO?: string, toISO?: string): Promise<BankTxn[]> {
@@ -165,11 +184,10 @@ export async function importTransactions(rows: ParsedRow[]): Promise<{ ok: boole
   return { ok: true, inserted };
 }
 
-export async function setCategory(id: string, category: string | null): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase
-    .from("bank_transactions")
-    .update({ category, status: category ? "coded" : "needs_review" })
-    .eq("id", id);
+export async function setCategory(id: string, category: string | null, site?: Site | null): Promise<{ ok: boolean; error?: string }> {
+  const patch: any = { category, status: category ? "coded" : "needs_review" };
+  if (site) patch.site = site; // apply the category's default site when provided
+  const { error } = await supabase.from("bank_transactions").update(patch).eq("id", id);
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
@@ -228,8 +246,9 @@ export function matchRule(description: string | null, rules: TxnRule[]): string 
 
 /** Apply all rules to every uncoded, non-excluded transaction. Returns how many were coded. */
 export async function applyRulesToUncoded(): Promise<{ coded: number; error?: string }> {
-  const rules = await listRules();
+  const [rules, cats] = await Promise.all([listRules(), listCategories()]);
   if (!rules.length) return { coded: 0 };
+  const siteOf = new Map(cats.map((c) => [c.name, c.default_site ?? null]));
   const { data } = await supabase
     .from("bank_transactions")
     .select("id, description")
@@ -240,7 +259,10 @@ export async function applyRulesToUncoded(): Promise<{ coded: number; error?: st
   for (const t of data ?? []) {
     const cat = matchRule(t.description, rules);
     if (!cat) continue;
-    const { error } = await supabase.from("bank_transactions").update({ category: cat, status: "coded" }).eq("id", t.id);
+    const patch: any = { category: cat, status: "coded" };
+    const ds = siteOf.get(cat);
+    if (ds) patch.site = ds;
+    const { error } = await supabase.from("bank_transactions").update(patch).eq("id", t.id);
     if (error) return { coded, error: error.message };
     coded++;
   }

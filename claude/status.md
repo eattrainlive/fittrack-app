@@ -1756,3 +1756,16 @@ RUN: finance_phase2.sql   PUSH: finance.ts, FinanceTab.tsx, Admin.tsx
   bars + profit line) + month table.
 - No new SQL (uses existing finance tables + kpis trend). Push: finance.ts, FinanceTab.tsx
 - Finance layer complete: P&L (MRR/bank revenue) · Transactions + auto-rules · Upload · Forecast.
+
+## #117 — Finance Phase 4: site cost-split (24hr vs main)
+First brick of the business-unit split (decisions: build site-split first; VAT standard 20%;
+fob-value formula deferred until data's in).
+- finance_phase4_sites.sql: bank_transactions.site ('24hr'|'main'|'shared', default shared);
+  transaction_categories.default_site (optional, auto-applies site when a category is picked).
+- finance.ts: Site type + SITE_LABEL; BankTxn.site; costsBySite(); setSite(); setCategory takes
+  optional site; applyRulesToUncoded applies category default_site.
+- FinanceTab: P&L "Costs by site" card (24hr / main / shared expense totals); Transactions row
+  gets a site dropdown; picking a category auto-sets its default site.
+Next phases: fob import + 24hr value formula; VAT projection + tax pot; planned future revenue
+(golf sim, yoga) in the forecast; custom date range for backdated months (>12mo).
+RUN: finance_phase4_sites.sql   PUSH: finance.ts, FinanceTab.tsx
