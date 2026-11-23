@@ -1868,3 +1868,18 @@ PUSH: src/lib/pricingImport.ts. Re-import the pricing file after deploy to apply
 HONEST LIMIT: accurate MONTHLY churn/retention still needs leave DATES (this snapshot has none);
 undated cleanup can't produce "24 left in Nov". Future: dated cancellations (manual mark-as-left,
 or an Ended-with-dates export) drive real monthly churn.
+
+## #124 — Leaver/churn import (dated) → real churn & retention
+Read KPI Google Sheet (2026 KPIs) → "Lapsed Members" tab = ~928 dated leavers.
+Export columns: First/Last/Email/Last membership/Category/Monthly £/Cancelled(date)/Months since/Window/Priority/Stage. Header on row 6.
+- src/lib/leaverImport.ts: importLeavers — finds header row, keyed on email; marks each leaver
+  cancelled with ended_on = real Cancelled date; SKIPS anyone currently active/paused (rejoined);
+  creates a cancelled row if the leaver isn't in the roster (→ true all-time leaver count ~900).
+- kpis computeMetrics: lostInPeriod now = any status-lost member with end_date in the period
+  (not gated on a confirmed start date, which leaver records lack) → monthly churn is real.
+- NumbersDashboard: "Import leavers (churn history)" card next to pricing; shows matched/created/
+  skipped-rejoined/no-date.
+PRIVACY: Lapsed CSV has real member PII — NOT committed; importer reads the upload client-side.
+Order to load: pricing file first (sets current actives), THEN leavers (dates the departures).
+PUSH: src/lib/leaverImport.ts, src/lib/kpis.ts, src/components/NumbersDashboard.tsx
+VERIFY: Left(all-time)≈900+, Nov churn ~3.4% / retention ~96.6%, active still ~649.

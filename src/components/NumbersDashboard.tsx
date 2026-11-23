@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { ResponsiveContainer, ComposedChart, Area, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { Button } from "@/components/ui/button";
 import { importMemberPricing, type PricingImportResult } from "@/lib/pricingImport";
+import { importLeavers, type LeaverImportResult } from "@/lib/leaverImport";
 import {
   loadKpis, listPlans, savePlanPrice, periodRange,
   gbp, gbp2, pct, PERIODS, type KpiPeriod, type KpiData,
@@ -43,6 +44,20 @@ export function NumbersDashboard({ staffSecret }: { staffSecret: string }) {
   const [showPrices, setShowPrices] = useState(false);
   const [pricingBusy, setPricingBusy] = useState(false);
   const [pricingResult, setPricingResult] = useState<PricingImportResult | null>(null);
+  const [leaverBusy, setLeaverBusy] = useState(false);
+  const [leaverResult, setLeaverResult] = useState<LeaverImportResult | null>(null);
+
+  const onLeaverFile = async (f: File) => {
+    setLeaverBusy(true);
+    try {
+      const res = await importLeavers(await f.text());
+      setLeaverResult(res);
+      if (!res.ok) { toast.error(res.error || "Import failed"); return; }
+      toast.success(`Leavers loaded: ${res.marked + res.created} cancelled`);
+      load();
+    } catch (e: any) { toast.error(e.message || "Import failed"); }
+    finally { setLeaverBusy(false); }
+  };
 
   const onPricingFile = async (f: File) => {
     setPricingBusy(true);
@@ -132,7 +147,24 @@ export function NumbersDashboard({ staffSecret }: { staffSecret: string }) {
         {pricingResult?.ok && (
           <div className="text-xs text-muted-foreground">
             {pricingResult.rows} rows · <span className="text-foreground">{pricingResult.matched} matched</span>, {pricingResult.created} created
-            {pricingResult.flaggedReview > 0 ? `, ${pricingResult.flaggedReview} flagged for review` : ""} · {pricingResult.paying} paying · {pricingResult.zeroPrice} at £0 · {gbp(pricingResult.totalMonthly)}/mo in file
+            {pricingResult.flaggedReview > 0 ? `, ${pricingResult.flaggedReview} marked cancelled (absent)` : ""} · {pricingResult.paying} paying · {pricingResult.zeroPrice} at £0 · {gbp(pricingResult.totalMonthly)}/mo in file
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+        <div className="flex items-center gap-2 text-sm font-semibold"><UserMinus className="h-4 w-4" /> Import leavers (churn history)</div>
+        <p className="text-[11px] text-muted-foreground">
+          Upload the "Lapsed Members" export. Each leaver is marked cancelled with their real cancel date, so churn, retention and "left" become accurate. Anyone who's since rejoined is left as-is.
+        </p>
+        <input type="file" accept=".csv,text/csv" disabled={leaverBusy}
+               onChange={(e) => e.target.files?.[0] && onLeaverFile(e.target.files[0])} className="block text-sm" />
+        {leaverBusy && <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading leavers…</div>}
+        {leaverResult?.ok && (
+          <div className="text-xs text-muted-foreground">
+            {leaverResult.rows} leavers · <span className="text-foreground">{leaverResult.marked} matched</span>, {leaverResult.created} created
+            {leaverResult.skippedActive > 0 ? `, ${leaverResult.skippedActive} skipped (rejoined)` : ""}
+            {leaverResult.noDate > 0 ? `, ${leaverResult.noDate} without a cancel date` : ""}
           </div>
         )}
       </div>

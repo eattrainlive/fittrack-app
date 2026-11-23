@@ -53,7 +53,9 @@ export function computeMetrics(members: KpiMember[], from: Date, to: Date): KpiM
   });
 
   const activeAtStart = startCohort.length;
-  const lostInPeriod = startCohort.filter((m) => inPeriod(m.end_date)).length;
+  // Anyone who actually left in the period counts as churn — they were clearly a member before
+  // leaving, so we don't gate this on having a confirmed start date (leaver records often lack one).
+  const lostInPeriod = members.filter((m) => m.status === "lost" && inPeriod(m.end_date)).length;
   const wonInPeriod = members.filter((m) => inPeriod(m.start_date)).length;
 
   const mrr = active.reduce((s, m) => s + Number(m.monthly_fee || 0), 0);
