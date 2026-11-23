@@ -1893,3 +1893,11 @@ current members whose status wasn't literally 'active'.
   'etl_pricing_file' OR live status (not status alone), so the pricing file protects all current members.
 RE-RUN after deploy: pricing file (restores ~649 active) THEN leavers (cancels only true leavers).
 PUSH: src/lib/pricingImport.ts, src/lib/leaverImport.ts
+
+## #126 — Fix active undercount: dedupe by email+NAME (couples share emails)
+DB diagnostic: priced_active = 648 (correct) but tile showed 479 — kpis dedupeByEmail merged
+couples/family who share one email (e.g. Seex, Lamb) into a single person.
+- kpis.ts dedupeByEmail now keys on email + normalised full_name (plan-change dupes still merge;
+  two different people on a shared email stay separate). Select adds full_name; RosterRow +full_name.
+Data was right all along; this was the counting bug. PUSH: src/lib/kpis.ts (no re-import needed).
+Expect Active ~648, revenue ~£37.7k after deploy.

@@ -145,6 +145,7 @@ const normPlan = (s?: string | null) => String(s || "").trim().toLowerCase();
 
 interface RosterRow {
   email: string | null;
+  full_name: string | null;
   status: string | null;
   product: string | null;
   joined_on: string | null;
@@ -180,8 +181,10 @@ function toKpiMember(r: RosterRow, resolveFee: (p: string | null) => { fee: numb
   return { monthly_fee: fee, status, start_date: r.joined_on, end_date: isLost ? leftDate : null, paying, feeKnown: known };
 }
 
-/** Collapse to one row per person (normalised email) — a plan change is not a new member.
- *  Prefer a live row (active/paused), then one with an actual fee, then most-recently joined. */
+/** Collapse to one row per PERSON — a plan change is not a new member. Keyed on email + name,
+ *  because couples/family share an email: two different people on the same email must NOT merge,
+ *  but one person's duplicate rows (same email + name) should. Prefer a live row, then one with
+ *  an actual fee, then most-recently joined. */
 function dedupeByEmail(rows: RosterRow[]): RosterRow[] {
   const rank = (r: RosterRow) => {
     const st = String(r.status || "").toLowerCase();
@@ -191,9 +194,11 @@ function dedupeByEmail(rows: RosterRow[]): RosterRow[] {
   const out: RosterRow[] = [];
   for (const r of rows) {
     const e = (r.email || "").toLowerCase().trim();
-    if (!e) { out.push(r); continue; } // no email → can't dedupe, keep
-    const cur = best.get(e);
-    if (!cur || rank(r) > rank(cur) || (rank(r) === rank(cur) && (r.joined_on || "") > (cur.joined_on || ""))) best.set(e, r);
+    const n = (r.full_name || "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (!e && !n) { out.push(r); continue; } // nothing to key on — keep
+    const key = `${e}|${n}`;
+    const cur = best.get(key);
+    if (!cur || rank(r) > rank(cur) || (rank(r) === rank(cur) && (r.joined_on || "") > (cur.joined_on || ""))) best.set(key, r);
   }
   return [...out, ...best.values()];
 }
@@ -216,7 +221,7 @@ export async function loadKpis(period: KpiPeriod, staffSecret?: string): Promise
   const [rosterRes, pricesRes] = await Promise.all([
     supabase
       .from("gym_members")
-      .select("email, status, product, joined_on, ended_on, end_date, manual_inactive_at, monthly_fee, is_paying")
+      .select("email, full_name, status, product, joined_on, ended_on, end_date, manual_inactive_at, monthly_fee, is_paying")
       .range(0, 9999),
     supabase.from("membership_plan_prices").select("plan_name, monthly_price"),
   ]);
