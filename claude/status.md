@@ -1911,3 +1911,15 @@ and loadKpis/listPlans/member-engagement fetched with no pagination → Supabase
 - member-engagement: paginate gym_members (also fixes at-risk undercount).
 - (also fixed a stale priceFor→resolveFee ref in loadKpis.)
 PUSH: src/lib/kpis.ts   REDEPLOY: member-engagement. No re-import. Expect Active 648 / £37.7k.
+
+## #128 — Trialists wrongly cancelled (access blocked) — pricing sweep too blunt
+Lauren Routledge (active 21-day trial) shown Cancelled / access blocked. Cause: pricing-import
+sweep cancelled active members absent from the pricing file, but the file is PAYING members only
+— trialists & new joiners aren't in it, so they got cancelled.
+- pricingImport: sweep now only sets needs_review (NO cancel). Cancellations come solely from the
+  dated Lapsed-Members leaver import + manual button.
+- reactivate_wrongly_cancelled_trialists.sql: one-off — reactivate status='cancelled' rows with
+  ended_on NULL + manual_inactive_at NULL that are trial products or joined <45d ago (real dated
+  leavers & manual-left untouched).
+RUN: reactivate_wrongly_cancelled_trialists.sql   PUSH: src/lib/pricingImport.ts
+Immediate: Lauren's "Reactivate" button also fixes her now.

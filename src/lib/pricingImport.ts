@@ -124,17 +124,16 @@ export async function importMemberPricing(text: string): Promise<PricingImportRe
     }
   }
 
-  // Source-of-truth sweep: the file is the authoritative current-member list. Anyone still
-  // marked active/paused in the app but ABSENT from the file has left — mark them cancelled so
-  // they drop out of the active count. ended_on is left NULL (unknown leave date) so the cleanup
-  // doesn't all land as "this month's leavers" and spike churn. needs_review flags them for a
-  // human (absence can also be a changed email). Reversible. Guarded against a tiny/partial file.
+  // Flag (do NOT cancel) current members absent from the pricing file. The pricing export only
+  // lists PAYING members — trialists and brand-new joiners aren't in it, so cancelling on absence
+  // wrongly kills active trials. Cancellations come from the dated Lapsed-Members leaver import
+  // (the authoritative "who left and when"), not from this sweep. Here we just flag for a human.
   if (res.rows >= 50) {
     const absent: string[] = [];
     for (const [email, ids] of liveIdsByEmail) if (!seen.has(email)) absent.push(...ids);
     for (let i = 0; i < absent.length; i += 500) {
       const { error } = await supabase.from("gym_members")
-        .update({ status: "cancelled", needs_review: true, updated_at: nowIso })
+        .update({ needs_review: true, updated_at: nowIso })
         .in("id", absent.slice(i, i + 500));
       if (error) return { ...base, ok: false, error: error.message };
     }
