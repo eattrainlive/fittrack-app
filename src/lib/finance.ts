@@ -361,19 +361,27 @@ export async function recentMonthlyExpenses(kindOf: (c: string) => CategoryKind,
   return monthsBack > 0 ? totals.totalExpenses / monthsBack : 0;
 }
 
-/** Project revenue, expenses and profit forward. Revenue grows by a flat £/month; expenses held flat. */
+export interface RevenuePlan { id: string; name: string; monthly_amount: number; start_month: string; end_month: string | null; site: Site; note: string | null }
+const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+/** Project revenue, expenses and profit forward. Revenue grows by a flat £/month; planned
+ *  streams (golf sim, yoga, …) add their amount from their start month; expenses held flat. */
 export function buildForecast(opts: {
   startMrr: number;
   mrrGrowthPerMonth: number;
   monthlyExpenses: number;
   months: number;
+  plans?: RevenuePlan[];
 }): ForecastPoint[] {
   const out: ForecastPoint[] = [];
   const now = new Date();
   let cumulative = 0;
   for (let i = 1; i <= opts.months; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    const revenue = Math.max(0, opts.startMrr + opts.mrrGrowthPerMonth * i);
+    const key = monthKey(d);
+    const planned = (opts.plans ?? []).reduce((s, p) =>
+      s + (key >= p.start_month && (!p.end_month || key <= p.end_month) ? Number(p.monthly_amount || 0) : 0), 0);
+    const revenue = Math.max(0, opts.startMrr + opts.mrrGrowthPerMonth * i) + planned;
     const expenses = opts.monthlyExpenses;
     const profit = revenue - expenses;
     cumulative += profit;
@@ -386,6 +394,19 @@ export function buildForecast(opts: {
     });
   }
   return out;
+}
+
+export async function listRevenuePlans(): Promise<RevenuePlan[]> {
+  const { data } = await supabase.from("revenue_plans").select("*").order("start_month");
+  return (data as RevenuePlan[]) ?? [];
+}
+export async function addRevenuePlan(p: Omit<RevenuePlan, "id">): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from("revenue_plans").insert(p);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+export async function deleteRevenuePlan(id: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from("revenue_plans").delete().eq("id", id);
+  return error ? { ok: false, error: error.message } : { ok: true };
 }
 
 /** Average month-on-month MRR change over the trend's last `window` steps. */

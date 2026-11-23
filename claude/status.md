@@ -1817,3 +1817,16 @@ Standard scheme (output − input, 20%). Decision: standard 20%.
 Note to Michael: estimate only, not a filed return; entity split uses the 24hr/main site split.
 Next/last: planned future revenue (golf sim, yoga) in Forecast; custom date range for >12mo.
 RUN: finance_vat.sql   PUSH: finance.ts, FinanceTab.tsx
+
+## #121 — Forecast: planned revenue streams + custom date range (finance layer complete)
+- finance_revenue_plans.sql: revenue_plans table (name, monthly_amount, start_month 'YYYY-MM',
+  end_month nullable, site, note), staff RLS.
+- finance.ts: RevenuePlan type + listRevenuePlans/addRevenuePlan/deleteRevenuePlan; buildForecast
+  takes optional plans[] and adds each stream's monthly amount from its start month (until end).
+- FinanceTab ForecastView: PlannedStreams editor (name/£-month/start/optional-end, list+remove) →
+  feeds the forecast; golf sim, yoga etc. show up in the projection.
+- Custom date range: period gains "Custom" + two date inputs for P&L/Transactions/VAT; bank data
+  uses the exact range; MRR over custom span approximated as current MRR × months.
+RUN: finance_revenue_plans.sql   PUSH: finance.ts, FinanceTab.tsx
+FINANCE LAYER COMPLETE: Numbers (members/MRR/retention/trend) + Finance (P&L · Forecast w/ planned
+streams · VAT/tax pot · 24hr unit · Transactions+rules · Upload · site cost-split · custom range).

@@ -11,6 +11,7 @@ import {
   financialTotals, getFinanceSettings, saveFinanceSettings, finPeriodRange, gbp, gbp2,
   listRules, addRule, deleteRule, applyRulesToUncoded,
   buildForecast, recentMonthlyExpenses, mrrGrowthFromTrend,
+  listRevenuePlans, addRevenuePlan, deleteRevenuePlan, type RevenuePlan,
   costsBySite, setSite, SITE_LABEL,
   computeVat, listTaxPot, taxPotBalance, addTaxPot, deleteTaxPot, setCategoryVat, VAT_LABEL,
   FIN_PERIODS, type FinPeriod, type BankTxn, type Category, type ParsedRow,
@@ -33,7 +34,9 @@ function periodMrr(trend: { month: string; mrr: number }[], period: FinPeriod): 
 
 export function FinanceTab({ staffSecret }: { staffSecret: string }) {
   const [sub, setSub] = useState<Sub>("pnl");
-  const [period, setPeriod] = useState<FinPeriod>("this");
+  const [period, setPeriod] = useState<FinPeriod | "custom">("this");
+  const [customFrom, setCustomFrom] = useState(new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10));
+  const [customTo, setCustomTo] = useState(new Date().toISOString().slice(0, 10));
   const [cats, setCats] = useState<Category[]>([]);
   const [txns, setTxns] = useState<BankTxn[]>([]);
   const [rules, setRules] = useState<TxnRule[]>([]);
@@ -47,7 +50,10 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
   const [revenueVatable, setRevenueVatable] = useState(true);
 
   const kindOf = useCallback((name: string) => cats.find((c) => c.name === name)?.kind ?? "expense", [cats]);
-  const range = finPeriodRange(period);
+  const monthsBetween = (a: string, b: string) => Math.max(1, Math.round((+new Date(b) - +new Date(a)) / (30.44 * 86400000)));
+  const range = period === "custom"
+    ? { from: customFrom, to: customTo, label: "Custom", months: monthsBetween(customFrom, customTo) }
+    : finPeriodRange(period);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,9 +65,14 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
       setBreakEven(s.breakEvenMonthly); setBeInput(s.breakEvenMonthly ? String(s.breakEvenMonthly) : "");
       setRevSource(s.revenueSource); setVatRate(s.vatRate); setRevenueVatable(s.revenueVatable);
       try {
-        const kpi = await loadKpis(period, staffSecret);
-        setMrrRevenue(periodMrr(kpi.trend, period));
+        const kpi = await loadKpis(period === "custom" ? "12mo" : period, staffSecret);
         setTrend(kpi.trend);
+        if (period === "custom") {
+          const current = kpi.trend.length ? kpi.trend[kpi.trend.length - 1].mrr : 0;
+          setMrrRevenue(current * range.months); // approximate MRR revenue over the custom span
+        } else {
+          setMrrRevenue(periodMrr(kpi.trend, period));
+        }
       } catch { setMrrRevenue(0); }
     } catch (e: any) {
       toast.error(e.message || "Couldn't load finance data — did the finance SQL run?");
@@ -111,7 +122,7 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
       </div>
 
       {(sub === "pnl" || sub === "transactions" || sub === "vat") && (
-        <div className="flex gap-1.5 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap items-center">
           {FIN_PERIODS.map((p) => (
             <button key={p.key} onClick={() => setPeriod(p.key)}
               className={`rounded-full px-3 py-1 text-xs font-medium border transition ${
@@ -119,6 +130,18 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
               {p.label}
             </button>
           ))}
+          <button onClick={() => setPeriod("custom")}
+            className={`rounded-full px-3 py-1 text-xs font-medium border transition ${
+              period === "custom" ? "bg-primary text-primary-foreground border-primary" : "bg-muted/40 text-muted-foreground border-border hover:bg-muted"}`}>
+            Custom
+          </button>
+          {period === "custom" && (
+            <span className="flex items-center gap-1 text-xs">
+              <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="rounded-md border border-border bg-background px-1.5 py-1" />
+              <span className="text-muted-foreground">→</span>
+              <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="rounded-md border border-border bg-background px-1.5 py-1" />
+            </span>
+          )}
         </div>
       )}
 
@@ -369,22 +392,23 @@ function ForecastView({ trend, kindOf, breakEven }: { trend: { month: string; mr
   const [expenses, setExpenses] = useState<number>(0);
   const [months, setMonths] = useState<number>(12);
   const [ready, setReady] = useState(false);
+  const [plans, setPlans] = useState<RevenuePlan[]>([]);
 
+  const loadPlans = useCallback(async () => { setPlans(await listRevenuePlans()); }, []);
   useEffect(() => {
     let on = true;
     (async () => {
-      const exp = await recentMonthlyExpenses(kindOf, 3);
+      const [exp] = await Promise.all([recentMonthlyExpenses(kindOf, 3), loadPlans()]);
       if (!on) return;
       setGrowth(mrrGrowthFromTrend(trend, 3));
-      // Default expenses: last-3-month average, else the break-even target as a fallback.
       setExpenses(Math.round(exp > 0 ? exp : breakEven));
       setReady(true);
     })();
     return () => { on = false; };
-  }, [trend, kindOf, breakEven]);
+  }, [trend, kindOf, breakEven, loadPlans]);
 
-  const data = useMemo(() => buildForecast({ startMrr, mrrGrowthPerMonth: growth, monthlyExpenses: expenses, months }),
-    [startMrr, growth, expenses, months]);
+  const data = useMemo(() => buildForecast({ startMrr, mrrGrowthPerMonth: growth, monthlyExpenses: expenses, months, plans }),
+    [startMrr, growth, expenses, months, plans]);
 
   const firstProfit = data.find((d) => d.profit >= 0);
   const yearCum = data.slice(0, 12).reduce((a, b) => a + b.profit, 0);
@@ -431,6 +455,8 @@ function ForecastView({ trend, kindOf, breakEven }: { trend: { month: string; mr
           <span className="text-[11px] text-muted-foreground ml-1">Growth &amp; expenses default from your last 3 months — adjust to model scenarios.</span>
         </div>
       </div>
+
+      <PlannedStreams plans={plans} onChanged={loadPlans} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Tile label="Projected profit / mo (end)" value={gbp(endProfit)}
@@ -588,6 +614,49 @@ function VatView({ txns, cats, kindOf, revSource, mrrRevenue, vatRate, revenueVa
       <p className="text-[11px] text-muted-foreground">
         Estimate only, on a standard (output − input) basis from VAT-inclusive amounts — not a filed return. When you split the business for the threshold, each entity's VAT comes from its own site via the 24hr/main split.
       </p>
+    </div>
+  );
+}
+
+function PlannedStreams({ plans, onChanged }: { plans: RevenuePlan[]; onChanged: () => void }) {
+  const [name, setName] = useState("");
+  const [amt, setAmt] = useState("");
+  const [start, setStart] = useState(new Date().toISOString().slice(0, 7));
+  const [end, setEnd] = useState("");
+  const add = async () => {
+    if (!name.trim() || !Number(amt)) { toast.error("Name and monthly amount needed"); return; }
+    const res = await addRevenuePlan({ name: name.trim(), monthly_amount: Number(amt), start_month: start, end_month: end || null, site: "shared", note: null });
+    if (!res.ok) { toast.error(res.error || "Couldn't add"); return; }
+    setName(""); setAmt(""); setEnd(""); toast.success("Added to forecast"); onChanged();
+  };
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+      <h3 className="text-sm font-semibold">Planned revenue (golf sim, yoga, …)</h3>
+      <p className="text-[11px] text-muted-foreground">Each stream adds its monthly amount to the forecast from its start month.</p>
+      <div className="flex items-end gap-2 flex-wrap">
+        <label className="text-[11px] text-muted-foreground">Name
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Golf sim" className="mt-0.5 block w-36 rounded-md border border-border bg-background px-2 py-1 text-sm" /></label>
+        <label className="text-[11px] text-muted-foreground">£/month
+          <input type="number" value={amt} onChange={(e) => setAmt(e.target.value)} placeholder="0" className="mt-0.5 block w-24 rounded-md border border-border bg-background px-2 py-1 text-sm" /></label>
+        <label className="text-[11px] text-muted-foreground">Starts
+          <input type="month" value={start} onChange={(e) => setStart(e.target.value)} className="mt-0.5 block rounded-md border border-border bg-background px-2 py-1 text-sm" /></label>
+        <label className="text-[11px] text-muted-foreground">Ends (optional)
+          <input type="month" value={end} onChange={(e) => setEnd(e.target.value)} className="mt-0.5 block rounded-md border border-border bg-background px-2 py-1 text-sm" /></label>
+        <Button size="sm" variant="outline" onClick={add}>Add</Button>
+      </div>
+      {plans.length > 0 && (
+        <div className="space-y-1 pt-1">
+          {plans.map((p) => (
+            <div key={p.id} className="flex items-center gap-2 text-sm border-b border-border/40 py-0.5">
+              <span className="flex-1 truncate">{p.name}</span>
+              <span className="tabular-nums text-emerald-600 dark:text-emerald-400">{gbp(p.monthly_amount)}/mo</span>
+              <span className="text-xs text-muted-foreground">from {p.start_month}{p.end_month ? ` to ${p.end_month}` : ""}</span>
+              <button className="text-xs text-muted-foreground hover:text-red-600 hover:underline"
+                onClick={async () => { const r = await deleteRevenuePlan(p.id); if (!r.ok) toast.error(r.error || "Failed"); else onChanged(); }}>remove</button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
