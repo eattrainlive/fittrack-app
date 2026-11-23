@@ -247,6 +247,63 @@ export async function applyRulesToUncoded(): Promise<{ coded: number; error?: st
   return { coded };
 }
 
+// ── Forecast (Phase 3) ───────────────────────────────────────────────────────
+export interface ForecastPoint {
+  month: string;       // "Jan 26"
+  revenue: number;
+  expenses: number;
+  profit: number;
+  cumulative: number;  // running total of profit
+}
+
+/** Average monthly expenses over the last `monthsBack` months, from categorised bank data. */
+export async function recentMonthlyExpenses(kindOf: (c: string) => CategoryKind, monthsBack = 3): Promise<number> {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1).toISOString().slice(0, 10);
+  const to = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10); // end of last month
+  const { data } = await supabase.from("bank_transactions").select("*")
+    .gte("txn_date", from).lte("txn_date", to).range(0, 9999);
+  const totals = financialTotals((data as BankTxn[]) ?? [], kindOf);
+  return monthsBack > 0 ? totals.totalExpenses / monthsBack : 0;
+}
+
+/** Project revenue, expenses and profit forward. Revenue grows by a flat £/month; expenses held flat. */
+export function buildForecast(opts: {
+  startMrr: number;
+  mrrGrowthPerMonth: number;
+  monthlyExpenses: number;
+  months: number;
+}): ForecastPoint[] {
+  const out: ForecastPoint[] = [];
+  const now = new Date();
+  let cumulative = 0;
+  for (let i = 1; i <= opts.months; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const revenue = Math.max(0, opts.startMrr + opts.mrrGrowthPerMonth * i);
+    const expenses = opts.monthlyExpenses;
+    const profit = revenue - expenses;
+    cumulative += profit;
+    out.push({
+      month: d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" }),
+      revenue: Math.round(revenue),
+      expenses: Math.round(expenses),
+      profit: Math.round(profit),
+      cumulative: Math.round(cumulative),
+    });
+  }
+  return out;
+}
+
+/** Average month-on-month MRR change over the trend's last `window` steps. */
+export function mrrGrowthFromTrend(trend: { mrr: number }[], window = 3): number {
+  if (trend.length < 2) return 0;
+  const pts = trend.slice(-(window + 1));
+  if (pts.length < 2) return 0;
+  let sum = 0, n = 0;
+  for (let i = 1; i < pts.length; i++) { sum += pts[i].mrr - pts[i - 1].mrr; n++; }
+  return n ? Math.round(sum / n) : 0;
+}
+
 // ── Period helpers (shared shape with KPIs) ──────────────────────────────────
 export type FinPeriod = "this" | "last" | "3mo" | "12mo";
 export const FIN_PERIODS: { key: FinPeriod; label: string }[] = [

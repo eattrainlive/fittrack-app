@@ -1745,3 +1745,14 @@ RUN: finance_phase1.sql   PUSH: finance.ts, FinanceTab.tsx, Admin.tsx
 - Admin.tsx: passes staffSecret to FinanceTab.
 Phase 3 (later): forecast.
 RUN: finance_phase2.sql   PUSH: finance.ts, FinanceTab.tsx, Admin.tsx
+
+## #116 — Finance Phase 3: Forecast
+- finance.ts: buildForecast (straight-line: revenue = startMrr + growth×month, flat expenses,
+  profit, cumulative), recentMonthlyExpenses (last-3-mo avg from bank), mrrGrowthFromTrend
+  (avg month-on-month MRR delta). ForecastPoint type.
+- FinanceTab: 4th sub-tab "Forecast". Defaults growth from MRR trend + expenses from last 3
+  months (fallback break-even); editable growth/expenses + 6/12/24-mo horizon; tiles
+  (end monthly profit, 12-mo cumulative, profitable-from month); ComposedChart (revenue/expenses
+  bars + profit line) + month table.
+- No new SQL (uses existing finance tables + kpis trend). Push: finance.ts, FinanceTab.tsx
+- Finance layer complete: P&L (MRR/bank revenue) · Transactions + auto-rules · Upload · Forecast.

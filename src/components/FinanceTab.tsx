@@ -5,16 +5,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Upload, PoundSterling, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from "recharts";
 import {
   listCategories, listTransactions, importTransactions, parseBankCsv, setCategory, setExcluded,
   financialTotals, getFinanceSettings, saveFinanceSettings, finPeriodRange, gbp, gbp2,
   listRules, addRule, deleteRule, applyRulesToUncoded,
+  buildForecast, recentMonthlyExpenses, mrrGrowthFromTrend,
   FIN_PERIODS, type FinPeriod, type BankTxn, type Category, type ParsedRow,
-  type RevenueSource, type TxnRule,
+  type RevenueSource, type TxnRule, type CategoryKind,
 } from "@/lib/finance";
 import { loadKpis } from "@/lib/kpis";
 
-type Sub = "pnl" | "transactions" | "upload";
+type Sub = "pnl" | "transactions" | "upload" | "forecast";
 
 // Period → which of the 12 trend months to sum for MRR revenue.
 function periodMrr(trend: { month: string; mrr: number }[], period: FinPeriod): number {
@@ -37,6 +39,7 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
   const [beInput, setBeInput] = useState("");
   const [revSource, setRevSource] = useState<RevenueSource>("mrr");
   const [mrrRevenue, setMrrRevenue] = useState(0);
+  const [trend, setTrend] = useState<{ month: string; mrr: number }[]>([]);
 
   const kindOf = useCallback((name: string) => cats.find((c) => c.name === name)?.kind ?? "expense", [cats]);
   const range = finPeriodRange(period);
@@ -53,6 +56,7 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
       try {
         const kpi = await loadKpis(period, staffSecret);
         setMrrRevenue(periodMrr(kpi.trend, period));
+        setTrend(kpi.trend);
       } catch { setMrrRevenue(0); }
     } catch (e: any) {
       toast.error(e.message || "Couldn't load finance data — did the finance SQL run?");
@@ -86,17 +90,17 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
           <p className="text-xs text-muted-foreground">Profit &amp; loss from your bank statement.</p>
         </div>
         <div className="flex gap-1.5">
-          {(["pnl", "transactions", "upload"] as Sub[]).map((s) => (
+          {(["pnl", "forecast", "transactions", "upload"] as Sub[]).map((s) => (
             <button key={s} onClick={() => setSub(s)}
               className={`rounded-full px-3 py-1 text-xs font-medium border transition ${
                 sub === s ? "bg-primary text-primary-foreground border-primary" : "bg-muted/40 text-muted-foreground border-border hover:bg-muted"}`}>
-              {s === "pnl" ? "P&L" : s === "transactions" ? "Transactions" : "Upload"}
+              {s === "pnl" ? "P&L" : s === "forecast" ? "Forecast" : s === "transactions" ? "Transactions" : "Upload"}
             </button>
           ))}
         </div>
       </div>
 
-      {sub !== "upload" && (
+      {(sub === "pnl" || sub === "transactions") && (
         <div className="flex gap-1.5 flex-wrap">
           {FIN_PERIODS.map((p) => (
             <button key={p.key} onClick={() => setPeriod(p.key)}
@@ -117,6 +121,8 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
                  revSource={revSource} changeRevSource={changeRevSource}
                  vsBreakEven={vsBreakEven} beTarget={beTarget} label={range.label}
                  beInput={beInput} setBeInput={setBeInput} saveBe={saveBe} onGoCode={() => setSub("transactions")} />
+      ) : sub === "forecast" ? (
+        <ForecastView trend={trend} kindOf={kindOf} breakEven={breakEven} />
       ) : sub === "transactions" ? (
         <TxnTable txns={txns} cats={cats} rules={rules} onChanged={load} label={range.label} />
       ) : (
@@ -309,6 +315,123 @@ function RulesPanel({ cats, rules, onChanged }: { cats: Category[]; rules: TxnRu
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function ForecastView({ trend, kindOf, breakEven }: { trend: { month: string; mrr: number }[]; kindOf: (c: string) => CategoryKind; breakEven: number }) {
+  const startMrr = trend.length ? trend[trend.length - 1].mrr : 0;
+  const [growth, setGrowth] = useState<number>(0);
+  const [expenses, setExpenses] = useState<number>(0);
+  const [months, setMonths] = useState<number>(12);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      const exp = await recentMonthlyExpenses(kindOf, 3);
+      if (!on) return;
+      setGrowth(mrrGrowthFromTrend(trend, 3));
+      // Default expenses: last-3-month average, else the break-even target as a fallback.
+      setExpenses(Math.round(exp > 0 ? exp : breakEven));
+      setReady(true);
+    })();
+    return () => { on = false; };
+  }, [trend, kindOf, breakEven]);
+
+  const data = useMemo(() => buildForecast({ startMrr, mrrGrowthPerMonth: growth, monthlyExpenses: expenses, months }),
+    [startMrr, growth, expenses, months]);
+
+  const firstProfit = data.find((d) => d.profit >= 0);
+  const yearCum = data.slice(0, 12).reduce((a, b) => a + b.profit, 0);
+  const endProfit = data.length ? data[data.length - 1].profit : 0;
+
+  if (!ready) {
+    return <div className="flex items-center gap-2 text-muted-foreground py-10 justify-center"><Loader2 className="h-5 w-5 animate-spin" /> Building forecast…</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+        <h3 className="text-sm font-semibold">Assumptions</h3>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="text-xs text-muted-foreground">
+            Starting revenue / month
+            <div className="mt-1 text-sm font-semibold text-foreground">{gbp(startMrr)} <span className="font-normal text-muted-foreground">(current MRR)</span></div>
+          </label>
+          <label className="text-xs text-muted-foreground">
+            Revenue growth / month
+            <div className="mt-1 flex items-center gap-1">
+              <span className="text-sm">£</span>
+              <input type="number" value={growth} onChange={(e) => setGrowth(Number(e.target.value) || 0)}
+                     className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm" />
+            </div>
+          </label>
+          <label className="text-xs text-muted-foreground">
+            Expenses / month
+            <div className="mt-1 flex items-center gap-1">
+              <span className="text-sm">£</span>
+              <input type="number" value={expenses} onChange={(e) => setExpenses(Number(e.target.value) || 0)}
+                     className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm" />
+            </div>
+          </label>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {[6, 12, 24].map((m) => (
+            <button key={m} onClick={() => setMonths(m)}
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium border transition ${
+                months === m ? "bg-primary text-primary-foreground border-primary" : "bg-muted/40 text-muted-foreground border-border hover:bg-muted"}`}>
+              {m} mo
+            </button>
+          ))}
+          <span className="text-[11px] text-muted-foreground ml-1">Growth &amp; expenses default from your last 3 months — adjust to model scenarios.</span>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Tile label="Projected profit / mo (end)" value={gbp(endProfit)}
+              tone={endProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"} icon={PoundSterling} />
+        <Tile label="12-month cumulative profit" value={gbp(yearCum)}
+              tone={yearCum >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"} icon={TrendingUp} />
+        <Tile label="Profitable from" value={firstProfit ? firstProfit.month : "—"} icon={TrendingUp} />
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <ResponsiveContainer width="100%" height={240}>
+          <ComposedChart data={data} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border" vertical={false} />
+            <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="currentColor" className="text-muted-foreground" />
+            <YAxis tick={{ fontSize: 11 }} stroke="currentColor" className="text-muted-foreground" width={48} tickFormatter={(v: number) => gbp(v)} />
+            <Tooltip formatter={(v: any, n: any) => [gbp(Number(v)), n]} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <ReferenceLine y={0} stroke="currentColor" className="text-border" />
+            <Bar dataKey="revenue" name="Revenue" fill="hsl(var(--primary))" fillOpacity={0.25} />
+            <Bar dataKey="expenses" name="Expenses" fill="#ef4444" fillOpacity={0.25} />
+            <Line dataKey="profit" name="Profit" stroke="#10b981" strokeWidth={2} dot={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-3 overflow-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="text-xs text-muted-foreground text-left">
+            <th className="py-1">Month</th><th className="text-right">Revenue</th><th className="text-right">Expenses</th><th className="text-right">Profit</th><th className="text-right">Cumulative</th>
+          </tr></thead>
+          <tbody>
+            {data.map((d) => (
+              <tr key={d.month} className="border-t border-border/50">
+                <td className="py-1">{d.month}</td>
+                <td className="text-right tabular-nums">{gbp(d.revenue)}</td>
+                <td className="text-right tabular-nums">{gbp(d.expenses)}</td>
+                <td className={`text-right tabular-nums ${d.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>{gbp(d.profit)}</td>
+                <td className="text-right tabular-nums text-muted-foreground">{gbp(d.cumulative)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        A straight-line projection from current MRR and recent expenses — a planning tool, not a guarantee. It assumes steady growth and flat costs.
+      </p>
     </div>
   );
 }
