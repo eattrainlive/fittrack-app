@@ -1901,3 +1901,13 @@ couples/family who share one email (e.g. Seex, Lamb) into a single person.
   two different people on a shared email stay separate). Select adds full_name; RosterRow +full_name.
 Data was right all along; this was the counting bug. PUSH: src/lib/kpis.ts (no re-import needed).
 Expect Active ~648, revenue ~£37.7k after deploy.
+
+## #127 — THE bug: 1000-row cap truncated the roster fetch
+Diagnostic: active_rows=648, distinct_emails=648, distinct_email_name=648 — DB perfect, 648
+distinct active people. App showed 479 because gym_members grew past ~1600 rows (leaver history)
+and loadKpis/listPlans/member-engagement fetched with no pagination → Supabase capped at 1000 →
+~169 active members beyond row 1000 were never counted.
+- kpis.ts loadKpis + listPlans: paginate gym_members in 1000-row chunks.
+- member-engagement: paginate gym_members (also fixes at-risk undercount).
+- (also fixed a stale priceFor→resolveFee ref in loadKpis.)
+PUSH: src/lib/kpis.ts   REDEPLOY: member-engagement. No re-import. Expect Active 648 / £37.7k.

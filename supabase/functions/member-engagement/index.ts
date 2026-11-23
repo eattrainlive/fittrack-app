@@ -98,8 +98,18 @@ serve(async (req) => {
     const db = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { autoRefreshToken: false, persistSession: false } });
 
     // ── Fetch everything once ────────────────────────────────────────────────
-    const [rosterRes, appRes, linksRes] = await Promise.all([
-      db.from("gym_members").select("id, email, full_name, product, status, joined_on, manual_inactive_at, end_date"),
+    // Paginate gym_members past the 1000-row cap — it runs to thousands once leaver history
+    // is loaded, and a truncated fetch would silently drop active members from scoring.
+    const rosterAll: any[] = [];
+    for (let f = 0; ; f += 1000) {
+      const { data } = await db.from("gym_members")
+        .select("id, email, full_name, product, status, joined_on, manual_inactive_at, end_date")
+        .range(f, f + 999);
+      rosterAll.push(...(data || []));
+      if (!data || data.length < 1000) break;
+    }
+    const rosterRes = { data: rosterAll } as any;
+    const [appRes, linksRes] = await Promise.all([
       db.from("members").select("id, email, full_name, online_client"),
       db.from("member_links").select("user_id, member_id").then((r) => r).catch(() => ({ data: [] } as any)),
     ]);

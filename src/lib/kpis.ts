@@ -218,13 +218,19 @@ export interface KpiData {
 
 /** Load the roster + plan prices, compute all KPIs for the chosen period. */
 export async function loadKpis(period: KpiPeriod, staffSecret?: string): Promise<KpiData> {
-  const [rosterRes, pricesRes] = await Promise.all([
-    supabase
+  // Paginate past Supabase's 1000-row cap — gym_members runs to thousands of rows once
+  // leaver history is loaded, and a truncated fetch silently undercounts active members.
+  const roster: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data } = await supabase
       .from("gym_members")
       .select("email, full_name, status, product, joined_on, ended_on, end_date, manual_inactive_at, monthly_fee, is_paying")
-      .range(0, 9999),
-    supabase.from("membership_plan_prices").select("plan_name, monthly_price"),
-  ]);
+      .range(from, from + 999);
+    roster.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  const rosterRes = { data: roster };
+  const pricesRes = await supabase.from("membership_plan_prices").select("plan_name, monthly_price");
 
   const priceMap = new Map<string, number>();
   for (const p of pricesRes.data ?? []) priceMap.set(normPlan(p.plan_name), Number(p.monthly_price) || 0);
@@ -260,7 +266,7 @@ export async function loadKpis(period: KpiPeriod, staffSecret?: string): Promise
       const { members: board } = await getRetentionBoard(staffSecret, 30);
       const risky = board.filter((m) => m.band === "at-risk");
       atRisk = risky.length;
-      atRiskMrr = risky.reduce((s, m) => s + priceFor(m.membership), 0);
+      atRiskMrr = risky.reduce((s, m) => s + resolveFee(m.membership).fee, 0);
     } catch {
       /* leave null — board not critical to the KPI view */
     }
@@ -272,10 +278,14 @@ export async function loadKpis(period: KpiPeriod, staffSecret?: string): Promise
 
 // ── Plan price editor support ────────────────────────────────────────────────
 export async function listPlans(): Promise<{ plan_name: string; monthly_price: number; count: number }[]> {
-  const [rosterRes, pricesRes] = await Promise.all([
-    supabase.from("gym_members").select("product, status").range(0, 9999),
-    supabase.from("membership_plan_prices").select("plan_name, monthly_price"),
-  ]);
+  const rosterData: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data } = await supabase.from("gym_members").select("product, status").range(from, from + 999);
+    rosterData.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  const rosterRes = { data: rosterData };
+  const pricesRes = await supabase.from("membership_plan_prices").select("plan_name, monthly_price");
   const priceMap = new Map<string, number>();
   for (const p of pricesRes.data ?? []) priceMap.set(normPlan(p.plan_name), Number(p.monthly_price) || 0);
 
