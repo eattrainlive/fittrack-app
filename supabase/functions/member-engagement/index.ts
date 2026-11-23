@@ -211,12 +211,6 @@ serve(async (req) => {
       const lastVisit = [...dset].sort().pop() || null;
       const lastVisitDays = lastVisit ? Math.floor((now - new Date(lastVisit + "T00:00:00Z").getTime()) / dayMs) : null;
 
-      const score = Math.round(Math.min(100, (visits / Math.max(1, thrivingAt)) * 100));
-      const band =
-        visits >= thrivingAt ? "thriving" :
-        visits >= steadyAt ? "steady" :
-        visits >= 1 ? "slipping" : "at-risk";
-
       // App status — the retention lever.
       const auth = authByEmail[ne];
       const appStatus = !auth?.exists
@@ -226,6 +220,17 @@ serve(async (req) => {
           : "invited_not_joined";
       const loginDays = auth?.lastLogin ? Math.floor((now - new Date(auth.lastLogin).getTime()) / dayMs) : null;
       const workouts = appUserId ? (workoutsByUser[appUserId] || 0) : 0;
+
+      const score = Math.round(Math.min(100, (visits / Math.max(1, thrivingAt)) * 100));
+      // We can only judge attendance when we actually have a signal for this member. Many gym
+      // members have no scan-in at all — scoring them 'at-risk' reports a measurement gap as a
+      // retention crisis, so they get their own 'no-data' band and are kept out of at-risk.
+      const hasSignal = visits > 0 || workouts > 0 || appStatus === "on_app";
+      const band =
+        !hasSignal ? "no-data" :
+        visits >= thrivingAt ? "thriving" :
+        visits >= steadyAt ? "steady" :
+        visits >= 1 ? "slipping" : "at-risk";
       const woLast = appUserId ? woLastByUser[appUserId] : undefined;
       const lastWorkoutDays = woLast ? Math.floor((now - woLast) / dayMs) : null;
       const recentWorkouts = appUserId ? (woRecentByUser[appUserId] || 0) : 0;
@@ -277,6 +282,7 @@ serve(async (req) => {
       steady: scored.filter((m) => m.band === "steady").length,
       slipping: scored.filter((m) => m.band === "slipping").length,
       atRisk: scored.filter((m) => m.band === "at-risk").length,
+      noData: scored.filter((m) => m.band === "no-data").length,
       notOnApp: scored.filter((m) => m.app_status !== "on_app").length,
     };
 

@@ -1830,3 +1830,28 @@ RUN: finance_vat.sql   PUSH: finance.ts, FinanceTab.tsx
 RUN: finance_revenue_plans.sql   PUSH: finance.ts, FinanceTab.tsx
 FINANCE LAYER COMPLETE: Numbers (members/MRR/retention/trend) + Finance (P&L · Forecast w/ planned
 streams · VAT/tax pot · 24hr unit · Transactions+rules · Upload · site cost-split · custom range).
+
+## #122 — Numbers: per-member pricing + roster dedupe + at-risk no-data (from KPI thread audit)
+KPI thread flagged: 725 active vs true 649 (memberships counted as members = plan-change dupes);
+leavers/churn 0 (nothing marked ended); at-risk 341 inflated by no-attendance members; and
+pricing must be per-member (people pay different) not per-plan. Pricing file
+etl_member_pricing_2026-11-23.csv (655 rows, 48 cols, join on email, £0 is real via zero_price_reason).
+PRIVACY: real member PII — NOT committed to repo; importer reads the user's upload client-side → their Supabase.
+Built:
+- member_pricing_fields.sql: gym_members gains monthly_fee, is_paying, zero_price_reason, payer_email,
+  payment_route, prepaid_renews_month, price_category, pricing_source, pricing_updated_at, needs_review.
+- src/lib/pricingImport.ts: importMemberPricing — parse ETL export, upsert by normalised email
+  (matched=update fee+funding; unmatched=create; prior-priced now-absent=needs_review flag, never delete);
+  £0 with reason kept as real; returns matched/created/flagged/paying/zeroPrice/totalMonthly.
+- kpis.ts: dedupeByEmail (one row per person → fixes 725→unique); fee resolution actual monthly_fee
+  (incl real £0) → plan price fallback → feeKnown=false counted not zero; KpiData adds payingCount,
+  zeroCount, noPriceCount, avgFeeAll, avgFeePaying. Revenue now from real fees.
+- NumbersDashboard: pricing import card; tiles show paying/£0/no-price + avg all vs paying.
+- member-engagement: 'no-data' band (visits=0 & workouts=0 & not on app) excluded from at-risk;
+  summary.noData added. retentionNurture band type +no-data (no touches fired for them).
+RUN: member_pricing_fields.sql   REDEPLOY: member-engagement
+PUSH: src/lib/pricingImport.ts, src/lib/kpis.ts, src/components/NumbersDashboard.tsx, src/lib/retentionNurture.ts
+VERIFY in app vs KPI-sheet targets: active 649, MRR £37,771.28, paying 526, £0 123, avg £58.20 all / £71.81 paying.
+STILL OPEN (roster): leaver/ended backfill — this pricing file is current-members only, carries no
+leavers, so "left all-time/churn" still need the ended history (import source-of-truth w/ an Ended
+export, or a leavers file). Flagged for next.

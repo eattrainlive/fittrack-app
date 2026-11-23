@@ -11,6 +11,8 @@ export interface KpiMember {
   status: KpiStatus;
   start_date: string | null; // joined_on
   end_date: string | null; // when they left (ended_on / scheduled end / manual-left)
+  paying?: boolean;   // a real paying member (fee > 0 and is_paying) — excludes funded £0
+  feeKnown?: boolean; // we have a real fee (actual or plan price); false = uncounted no-price
 }
 
 export interface KpiMetrics {
@@ -140,16 +142,21 @@ export function computeTrend(members: KpiMember[], monthsBack = 12): TrendPoint[
 const normPlan = (s?: string | null) => String(s || "").trim().toLowerCase();
 
 interface RosterRow {
+  email: string | null;
   status: string | null;
   product: string | null;
   joined_on: string | null;
   ended_on: string | null;
   end_date: string | null;
   manual_inactive_at: string | null;
+  monthly_fee: number | null;
+  is_paying: boolean | null;
 }
 
-/** Map one roster row to a KPI member, or null to exclude (unknown/pending — ambiguous). */
-function toKpiMember(r: RosterRow, priceFor: (p: string | null) => number): KpiMember | null {
+/** Map one roster row to a KPI member, or null to exclude (unknown/pending — ambiguous).
+ *  Fee resolution: the member's ACTUAL fee (incl. a real £0) first, plan price only as a
+ *  fallback, and nothing (feeKnown=false) when neither is known — never a silent zero. */
+function toKpiMember(r: RosterRow, resolveFee: (p: string | null) => { fee: number; known: boolean }): KpiMember | null {
   const today = new Date().toISOString().slice(0, 10);
   const st = String(r.status || "").toLowerCase();
   const leftDate =
@@ -163,19 +170,42 @@ function toKpiMember(r: RosterRow, priceFor: (p: string | null) => number): KpiM
   else if (st === "active") status = "active";
   else return null; // unknown / pending_review — don't count either way
 
-  return {
-    monthly_fee: priceFor(r.product),
-    status,
-    start_date: r.joined_on,
-    end_date: isLost ? leftDate : null,
+  let fee: number, known: boolean;
+  if (r.monthly_fee != null) { fee = Number(r.monthly_fee); known = true; }   // actual fee (0 is real)
+  else { const pr = resolveFee(r.product); fee = pr.fee; known = pr.known; }  // plan price fallback
+  const paying = known && fee > 0 && (r.is_paying == null ? true : r.is_paying);
+
+  return { monthly_fee: fee, status, start_date: r.joined_on, end_date: isLost ? leftDate : null, paying, feeKnown: known };
+}
+
+/** Collapse to one row per person (normalised email) — a plan change is not a new member.
+ *  Prefer a live row (active/paused), then one with an actual fee, then most-recently joined. */
+function dedupeByEmail(rows: RosterRow[]): RosterRow[] {
+  const rank = (r: RosterRow) => {
+    const st = String(r.status || "").toLowerCase();
+    return (st === "active" ? 4 : st === "paused" ? 3 : 0) + (r.monthly_fee != null ? 1 : 0);
   };
+  const best = new Map<string, RosterRow>();
+  const out: RosterRow[] = [];
+  for (const r of rows) {
+    const e = (r.email || "").toLowerCase().trim();
+    if (!e) { out.push(r); continue; } // no email → can't dedupe, keep
+    const cur = best.get(e);
+    if (!cur || rank(r) > rank(cur) || (rank(r) === rank(cur) && (r.joined_on || "") > (cur.joined_on || ""))) best.set(e, r);
+  }
+  return [...out, ...best.values()];
 }
 
 export interface KpiData {
   metrics: KpiMetrics;
   atRisk: number | null;
   atRiskMrr: number | null;
-  priceCoverage: number; // share of active members that have a plan price (0..1)
+  priceCoverage: number; // share of active members that have a known fee (0..1)
+  payingCount: number;   // active members actually paying (fee > 0)
+  zeroCount: number;     // active members on a real £0 (funded/comp/etc.)
+  noPriceCount: number;  // active members with no fee known at all
+  avgFeeAll: number;     // MRR / active
+  avgFeePaying: number;  // MRR / paying
   trend: TrendPoint[]; // last 12 months of members + MRR
 }
 
@@ -184,26 +214,36 @@ export async function loadKpis(period: KpiPeriod, staffSecret?: string): Promise
   const [rosterRes, pricesRes] = await Promise.all([
     supabase
       .from("gym_members")
-      .select("status, product, joined_on, ended_on, end_date, manual_inactive_at")
+      .select("email, status, product, joined_on, ended_on, end_date, manual_inactive_at, monthly_fee, is_paying")
       .range(0, 9999),
     supabase.from("membership_plan_prices").select("plan_name, monthly_price"),
   ]);
 
   const priceMap = new Map<string, number>();
   for (const p of pricesRes.data ?? []) priceMap.set(normPlan(p.plan_name), Number(p.monthly_price) || 0);
-  const priceFor = (p: string | null) => priceMap.get(normPlan(p)) ?? 0;
+  const resolveFee = (p: string | null) => {
+    const key = normPlan(p);
+    return priceMap.has(key) ? { fee: priceMap.get(key)!, known: true } : { fee: 0, known: false };
+  };
 
+  const deduped = dedupeByEmail((rosterRes.data ?? []) as RosterRow[]);
   const members: KpiMember[] = [];
-  for (const r of (rosterRes.data ?? []) as RosterRow[]) {
-    const km = toKpiMember(r, priceFor);
+  for (const r of deduped) {
+    const km = toKpiMember(r, resolveFee);
     if (km) members.push(km);
   }
 
   const { from, to } = periodRange(period);
   const metrics = computeMetrics(members, from, to);
 
-  const activeWithPrice = members.filter((m) => m.status === "active" && m.monthly_fee > 0).length;
-  const priceCoverage = metrics.active > 0 ? activeWithPrice / metrics.active : 1;
+  const activeMembers = members.filter((m) => m.status === "active");
+  const payingCount = activeMembers.filter((m) => m.paying).length;
+  const zeroCount = activeMembers.filter((m) => m.feeKnown && m.monthly_fee === 0).length;
+  const noPriceCount = activeMembers.filter((m) => !m.feeKnown).length;
+  const payingMrr = activeMembers.filter((m) => m.paying).reduce((s, m) => s + m.monthly_fee, 0);
+  const avgFeeAll = activeMembers.length ? metrics.mrr / activeMembers.length : 0;
+  const avgFeePaying = payingCount ? payingMrr / payingCount : 0;
+  const priceCoverage = activeMembers.length ? (activeMembers.length - noPriceCount) / activeMembers.length : 1;
 
   // At-risk from the retention engine (optional — staff-only, non-blocking).
   let atRisk: number | null = null;
@@ -220,7 +260,7 @@ export async function loadKpis(period: KpiPeriod, staffSecret?: string): Promise
   }
 
   const trend = computeTrend(members, 12);
-  return { metrics, atRisk, atRiskMrr, priceCoverage, trend };
+  return { metrics, atRisk, atRiskMrr, priceCoverage, payingCount, zeroCount, noPriceCount, avgFeeAll, avgFeePaying, trend };
 }
 
 // ── Plan price editor support ────────────────────────────────────────────────

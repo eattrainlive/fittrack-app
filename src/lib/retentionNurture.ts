@@ -104,7 +104,7 @@ export interface RetentionMember {
   name: string;
   user_id: string | null;
   membership: string | null;
-  band: "thriving" | "steady" | "slipping" | "at-risk";
+  band: "thriving" | "steady" | "slipping" | "at-risk" | "no-data";
   attendance: { visits: number; perWeek: number; lastVisitDays: number | null };
   app_status: "on_app" | "invited_not_joined" | "not_invited";
   app: { on_app: boolean; lastWorkoutDays: number | null; recentWorkouts: number };

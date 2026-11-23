@@ -2,10 +2,11 @@
 // PT Genius dashboard. Levels (active, MRR, paused) are a live snapshot; flow metrics (new,
 // left, churn, retention, net movement) are over the selected period.
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, TrendingUp, PoundSterling, Users, UserMinus, UserPlus, AlertTriangle, Pause, Percent } from "lucide-react";
+import { Loader2, TrendingUp, PoundSterling, Users, UserMinus, UserPlus, AlertTriangle, Pause, Percent, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveContainer, ComposedChart, Area, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { Button } from "@/components/ui/button";
+import { importMemberPricing, type PricingImportResult } from "@/lib/pricingImport";
 import {
   loadKpis, listPlans, savePlanPrice, periodRange,
   gbp, gbp2, pct, PERIODS, type KpiPeriod, type KpiData,
@@ -40,6 +41,20 @@ export function NumbersDashboard({ staffSecret }: { staffSecret: string }) {
   const [plans, setPlans] = useState<{ plan_name: string; monthly_price: number; count: number }[]>([]);
   const [editPrices, setEditPrices] = useState<Record<string, string>>({});
   const [showPrices, setShowPrices] = useState(false);
+  const [pricingBusy, setPricingBusy] = useState(false);
+  const [pricingResult, setPricingResult] = useState<PricingImportResult | null>(null);
+
+  const onPricingFile = async (f: File) => {
+    setPricingBusy(true);
+    try {
+      const res = await importMemberPricing(await f.text());
+      setPricingResult(res);
+      if (!res.ok) { toast.error(res.error || "Import failed"); return; }
+      toast.success(`Pricing loaded: ${res.matched} matched, ${res.created} new`);
+      load();
+    } catch (e: any) { toast.error(e.message || "Import failed"); }
+    finally { setPricingBusy(false); }
+  };
   const [savingPlan, setSavingPlan] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -102,10 +117,25 @@ export function NumbersDashboard({ staffSecret }: { staffSecret: string }) {
 
       {data && data.priceCoverage < 1 && (
         <div className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-          Revenue figures are partial — {unpriced > 0 ? `${unpriced} plan${unpriced > 1 ? "s have" : " has"} no price set` : "some active members have no plan price"}.
-          <button className="ml-1 underline" onClick={() => setShowPrices(true)}>Set plan prices</button> to complete them.
+          Revenue is partial — {data.noPriceCount} active member{data.noPriceCount === 1 ? "" : "s"} have no fee. Import member pricing below, or set plan prices as a fallback.
         </div>
       )}
+
+      <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+        <div className="flex items-center gap-2 text-sm font-semibold"><Upload className="h-4 w-4" /> Import member pricing</div>
+        <p className="text-[11px] text-muted-foreground">
+          Upload the ETL member-pricing export. Each member's actual fee is matched by email and becomes the revenue source (£0 funded members are counted as real, not missing). Plan prices stay as a fallback only.
+        </p>
+        <input type="file" accept=".csv,text/csv" disabled={pricingBusy}
+               onChange={(e) => e.target.files?.[0] && onPricingFile(e.target.files[0])} className="block text-sm" />
+        {pricingBusy && <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading pricing…</div>}
+        {pricingResult?.ok && (
+          <div className="text-xs text-muted-foreground">
+            {pricingResult.rows} rows · <span className="text-foreground">{pricingResult.matched} matched</span>, {pricingResult.created} created
+            {pricingResult.flaggedReview > 0 ? `, ${pricingResult.flaggedReview} flagged for review` : ""} · {pricingResult.paying} paying · {pricingResult.zeroPrice} at £0 · {gbp(pricingResult.totalMonthly)}/mo in file
+          </div>
+        )}
+      </div>
 
       {loading || !m ? (
         <div className="flex items-center gap-2 text-muted-foreground py-10 justify-center">
@@ -116,9 +146,11 @@ export function NumbersDashboard({ staffSecret }: { staffSecret: string }) {
           {/* Revenue + membership levels (live snapshot) */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Tile label="Recurring revenue" value={gbp(m.mrr)} tone="good" icon={PoundSterling}
-                  hint={`${m.active} active members`} />
-            <Tile label="Average fee" value={gbp2(m.avgFee)} icon={PoundSterling} hint="per active member / month" />
-            <Tile label="Active members" value={String(m.active)} icon={Users} hint="paying, not paused" />
+                  hint={`${data.payingCount} paying · ${data.zeroCount} funded £0`} />
+            <Tile label="Average fee" value={gbp2(data.avgFeeAll)} icon={PoundSterling}
+                  hint={`${gbp2(data.avgFeePaying)} across paying`} />
+            <Tile label="Active members" value={String(m.active)} icon={Users}
+                  hint={data.noPriceCount > 0 ? `${data.noPriceCount} with no price` : "one row per person"} />
             <Tile label="Retention" value={pct(m.retention)} icon={Percent} hint={`${label} · of members kept`}
                   tone={m.retention === null ? "default" : m.retention >= 90 ? "good" : m.retention >= 80 ? "warn" : "bad"} />
           </div>
