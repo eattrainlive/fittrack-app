@@ -1716,3 +1716,18 @@ RUN: membership_plan_prices.sql   PUSH: kpis.ts, NumbersDashboard.tsx, Admin.tsx
   join/leave dates on the roster; added to loadKpis → KpiData.trend.
 - NumbersDashboard: ComposedChart (members area + revenue line, recharts) under the tiles.
 - No new SQL. Push: src/lib/kpis.ts, src/components/NumbersDashboard.tsx
+
+## #114 — Finance / P&L Phase 1 (PT Genius-style)
+Full accounting layer, phase 1. P&L maths ported from PT Genius src/lib/financials.ts.
+- finance_phase1.sql: transaction_categories (revenue/expense/owner + gym defaults seeded),
+  bank_transactions (date, desc, amount, direction in/out, category, status, excluded,
+  import_batch), staff RLS; break-even stored in feature_settings key 'finance'.
+- src/lib/finance.ts: parseBankCsv (handles single signed Amount OR paid-in/paid-out columns,
+  UK day-first dates), financialTotals (revenue−expenses=net profit, owner separate),
+  CRUD (import chunked, setCategory, setExcluded, addCategory), get/saveFinanceSettings, periods.
+- src/components/FinanceTab.tsx: sub-tabs P&L / Transactions / Upload. P&L tiles
+  (revenue, expenses, net profit, owner drawings) + category breakdowns + break-even input &
+  assessment; Transactions table with per-row category dropdown + exclude; CSV upload w/ preview.
+- Admin.tsx: Finance tab mounted (after Numbers).
+Phase 2 (later): fold MRR into revenue, by-month P&L, auto-categorisation rules. Phase 3: forecast.
+RUN: finance_phase1.sql   PUSH: finance.ts, FinanceTab.tsx, Admin.tsx

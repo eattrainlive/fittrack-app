@@ -127,6 +127,7 @@ import { MembersGrid } from "@/components/MembersGrid";
 import { StaffTodayFeed } from "@/components/StaffTodayFeed";
 import { ContactHub } from "@/components/ContactHub";
 import { NumbersDashboard } from "@/components/NumbersDashboard";
+import { FinanceTab } from "@/components/FinanceTab";
 import { FaultReportCentre } from "@/components/FaultReportCentre";
 import { StaffPlanner } from "@/components/StaffPlanner";
 import { SuppliesBoard } from "@/components/SuppliesBoard";
@@ -2381,6 +2382,7 @@ const Admin = () => {
         <TabsList className="flex w-full max-w-[1300px] overflow-x-auto justify-start h-auto p-1">
           <TabsTrigger value="today">Today</TabsTrigger>
           <TabsTrigger value="numbers">Numbers</TabsTrigger>
+          <TabsTrigger value="finance">Finance</TabsTrigger>
           <TabsTrigger value="contact">Contact</TabsTrigger>
           <TabsTrigger value="planner">Planner</TabsTrigger>
           <TabsTrigger value="checklists">Checklists</TabsTrigger>
@@ -2407,6 +2409,9 @@ const Admin = () => {
         </TabsContent>
         <TabsContent value="numbers" className="space-y-6 mt-6">
           <NumbersDashboard staffSecret={staffSecret} />
+        </TabsContent>
+        <TabsContent value="finance" className="space-y-6 mt-6">
+          <FinanceTab />
         </TabsContent>
         <TabsContent value="contact" className="space-y-6 mt-6">
           <ContactHub staffSecret={staffSecret} />
