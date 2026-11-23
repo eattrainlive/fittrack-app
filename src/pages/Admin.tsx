@@ -2411,7 +2411,7 @@ const Admin = () => {
           <NumbersDashboard staffSecret={staffSecret} />
         </TabsContent>
         <TabsContent value="finance" className="space-y-6 mt-6">
-          <FinanceTab />
+          <FinanceTab staffSecret={staffSecret} />
         </TabsContent>
         <TabsContent value="contact" className="space-y-6 mt-6">
           <ContactHub staffSecret={staffSecret} />

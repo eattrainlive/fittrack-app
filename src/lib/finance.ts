@@ -183,16 +183,68 @@ export async function addCategory(name: string, kind: CategoryKind): Promise<{ o
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
-// ── Break-even setting (feature_settings key 'finance') ──────────────────────
-export async function getFinanceSettings(): Promise<{ breakEvenMonthly: number; ownerPayTarget: number }> {
+// ── Break-even + revenue-source setting (feature_settings key 'finance') ──────
+export type RevenueSource = "mrr" | "bank";
+export interface FinanceSettings { breakEvenMonthly: number; ownerPayTarget: number; revenueSource: RevenueSource }
+export async function getFinanceSettings(): Promise<FinanceSettings> {
   const { data } = await supabase.from("feature_settings").select("value").eq("key", "finance").maybeSingle();
   const v = (data?.value ?? {}) as any;
-  return { breakEvenMonthly: Number(v.breakEvenMonthly) || 0, ownerPayTarget: Number(v.ownerPayTarget) || 0 };
+  return {
+    breakEvenMonthly: Number(v.breakEvenMonthly) || 0,
+    ownerPayTarget: Number(v.ownerPayTarget) || 0,
+    revenueSource: v.revenueSource === "bank" ? "bank" : "mrr",
+  };
 }
-export async function saveFinanceSettings(s: { breakEvenMonthly: number; ownerPayTarget: number }): Promise<{ ok: boolean; error?: string }> {
+export async function saveFinanceSettings(s: FinanceSettings): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from("feature_settings")
     .upsert({ key: "finance", value: s, updated_at: new Date().toISOString() }, { onConflict: "key" });
   return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+// ── Auto-categorisation rules ────────────────────────────────────────────────
+export interface TxnRule { id: string; match: string; category: string }
+export async function listRules(): Promise<TxnRule[]> {
+  const { data } = await supabase.from("transaction_rules").select("id, match, category").order("match");
+  return (data as TxnRule[]) ?? [];
+}
+export async function addRule(match: string, category: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from("transaction_rules").insert({ match: match.trim(), category });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+export async function deleteRule(id: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from("transaction_rules").delete().eq("id", id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/** Match a description against the rules; returns the category of the first match, else null. */
+export function matchRule(description: string | null, rules: TxnRule[]): string | null {
+  const d = (description || "").toLowerCase();
+  if (!d) return null;
+  for (const r of rules) {
+    if (r.match && d.includes(r.match.toLowerCase())) return r.category;
+  }
+  return null;
+}
+
+/** Apply all rules to every uncoded, non-excluded transaction. Returns how many were coded. */
+export async function applyRulesToUncoded(): Promise<{ coded: number; error?: string }> {
+  const rules = await listRules();
+  if (!rules.length) return { coded: 0 };
+  const { data } = await supabase
+    .from("bank_transactions")
+    .select("id, description")
+    .eq("status", "needs_review")
+    .eq("excluded", false)
+    .range(0, 9999);
+  let coded = 0;
+  for (const t of data ?? []) {
+    const cat = matchRule(t.description, rules);
+    if (!cat) continue;
+    const { error } = await supabase.from("bank_transactions").update({ category: cat, status: "coded" }).eq("id", t.id);
+    if (error) return { coded, error: error.message };
+    coded++;
+  }
+  return { coded };
 }
 
 // ── Period helpers (shared shape with KPIs) ──────────────────────────────────

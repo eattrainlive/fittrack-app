@@ -8,19 +8,35 @@ import { Button } from "@/components/ui/button";
 import {
   listCategories, listTransactions, importTransactions, parseBankCsv, setCategory, setExcluded,
   financialTotals, getFinanceSettings, saveFinanceSettings, finPeriodRange, gbp, gbp2,
+  listRules, addRule, deleteRule, applyRulesToUncoded,
   FIN_PERIODS, type FinPeriod, type BankTxn, type Category, type ParsedRow,
+  type RevenueSource, type TxnRule,
 } from "@/lib/finance";
+import { loadKpis } from "@/lib/kpis";
 
 type Sub = "pnl" | "transactions" | "upload";
 
-export function FinanceTab() {
+// Period → which of the 12 trend months to sum for MRR revenue.
+function periodMrr(trend: { month: string; mrr: number }[], period: FinPeriod): number {
+  if (!trend.length) return 0;
+  const last = trend[trend.length - 1];
+  if (period === "this") return last.mrr;
+  if (period === "last") return trend.length >= 2 ? trend[trend.length - 2].mrr : 0;
+  const n = period === "3mo" ? 3 : 12;
+  return trend.slice(-n).reduce((a, b) => a + b.mrr, 0);
+}
+
+export function FinanceTab({ staffSecret }: { staffSecret: string }) {
   const [sub, setSub] = useState<Sub>("pnl");
   const [period, setPeriod] = useState<FinPeriod>("this");
   const [cats, setCats] = useState<Category[]>([]);
   const [txns, setTxns] = useState<BankTxn[]>([]);
+  const [rules, setRules] = useState<TxnRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [breakEven, setBreakEven] = useState(0);
   const [beInput, setBeInput] = useState("");
+  const [revSource, setRevSource] = useState<RevenueSource>("mrr");
+  const [mrrRevenue, setMrrRevenue] = useState(0);
 
   const kindOf = useCallback((name: string) => cats.find((c) => c.name === name)?.kind ?? "expense", [cats]);
   const range = finPeriodRange(period);
@@ -28,23 +44,38 @@ export function FinanceTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [c, t, s] = await Promise.all([listCategories(), listTransactions(range.from, range.to), getFinanceSettings()]);
-      setCats(c); setTxns(t); setBreakEven(s.breakEvenMonthly); setBeInput(s.breakEvenMonthly ? String(s.breakEvenMonthly) : "");
+      const [c, t, s, r] = await Promise.all([
+        listCategories(), listTransactions(range.from, range.to), getFinanceSettings(), listRules(),
+      ]);
+      setCats(c); setTxns(t); setRules(r);
+      setBreakEven(s.breakEvenMonthly); setBeInput(s.breakEvenMonthly ? String(s.breakEvenMonthly) : "");
+      setRevSource(s.revenueSource);
+      try {
+        const kpi = await loadKpis(period, staffSecret);
+        setMrrRevenue(periodMrr(kpi.trend, period));
+      } catch { setMrrRevenue(0); }
     } catch (e: any) {
       toast.error(e.message || "Couldn't load finance data — did the finance SQL run?");
     } finally { setLoading(false); }
-  }, [range.from, range.to]);
+  }, [range.from, range.to, period, staffSecret]);
   useEffect(() => { load(); }, [load]);
 
-  const totals = useMemo(() => financialTotals(txns, kindOf), [txns, kindOf]);
+  const bankTotals = useMemo(() => financialTotals(txns, kindOf), [txns, kindOf]);
+  // In MRR mode the revenue line comes from memberships, not bank credits; expenses still bank.
+  const revenueTotal = revSource === "mrr" ? mrrRevenue : bankTotals.totalRevenue;
+  const netProfit = revenueTotal - bankTotals.totalExpenses;
   const beTarget = breakEven * range.months;
-  const vsBreakEven = beTarget > 0 ? totals.totalRevenue - beTarget : null;
+  const vsBreakEven = beTarget > 0 ? revenueTotal - beTarget : null;
 
   const saveBe = async () => {
     const val = Number(beInput) || 0;
-    const res = await saveFinanceSettings({ breakEvenMonthly: val, ownerPayTarget: 0 });
+    const res = await saveFinanceSettings({ breakEvenMonthly: val, ownerPayTarget: 0, revenueSource: revSource });
     if (!res.ok) { toast.error(res.error || "Couldn't save"); return; }
     setBreakEven(val); toast.success("Break-even saved");
+  };
+  const changeRevSource = async (src: RevenueSource) => {
+    setRevSource(src);
+    await saveFinanceSettings({ breakEvenMonthly: breakEven, ownerPayTarget: 0, revenueSource: src });
   };
 
   return (
@@ -82,10 +113,12 @@ export function FinanceTab() {
           <Loader2 className="h-5 w-5 animate-spin" /> Loading…
         </div>
       ) : sub === "pnl" ? (
-        <PnlView totals={totals} vsBreakEven={vsBreakEven} beTarget={beTarget} label={range.label}
+        <PnlView bankTotals={bankTotals} revenueTotal={revenueTotal} netProfit={netProfit}
+                 revSource={revSource} changeRevSource={changeRevSource}
+                 vsBreakEven={vsBreakEven} beTarget={beTarget} label={range.label}
                  beInput={beInput} setBeInput={setBeInput} saveBe={saveBe} onGoCode={() => setSub("transactions")} />
       ) : sub === "transactions" ? (
-        <TxnTable txns={txns} cats={cats} onChanged={load} label={range.label} />
+        <TxnTable txns={txns} cats={cats} rules={rules} onChanged={load} label={range.label} />
       ) : (
         <UploadView onImported={load} />
       )}
@@ -102,23 +135,39 @@ function Tile({ label, value, tone, icon: Icon }: { label: string; value: string
   );
 }
 
-function PnlView({ totals, vsBreakEven, beTarget, label, beInput, setBeInput, saveBe, onGoCode }: any) {
-  const rev = [...totals.revenue.entries()].sort((a: any, b: any) => b[1] - a[1]);
-  const exp = [...totals.expenses.entries()].sort((a: any, b: any) => b[1] - a[1]);
+function PnlView({ bankTotals, revenueTotal, netProfit, revSource, changeRevSource, vsBreakEven, beTarget, label, beInput, setBeInput, saveBe, onGoCode }: any) {
+  const exp = [...bankTotals.expenses.entries()].sort((a: any, b: any) => b[1] - a[1]);
+  const rev = revSource === "mrr"
+    ? [["Membership revenue (MRR)", revenueTotal] as [string, number]]
+    : [...bankTotals.revenue.entries()].sort((a: any, b: any) => b[1] - a[1]);
   return (
     <div className="space-y-4">
-      {totals.uncoded > 0 && (
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-muted-foreground">Revenue from:</span>
+        {(["mrr", "bank"] as RevenueSource[]).map((s) => (
+          <button key={s} onClick={() => changeRevSource(s)}
+            className={`rounded-full px-2.5 py-0.5 text-xs font-medium border transition ${
+              revSource === s ? "bg-primary text-primary-foreground border-primary" : "bg-muted/40 text-muted-foreground border-border hover:bg-muted"}`}>
+            {s === "mrr" ? "Membership MRR" : "Bank credits"}
+          </button>
+        ))}
+        <span className="text-[11px] text-muted-foreground">
+          {revSource === "mrr" ? "Revenue = recurring membership income; no need to import payments." : "Revenue = bank transactions tagged as income."}
+        </span>
+      </div>
+
+      {bankTotals.uncoded > 0 && (
         <div className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-          {totals.uncoded} transaction{totals.uncoded > 1 ? "s" : ""} not categorised yet — they're excluded from these totals.
+          {bankTotals.uncoded} transaction{bankTotals.uncoded > 1 ? "s" : ""} not categorised yet — excluded from expenses.
           <button className="ml-1 underline" onClick={onGoCode}>Categorise them</button>
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Tile label="Revenue" value={gbp(totals.totalRevenue)} tone="text-emerald-600 dark:text-emerald-400" icon={TrendingUp} />
-        <Tile label="Expenses" value={gbp(totals.totalExpenses)} tone="text-red-600 dark:text-red-400" icon={TrendingDown} />
-        <Tile label="Net profit" value={gbp(totals.netProfit)}
-              tone={totals.netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"} icon={PoundSterling} />
-        <Tile label="Owner drawings" value={gbp(Math.abs(totals.owner))} icon={PoundSterling} />
+        <Tile label="Revenue" value={gbp(revenueTotal)} tone="text-emerald-600 dark:text-emerald-400" icon={TrendingUp} />
+        <Tile label="Expenses" value={gbp(bankTotals.totalExpenses)} tone="text-red-600 dark:text-red-400" icon={TrendingDown} />
+        <Tile label="Net profit" value={gbp(netProfit)}
+              tone={netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"} icon={PoundSterling} />
+        <Tile label="Owner drawings" value={gbp(Math.abs(bankTotals.owner))} icon={PoundSterling} />
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4 flex items-center justify-between gap-3 flex-wrap">
@@ -168,13 +217,28 @@ function Breakdown({ title, rows, tone }: { title: string; rows: [string, number
   );
 }
 
-function TxnTable({ txns, cats, onChanged, label }: { txns: BankTxn[]; cats: Category[]; onChanged: () => void; label: string }) {
+function TxnTable({ txns, cats, rules, onChanged, label }: { txns: BankTxn[]; cats: Category[]; rules: TxnRule[]; onChanged: () => void; label: string }) {
   const uncoded = txns.filter((t) => t.status === "needs_review" && !t.excluded).length;
+  const [busy, setBusy] = useState(false);
+  const autoCat = async () => {
+    setBusy(true);
+    const res = await applyRulesToUncoded();
+    setBusy(false);
+    if (res.error) { toast.error(res.error); return; }
+    toast.success(res.coded ? `Auto-categorised ${res.coded}` : "No uncoded transactions matched a rule");
+    if (res.coded) onChanged();
+  };
   return (
+    <div className="space-y-3">
     <div className="rounded-xl border border-border bg-card p-3">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
         <h3 className="text-sm font-semibold">{txns.length} transactions · {label}</h3>
-        {uncoded > 0 && <span className="text-xs text-amber-600 dark:text-amber-400">{uncoded} need categorising</span>}
+        <div className="flex items-center gap-2">
+          {uncoded > 0 && <span className="text-xs text-amber-600 dark:text-amber-400">{uncoded} need categorising</span>}
+          <Button size="sm" variant="outline" disabled={busy || !rules.length} onClick={autoCat}>
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Auto-categorise"}
+          </Button>
+        </div>
       </div>
       <div className="space-y-1 max-h-[600px] overflow-auto">
         {txns.map((t) => (
@@ -201,6 +265,50 @@ function TxnTable({ txns, cats, onChanged, label }: { txns: BankTxn[]; cats: Cat
         ))}
         {txns.length === 0 && <p className="text-sm text-muted-foreground py-6 text-center">No transactions in this period. Upload a bank statement to start.</p>}
       </div>
+    </div>
+    <RulesPanel cats={cats} rules={rules} onChanged={onChanged} />
+    </div>
+  );
+}
+
+function RulesPanel({ cats, rules, onChanged }: { cats: Category[]; rules: TxnRule[]; onChanged: () => void }) {
+  const [match, setMatch] = useState("");
+  const [cat, setCat] = useState("");
+  const add = async () => {
+    if (!match.trim() || !cat) { toast.error("Enter a keyword and category"); return; }
+    const res = await addRule(match, cat);
+    if (!res.ok) { toast.error(res.error || "Failed"); return; }
+    setMatch(""); setCat(""); toast.success("Rule added — hit Auto-categorise to apply");
+    onChanged();
+  };
+  return (
+    <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+      <h3 className="text-sm font-semibold">Auto-categorise rules</h3>
+      <p className="text-[11px] text-muted-foreground">When a transaction's description contains the keyword, it's tagged with that category. e.g. "TESCO" → Stock &amp; supplies.</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <input value={match} onChange={(e) => setMatch(e.target.value)} placeholder="keyword in description"
+               className="flex-1 min-w-[140px] rounded-md border border-border bg-background px-2 py-1 text-sm" />
+        <select value={cat} onChange={(e) => setCat(e.target.value)}
+                className="rounded-md border border-border bg-background px-1.5 py-1 text-sm">
+          <option value="">— category —</option>
+          {cats.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+        </select>
+        <Button size="sm" variant="outline" onClick={add}>Add rule</Button>
+      </div>
+      {rules.length > 0 && (
+        <div className="space-y-1 pt-1">
+          {rules.map((r) => (
+            <div key={r.id} className="flex items-center gap-2 text-xs">
+              <span className="font-mono bg-muted/50 rounded px-1.5 py-0.5">{r.match}</span>
+              <span className="text-muted-foreground">→ {r.category}</span>
+              <button className="ml-auto text-muted-foreground hover:text-red-600 hover:underline"
+                onClick={async () => { const res = await deleteRule(r.id); if (!res.ok) toast.error(res.error || "Failed"); else onChanged(); }}>
+                remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

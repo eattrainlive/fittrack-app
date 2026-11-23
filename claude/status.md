@@ -1731,3 +1731,17 @@ Full accounting layer, phase 1. P&L maths ported from PT Genius src/lib/financia
 - Admin.tsx: Finance tab mounted (after Numbers).
 Phase 2 (later): fold MRR into revenue, by-month P&L, auto-categorisation rules. Phase 3: forecast.
 RUN: finance_phase1.sql   PUSH: finance.ts, FinanceTab.tsx, Admin.tsx
+
+## #115 — Finance Phase 2: MRR revenue + auto-categorisation
+- finance_phase2.sql: transaction_rules table (match keyword → category, staff RLS);
+  adds revenueSource ('mrr'|'bank', default mrr) to feature_settings 'finance'.
+- finance.ts: FinanceSettings.revenueSource; TxnRule CRUD (listRules/addRule/deleteRule);
+  matchRule + applyRulesToUncoded (tags every uncoded txn whose description contains a rule keyword).
+- FinanceTab: now takes staffSecret; P&L "Revenue from: Membership MRR | Bank credits" toggle.
+  In MRR mode revenue = period membership MRR (from kpis trend) so you don't need membership
+  payments in the bank file; expenses still from bank; net = MRR − bank expenses. periodMrr()
+  sums the right trend months. Transactions sub-tab: "Auto-categorise" button + Rules panel
+  (add keyword→category, list, remove).
+- Admin.tsx: passes staffSecret to FinanceTab.
+Phase 3 (later): forecast.
+RUN: finance_phase2.sql   PUSH: finance.ts, FinanceTab.tsx, Admin.tsx
