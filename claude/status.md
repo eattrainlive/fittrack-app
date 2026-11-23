@@ -1769,3 +1769,22 @@ fob-value formula deferred until data's in).
 Next phases: fob import + 24hr value formula; VAT projection + tax pot; planned future revenue
 (golf sim, yoga) in the forecast; custom date range for backdated months (>12mo).
 RUN: finance_phase4_sites.sql   PUSH: finance.ts, FinanceTab.tsx
+
+## #118 — 24hr fob import + unit value panel
+Analysed Michael's Paxton export (Downloads/"24 hr 28thsep-18th oct.csv", actually 14–27 Sep):
+899 events, 391 granted entries, 57 unique named fob users, ~40% code-only (shared PIN,
+unattributable). Garry Key top (45).
+Built:
+- fob_entries.sql: table (ts, user_name, token, location, event, method token/code/pin, granted),
+  unique(ts,user_name,location) for idempotent re-import, staff RLS.
+- src/lib/fob.ts: parseFobCsv (Paxton format, keeps access events, day-first stamps, method from
+  event text), importFobEntries (upsert, dedup), fobStats (unique users, code-only %, by-hour,
+  by-user, matches "Last, First" → gym_members.full_name → product → plan price = attributed
+  revenue), fobDateBounds.
+- src/components/Fob24hrPanel.tsx: "24hr Unit" sub-tab. Import Paxton CSV; period incl "All
+  imported"; tiles (unique users, entries/day, code-only %, attributed revenue/mo); unit P&L line
+  (attributed rev − 24hr site costs from costsBySite); busiest-hours bar chart; users-by-entries
+  list w/ member match + fee; code-only warning.
+- FinanceTab: "24hr Unit" sub-tab mounted.
+RUN: fob_entries.sql   PUSH: fob.ts, Fob24hrPanel.tsx, FinanceTab.tsx
+Note: value is understated (code-only + unmatched excluded); recommend personal fobs for all.

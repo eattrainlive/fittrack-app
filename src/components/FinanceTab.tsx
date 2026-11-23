@@ -16,8 +16,9 @@ import {
   type RevenueSource, type TxnRule, type CategoryKind, type Site,
 } from "@/lib/finance";
 import { loadKpis } from "@/lib/kpis";
+import { Fob24hrPanel } from "@/components/Fob24hrPanel";
 
-type Sub = "pnl" | "transactions" | "upload" | "forecast";
+type Sub = "pnl" | "transactions" | "upload" | "forecast" | "unit";
 
 // Period → which of the 12 trend months to sum for MRR revenue.
 function periodMrr(trend: { month: string; mrr: number }[], period: FinPeriod): number {
@@ -92,11 +93,11 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
           <p className="text-xs text-muted-foreground">Profit &amp; loss from your bank statement.</p>
         </div>
         <div className="flex gap-1.5">
-          {(["pnl", "forecast", "transactions", "upload"] as Sub[]).map((s) => (
+          {(["pnl", "forecast", "unit", "transactions", "upload"] as Sub[]).map((s) => (
             <button key={s} onClick={() => setSub(s)}
               className={`rounded-full px-3 py-1 text-xs font-medium border transition ${
                 sub === s ? "bg-primary text-primary-foreground border-primary" : "bg-muted/40 text-muted-foreground border-border hover:bg-muted"}`}>
-              {s === "pnl" ? "P&L" : s === "forecast" ? "Forecast" : s === "transactions" ? "Transactions" : "Upload"}
+              {s === "pnl" ? "P&L" : s === "forecast" ? "Forecast" : s === "unit" ? "24hr Unit" : s === "transactions" ? "Transactions" : "Upload"}
             </button>
           ))}
         </div>
@@ -123,6 +124,8 @@ export function FinanceTab({ staffSecret }: { staffSecret: string }) {
                  revSource={revSource} changeRevSource={changeRevSource}
                  vsBreakEven={vsBreakEven} beTarget={beTarget} label={range.label}
                  beInput={beInput} setBeInput={setBeInput} saveBe={saveBe} onGoCode={() => setSub("transactions")} />
+      ) : sub === "unit" ? (
+        <Fob24hrPanel />
       ) : sub === "forecast" ? (
         <ForecastView trend={trend} kindOf={kindOf} breakEven={breakEven} />
       ) : sub === "transactions" ? (
