@@ -232,11 +232,18 @@ export async function setSite(id: string, site: Site): Promise<{ ok: boolean; er
 }
 
 export async function listTransactions(fromISO?: string, toISO?: string): Promise<BankTxn[]> {
-  let q = supabase.from("bank_transactions").select("*").order("txn_date", { ascending: false }).range(0, 9999);
-  if (fromISO) q = q.gte("txn_date", fromISO);
-  if (toISO) q = q.lte("txn_date", toISO);
-  const { data } = await q;
-  return (data as BankTxn[]) ?? [];
+  // Paginate past the 1000-row cap — a year's statement runs to thousands of rows, and a
+  // truncated fetch silently drops transactions from the list AND the P&L totals.
+  const all: BankTxn[] = [];
+  for (let from = 0; ; from += 1000) {
+    let q = supabase.from("bank_transactions").select("*").order("txn_date", { ascending: false }).range(from, from + 999);
+    if (fromISO) q = q.gte("txn_date", fromISO);
+    if (toISO) q = q.lte("txn_date", toISO);
+    const { data } = await q;
+    all.push(...((data as BankTxn[]) ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  return all;
 }
 
 export async function importTransactions(rows: ParsedRow[]): Promise<{ ok: boolean; inserted: number; error?: string }> {
