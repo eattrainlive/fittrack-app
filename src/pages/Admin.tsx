@@ -126,6 +126,7 @@ import { PROG_CATEGORIES, guessCategory } from "@/lib/programCategories";
 import { MembersGrid } from "@/components/MembersGrid";
 import { StaffTodayFeed } from "@/components/StaffTodayFeed";
 import { ContactHub } from "@/components/ContactHub";
+import { NumbersDashboard } from "@/components/NumbersDashboard";
 import { FaultReportCentre } from "@/components/FaultReportCentre";
 import { StaffPlanner } from "@/components/StaffPlanner";
 import { SuppliesBoard } from "@/components/SuppliesBoard";
@@ -2379,6 +2380,7 @@ const Admin = () => {
       >
         <TabsList className="flex w-full max-w-[1300px] overflow-x-auto justify-start h-auto p-1">
           <TabsTrigger value="today">Today</TabsTrigger>
+          <TabsTrigger value="numbers">Numbers</TabsTrigger>
           <TabsTrigger value="contact">Contact</TabsTrigger>
           <TabsTrigger value="planner">Planner</TabsTrigger>
           <TabsTrigger value="checklists">Checklists</TabsTrigger>
@@ -2402,6 +2404,9 @@ const Admin = () => {
         </TabsList>
         <TabsContent value="today" className="space-y-6 mt-6">
           <StaffTodayFeed staffSecret={staffSecret} onGoto={setActiveTab} />
+        </TabsContent>
+        <TabsContent value="numbers" className="space-y-6 mt-6">
+          <NumbersDashboard staffSecret={staffSecret} />
         </TabsContent>
         <TabsContent value="contact" className="space-y-6 mt-6">
           <ContactHub staffSecret={staffSecret} />

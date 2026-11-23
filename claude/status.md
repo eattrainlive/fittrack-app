@@ -1695,3 +1695,18 @@ PUSH: src/lib/store.ts, src/lib/membershipImport.ts, src/components/MembersGrid.
   with no end date) now shows an orange "Review — no clear membership status" label so
   staff can catch stragglers the auto-rules can't classify.
 - No new SQL. Push: src/lib/store.ts, src/components/MembersGrid.tsx
+
+## #112 — "Numbers" KPI tab (PT Genius-style) in staff hub
+Modelled on PT Genius dashboard; metric definitions ported from their src/lib/metrics.ts
+so figures line up. New staff-hub tab between Today and Contact.
+- membership_plan_prices.sql: plan_name→monthly_price table (staff RLS). Revenue needs this.
+- src/lib/kpis.ts: computeMetrics (MRR, avg fee, retention, churn, new/lost, net movement,
+  paused) over gym_members; maps status+manual_inactive+end_date to active/paused/lost;
+  period selector (this/last/3mo/12mo); at-risk via getRetentionBoard (band 'at-risk');
+  listPlans/savePlanPrice for the price editor; priceCoverage warning.
+- src/components/NumbersDashboard.tsx: tiles (revenue, avg fee, active, retention / new, left,
+  net, churn / at-risk, paused, left all-time, members-at-start), period pills, inline plan-price
+  editor (ordered by active count). Levels = live snapshot, flow = selected period.
+- Admin.tsx: Numbers tab mounted.
+Notes: revenue is £0 until plan prices entered; unknown/pending members excluded from counts.
+RUN: membership_plan_prices.sql   PUSH: kpis.ts, NumbersDashboard.tsx, Admin.tsx
