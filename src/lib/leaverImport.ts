@@ -52,17 +52,20 @@ export async function importLeavers(text: string): Promise<LeaverImportResult> {
   };
   if (c.email < 0 || c.cancelled < 0) return { ...base, error: "Missing Email or Cancelled column" };
 
-  // Current roster: email → ids + whether currently live (active/paused → rejoined, skip).
+  // Current roster: email → ids. A leaver is skipped if they're a CURRENT member — identified
+  // by being in the latest pricing file (pricing_source) OR by a live status. The pricing file
+  // is the authoritative active list, so this protects current members even when their status
+  // hasn't been set to 'active' yet.
   const idsByEmail = new Map<string, string[]>();
-  const liveEmails = new Set<string>();
+  const currentEmails = new Set<string>();
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from("gym_members").select("id, email, status").range(from, from + 999);
+    const { data, error } = await supabase.from("gym_members").select("id, email, status, pricing_source").range(from, from + 999);
     if (error) return { ...base, error: error.message };
     for (const r of data || []) {
       const e = norm(r.email || ""); if (!e) continue;
       (idsByEmail.get(e) ?? idsByEmail.set(e, []).get(e)!).push(r.id);
       const st = norm(r.status || "");
-      if (st === "active" || st === "paused") liveEmails.add(e);
+      if (st === "active" || st === "paused" || r.pricing_source === "etl_pricing_file") currentEmails.add(e);
     }
     if (!data || data.length < 1000) break;
   }
@@ -75,7 +78,7 @@ export async function importLeavers(text: string): Promise<LeaverImportResult> {
     const email = norm(cols[c.email] || "");
     if (!email || !email.includes("@")) continue;
     res.rows++;
-    if (liveEmails.has(email)) { res.skippedActive++; continue; } // rejoined — leave their live membership
+    if (currentEmails.has(email)) { res.skippedActive++; continue; } // current member — don't cancel
     const ended = toISODate(cols[c.cancelled] || "");
     if (!ended) res.noDate++;
 

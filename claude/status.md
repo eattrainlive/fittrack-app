@@ -1883,3 +1883,13 @@ PRIVACY: Lapsed CSV has real member PII — NOT committed; importer reads the up
 Order to load: pricing file first (sets current actives), THEN leavers (dates the departures).
 PUSH: src/lib/leaverImport.ts, src/lib/kpis.ts, src/components/NumbersDashboard.tsx
 VERIFY: Left(all-time)≈900+, Nov churn ~3.4% / retention ~96.6%, active still ~649.
+
+## #125 — Fix over-cancel: pricing defaults active, leavers skip current members
+After leaver import active fell to 481 / revenue £27,736 (too low) — leaver import cancelled
+current members whose status wasn't literally 'active'.
+- pricingImport: matched members default to status 'active' (file is current-members; blank/unmapped
+  statuses were leaving people uncounted). Paused/cancelled in file still honoured.
+- leaverImport: skip a leaver if they're a CURRENT member — now keyed on pricing_source
+  'etl_pricing_file' OR live status (not status alone), so the pricing file protects all current members.
+RE-RUN after deploy: pricing file (restores ~649 active) THEN leavers (cancels only true leavers).
+PUSH: src/lib/pricingImport.ts, src/lib/leaverImport.ts

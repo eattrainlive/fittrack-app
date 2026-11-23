@@ -100,8 +100,10 @@ export async function importMemberPricing(text: string): Promise<PricingImportRe
       needs_review: false,
       updated_at: nowIso,
     };
+    // Everyone in the current pricing file IS a current member → active unless the file marks
+    // them paused/cancelled. (Blank/unmapped statuses were leaving members uncounted.)
     const st = c.status >= 0 ? mapStatus(cols[c.status]) : null;
-    if (st) fields.status = st;
+    fields.status = st || "active";
     const jd = c.join >= 0 ? toISODate(cols[c.join]) : null;
     if (jd) fields.joined_on = jd;   // fixes "members at start" / tenure chain
 
