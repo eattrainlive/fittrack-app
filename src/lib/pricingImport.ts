@@ -18,6 +18,13 @@ function splitCsvLine(line: string): string[] {
 const norm = (s: string) => (s || "").toLowerCase().trim();
 const numOrNull = (s: string) => { const t = (s ?? "").trim(); if (t === "") return null; const n = Number(t.replace(/[£,\s]/g, "")); return isNaN(n) ? null : n; };
 const boolOf = (s: string) => /^(true|yes|1|y)$/i.test((s || "").trim());
+function toISODate(s: string): string | null {
+  const t = (s || "").trim(); if (!t) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+  const m = t.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})/);
+  if (m) { let [, dd, mm, yy] = m; if (yy.length === 2) yy = "20" + yy; return `${yy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`; }
+  const d = new Date(t); return isNaN(+d) ? null : d.toISOString().slice(0, 10);
+}
 
 function mapStatus(fileStatus: string): string | null {
   const s = norm(fileStatus);
@@ -45,20 +52,21 @@ export async function importMemberPricing(text: string): Promise<PricingImportRe
     plan: idx("membership_plan"), category: idx("category"), status: idx("membership_status"),
     fee: idx("monthly_price_gbp"), isPaying: idx("is_paying"), zeroReason: idx("zero_price_reason"),
     payer: idx("payer_email"), route: idx("payment_route"), prepaidRenews: idx("prepaid_renews_month"),
+    join: idx("join_date"),
   };
   if (c.email < 0 || c.fee < 0) return { ...base, error: "File missing member_email or monthly_price_gbp column" };
 
-  // Existing roster emails → ids (paginated past the 1000 cap). Track rows already sourced
-  // from a pricing file so we only flag genuine drop-offs, not every app account.
+  // Existing roster emails → ids + current status (paginated past the 1000 cap).
   const emailToIds = new Map<string, string[]>();
-  const pricedEmails = new Set<string>();
+  const liveIdsByEmail = new Map<string, string[]>(); // only active/paused rows (sweep candidates)
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from("gym_members").select("id, email, pricing_source").range(from, from + 999);
+    const { data, error } = await supabase.from("gym_members").select("id, email, status").range(from, from + 999);
     if (error) return { ...base, error: error.message };
     for (const r of data || []) {
       const e = norm(r.email || ""); if (!e) continue;
       (emailToIds.get(e) ?? emailToIds.set(e, []).get(e)!).push(r.id);
-      if (r.pricing_source === "etl_pricing_file") pricedEmails.add(e);
+      const st = norm(r.status || "");
+      if (st === "active" || st === "paused") (liveIdsByEmail.get(e) ?? liveIdsByEmail.set(e, []).get(e)!).push(r.id);
     }
     if (!data || data.length < 1000) break;
   }
@@ -94,6 +102,8 @@ export async function importMemberPricing(text: string): Promise<PricingImportRe
     };
     const st = c.status >= 0 ? mapStatus(cols[c.status]) : null;
     if (st) fields.status = st;
+    const jd = c.join >= 0 ? toISODate(cols[c.join]) : null;
+    if (jd) fields.joined_on = jd;   // fixes "members at start" / tenure chain
 
     const ids = emailToIds.get(email);
     if (ids && ids.length) {
@@ -112,14 +122,21 @@ export async function importMemberPricing(text: string): Promise<PricingImportRe
     }
   }
 
-  // Flag members who were in a PRIOR pricing file but have now dropped out (likely left, or
-  // changed email) — never delete. First import flags nothing, since nothing was priced yet.
-  const absent: string[] = [];
-  for (const [email, ids] of emailToIds) if (pricedEmails.has(email) && !seen.has(email)) absent.push(...ids);
-  for (let i = 0; i < absent.length; i += 500) {
-    const { error } = await supabase.from("gym_members").update({ needs_review: true }).in("id", absent.slice(i, i + 500));
-    if (error) return { ...base, ok: false, error: error.message };
+  // Source-of-truth sweep: the file is the authoritative current-member list. Anyone still
+  // marked active/paused in the app but ABSENT from the file has left — mark them cancelled so
+  // they drop out of the active count. ended_on is left NULL (unknown leave date) so the cleanup
+  // doesn't all land as "this month's leavers" and spike churn. needs_review flags them for a
+  // human (absence can also be a changed email). Reversible. Guarded against a tiny/partial file.
+  if (res.rows >= 50) {
+    const absent: string[] = [];
+    for (const [email, ids] of liveIdsByEmail) if (!seen.has(email)) absent.push(...ids);
+    for (let i = 0; i < absent.length; i += 500) {
+      const { error } = await supabase.from("gym_members")
+        .update({ status: "cancelled", needs_review: true, updated_at: nowIso })
+        .in("id", absent.slice(i, i + 500));
+      if (error) return { ...base, ok: false, error: error.message };
+    }
+    res.flaggedReview = absent.length;
   }
-  res.flaggedReview = absent.length;
   return res;
 }

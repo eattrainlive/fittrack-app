@@ -1855,3 +1855,16 @@ VERIFY in app vs KPI-sheet targets: active 649, MRR £37,771.28, paying 526, £0
 STILL OPEN (roster): leaver/ended backfill — this pricing file is current-members only, carries no
 leavers, so "left all-time/churn" still need the ended history (import source-of-truth w/ an Ended
 export, or a leavers file). Flagged for next.
+
+## #123 — Pricing import now marks cancelled (active→649) + join dates
+After first import: MRR £37,912 (✓), paying 532/£0 123 (✓), paying-avg £71.80 (✓), but Active 719
+(should 649), Left/all-time 0, churn 0 — because nobody marked cancelled.
+- pricingImport source-of-truth sweep: active/paused gym_members ABSENT from the file → status
+  'cancelled' + needs_review (guard: file >=50 rows). ended_on left NULL so the cleanup doesn't
+  spike "this month" churn; they count in Left(all-time) not this period. Reversible / self-heals
+  when a member reappears in next file.
+- Also captures join_date → joined_on (fixes "Members at start" / tenure chain).
+PUSH: src/lib/pricingImport.ts. Re-import the pricing file after deploy to apply the sweep.
+HONEST LIMIT: accurate MONTHLY churn/retention still needs leave DATES (this snapshot has none);
+undated cleanup can't produce "24 left in Nov". Future: dated cancellations (manual mark-as-left,
+or an Ended-with-dates export) drive real monthly churn.
