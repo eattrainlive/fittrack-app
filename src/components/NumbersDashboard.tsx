@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, TrendingUp, PoundSterling, Users, UserMinus, UserPlus, AlertTriangle, Pause, Percent } from "lucide-react";
 import { toast } from "sonner";
+import { ResponsiveContainer, ComposedChart, Area, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { Button } from "@/components/ui/button";
 import {
   loadKpis, listPlans, savePlanPrice, periodRange,
@@ -143,6 +144,34 @@ export function NumbersDashboard({ staffSecret }: { staffSecret: string }) {
             <Tile label="Left (all-time)" value={String(m.lost)} icon={UserMinus} hint="in the Inactive bucket" />
             <Tile label="Members at start" value={String(m.activeAtStart)} icon={Users} hint={`start of ${label.toLowerCase()}`} />
           </div>
+
+          {/* 12-month trend (reconstructed from join/leave dates) */}
+          {data.trend.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold">Last 12 months</h3>
+                <span className="text-[11px] text-muted-foreground">Members (bars) &amp; recurring revenue (line)</span>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <ComposedChart data={data.trend} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="currentColor" className="text-muted-foreground" />
+                  <YAxis yAxisId="members" tick={{ fontSize: 11 }} stroke="currentColor" className="text-muted-foreground" width={32} />
+                  <YAxis yAxisId="mrr" orientation="right" tick={{ fontSize: 11 }} stroke="currentColor" className="text-muted-foreground" width={48}
+                         tickFormatter={(v: number) => gbp(v)} />
+                  <Tooltip
+                    formatter={(val: any, name: any) => (name === "mrr" ? [gbp(Number(val)), "Revenue"] : [val, "Members"])}
+                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  />
+                  <Area yAxisId="members" dataKey="members" fill="hsl(var(--primary))" fillOpacity={0.15} stroke="hsl(var(--primary))" strokeWidth={1.5} />
+                  <Line yAxisId="mrr" dataKey="mrr" stroke="#10b981" strokeWidth={2} dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Reconstructed from join/leave dates on your roster — a membership trend, not verified payment history.
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center gap-3">
             <Button variant="outline" size="sm" onClick={() => setShowPrices((s) => !s)}>

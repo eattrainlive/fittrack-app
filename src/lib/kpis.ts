@@ -105,6 +105,37 @@ export function periodRange(p: KpiPeriod): { from: Date; to: Date; label: string
   return { from, to, label: p === "3mo" ? "Last 3 months" : "Last 12 months" };
 }
 
+// ── Month-by-month trend (reconstructed from join/leave dates) ───────────────
+export interface TrendPoint {
+  month: string; // "Jan 26"
+  members: number; // on the books at month-end
+  mrr: number; // recurring revenue at month-end
+}
+
+/** Members/MRR at each month-end for the last `monthsBack` months, from the roster alone. */
+export function computeTrend(members: KpiMember[], monthsBack = 12): TrendPoint[] {
+  const now = new Date();
+  const points: TrendPoint[] = [];
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
+    let count = 0;
+    let mrr = 0;
+    for (const m of members) {
+      if (!m.start_date) continue;
+      if (new Date(m.start_date) > end) continue; // joined after this month
+      if (m.end_date && new Date(m.end_date) <= end) continue; // already left by this month
+      count++;
+      mrr += Number(m.monthly_fee || 0);
+    }
+    points.push({
+      month: end.toLocaleDateString("en-GB", { month: "short", year: "2-digit" }),
+      members: count,
+      mrr: Math.round(mrr),
+    });
+  }
+  return points;
+}
+
 // ── Roster → KPI members ─────────────────────────────────────────────────────
 const normPlan = (s?: string | null) => String(s || "").trim().toLowerCase();
 
@@ -145,6 +176,7 @@ export interface KpiData {
   atRisk: number | null;
   atRiskMrr: number | null;
   priceCoverage: number; // share of active members that have a plan price (0..1)
+  trend: TrendPoint[]; // last 12 months of members + MRR
 }
 
 /** Load the roster + plan prices, compute all KPIs for the chosen period. */
@@ -187,7 +219,8 @@ export async function loadKpis(period: KpiPeriod, staffSecret?: string): Promise
     }
   }
 
-  return { metrics, atRisk, atRiskMrr, priceCoverage };
+  const trend = computeTrend(members, 12);
+  return { metrics, atRisk, atRiskMrr, priceCoverage, trend };
 }
 
 // ── Plan price editor support ────────────────────────────────────────────────

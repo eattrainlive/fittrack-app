@@ -1710,3 +1710,9 @@ so figures line up. New staff-hub tab between Today and Contact.
 - Admin.tsx: Numbers tab mounted.
 Notes: revenue is £0 until plan prices entered; unknown/pending members excluded from counts.
 RUN: membership_plan_prices.sql   PUSH: kpis.ts, NumbersDashboard.tsx, Admin.tsx
+
+## #113 — Numbers tab: 12-month trend chart
+- kpis.ts computeTrend(members, 12): reconstructs members + MRR at each month-end from
+  join/leave dates on the roster; added to loadKpis → KpiData.trend.
+- NumbersDashboard: ComposedChart (members area + revenue line, recharts) under the tiles.
+- No new SQL. Push: src/lib/kpis.ts, src/components/NumbersDashboard.tsx
