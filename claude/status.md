@@ -1923,3 +1923,8 @@ sweep cancelled active members absent from the pricing file, but the file is PAY
   leavers & manual-left untouched).
 RUN: reactivate_wrongly_cancelled_trialists.sql   PUSH: src/lib/pricingImport.ts
 Immediate: Lauren's "Reactivate" button also fixes her now.
+
+## #129 — Reactivate button did nothing on cancelled members
+Reactivate only cleared manual_inactive_at, so a 'cancelled'-status member (e.g. swept trialist)
+didn't come back. Fixed: reactivate now sets status='active', clears ended_on + manual flags +
+needs_review. REDEPLOY: manage-members.

@@ -489,15 +489,16 @@ serve(async (req) => {
     }
 
     if (action === "reactivate") {
-      // Clear the manual "left" flag — status then follows Quoox again (active if their
-      // membership is live). Access and reports pick them back up immediately.
+      // Bring a member back to active and clear everything that marked them inactive — the manual
+      // "left" flag AND a cancelled status / leave date (e.g. a trialist wrongly swept to cancelled).
+      // Access and reports pick them straight back up.
       const memberRef = String(body.memberRef ?? body.rosterId ?? "");
       if (!memberRef) return json({ error: "memberRef required" }, 400);
       const { error } = await admin.from("gym_members")
-        .update({ manual_inactive_at: null, manual_inactive_by: null })
+        .update({ status: "active", ended_on: null, manual_inactive_at: null, manual_inactive_by: null, needs_review: false, updated_at: new Date().toISOString() })
         .eq("id", memberRef);
       if (error) throw error;
-      return json({ ok: true, manual_inactive_at: null });
+      return json({ ok: true, status: "active", manual_inactive_at: null });
     }
 
     return json({ error: `Unknown action: ${action}` }, 400);
