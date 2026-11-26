@@ -1954,3 +1954,15 @@ XmasChallengeStaff.tsx, Index.tsx, Admin.tsx
   = payment_failed | mandate_cancelled) — no new env/function.
 RUN: payment_flags.sql   REDEPLOY: gymos-webhook edge fn   PUSH: paymentFlags.ts, PaymentIssuesPanel.tsx,
 StaffHubTab.tsx   GHL: add 2 branches + templates (claude/GHL_payment_issues_setup.md)
+
+## Multi-tenant Phase 1b — branding layer
+- branding.ts: Branding type + DEFAULT_BRANDING (ETL) + loadBranding() (reads gyms.branding via
+  current_gym_id RPC, falls back to ETL) + applyBrandingTheme() (sets --primary/--accent/--ring/
+  --sidebar CSS vars). Keeps ETL_LOGO_* exports for back-comat.
+- BrandingProvider (wraps app in App.tsx): applies ETL theme immediately, hydrates gym branding on
+  mount, re-applies theme + sets document.title. useBranding() hook.
+- PoweredByETL / ETLWatermark / ETLBranding now read logo+name+tagline from useBranding() (default ETL).
+- Theme re-skins whole app via CSS vars; defaults = ETL lime, so NO visual change with one tenant.
+- Note: brand.ts (duplicate consts) still used by BlockLeaderboardDialog + Leaderboards — convert later.
+RUN (after foundations): tenant_phase1_foundations.sql, then tenant_phase1b_branding.sql
+PUSH: branding.ts, BrandingProvider.tsx, PoweredByETL.tsx, ETLWatermark.tsx, ETLBranding.tsx, App.tsx

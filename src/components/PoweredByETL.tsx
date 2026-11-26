@@ -1,5 +1,5 @@
-import { ETL_LOGO_ON_DARK, ETL_LOGO_ON_LIGHT } from "@/lib/branding";
 import { cn } from "@/lib/utils";
+import { useBranding } from "@/components/BrandingProvider";
 
 interface PoweredByETLProps {
   className?: string;
@@ -13,6 +13,7 @@ export function PoweredByETL({
   size = "default",
 }: PoweredByETLProps) {
   const isSmall = size === "sm";
+  const branding = useBranding();
 
   return (
     <div
@@ -22,8 +23,8 @@ export function PoweredByETL({
       )}
     >
       <img
-        src={theme === "light" ? ETL_LOGO_ON_LIGHT : ETL_LOGO_ON_DARK}
-        alt="Eat Train Live"
+        src={theme === "light" ? branding.logo_light : branding.logo_dark}
+        alt={branding.brand_name}
         className={cn(
           "object-contain shrink-0",
           isSmall ? "h-4 w-4" : "h-5 w-5",
@@ -37,7 +38,7 @@ export function PoweredByETL({
         )}
       >
         Powered by{" "}
-        <span className="font-semibold text-foreground/80">Eat Train Live</span>
+        <span className="font-semibold text-foreground/80">{branding.brand_name}</span>
       </span>
     </div>
   );
@@ -52,6 +53,7 @@ export function EtlLogoWatermark({
   theme?: "dark" | "light";
   size?: number;
 }) {
+  const branding = useBranding();
   return (
     <div
       className={cn(
@@ -60,14 +62,14 @@ export function EtlLogoWatermark({
       )}
     >
       <img
-        src={theme === "light" ? ETL_LOGO_ON_LIGHT : ETL_LOGO_ON_DARK}
-        alt="Eat Train Live"
+        src={theme === "light" ? branding.logo_light : branding.logo_dark}
+        alt={branding.brand_name}
         style={{ height: `${size}px`, width: `${size}px` }}
         className="object-contain"
         loading="lazy"
       />
       <span className="text-[10px] font-heading uppercase tracking-wider text-muted-foreground font-semibold">
-        Eat Train Live
+        {branding.brand_name}
       </span>
     </div>
   );

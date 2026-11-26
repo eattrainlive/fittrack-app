@@ -1,6 +1,6 @@
 import React from "react";
-import { ETL_LOGO_ON_LIGHT, ETL_LOGO_ON_DARK } from "@/lib/brand";
 import { cn } from "@/lib/utils";
+import { useBranding } from "@/components/BrandingProvider";
 
 interface ETLWatermarkProps {
   theme?: "light" | "dark";
@@ -15,7 +15,8 @@ export function ETLWatermark({
   size = 28,
   className,
 }: ETLWatermarkProps) {
-  const logoSrc = theme === "dark" ? ETL_LOGO_ON_DARK : ETL_LOGO_ON_LIGHT;
+  const branding = useBranding();
+  const logoSrc = theme === "dark" ? branding.logo_dark : branding.logo_light;
 
   const positionClasses = {
     "top-right": "top-3 right-3",

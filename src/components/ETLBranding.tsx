@@ -1,6 +1,6 @@
 import React from "react";
-import { ETL_LOGO_ON_LIGHT, ETL_LOGO_ON_DARK, ETL_TAGLINE } from "@/lib/brand";
 import { cn } from "@/lib/utils";
+import { useBranding } from "@/components/BrandingProvider";
 export { ETLWatermark } from "@/components/ETLWatermark";
 
 interface PoweredByETLProps {
@@ -14,7 +14,8 @@ export function PoweredByETL({
   className,
   size = "sm",
 }: PoweredByETLProps) {
-  const logoSrc = theme === "dark" ? ETL_LOGO_ON_DARK : ETL_LOGO_ON_LIGHT;
+  const branding = useBranding();
+  const logoSrc = theme === "dark" ? branding.logo_dark : branding.logo_light;
 
   const iconSizes = {
     sm: "h-4 w-auto",
@@ -37,7 +38,7 @@ export function PoweredByETL({
     >
       <img
         src={logoSrc}
-        alt="Eat Train Live"
+        alt={branding.brand_name}
         className={cn("object-contain shrink-0", iconSizes[size])}
       />
       <span
@@ -47,7 +48,7 @@ export function PoweredByETL({
           textSizes[size],
         )}
       >
-        {ETL_TAGLINE}
+        {branding.tagline}
       </span>
     </div>
   );
@@ -60,13 +61,14 @@ export function ETLLogoHeader({
   theme?: "light" | "dark";
   className?: string;
 }) {
-  const logoSrc = theme === "dark" ? ETL_LOGO_ON_DARK : ETL_LOGO_ON_LIGHT;
+  const branding = useBranding();
+  const logoSrc = theme === "dark" ? branding.logo_dark : branding.logo_light;
 
   return (
     <div className={cn("flex flex-col items-center text-center", className)}>
       <img
         src={logoSrc}
-        alt="Eat Train Live"
+        alt={branding.brand_name}
         className="w-32 md:w-36 h-auto object-contain mx-auto transition-transform hover:scale-105"
       />
     </div>

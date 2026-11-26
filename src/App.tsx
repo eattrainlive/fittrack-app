@@ -36,6 +36,7 @@ import NewsletterAdmin from "./pages/NewsletterAdmin";
 import ErgChallengePage from "./pages/ErgChallengePage";
 import Feed from "./pages/Feed";
 import { ParqGate } from "./components/ParqGate";
+import { BrandingProvider } from "./components/BrandingProvider";
 
 import { useEffect, useState } from "react";
 import { syncFromSupabase, syncProfile } from "./lib/store";
@@ -278,15 +279,17 @@ const AppContent = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AppErrorBoundary>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </AppErrorBoundary>
-      </TooltipProvider>
+      <BrandingProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <AppErrorBoundary>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </AppErrorBoundary>
+        </TooltipProvider>
+      </BrandingProvider>
     </QueryClientProvider>
   );
 };
