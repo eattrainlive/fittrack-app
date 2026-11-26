@@ -1966,3 +1966,14 @@ StaffHubTab.tsx   GHL: add 2 branches + templates (claude/GHL_payment_issues_set
 - Note: brand.ts (duplicate consts) still used by BlockLeaderboardDialog + Leaderboards — convert later.
 RUN (after foundations): tenant_phase1_foundations.sql, then tenant_phase1b_branding.sql
 PUSH: branding.ts, BrandingProvider.tsx, PoweredByETL.tsx, ETLWatermark.tsx, ETLBranding.tsx, App.tsx
+
+## Multi-tenant Phase 2 — gym_id on content/engagement tables (additive)
+- tenant_phase2_gym_id.sql: adds gym_id text not null default 'etl' (FK gyms) + index to 48 tenant
+  tables (programmes, workouts, challenges, scans, nutrition, member profile, community, resources,
+  staff hub, gym_members, member_links). Guarded (skips missing tables), re-runnable.
+- PURELY ADDITIVE: existing rows backfill to 'etl', NO RLS change, live app unaffected.
+- NOT in this file: feature_settings (needs composite gym_id+key PK, touches xmas-challenge fn);
+  retention/finance/acc_* (stay ETL-only, PT Genius layer).
+- NEXT = Phase 2b (the careful one): flip RLS to gym_id = current_gym_id(), stamp gym_id on INSERT in
+  app/edge functions, test cross-tenant isolation behind a 2nd test tenant before any real gym.
+RUN (after foundations): tenant_phase2_gym_id.sql
