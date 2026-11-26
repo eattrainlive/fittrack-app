@@ -10,6 +10,33 @@ export function XmasChallengeCard() {
   useEffect(() => { getMyChallenge().then(setC).catch(() => {}); }, []);
 
   if (!c || !c.enabled) return null;
+  // Hide only after the challenge is well over (end + short grace so the final
+  // tally and raffle winner still show). Before the start date we show a preview.
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const graceEnd = new Date(c.end + "T00:00:00Z"); graceEnd.setUTCDate(graceEnd.getUTCDate() + 10);
+  if (todayStr > graceEnd.toISOString().slice(0, 10)) return null;
+
+  // Pre-launch preview: challenge switched on but not started yet → show the rules, not a tracker.
+  if (todayStr < c.start) {
+    const starts = new Date(c.start + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+    return (
+      <div className="rounded-2xl border border-red-500/30 bg-gradient-to-br from-red-500/10 to-emerald-500/10 p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Gift className="h-5 w-5 text-red-600 dark:text-red-400" />
+          <div>
+            <div className="font-bold text-sm">{c.title}</div>
+            <div className="text-[11px] font-semibold text-red-600 dark:text-red-400">Starts {starts} 🎄</div>
+          </div>
+        </div>
+        <div className="text-xs text-muted-foreground space-y-1.5">
+          <p>Get <span className="font-semibold text-foreground">{c.target} active days</span> between {new Date(c.start + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short" })} and {new Date(c.end + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short" })} to enter the raffle for a free {c.prize}.</p>
+          <p>Each day counts once — a <span className="font-medium text-foreground">gym scan</span>, a <span className="font-medium text-foreground">24hr visit</span>, or a <span className="font-medium text-foreground">booked class/PT</span>. Cancel a session and that day drops off.</p>
+          <p className="text-[11px]">Your tracker appears here on {starts}. Good luck! 🎁</p>
+        </div>
+      </div>
+    );
+  }
+
   const done = new Set(c.days);
   const pct = Math.min(100, Math.round((c.count / c.target) * 100));
   const all = challengeDays(c.start, c.end);
