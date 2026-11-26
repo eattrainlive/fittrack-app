@@ -128,6 +128,7 @@ import { StaffTodayFeed } from "@/components/StaffTodayFeed";
 import { ContactHub } from "@/components/ContactHub";
 import { NumbersDashboard } from "@/components/NumbersDashboard";
 import { FinanceTab } from "@/components/FinanceTab";
+import { XmasChallengeStaff } from "@/components/XmasChallengeStaff";
 import { FaultReportCentre } from "@/components/FaultReportCentre";
 import { StaffPlanner } from "@/components/StaffPlanner";
 import { SuppliesBoard } from "@/components/SuppliesBoard";
@@ -2405,6 +2406,7 @@ const Admin = () => {
           <TabsTrigger value="parq">PAR-Q</TabsTrigger>
         </TabsList>
         <TabsContent value="today" className="space-y-6 mt-6">
+          <XmasChallengeStaff staffSecret={staffSecret} />
           <StaffTodayFeed staffSecret={staffSecret} onGoto={setActiveTab} />
         </TabsContent>
         <TabsContent value="numbers" className="space-y-6 mt-6">

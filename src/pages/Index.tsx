@@ -44,6 +44,7 @@ import { MemberGoalsCard } from "@/components/MemberGoalsCard";
 import { CheckInHeaderButton } from "@/components/CheckInHeaderButton";
 import { AccountabilityCard } from "@/components/AccountabilityCard";
 import TodayHabitsCard from "@/components/TodayHabitsCard";
+import { XmasChallengeCard } from "@/components/XmasChallengeCard";
 import ErgChallengeCard from "@/components/ErgChallengeCard";
 import {
   getActiveCohort,
@@ -375,6 +376,8 @@ const Index = () => {
           </button>
         </div>
       )}
+
+      <XmasChallengeCard />
 
       <AccountabilityCard />
 

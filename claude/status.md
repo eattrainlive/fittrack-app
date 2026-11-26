@@ -1928,3 +1928,18 @@ Immediate: Lauren's "Reactivate" button also fixes her now.
 Reactivate only cleared manual_inactive_at, so a 'cancelled'-status member (e.g. swept trialist)
 didn't come back. Fixed: reactivate now sets status='active', clears ended_on + manual flags +
 needs_review. REDEPLOY: manage-members.
+
+## #130 — Christmas challenge (12 active days → hoodie raffle)
+Window 1–24 Dec, target 12. A day counts if member has a GRANTED gym/24hr scan OR a non-cancelled
+class/PT booking (one per day; cancels drop off). Decisions: booked-counts (not attend-only);
+member sees BOTH home card + calendar; app draws the winner.
+- xmas_challenge.sql: feature_settings 'xmas_challenge' (enabled/title/start/end/target/prize) +
+  xmas_raffle table (winner record; staff write, members read winner).
+- edge fn xmas-challenge: member mode (own JWT → progress + days), staff mode (staffSecret →
+  leaderboard), action:draw → random winner from qualifiers saved to xmas_raffle. All reads
+  paginated. Reads scan_events(granted)+member_bookings(!cancelled) in window.
+- xmasChallenge.ts lib; XmasChallengeCard (member home: progress bar, X/12, calendar grid, raffle
+  status) mounted on Index; XmasChallengeStaff (leaderboard + Draw winner) mounted on Admin Today tab.
+- Card/panel render nothing unless enabled (so it only shows when switched on / in December).
+RUN: xmas_challenge.sql   DEPLOY: xmas-challenge edge fn   PUSH: xmasChallenge.ts, XmasChallengeCard.tsx,
+XmasChallengeStaff.tsx, Index.tsx, Admin.tsx
