@@ -1,4 +1,5 @@
 import { StaffHubCallLists } from "./StaffHubCallLists";
+import { PaymentIssuesPanel } from "./PaymentIssuesPanel";
 import { useStaffHubData } from "@/lib/useStaffHubData";
 
 /**
@@ -10,6 +11,7 @@ export function StaffHubTab({ staffSecret }: { staffSecret: string }) {
 
   return (
     <div className="space-y-4">
+      <PaymentIssuesPanel />
       <h3 className="font-heading text-lg tracking-wide">Call lists</h3>
       <StaffHubCallLists
         data={data}

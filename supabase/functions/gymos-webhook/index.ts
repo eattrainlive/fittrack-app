@@ -146,10 +146,14 @@ async function processEvent(db: any, body: any) {
   // for the event (they stay "Active"/"Satisfactory"), so route on eventType only.
   const isPayment = /payment/.test(evt);
   const paymentFailed = isPayment && /(fail|declin|unpaid|missed|error|reject|overdue|bounce)/.test(evt);
-  const isPause  = !isPayment && /(paus|frozen|freeze|suspend|\bhold)/.test(evt);
+  // A cancelled DIRECT DEBIT MANDATE is NOT a membership cancellation — the member
+  // keeps their plan, they've just lost the way to pay for it. Detect it first so the
+  // word "cancelled" in the event type doesn't trip the membership-cancel branch below.
+  const isMandateCancel = /mandate/.test(evt) && /(cancel|terminat|revok|\bend|remov)/.test(evt);
+  const isPause  = !isPayment && !isMandateCancel && /(paus|frozen|freeze|suspend|\bhold)/.test(evt);
   const pauseEnded = isPause && /(end|complet|finish|resume|recommenc|restart|expire)/.test(evt);
-  const isCancel = !isPayment && !isPause && /(cancel|terminat|expir|lapse)/.test(evt);
-  const isJoin   = !isPayment && !isPause && /(add|creat|new|join|\bstart|reactivat|renew|\bactive|resumed)/.test(evt);
+  const isCancel = !isPayment && !isPause && !isMandateCancel && /(cancel|terminat|expir|lapse)/.test(evt);
+  const isJoin   = !isPayment && !isPause && !isMandateCancel && /(add|creat|new|join|\bstart|reactivat|renew|\bactive|resumed)/.test(evt);
 
   // Always keep the roster row fresh (mirror). Never invents status.
   const memberRow: any = {
@@ -212,6 +216,36 @@ async function processEvent(db: any, body: any) {
                 amount: membership.costPerPaymentPeriod ?? null,
                 event_type: body.eventType, event_ts: eventTs, raw: body },
         { onConflict: "event_key", ignoreDuplicates: true });
+  }
+  if (isMandateCancel) {
+    // History row (so it shows in the member's payment timeline), then the flag below.
+    await db.from("payment_events")
+      .upsert({ event_key: eventKey, member_ref: ref, gymos_member_id: gymosId,
+                result: "mandate_cancelled", amount: null,
+                event_type: body.eventType, event_ts: eventTs, raw: body },
+        { onConflict: "event_key", ignoreDuplicates: true });
+  }
+
+  // ── Payment-issue flag (drives the Staff Hub "Payment issues" panel) ───────
+  // A failed payment or a cancelled mandate raises an OPEN flag for Carla to work
+  // off. One live flag per member+issue: a repeat event refreshes the timestamp and
+  // re-opens it (so a fresh failure after a "resolved" comes back onto the list).
+  const issueType = (paymentFailed ? "payment_failed" : isMandateCancel ? "mandate_cancelled" : null);
+  if (issueType && (email || gymosId)) {
+    try {
+      const { data: prev } = await db.from("payment_flags")
+        .select("id, whatsapp_sent, status").eq("member_ref", ref).eq("issue_type", issueType).maybeSingle();
+      const reopened = !prev || prev.status === "resolved";
+      await db.from("payment_flags").upsert({
+        member_ref: ref, email: email ?? null, full_name: member.fullName ?? null,
+        issue_type: issueType,
+        amount: issueType === "payment_failed" ? (membership.costPerPaymentPeriod ?? null) : null,
+        source: "gymos", status: "open",
+        last_event_ts: eventTs, updated_at: nowIso,
+        // a brand-new or re-opened flag needs contacting afresh
+        ...(reopened ? { whatsapp_sent: false, last_outcome: null, resolved_by: null, resolved_at: null } : {}),
+      }, { onConflict: "member_ref,issue_type" });
+    } catch (e) { console.error("payment_flags upsert:", (e as Error).message); }
   }
 
   // ── Trial cohort tracking (for the Current Trialists board) ────────────────

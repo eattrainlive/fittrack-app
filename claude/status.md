@@ -1943,3 +1943,14 @@ member sees BOTH home card + calendar; app draws the winner.
 - Card/panel render nothing unless enabled (so it only shows when switched on / in December).
 RUN: xmas_challenge.sql   DEPLOY: xmas-challenge edge fn   PUSH: xmasChallenge.ts, XmasChallengeCard.tsx,
 XmasChallengeStaff.tsx, Index.tsx, Admin.tsx
+
+## Payment issues panel (Carla's Staff Hub)
+- Failed payments + cancelled DD mandates flag to Carla; one-tap WhatsApp follow-up + mark resolved.
+- gymos-webhook: NEW mandate-cancel classification (does NOT cancel membership); writes payment_flags
+  (open) on payment failure + mandate cancel; mandate also logged to payment_events (result='mandate_cancelled').
+- payment_flags table (open/resolved, whatsapp_sent, manual add), RLS is_staff. paymentFlags.ts hook +
+  two message templates. PaymentIssuesPanel (list, issue badges, send/copy/resolve, manual add, resolved
+  section) mounted top of StaffHubTab (Call lists tab). Follow-up reuses staffhub-whatsapp proxy (list_type
+  = payment_failed | mandate_cancelled) — no new env/function.
+RUN: payment_flags.sql   REDEPLOY: gymos-webhook edge fn   PUSH: paymentFlags.ts, PaymentIssuesPanel.tsx,
+StaffHubTab.tsx   GHL: add 2 branches + templates (claude/GHL_payment_issues_setup.md)
